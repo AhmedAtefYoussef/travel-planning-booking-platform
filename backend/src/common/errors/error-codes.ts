@@ -1,0 +1,27 @@
+/**
+ * Machine-readable error codes returned in every error body (`code`). The frontend switches on these,
+ * never on message text. Modules add their own domain codes here (one shared catalogue, no duplicates).
+ */
+export const ErrorCode = {
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  INVALID_ID: 'INVALID_ID',
+  BAD_REQUEST: 'BAD_REQUEST',
+  UNAUTHENTICATED: 'UNAUTHENTICATED',
+  FORBIDDEN: 'FORBIDDEN',
+  NOT_FOUND: 'NOT_FOUND',
+  CONFLICT: 'CONFLICT',
+  DUPLICATE_KEY: 'DUPLICATE_KEY',
+  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
+  UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
+  TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
+  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  // Domain codes (owners extend this list in their PRs).
+  EXCHANGE_RATE_UNAVAILABLE: 'EXCHANGE_RATE_UNAVAILABLE',
+  HOLD_EXPIRED: 'HOLD_EXPIRED',
+  INSUFFICIENT_INVENTORY: 'INSUFFICIENT_INVENTORY',
+  INVALID_STATE_TRANSITION: 'INVALID_STATE_TRANSITION',
+  POLICIES_NOT_ACCEPTED: 'POLICIES_NOT_ACCEPTED',
+} as const;
+
+export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
