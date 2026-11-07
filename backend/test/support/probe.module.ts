@@ -35,6 +35,7 @@ import {
   PaginationQueryDto,
 } from '../../src/common/pagination/pagination';
 import { ParseObjectIdPipe } from '../../src/common/pipes/parse-object-id.pipe';
+import { Public } from '../../src/common/auth/auth.decorators';
 
 @Schema({ collection: 'probe_items', timestamps: true })
 class ProbeItem {
@@ -57,6 +58,8 @@ class CreateProbeDto {
   passengers!: PassengerDto[];
 }
 
+// Public: these routes test validation/errors/pagination, not authentication.
+@Public()
 @Controller('__probe')
 class ProbeController {
   constructor(

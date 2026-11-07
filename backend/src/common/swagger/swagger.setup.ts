@@ -5,6 +5,8 @@ import { PaginatedResponseDto } from '../pagination/pagination';
 
 export const SWAGGER_PATH = 'api/docs';
 export const AUTH_COOKIE = 'access_token';
+/** Temporary stub-auth header (TRVL-131); removed together with AuthStubGuard in ACC-11. */
+export const DEV_USER_SECURITY = 'dev-user';
 
 export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
@@ -24,6 +26,16 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
       AUTH_COOKIE,
       { type: 'apiKey', in: 'cookie', name: AUTH_COOKIE },
       AUTH_COOKIE,
+    )
+    .addApiKey(
+      {
+        type: 'apiKey',
+        in: 'header',
+        name: 'x-dev-user',
+        description:
+          'TEMPORARY stub auth (AUTH_STUB=true, non-production): ROLE[:userId[:providerId]], e.g. ADMIN, USER, HOTEL_MODERATOR:<userId>:<hotelId>',
+      },
+      DEV_USER_SECURITY,
     )
     .build();
   return SwaggerModule.createDocument(app, config, {
