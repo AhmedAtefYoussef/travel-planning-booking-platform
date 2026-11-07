@@ -205,4 +205,4 @@ jobs:
       - name: actionlint
         uses: raven-actions/actionlint@v2
       - name: Governance script tests
-        run: node --test .github/scripts/
+        run: node --test .github/scripts/*.test.mjs

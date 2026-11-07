@@ -109,3 +109,11 @@ test('template hints in HTML comments do not count as content', async () => {
   assert.match(errors, /Summary/);
   assert.match(errors, /Unchecked checklist/);
 });
+
+test('stripHtmlComments removes nested and unterminated comments', async () => {
+  const { stripHtmlComments } = await import('./pr-rules.mjs');
+  assert.equal(stripHtmlComments('a<!-- x -->b'), 'ab');
+  assert.equal(stripHtmlComments('a<!<!-- -->-- hidden -->b'), 'ab');
+  assert.equal(stripHtmlComments('a<!-- never closed'), 'a');
+  assert.equal(stripHtmlComments(undefined), '');
+});

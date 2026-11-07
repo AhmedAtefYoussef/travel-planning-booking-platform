@@ -27,9 +27,9 @@
     "verify": "npm run format:check && npm run lint:ci && npm run typecheck && npm run test:cov && npm run test:e2e && npm run build && npm run openapi:generate && npm run openapi:check && npm run arch:check"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.1",
-    "@nestjs/core": "^11.0.1",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/common": "^11.2.8",
+    "@nestjs/core": "^11.2.8",
+    "@nestjs/platform-express": "^11.2.8",
     "@nestjs/swagger": "^11.4.8",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
@@ -39,7 +39,7 @@
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
-    "@nestjs/testing": "^11.0.1",
+    "@nestjs/testing": "^11.2.8",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
@@ -90,5 +90,8 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "multer": "^2.5.0"
   }
 }

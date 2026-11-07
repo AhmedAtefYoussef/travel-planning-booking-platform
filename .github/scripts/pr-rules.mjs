@@ -33,6 +33,21 @@ export function uncheckedChecklistItems(body) {
     .map((l) => l.replace(/^\s*[-*]\s+\[ \]\s+/, '').trim());
 }
 
+/**
+ * Removes HTML comments (template hints). Repeats until stable so nested or overlapping markers such
+ * as "<!<!-- -->-- x -->" cannot leave a comment behind, then drops any unterminated "<!--" tail.
+ */
+export function stripHtmlComments(text) {
+  let previous;
+  let out = text ?? '';
+  do {
+    previous = out;
+    out = out.replace(/<!--[\s\S]*?-->/g, '');
+  } while (out !== previous);
+  const open = out.indexOf('<!--');
+  return open === -1 ? out : out.slice(0, open);
+}
+
 /** "AI-assisted: yes|no" line from the PR template. */
 export function aiAssisted(body) {
   const m = /^\s*AI-assisted:\s*\**\s*(yes|no)\b/im.exec(body ?? '');
@@ -48,7 +63,7 @@ export function evaluatePullRequest(pr) {
   const errors = [];
   const warnings = [];
   // Template hints live in HTML comments; they must not count as content (e.g. example IDs).
-  const body = (pr.body ?? '').replace(/<!--[\s\S]*?-->/g, '');
+  const body = stripHtmlComments(pr.body ?? '');
   const kind = classifyBranch(pr.head);
   const labels = new Set(pr.labels ?? []);
   const changed = pr.changedFiles ?? [];
@@ -98,7 +113,7 @@ export function evaluatePullRequest(pr) {
   } else if (unchecked.length) {
     errors.push(`Unchecked checklist item(s) (tick them or mark "N/A" and tick): ${unchecked.map((i) => `"${i}"`).join('; ')}`);
   }
-  const summary = /^##\s*Summary\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(body)?.[1].replace(/<!--[\s\S]*?-->/g, '').trim();
+  const summary = /^##\s*Summary\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(body)?.[1].trim();
   if (!summary || summary.length < 20) {
     errors.push('Fill in the "## Summary" section (what changed and why, at least one sentence).');
   }
