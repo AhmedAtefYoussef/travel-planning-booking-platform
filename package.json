@@ -1,0 +1,19 @@
+{
+  "name": "travel-planning-booking-platform",
+  "private": true,
+  "description": "Travel Planning and Booking Platform (GIU Software Project I, Winter 2026): repo-level tooling only (git hooks, commit linting). App code lives in backend/ and frontend/.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "commitlint": "commitlint"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2"
+  }
+}

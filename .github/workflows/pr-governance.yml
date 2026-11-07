@@ -1,0 +1,92 @@
+name: PR governance
+
+# Enforces the team's GitHub workflow (brief sections 2, 10 and 11) on every pull request:
+# Conventional Commit PR titles and commits, branch naming, merge direction, Jira + requirement
+# traceability, a complete PR template, no env files, AI prompt log and traceability-matrix upkeep.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    branches: [develop, main]
+
+concurrency:
+  group: pr-governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pr-governance:
+    name: pr-governance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: PR title is a Conventional Commit
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            perf
+            test
+            docs
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).{8,}$
+          subjectPatternError: |
+            The subject "{subject}" must start lowercase and be at least 8 characters,
+            e.g. "feat(flights): add round-trip search [FLT-12]".
+
+      - name: Install commitlint
+        run: npm ci
+
+      - name: Every commit follows Conventional Commits
+        if: github.event.pull_request.user.type != 'Bot'
+        run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+
+      - name: Branch, traceability, template, env files, AI log
+        run: node .github/scripts/check-pr.mjs
+
+  size-label:
+    name: size-label
+    runs-on: ubuntu-latest
+    # Labels need write access, which PRs from forks do not get; teammates push branches to this repo.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_max_size: '30'
+          s_max_size: '150'
+          m_max_size: '500'
+          l_max_size: '1000'
+          fail_if_xl: 'false'
+          message_if_xl: >
+            This PR is very large. Brief section 10.5 asks for PRs that contain only related changes;
+            consider splitting it so the team leader can review it properly.
+          files_to_ignore: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+            docs/requirements/requirements.json

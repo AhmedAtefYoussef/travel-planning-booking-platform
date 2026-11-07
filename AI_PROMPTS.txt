@@ -1,0 +1,32 @@
+AI PROMPT LOG (mandatory, brief section 11.1)
+Record every prompt that materially contributed to the submitted project, newest at the bottom.
+Never include passwords, tokens, connection strings or other credentials in a prompt or in this file.
+
+Entry format:
+================================================
+Date: YYYY-MM-DD
+Student: Full Name
+Tool: ChatGPT / Claude / Copilot / Gemini / ...
+Related Requirement: e.g. FLT-22 (or the Jira key for setup tasks)
+Prompt:
+<the prompt, or a summary of a multi-turn conversation>
+How the output was used:
+<what you kept, what you changed, what you rejected>
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-129 (repository scaffold, branches and protection rules)
+Prompt:
+Analyze the project description and the official requirements workbook, read my Sprint 0 Jira tasks,
+plan their implementation, and build GitHub Actions workflows that automate validation and verification
+of every pull request against the project description.
+How the output was used:
+Generated the NestJS scaffold, ESLint/Prettier/husky/commitlint setup, the PR template, CODEOWNERS and
+the CI workflows (ci.yml, pr-governance.yml, security.yml, dependabot.yml) together with their rule
+scripts and unit tests. I reviewed the rules against brief sections 2, 10 and 11 and the Jira
+Definition of Done, ran every check locally, and adjusted the branch and scope conventions to the team's
+Jira keys before committing.
+================================================
