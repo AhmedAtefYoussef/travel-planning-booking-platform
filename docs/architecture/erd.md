@@ -49,8 +49,8 @@ erDiagram
 |---|---|---|---|
 | `users` | Abdelrahman (TRVL-137) | email, passwordHash, role, status, assignedProvider{type, providerId}, preferredCurrency, failedLoginCount, lockedUntil | unique `email` (lowercased) |
 | `sessions` | Abdelrahman (TRVL-137) | userId, refreshTokenHash, lastActivityAt, expiresAt, revokedAt | TTL on `expiresAt` |
-| `airlines` | Joudy (TRVL-138) | name, code, logoUrl, isActive, policy{cancellationTiers, extraBaggage} | unique `code` |
-| `flights` | Joudy (TRVL-138) | airlineId, flightNumber, from/to IATA, departureUtc, arrivalUtc, status, cabins[{class, totalSeats, seatsAvailable, priceMinor, freeBags, maxKgPerBag}] | {from, to, departureUtc}; seats decremented with a conditional `$inc` (ADR-0002) |
+| `airlines` | Joudy (TRVL-138), **implemented** | name, code, logoUrl, isActive, policy{cancellationTiers[{daysBefore, refundPercent}], extraBaggage{pricePerBagMinor, maxExtraBagsPerPassenger}} | unique `code` |
+| `flights` | Joudy (TRVL-138), **implemented** | airlineId, flightNumber, from/to IATA, departureUtc, arrivalUtc, departureLocalDate (origin-local YYYY-MM-DD), status (SCHEDULED, CANCELLED, DEPARTED), cabins[{_id, class, totalSeats, seatsAvailable, priceMinor, freeBags, maxKgPerBag}] | unique {airlineId, flightNumber, departureLocalDate} (FLT-03); {from, to, status, departureUtc} (FLT-11 search); {status, departureUtc} (FLT-30); seats decremented with a conditional `$inc` (ADR-0002); booked + held = totalSeats - seatsAvailable |
 | `flight_bookings` | Karim (TRVL-139) | userId, segments[], passengers[], totalMinor, status, holdExpiresAt, policySnapshot, policiesAcceptedAt, paymentId, refundId, reference | unique `reference` (sparse); {status, holdExpiresAt}; {userId, createdAt} |
 | `hotels` | Sandra (TRVL-140) | name, cityId, countryCode, images, isActive, policy{cancellationTiers, checkInTime, checkOutTime}, averageRating | {cityId, isActive} |
 | `rooms` | Sandra (TRVL-140) | hotelId, number, type, beds, maxOccupancy, priceMinor, isActive | unique {hotelId, number} |

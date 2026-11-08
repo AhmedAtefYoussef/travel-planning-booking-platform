@@ -4,6 +4,7 @@ import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AuditModule } from './modules/audit';
 import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
+import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
@@ -21,6 +22,7 @@ import { ReferenceModule } from './modules/reference';
     AuditModule,
     PaymentsModule,
     ReferenceModule,
+    FlightsModule,
     // Dev-only Swagger demos; evaluated after AppConfigModule has loaded .env into process.env.
     ...(diagnosticsEnabled(process.env.NODE_ENV) ? [DiagnosticsModule] : []),
   ],

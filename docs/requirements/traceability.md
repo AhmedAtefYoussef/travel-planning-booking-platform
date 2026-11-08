@@ -13,6 +13,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 - **HTL-09** (check-in/check-out times) is served by `PUT /api/hotels/:id/policies`; the brief maps that endpoint to HTL-08.
 - `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
 - Brief section 5.1 seeds attractions while GEN-12 lists currencies: both are seeded.
+- The `airlines` and `flights` schemas (TRVL-138, Jira setup task, not a workbook ID) back FLT-01, FLT-03, FLT-04, FLT-08, FLT-09, FLT-22 and FLT-30. Each of those rows changes status when its own endpoints land.
 
 ## Accounts & Admin
 
