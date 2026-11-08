@@ -8,6 +8,7 @@ import {
   cancellationTierErrors,
   selectCancellationTier,
 } from './policies.contract';
+import { InvalidInputError } from '../errors/invalid-input.error';
 import { computeRefundQuote, RefundReason } from './refunds.contract';
 
 describe('booking lifecycle (GEN-11)', () => {
@@ -132,7 +133,7 @@ describe('computeRefundQuote (FLT-26, HTL-21, FLT-06)', () => {
         eventStartUtc: now,
         reason: RefundReason.UserCancellation,
       }),
-    ).toThrow(/not allowed/);
+    ).toThrow(InvalidInputError);
   });
 
   it('always refunds 100% for provider cancellations', () => {

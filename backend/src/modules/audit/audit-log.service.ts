@@ -9,7 +9,9 @@ const SENSITIVE_KEY = /pass(word)?|secret|token|hash|card|cvc|cvv/i;
 
 /** Drops secret-looking keys so an audit entry can never leak credentials. */
 export function sanitizeMetadata(value: unknown, depth = 0): unknown {
-  if (depth > 4 || value === null || typeof value !== 'object') return value;
+  if (value === null || typeof value !== 'object') return value;
+  // Too deep to inspect safely: drop it rather than risk storing an unchecked secret.
+  if (depth > 4) return '[truncated]';
   if (Array.isArray(value))
     return value.map((v) => sanitizeMetadata(v, depth + 1));
   return Object.fromEntries(

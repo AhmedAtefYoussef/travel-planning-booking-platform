@@ -17,12 +17,14 @@ describe('sanitizeMetadata (audit entries never store secrets)', () => {
     });
   });
 
-  it('passes primitives through and stops at a safe depth', () => {
+  it('passes primitives through and truncates anything too deep to check', () => {
     expect(sanitizeMetadata('x')).toBe('x');
     expect(sanitizeMetadata(null)).toBeNull();
     const deep = {
-      a: { b: { c: { d: { e: { password: 'kept-beyond-depth' } } } } },
+      a: { b: { c: { d: { e: { password: 'never-stored' } } } } },
     };
-    expect(sanitizeMetadata(deep)).toEqual(deep);
+    expect(sanitizeMetadata(deep)).toEqual({
+      a: { b: { c: { d: { e: '[truncated]' } } } },
+    });
   });
 });

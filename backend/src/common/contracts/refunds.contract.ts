@@ -1,5 +1,6 @@
 import type { ClientSession } from 'mongoose';
 import type { BookingType } from './booking.contract';
+import { InvalidInputError } from '../errors/invalid-input.error';
 import { daysBefore } from '../utils/dates';
 import { percentOfMinor } from '../utils/money';
 import {
@@ -94,7 +95,7 @@ export function computeRefundQuote(input: RefundQuoteInput): RefundQuote {
     };
   }
   if (input.eventStartUtc.getTime() <= now.getTime()) {
-    throw new RangeError(
+    throw new InvalidInputError(
       'Cancellation is not allowed after departure or check-in',
     );
   }

@@ -56,6 +56,22 @@ for (const op of [
   'deleteOne',
   'deleteMany',
   'findOneAndDelete',
+  'findOneAndReplace',
 ] as const) {
   AuditLogSchema.pre(op, blockMutation);
 }
+// Document-level: saving an already-persisted entry would overwrite it.
+AuditLogSchema.pre('save', function () {
+  if (!this.isNew) blockMutation();
+});
+// Model.bulkWrite bypasses query middleware; allow only inserts through it.
+AuditLogSchema.pre(
+  'bulkWrite',
+  function (next: (err?: Error) => void, ops: Array<Record<string, unknown>>) {
+    if (ops.some((op) => !('insertOne' in op))) {
+      next(new Error('audit_logs is append-only'));
+      return;
+    }
+    next();
+  },
+);

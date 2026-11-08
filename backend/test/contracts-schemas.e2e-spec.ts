@@ -86,6 +86,16 @@ describe('Contracts and schemas (e2e): TRVL-132, TRVL-161, TRVL-162', () => {
         auditLogs.updateMany({}, { reason: 'edited' }),
       ).rejects.toThrow(/append-only/);
       await expect(auditLogs.deleteMany({})).rejects.toThrow(/append-only/);
+      await expect(auditLogs.findOneAndReplace({}, {})).rejects.toThrow(
+        /append-only/,
+      );
+      await expect(
+        auditLogs.bulkWrite([{ deleteMany: { filter: {} } }]),
+      ).rejects.toThrow(/append-only/);
+      const existing = await auditLogs.findOne();
+      existing!.reason = 'tampered';
+      await expect(existing!.save()).rejects.toThrow(/append-only/);
+      expect(await auditLogs.countDocuments({ reason: 'tampered' })).toBe(0);
     });
 
     it('commits or aborts with the admin action transaction', async () => {

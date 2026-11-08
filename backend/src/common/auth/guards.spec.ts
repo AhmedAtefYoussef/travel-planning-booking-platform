@@ -11,15 +11,21 @@ import {
 import { AuthUser, Role } from './auth.types';
 import { RolesGuard } from './roles.guard';
 
+const HANDLER = {};
 const ctxWith = (user?: AuthUser) =>
   ({
-    getHandler: () => undefined,
-    getClass: () => undefined,
+    getHandler: () => HANDLER,
+    getClass: () => ({}),
     switchToHttp: () => ({ getRequest: () => ({ user }) }),
   }) as unknown as ExecutionContext;
 
+/** Metadata set on the handler (method level). */
 const reflectorWith = (meta: Record<string, unknown>) =>
-  ({ getAllAndOverride: (key: string) => meta[key] }) as unknown as Reflector;
+  ({
+    getAllAndOverride: (key: string) => meta[key],
+    get: (key: string, target: unknown) =>
+      target === HANDLER ? meta[key] : undefined,
+  }) as unknown as Reflector;
 
 const admin: AuthUser = { id: '000000000000000000000002', role: Role.Admin };
 
@@ -74,13 +80,12 @@ describe('RejectPageSizeMiddleware (GEN-05)', () => {
 
   it('lets page-only queries through', () => {
     expect(run({ page: '2', city: 'cairo' })).toHaveBeenCalled();
+    // A generic `size` filter (e.g. room or baggage size) is not a page size.
+    expect(run({ size: 'large' })).toHaveBeenCalled();
     expect(run({})).toHaveBeenCalled();
   });
 
-  it.each(['limit', 'LIMIT', 'pageSize', 'per_page', 'size'])(
-    'rejects %s',
-    (key) => {
-      expect(() => run({ [key]: '50' })).toThrow(/fixed at 10/);
-    },
-  );
+  it.each(['limit', 'LIMIT', 'pageSize', 'per_page'])('rejects %s', (key) => {
+    expect(() => run({ [key]: '50' })).toThrow(/fixed at 10/);
+  });
 });
