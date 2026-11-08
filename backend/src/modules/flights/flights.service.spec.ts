@@ -485,3 +485,134 @@ describe('FlightsService cabins (FLT-04)', () => {
     expect(model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 });
+
+describe('FlightsService.details (FLT-17)', () => {
+  const flightId = new Types.ObjectId();
+  function detailsSetup(
+    flightOverrides: { status?: string; departureUtc?: Date } = {},
+    airlineOverrides: { isActive?: boolean; policy?: object } = {},
+  ) {
+    const flight = {
+      id: flightId.toHexString(),
+      airlineId,
+      flightNumber: 'MS777',
+      from: 'CAI',
+      to: 'DXB',
+      departureUtc: new Date('2030-12-01T12:30:00Z'),
+      arrivalUtc: new Date('2030-12-01T14:45:00Z'),
+      departureLocalDate: '2030-12-01',
+      status: 'SCHEDULED',
+      cabins: [
+        {
+          _id: new Types.ObjectId(),
+          class: 'ECONOMY',
+          totalSeats: 150,
+          seatsAvailable: 120,
+          priceMinor: 25000,
+          freeBags: 1,
+          maxKgPerBag: 23,
+        },
+      ],
+      createdAt: NOW,
+      updatedAt: NOW,
+      ...flightOverrides,
+    };
+    const airline = {
+      id: airlineId.toHexString(),
+      name: 'EgyptAir',
+      code: 'MS',
+      logoUrl: undefined,
+      isActive: true,
+      policy: {
+        cancellationTiers: [
+          { daysBefore: 7, refundPercent: 50 },
+          { daysBefore: 30, refundPercent: 100 },
+        ],
+        extraBaggage: { pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 2 },
+      },
+      ...airlineOverrides,
+    };
+    const model = {
+      findById: jest.fn((id: string) => ({
+        exec: () => Promise.resolve(id === flight.id ? flight : null),
+      })),
+    };
+    const reference = {
+      getAirport: jest.fn((code: string) =>
+        Promise.resolve(AIRPORTS[code] ?? null),
+      ),
+    } as unknown as ReferenceService;
+    const airlines = {
+      load: jest.fn(() => Promise.resolve(airline)),
+    } as unknown as AirlinesService;
+    return new FlightsService(
+      model as unknown as Model<Flight>,
+      reference,
+      airlines,
+    );
+  }
+
+  it('shows airline, local times, duration, cabins with seats left and baggage, and the policies', async () => {
+    const dto = await detailsSetup().details(flightId.toHexString(), NOW);
+    expect(dto).toMatchObject({
+      flightNumber: 'MS777',
+      airline: {
+        id: airlineId.toHexString(),
+        name: 'EgyptAir',
+        code: 'MS',
+        logoUrl: null,
+        isActive: true,
+      },
+      departure: { airport: 'CAI', local: '2030-12-01T14:30:00.000+02:00' },
+      arrival: { airport: 'DXB', local: '2030-12-01T18:45:00.000+04:00' },
+      durationMinutes: 135,
+      cabins: [
+        {
+          class: 'ECONOMY',
+          priceMinor: 25000,
+          seatsAvailable: 120,
+          freeBags: 1,
+          maxKgPerBag: 23,
+        },
+      ],
+      extraBaggage: { pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 2 },
+      cancellationTiers: [
+        { daysBefore: 7, refundPercent: 50 },
+        { daysBefore: 30, refundPercent: 100 },
+      ],
+      bookable: true,
+    });
+  });
+
+  it('shows no extra-baggage policy and no tiers when the airline has none', async () => {
+    const dto = await detailsSetup(
+      {},
+      { policy: { cancellationTiers: [] } },
+    ).details(flightId.toHexString(), NOW);
+    expect(dto.extraBaggage).toBeNull();
+    expect(dto.cancellationTiers).toEqual([]);
+  });
+
+  it.each([
+    ['Cancelled', { status: 'CANCELLED' }, {}],
+    ['Departed', { status: 'DEPARTED' }, {}],
+    [
+      'past departure time',
+      { departureUtc: new Date('2026-11-08T11:00:00Z') },
+      {},
+    ],
+    ['deactivated airline', {}, { isActive: false }],
+  ])('is not bookable: %s', async (_label, flight, airline) => {
+    const dto = await detailsSetup(flight, airline).details(
+      flightId.toHexString(),
+      NOW,
+    );
+    expect(dto.bookable).toBe(false);
+  });
+
+  it('returns 404 for an unknown flight', async () => {
+    await expect(
+      detailsSetup().details(new Types.ObjectId().toHexString(), NOW),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+});

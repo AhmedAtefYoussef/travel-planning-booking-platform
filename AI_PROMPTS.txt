@@ -249,3 +249,18 @@ Claude added PUT /api/airlines/:id/cancellation-policy (validation, duplicate th
 tier, moderator-only) and a public refund-preview endpoint so the selection rule can be shown in Swagger before
 booking cancellation (FLT-26) exists. I reviewed the boundary cases (exactly on a threshold, 0 days, no tiers).
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-17 (TRVL-39 flight details), completes GEN-06
+Prompt:
+Implement FLT-17 GET /api/flights/:id for guests and users: airline, flight number, airports, local departure
+and arrival times, duration, each cabin with price, seats remaining and baggage allowance, and the airline's
+cancellation policy. Reuse the GEN-06 flight mapper and add tests.
+How the output was used:
+Claude extended the existing flight view with the airline, its extra-baggage policy and cancellation tiers, and a
+bookable flag (Scheduled, not departed, airline active). I checked the JFK->LHR local times and 430-minute
+duration in the e2e test and that cancelled or past flights still open but are marked not bookable.
+================================================
