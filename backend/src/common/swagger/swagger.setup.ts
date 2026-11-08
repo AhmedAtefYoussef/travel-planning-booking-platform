@@ -33,7 +33,7 @@ export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
         in: 'header',
         name: 'x-dev-user',
         description:
-          'TEMPORARY stub auth (AUTH_STUB=true, non-production): ROLE[:userId[:providerId]], e.g. ADMIN, USER, HOTEL_MODERATOR:<userId>:<hotelId>',
+          'TEMPORARY stub auth (AUTH_STUB=true, non-production, localhost only). Format ROLE, ROLE:userId or ROLE:userId:providerId (24-hex ids), e.g. ADMIN, USER, HOTEL_MODERATOR. Replaced by the access_token cookie in ACC-11.',
       },
       DEV_USER_SECURITY,
     )

@@ -62,3 +62,18 @@ describe('Swagger helpers', () => {
     expect(doc.components?.schemas).toHaveProperty('ErrorResponseDto');
   });
 });
+
+describe('Swagger security schemes', () => {
+  it('documents the stub header without HTML-like placeholders that Swagger UI would strip', async () => {
+    const moduleRef = await Test.createTestingModule({}).compile();
+    const app = moduleRef.createNestApplication();
+    await app.init();
+    const doc = buildOpenApiDocument(app);
+    await app.close();
+    const scheme = doc.components?.securitySchemes?.['dev-user'] as {
+      description?: string;
+    };
+    expect(scheme.description).toMatch(/localhost only/);
+    expect(scheme.description).not.toMatch(/[<>]/);
+  });
+});
