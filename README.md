@@ -58,3 +58,15 @@ Captured on `feature/FLT-04-cabins` as the Joudy Demo Air moderator, on flight J
 
 The seat floor (cannot go below seats booked or held) needs bookings, which do not exist yet; it is covered by the e2e
 tests, including 20 parallel holds racing a seat reduction.
+
+## FLT-08 (TRVL-34) extra baggage policy and FLT-11 (TRVL-36) one-way flight search
+
+Captured on `feature/FLT-11-flight-search` (contains FLT-08) against the team Atlas cluster.
+
+| File | What it shows |
+|---|---|
+| `flt-08/01-flt08-set-policy-200.png` | `PUT /api/airlines/{id}/baggage-policy` as the JD moderator: 200, 40.00 per extra bag, up to 2 per passenger |
+| `flt-08/02-flt08-invalid-policy-400.png` | Price 0 and cap -1: 400 with two field errors |
+| `flt-11/01-flt11-guest-search-200.png` | `GET /api/flights/search` CAI to DXB on 2026-12-01 for 2 passengers, **no `x-dev-user` (guest)**: JD777 Economy with Cairo and Dubai local times, 150 seats left, 275.00 per passenger, 550.00 total |
+| `flt-11/02-flt11-no-flights-empty-page.png` | The same search on 2026-12-02: an empty page, the "no flights found" result |
+| `flt-11/03-flt11-unknown-airport-400.png` | `to=XXX`: 400 "Unknown airport" field error |
