@@ -53,7 +53,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | In review |
 | FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13 | In review |
 | FLT-12 | Mandatory | GET /api/flights/search | Ahmed | TRVL-37 | - | Not started |
-| FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | - | In review |
+| FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | In review |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | In review |
 | FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |
 | FLT-21 | Mandatory | POST /api/flight-bookings | Karim | TRVL-41 | - | Not started |
