@@ -54,7 +54,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13 | In review |
 | FLT-12 | Mandatory | GET /api/flights/search | Ahmed | TRVL-37 | - | Not started |
 | FLT-15 | Mandatory | GET /api/flights/search | Joudy | TRVL-38 | - | Not started |
-| FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | - | In review |
+| FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | In review |
 | FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |
 | FLT-21 | Mandatory | POST /api/flight-bookings | Karim | TRVL-41 | - | Not started |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold | Ahmed | TRVL-42 | - | Not started |
@@ -149,7 +149,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | GEN-03 | Mandatory | (frontend, Milestone 2) | Karim | TRVL-98 | - | Not started |
 | GEN-04 | Mandatory | (frontend, Milestone 2) | Sarah | TRVL-99 | - | Not started |
 | GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | In review |
-| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13 | In review: local times in POST /api/flights, GET /api/flights/search and GET /api/flights/:id (FLT-17) |
+| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | In review: local times in POST /api/flights, GET /api/flights/search and GET /api/flights/:id (FLT-17) |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4 | Partial: AUDIT_SERVICE + schema; endpoint pending |
 | GEN-08 | Mandatory | UPLOADS_SERVICE (image endpoints) | Ahmed | TRVL-103 | - | Not started |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
