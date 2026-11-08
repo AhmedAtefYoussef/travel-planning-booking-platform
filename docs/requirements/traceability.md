@@ -154,7 +154,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS) | Ahmed | TRVL-106 | #4 | Partial: transition table |
-| GEN-12 | Mandatory | reference seed (countries, cities, airports, attractions, currencies) | Joudy | TRVL-110 | - | Not started |
+| GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | - | In review |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | In review |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | - | Not started |
 | GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |

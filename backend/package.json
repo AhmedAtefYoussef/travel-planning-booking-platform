@@ -25,7 +25,8 @@
     "openapi:check": "ts-node --transpile-only scripts/check-openapi.ts openapi.json",
     "arch:check": "depcruise src --config .dependency-cruiser.cjs --output-type err-long",
     "verify": "npm run format:check && npm run lint:ci && npm run typecheck && npm run test:cov && npm run test:e2e && npm run build && npm run openapi:generate && npm run openapi:check && npm run arch:check",
-    "db:check": "ts-node --transpile-only scripts/db-check.ts"
+    "db:check": "ts-node --transpile-only scripts/db-check.ts",
+    "seed": "ts-node --transpile-only scripts/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.2.8",

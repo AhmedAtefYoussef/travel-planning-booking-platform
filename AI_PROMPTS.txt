@@ -100,3 +100,20 @@ How the output was used:
 Verified the endpoint mapping against brief section 8, applied the documented corrections (ACC-03 and
 BLG-11 not in the workbook, HTL-09 and ITN-25 remaps), and reviewed each ADR against the implemented code.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: GEN-12 (TRVL-110 reference data seed)
+Prompt:
+Read my Jira requirements, the project brief and the existing repository, then implement GEN-12 following the
+team's architecture: load the official reference datasets (Countries, Cities, Airports, Attractions) with
+validation, seed them idempotently with `npm run seed`, expose GET /api/countries, /cities and /currencies, and
+provide REFERENCE_SERVICE for other modules, with unit and e2e tests.
+How the output was used:
+Claude exported the four official CSVs from the shared Google Sheet, wrote the reference module (schemas, seed
+loader and validator, seed service, controller, REFERENCE_SERVICE provider), the seed script and the tests. I
+reviewed the dataset rules (unique ids, parent references, IANA time zones, ISO currencies), checked that the
+stored identifiers match the official records exactly, and verified the endpoints in Swagger before opening the PR.
+================================================
