@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -73,7 +74,7 @@ export class EnvironmentVariables {
   @IsBoolean()
   AUTH_STUB = false;
 
-  @Matches(/^[A-Z]{3}$/, {
+  @IsIn(Intl.supportedValuesOf('currency'), {
     message: 'PLATFORM_CURRENCY must be an ISO 4217 code such as USD (PAY-04)',
   })
   PLATFORM_CURRENCY!: string;
@@ -126,5 +127,35 @@ export function validateEnv(
       `Invalid environment configuration (see .env.example):\n${details}`,
     );
   }
+  assertProductionSafe(env);
   return env;
+}
+
+const PLACEHOLDER = /change-me|replace_me|placeholder/i;
+const SECRET_KEYS = [
+  'JWT_SECRET',
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'FX_API_KEY',
+  'ADMIN_SEED_PASSWORD',
+] as const;
+
+/** Settings that are fine on a laptop but must never reach a deployed environment. */
+function assertProductionSafe(env: EnvironmentVariables): void {
+  if (env.NODE_ENV !== NodeEnv.Production) return;
+  const problems: string[] = [];
+  if (env.AUTH_STUB) problems.push('AUTH_STUB must be false in production');
+  if (!env.COOKIE_SECURE) {
+    problems.push('COOKIE_SECURE must be true in production');
+  }
+  for (const key of SECRET_KEYS) {
+    if (PLACEHOLDER.test(env[key])) {
+      problems.push(`${key} still has the .env.example placeholder value`);
+    }
+  }
+  if (problems.length) {
+    throw new Error(
+      `Unsafe production configuration:\n${problems.map((p) => `  - ${p}`).join('\n')}`,
+    );
+  }
 }

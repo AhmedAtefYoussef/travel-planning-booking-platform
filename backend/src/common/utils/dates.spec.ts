@@ -39,6 +39,13 @@ describe('dates (UTC storage, airport-local display: FLT-03, GEN-06)', () => {
     expect(() => localToUtc('2026-03-29T01:30', 'Europe/London')).toThrow(
       /does not exist/,
     );
+    // 2026-11-01 01:30 happens twice in New York (clocks go back 02:00 -> 01:00).
+    expect(() => localToUtc('2026-11-01T01:30', 'America/New_York')).toThrow(
+      /occurs twice/,
+    );
+    expect(
+      localToUtc('2026-11-01T03:30', 'America/New_York').toISOString(),
+    ).toBe('2026-11-01T08:30:00.000Z');
     expect(() => localToUtc('2026-12-01 14:30', 'Africa/Cairo')).toThrow(
       RangeError,
     );

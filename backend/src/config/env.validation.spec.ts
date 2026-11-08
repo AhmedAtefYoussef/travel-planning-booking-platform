@@ -36,6 +36,7 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
     ['JWT_ACCESS_TTL', 'fifteen minutes'],
     ['COOKIE_SECURE', 'yes'],
     ['PLATFORM_CURRENCY', 'usd'],
+    ['PLATFORM_CURRENCY', 'ZZZ'],
     ['STRIPE_SECRET_KEY', 'sk_live_123'],
     ['STRIPE_WEBHOOK_SECRET', 'abc'],
     ['FX_API_BASE_URL', 'not a url'],
@@ -45,5 +46,34 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
     expect(() => validateEnv({ ...base, [key]: value })).toThrow(
       new RegExp(key),
     );
+  });
+
+  describe('production safety', () => {
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      AUTH_STUB: 'false',
+      COOKIE_SECURE: 'true',
+      JWT_SECRET: 'a-real-production-secret-with-enough-entropy-123',
+      STRIPE_SECRET_KEY: 'sk_test_fakeproductionkey',
+      STRIPE_WEBHOOK_SECRET: 'whsec_fakeproductionsecret',
+      ADMIN_SEED_PASSWORD: 'Str0ng!AdminPass',
+    };
+
+    it('accepts a hardened production configuration', () => {
+      expect(validateEnv(prod).NODE_ENV).toBe(NodeEnv.Production);
+    });
+
+    it.each([
+      ['AUTH_STUB', 'true', /AUTH_STUB must be false/],
+      ['COOKIE_SECURE', 'false', /COOKIE_SECURE must be true/],
+      [
+        'STRIPE_SECRET_KEY',
+        'sk_test_replace_me',
+        /STRIPE_SECRET_KEY still has/,
+      ],
+    ])('rejects %s=%s', (key, value, message) => {
+      expect(() => validateEnv({ ...prod, [key]: value })).toThrow(message);
+    });
   });
 });

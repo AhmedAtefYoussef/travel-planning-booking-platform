@@ -168,6 +168,21 @@ describe('Common layer (e2e): GEN-02, GEN-05, GEN-13, TRVL-130', () => {
       expect(beyond.body).toMatchObject({ page: 4, items: [], total: 23 });
     });
 
+    it('rejects a page size even on routes without a pagination DTO', async () => {
+      const res = await http()
+        .get('/api/__probe/cast/xyz?perPage=50')
+        .expect(400);
+      expectErrorShape(res.body, 400, 'VALIDATION_FAILED');
+      expect(res.body.fieldErrors).toEqual([
+        { field: 'perPage', message: 'property perPage should not exist' },
+      ]);
+    });
+
+    it('does not echo the query string in the error path', async () => {
+      const res = await http().get('/api/nope?token=secret').expect(404);
+      expect(res.body.path).toBe('/api/nope');
+    });
+
     it.each([
       'limit=50',
       'pageSize=5',
@@ -175,6 +190,8 @@ describe('Common layer (e2e): GEN-02, GEN-05, GEN-13, TRVL-130', () => {
       'page=-1',
       'page=abc',
       'page=1.5',
+      'page=0x10',
+      'page=1e1',
     ])('rejects ?%s with 400', async (qs) => {
       const res = await http().get(`/api/__probe/items?${qs}`).expect(400);
       expectErrorShape(res.body, 400, 'VALIDATION_FAILED');

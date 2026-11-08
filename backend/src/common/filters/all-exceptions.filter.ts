@@ -59,7 +59,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       code: n.code,
       message: n.message,
       ...(n.fieldErrors?.length ? { fieldErrors: n.fieldErrors } : {}),
-      path: req.originalUrl ?? req.url,
+      // Path only: query strings may carry tokens or personal data and must not be echoed back.
+      path: (req.originalUrl ?? req.url ?? '').split('?')[0],
       timestamp: new Date().toISOString(),
     };
     res.status(n.status).json(body);
@@ -104,6 +105,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (exception instanceof MongooseError.CastError) {
+      // Usually an unvalidated id from the client; logged because it can also hide a server-side bug.
+      this.logger.warn(`CastError on ${exception.path}: ${exception.kind}`);
       return {
         status: HttpStatus.BAD_REQUEST,
         code:

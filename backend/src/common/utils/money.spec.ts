@@ -16,6 +16,7 @@ describe('money (PAY-04, integer minor units)', () => {
     expect(currencyExponent('KWD')).toBe(3);
     expect(() => currencyExponent('US')).toThrow(RangeError);
     expect(() => currencyExponent('12$')).toThrow(RangeError);
+    expect(() => currencyExponent('ZZZ')).toThrow(RangeError);
   });
 
   it('parses major amounts without float error', () => {
@@ -28,6 +29,9 @@ describe('money (PAY-04, integer minor units)', () => {
     expect(() => toMinor('1.234', 'USD')).toThrow(/at most 2/);
     expect(() => toMinor('1.5', 'JPY')).toThrow(/at most 0/);
     expect(() => toMinor('abc', 'USD')).toThrow(RangeError);
+    expect(() => toMinor(1.005, 'USD')).toThrow(/decimal string/);
+    expect(toMinor(0.1 + 0.2, 'USD')).toBe(30);
+    expect(Object.is(toMinor('-0', 'USD'), 0)).toBe(true);
   });
 
   it('formats minor units', () => {
@@ -53,6 +57,11 @@ describe('money (PAY-04, integer minor units)', () => {
     expect(percentOfMinor(999, 50)).toBe(499);
     expect(percentOfMinor(999, 100)).toBe(999);
     expect(percentOfMinor(999, 0)).toBe(0);
+    expect(percentOfMinor(100_000, 0.57)).toBe(570);
+    expect(percentOfMinor(10_000, 12.5)).toBe(1_250);
+    expect(percentOfMinor(10_000, 33.33)).toBe(3_333);
+    expect(percentOfMinor(Number.MAX_SAFE_INTEGER, 50)).toBe(4503599627370495);
+    expect(() => percentOfMinor(100, 12.345)).toThrow(/two decimal/);
     expect(() => percentOfMinor(100, 101)).toThrow(RangeError);
     expect(() => percentOfMinor(100, -1)).toThrow(RangeError);
   });
@@ -63,6 +72,7 @@ describe('money (PAY-04, integer minor units)', () => {
     expect(convertMinor(15_124, 'JPY', 'USD', 0.0066)).toBe(9_982);
     expect(convertMinor(1, 'USD', 'EUR', 0.5)).toBe(1);
     expect(convertMinor(-1, 'USD', 'EUR', 0.5)).toBe(-1);
+    expect(Object.is(convertMinor(-1, 'USD', 'EUR', 0.1), 0)).toBe(true);
     expect(convertMinor(1234, 'usd', 'USD', 3)).toBe(1234);
     expect(() => convertMinor(100, 'USD', 'EUR', 0)).toThrow(RangeError);
   });

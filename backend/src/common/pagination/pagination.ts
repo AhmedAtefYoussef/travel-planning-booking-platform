@@ -20,7 +20,13 @@ export class PaginationQueryDto {
     description: 'Page number (page size is fixed at 10, GEN-05)',
   })
   @Transform(({ value }: { value: unknown }) =>
-    value === undefined || value === '' ? 1 : Number(value),
+    value === undefined || value === ''
+      ? 1
+      : typeof value === 'string' && /^\d+$/.test(value)
+        ? Number(value)
+        : typeof value === 'number'
+          ? value
+          : Number.NaN,
   )
   @IsInt({ message: 'page must be a whole number' })
   @Min(1, { message: 'page must be at least 1' })
@@ -67,6 +73,11 @@ export function skipFor(page: number): number {
   return (Math.max(1, Math.floor(page)) - 1) * PAGE_SIZE;
 }
 
+function firstDirection(sort?: Record<string, SortOrder>): 1 | -1 {
+  const first = sort ? Object.values(sort)[0] : undefined;
+  return first === -1 || first === 'desc' || first === 'descending' ? -1 : 1;
+}
+
 export interface PaginateOptions {
   /** Always give a deterministic sort; `_id` is appended as a tie-breaker so pages never overlap. */
   sort?: Record<string, SortOrder>;
@@ -85,7 +96,8 @@ export async function paginate<T>(
 ): Promise<Page<T>> {
   const sort = {
     ...(options.sort ?? {}),
-    _id: options.sort?._id ?? 1,
+    // Tie-break in the direction of the primary sort key so equal keys keep a stable order.
+    _id: options.sort?._id ?? firstDirection(options.sort),
   } as Record<string, SortOrder>;
   const [items, total] = await Promise.all([
     model

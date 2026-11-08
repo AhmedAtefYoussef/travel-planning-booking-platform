@@ -29,7 +29,8 @@ export function parseIsoDate(date: string): DateTime {
 
 /**
  * Airport-local wall time ("2026-12-01T14:30") -> UTC instant. Rejects times that do not exist
- * locally (skipped by a DST change) instead of silently shifting them.
+ * locally (skipped by a DST change) and times that occur twice (repeated hour when clocks go back),
+ * instead of silently picking an instant that may be an hour off.
  */
 export function localToUtc(localDateTime: string, zone: string): Date {
   assertZone(zone);
@@ -44,6 +45,11 @@ export function localToUtc(localDateTime: string, zone: string): Date {
   if (dt.toFormat("yyyy-MM-dd'T'HH:mm:ss") !== wanted) {
     throw new RangeError(
       `${localDateTime} does not exist in ${zone} (daylight-saving change)`,
+    );
+  }
+  if (dt.getPossibleOffsets().length > 1) {
+    throw new RangeError(
+      `${localDateTime} occurs twice in ${zone} (clocks go back); choose a time outside the repeated hour`,
     );
   }
   return dt.toUTC().toJSDate();
@@ -103,7 +109,8 @@ export function addDays(date: string, days: number): string {
 }
 
 /**
- * Whole days remaining before an event, rounded down (cancellation tiers FLT-09, HTL-10).
+ * Whole 24-hour periods remaining before an event, rounded down (cancellation tiers FLT-09, HTL-10).
+ * Elapsed time, not calendar days: 7 days before a 10:00 departure means "at least 168 hours before".
  * Negative once the event has started.
  */
 export function daysBefore(eventUtc: Date, nowUtc: Date = new Date()): number {

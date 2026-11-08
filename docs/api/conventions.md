@@ -23,7 +23,7 @@ Every error has the same body (`ErrorResponseDto`):
 - 5xx responses never expose internal messages. The details are logged on the server.
 
 ## Lists (GEN-05)
-- Query DTOs extend `PaginationQueryDto`, which accepts `page` only. The page size is fixed at 10, and `?limit=` returns 400.
+- Query DTOs extend `PaginationQueryDto`, which accepts `page` only (digits only). The page size is fixed at 10. A global middleware returns 400 for `limit`, `pageSize`, `perPage` or `size` on any route.
 - Return `paginate(model, filter, query.page, { sort })`, or `toPage(items, total, page)` for aggregations.
 - Document the endpoint with `@ApiPaginatedResponse(ItemDto)`.
 
@@ -34,4 +34,4 @@ Every error has the same body (`ErrorResponseDto`):
 
 ## Money and time
 - Money is stored as integer minor units in `PLATFORM_CURRENCY` (PAY-04). Use `common/utils/money.ts` (`toMinor`, `percentOfMinor`, `convertMinor`) and never use floats.
-- Instants are stored in UTC. Airport-local input and output goes through `common/utils/dates.ts` (`localToUtc`, `utcToLocalIso`, `localDayRangeUtc`). Calendar dates are `YYYY-MM-DD` (`eachNight`, `addDays`).
+- Instants are stored in UTC. Airport-local input and output goes through `common/utils/dates.ts` (`localToUtc`, `utcToLocalIso`, `localDayRangeUtc`). `localToUtc` rejects local times that do not exist or occur twice because of DST. Calendar dates are `YYYY-MM-DD` (`eachNight`, `addDays`).

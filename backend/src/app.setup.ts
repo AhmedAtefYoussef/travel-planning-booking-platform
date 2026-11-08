@@ -7,7 +7,8 @@ export const API_PREFIX = 'api';
 /**
  * Applies the HTTP-level settings that are not DI providers. main.ts, the e2e tests and the OpenAPI
  * generator all call this, so tests and the Swagger contract see exactly what production serves.
- * (The global ValidationPipe and AllExceptionsFilter are registered in CommonModule.)
+ * (The global ValidationPipe, AllExceptionsFilter and GEN-05 middleware are registered in CommonModule.)
+ * rawBody cannot be set here: pass { rawBody: true } to NestFactory.create (the Stripe webhook needs it).
  */
 export function configureApp(app: INestApplication): INestApplication {
   app.setGlobalPrefix(API_PREFIX);

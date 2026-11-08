@@ -91,9 +91,12 @@ describe('pagination (GEN-05)', () => {
     expect(validate({ page: '3' }).errors).toHaveLength(0);
   });
 
-  it.each(['0', '-2', '1.5', 'abc', '100001'])('rejects page=%s', (page) => {
-    expect(validate({ page }).errors.length).toBeGreaterThan(0);
-  });
+  it.each(['0', '-2', '1.5', 'abc', '100001', '0x10', '1e1', ' 2'])(
+    'rejects page=%s',
+    (page) => {
+      expect(validate({ page }).errors.length).toBeGreaterThan(0);
+    },
+  );
 
   it('computes skip and the envelope with a fixed page size of 10', () => {
     expect(PAGE_SIZE).toBe(10);
@@ -136,7 +139,7 @@ describe('paginate()', () => {
       sort: { createdAt: -1 },
     });
     expect(model.find).toHaveBeenCalledWith({ status: 'PUBLISHED' }, undefined);
-    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1, _id: 1 });
+    expect(chain.sort).toHaveBeenCalledWith({ createdAt: -1, _id: -1 });
     expect(chain.skip).toHaveBeenCalledWith(10);
     expect(chain.limit).toHaveBeenCalledWith(10);
     expect(page).toEqual({
