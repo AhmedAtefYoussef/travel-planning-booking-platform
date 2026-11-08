@@ -265,6 +265,14 @@ export class FlightsService {
     }
     assertProviderScope(user, ProviderType.Airline, flight.airlineId);
     if (flight.status !== FlightStatus.Scheduled) throw notScheduled();
+    // FLT-30: a flight whose departure has passed is Departed even before the status job runs.
+    if (flight.departureUtc <= new Date()) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        'This flight has already departed and can no longer be changed (FLT-30)',
+      );
+    }
     return flight;
   }
 

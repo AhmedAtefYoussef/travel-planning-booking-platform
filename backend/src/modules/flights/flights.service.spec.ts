@@ -276,7 +276,11 @@ describe('FlightsService cabins (FLT-04)', () => {
   const cabinId = new Types.ObjectId();
 
   function setupCabins(
-    overrides: { status?: string; airline?: Types.ObjectId } = {},
+    overrides: {
+      status?: string;
+      airline?: Types.ObjectId;
+      departureUtc?: Date;
+    } = {},
   ) {
     const flight = {
       _id: flightId,
@@ -285,9 +289,9 @@ describe('FlightsService cabins (FLT-04)', () => {
       flightNumber: 'MS777',
       from: 'CAI',
       to: 'DXB',
-      departureUtc: new Date('2026-12-01T12:30:00Z'),
-      arrivalUtc: new Date('2026-12-01T14:45:00Z'),
-      departureLocalDate: '2026-12-01',
+      departureUtc: overrides.departureUtc ?? new Date('2030-12-01T12:30:00Z'),
+      arrivalUtc: new Date('2030-12-01T14:45:00Z'),
+      departureLocalDate: '2030-12-01',
       status: overrides.status ?? 'SCHEDULED',
       cabins: [
         {
@@ -460,5 +464,24 @@ describe('FlightsService cabins (FLT-04)', () => {
         },
       ),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('refuses changes once the departure time has passed, even before the status job runs (FLT-30)', async () => {
+    const { service, model } = setupCabins({
+      departureUtc: new Date(Date.now() - 60_000),
+    });
+    await expect(
+      service.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        { priceMinor: 1 },
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'This flight has already departed and can no longer be changed (FLT-30)',
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 });
