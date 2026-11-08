@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, OmitType, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsString, Matches } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
@@ -66,6 +66,14 @@ export class CreateFlightDto {
 }
 
 /** One end of a flight, in UTC and in that airport's local time (GEN-06). */
+/**
+ * FLT-05: edit a Scheduled flight's times (and its airports while nothing is booked). Any subset; a
+ * time that is not sent keeps its current local wall-clock time. The flight number cannot change.
+ */
+export class UpdateFlightDto extends PartialType(
+  OmitType(CreateFlightDto, ['flightNumber'] as const),
+) {}
+
 export class FlightEndpointDto {
   @ApiProperty({ example: 'CAI' })
   airport!: string;

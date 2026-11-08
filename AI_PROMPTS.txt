@@ -279,3 +279,20 @@ Claude computed each option's total fare and duration inside the MongoDB query, 
 all happen in the database, and added stable tie-breaks so pages never overlap. The range applies to the total
 fare for all passengers (the price the contract returns); I asked Ahmed to confirm this in the PR.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-05 (TRVL-32 edit Scheduled flights)
+Prompt:
+Implement FLT-05 PATCH /api/flights/:id: the moderator edits departure/arrival times of their own Scheduled
+flights; airports cannot change once the flight has any booking; seat counts never drop below booked or held
+seats; price changes do not affect existing bookings; a time change notifies passengers with Confirmed bookings.
+Bookings and notifications (Karim) are not built yet: build what works now and leave a hook for them.
+How the output was used:
+Claude added the edit (same checks as creating a flight, one conditional database update so a booking made at
+the same moment cannot slip past the airport lock), a FLIGHT_BOOKINGS_LOOKUP contract for Karim to provide, and an
+optional notifier that sends FLIGHT_SCHEDULE_CHANGED notifications once both modules exist. The e2e test plugs in
+fake bookings and notifications to prove the notifications are sent. I chose this approach over waiting.
+================================================
