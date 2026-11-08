@@ -209,6 +209,23 @@ export interface NotificationsService {
 }
 
 /* ----------------------------------------------------------------------------------------------
+ * Flight bookings lookup (FLT-05 needs it; Karim's flight-bookings module provides it).
+ * Register under FLIGHT_BOOKINGS_LOOKUP. Until it is provided, schedule changes are saved but no
+ * notifications are sent (the flights module injects it as optional and logs a warning).
+ * -------------------------------------------------------------------------------------------- */
+
+export interface ConfirmedFlightBooking {
+  bookingId: string;
+  /** The account that made the booking; it receives the in-app notification. */
+  userId: string;
+}
+
+export interface FlightBookingsLookup {
+  /** Bookings on this flight whose status is Confirmed (GEN-11). */
+  confirmedBookings(flightId: string): Promise<ConfirmedFlightBooking[]>;
+}
+
+/* ----------------------------------------------------------------------------------------------
  * Uploads (GEN-08). Register under UPLOADS_SERVICE.
  * -------------------------------------------------------------------------------------------- */
 

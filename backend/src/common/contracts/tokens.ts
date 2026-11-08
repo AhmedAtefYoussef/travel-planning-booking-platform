@@ -12,6 +12,7 @@
  *   REFERENCE_SERVICE (Joudy)       ->  all
  *   AUDIT_SERVICE (Ahmed)           ->  admin, moderation
  *   NOTIFICATIONS_SERVICE (Karim)   ->  bookings, payments, admin, flights
+ *   FLIGHT_BOOKINGS_LOOKUP (Karim)  ->  flights (FLT-05 schedule-change notifications)
  *   UPLOADS_SERVICE (Ahmed)         ->  blog, itineraries, hotels, airlines
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
@@ -27,3 +28,4 @@ export const REFERENCE_SERVICE = Symbol('REFERENCE_SERVICE');
 export const AUDIT_SERVICE = Symbol('AUDIT_SERVICE');
 export const NOTIFICATIONS_SERVICE = Symbol('NOTIFICATIONS_SERVICE');
 export const UPLOADS_SERVICE = Symbol('UPLOADS_SERVICE');
+export const FLIGHT_BOOKINGS_LOOKUP = Symbol('FLIGHT_BOOKINGS_LOOKUP');
