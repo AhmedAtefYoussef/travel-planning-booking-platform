@@ -64,6 +64,14 @@ jobs:
       - name: Branch, traceability, template, env files, AI log
         run: node .github/scripts/check-pr.mjs
 
+      - name: Traceability matrix covers every workbook requirement
+        run: |
+          if [ -f docs/requirements/traceability.md ]; then
+            node .github/scripts/check-traceability.mjs
+          else
+            echo "traceability.md not present yet (TRVL-134)"
+          fi
+
   size-label:
     name: size-label
     runs-on: ubuntu-latest

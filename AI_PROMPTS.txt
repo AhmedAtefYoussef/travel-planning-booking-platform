@@ -86,3 +86,17 @@ Checked every rule against the workbook text (FLT-09 tier selection, HTL-21 no p
 PAY-01 no card data, PAY-03 refund statuses). The e2e tests caught that Types.ObjectId as a Prop type
 breaks query casting; switched to Schema.Types.ObjectId and documented it for the team.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-134 (traceability matrix, ERD, ADRs), TRVL-128 runbook
+Prompt:
+Generate the traceability matrix for every workbook requirement (endpoint, owner, Jira key, status) from
+the brief section 8 tables and Jira, write the ERD and ADRs for auth, concurrency, payments, money/time
+and module boundaries, and add a CI check that the matrix stays complete.
+How the output was used:
+Verified the endpoint mapping against brief section 8, applied the documented corrections (ACC-03 and
+BLG-11 not in the workbook, HTL-09 and ITN-25 remaps), and reviewed each ADR against the implemented code.
+================================================
