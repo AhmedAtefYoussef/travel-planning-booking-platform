@@ -70,6 +70,8 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+      - name: Production entrypoint exists (npm run start:prod runs node dist/main)
+        run: test -f dist/main.js || { echo "::error::dist/main.js missing; check tsconfig.build.json rootDir/include"; ls -R dist | head -20; exit 1; }
 
   backend-test:
     name: backend-test
