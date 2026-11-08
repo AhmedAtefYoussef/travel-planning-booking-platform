@@ -46,9 +46,9 @@ describe('Airlines and flights schemas (e2e): TRVL-138', () => {
   });
 
   it('airline codes are unique', async () => {
-    await airlines.create({ name: 'EgyptAir', code: 'MS' });
+    await airlines.create({ name: 'Schema Test Air', code: 'ZQ' });
     await expect(
-      airlines.create({ name: 'Other', code: 'ms' }),
+      airlines.create({ name: 'Other', code: 'zq' }),
     ).rejects.toMatchObject({
       code: 11000,
     });
