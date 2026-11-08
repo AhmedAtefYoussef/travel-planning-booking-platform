@@ -57,11 +57,15 @@ describe('Airlines and flights schemas (e2e): TRVL-138', () => {
   it('rejects a duplicate flight number for the same airline on the same local date (FLT-03)', async () => {
     const airlineId = new Types.ObjectId();
     await flights.create(flight(airlineId));
-    await expect(
-      flights.create(
-        flight(airlineId, { departureUtc: new Date('2026-12-01T20:00:00Z') }),
-      ),
-    ).rejects.toMatchObject({ code: 11000 });
+    // A later departure on the same Cairo calendar day (20:00Z = 22:00 local), itself a valid flight.
+    const laterSameDay = flight(airlineId, {
+      departureUtc: new Date('2026-12-01T20:00:00Z'),
+      arrivalUtc: new Date('2026-12-01T23:30:00Z'),
+    });
+    expect(new flights(laterSameDay).validateSync()).toBeUndefined();
+    await expect(flights.create(laterSameDay)).rejects.toMatchObject({
+      code: 11000,
+    });
     // Same number on another date, or for another airline, is fine.
     await expect(
       flights.create(flight(airlineId, { departureLocalDate: '2026-12-02' })),
