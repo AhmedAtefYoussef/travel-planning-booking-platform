@@ -45,7 +45,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 |---|---|---|---|---|---|---|
 | FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | #9 | In review |
 | FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | In review |
-| FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | - | In review |
+| FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10 | In review |
 | FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | - | Not started |
 | FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | - | Not started |
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
@@ -149,7 +149,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | GEN-03 | Mandatory | (frontend, Milestone 2) | Karim | TRVL-98 | - | Not started |
 | GEN-04 | Mandatory | (frontend, Milestone 2) | Sarah | TRVL-99 | - | Not started |
 | GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | In review |
-| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | - | Partial: shared local-time mapper used by POST /api/flights; search and details pending |
+| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10 | Partial: shared local-time mapper used by POST /api/flights; search and details pending |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4 | Partial: AUDIT_SERVICE + schema; endpoint pending |
 | GEN-08 | Mandatory | UPLOADS_SERVICE (image endpoints) | Ahmed | TRVL-103 | - | Not started |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
