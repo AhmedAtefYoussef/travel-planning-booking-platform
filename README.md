@@ -17,3 +17,13 @@ embed (same convention as `evidence/sprint-0-swagger`).
 | `gen-12/03-gen12-cities-filter-200.png` | `GET /api/cities?countryCode=ae`: lower-case filter accepted, returns Dubai only |
 | `gen-12/04-gen12-cities-invalid-400.png` | `GET /api/cities?countryCode=EGY`: 400 `VALIDATION_FAILED` with a `countryCode` field error |
 | `gen-12/05-gen12-currencies-200.png` | `GET /api/currencies`: the 7 distinct currencies of Countries.csv, JPY with 0 minor units |
+
+## FLT-02 (TRVL-29) predefined airport list
+
+Captured on the stacked branch `feature/TRVL-138-flight-schemas` (contains GEN-12 and FLT-02), so the app also
+booted with the new airlines and flights models ("Indexes ready for 12 model(s)").
+
+| File | What it shows |
+|---|---|
+| `flt-02/01-flt02-airports-200.png` | `GET /api/airports`: the FLT-02 summary, then the 8 airports by IATA code with city, country and IANA time zone, `{page: 1, limit: 10, total: 8}` |
+| `flt-02/02-flt02-page-invalid-400.png` | `GET /api/airports?page=1.5`: Swagger lets it through and the backend rejects it with 400 `VALIDATION_FAILED` and a `page` field error |
