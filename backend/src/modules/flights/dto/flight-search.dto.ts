@@ -1,10 +1,25 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform, Type } from 'class-transformer';
-import { IsInt, IsString, Matches, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { Matches, ValidateBy } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
 import { FlightEndpointDto } from './flight.dto';
+
+/** One rule, one message (GEN-02): a missing or out-of-range count reports a single field error. */
+function IsPassengerCount() {
+  return ValidateBy({
+    name: 'isPassengerCount',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'number' &&
+        Number.isInteger(value) &&
+        value >= 1 &&
+        value <= 9,
+      defaultMessage: () => 'passengers must be a whole number from 1 to 9',
+    },
+  });
+}
 
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -20,7 +35,6 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     description: 'Departure airport IATA code (GET /api/airports)',
   })
   @Transform(upper)
-  @IsString()
   @Matches(/^[A-Z]{3}$/, { message: 'from must be a three-letter IATA code' })
   from!: string;
 
@@ -29,7 +43,6 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     description: 'Arrival airport IATA code (GET /api/airports)',
   })
   @Transform(upper)
-  @IsString()
   @Matches(/^[A-Z]{3}$/, { message: 'to must be a three-letter IATA code' })
   to!: string;
 
@@ -38,7 +51,6 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     description:
       'Departure date as the local calendar date at the departure airport (YYYY-MM-DD)',
   })
-  @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, {
     message: 'departureDate must look like 2026-12-01',
   })
@@ -50,10 +62,10 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     maximum: 9,
     description: 'Number of passengers; each needs a seat in the same cabin',
   })
-  @Type(() => Number)
-  @IsInt({ message: 'passengers must be a whole number' })
-  @Min(1)
-  @Max(9)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
+  )
+  @IsPassengerCount()
   passengers!: number;
 }
 

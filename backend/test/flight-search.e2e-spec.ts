@@ -275,6 +275,15 @@ describe('Flight search (e2e): FLT-11', () => {
     expect(
       missing.body.fieldErrors.map((f: { field: string }) => f.field).sort(),
     ).toEqual(['departureDate', 'from', 'passengers', 'to']);
+    // One message per field (GEN-02), even when the value is missing altogether.
+    expect(
+      missing.body.fieldErrors.find(
+        (f: { field: string }) => f.field === 'passengers',
+      ),
+    ).toEqual({
+      field: 'passengers',
+      message: 'passengers must be a whole number from 1 to 9',
+    });
     await search({
       departureDate: '2027-12-01',
       passengers: 1,
