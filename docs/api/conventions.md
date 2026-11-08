@@ -23,7 +23,7 @@ Every error has the same body (`ErrorResponseDto`):
 - 5xx responses never expose internal messages. The details are logged on the server.
 
 ## Lists (GEN-05)
-- Query DTOs extend `PaginationQueryDto`, which accepts `page` only (digits only). The page size is fixed at 10. A global middleware returns 400 for `limit`, `pageSize`, `perPage` or `size` on any route.
+- Query DTOs extend `PaginationQueryDto`, which accepts `page` only (digits only). The page size is fixed at 10. A global middleware returns 400 for `limit`, `pageSize` or `perPage` (any casing or snake_case) on any route.
 - Return `paginate(model, filter, query.page, { sort })`, or `toPage(items, total, page)` for aggregations.
 - Document the endpoint with `@ApiPaginatedResponse(ItemDto)`.
 

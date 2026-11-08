@@ -9,7 +9,6 @@ export const FORBIDDEN_PAGE_SIZE_PARAMS = [
   'page_size',
   'perPage',
   'per_page',
-  'size',
 ] as const;
 
 /**
