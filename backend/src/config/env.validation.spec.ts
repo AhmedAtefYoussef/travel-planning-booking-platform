@@ -15,13 +15,18 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
 
   it('defaults optional values', () => {
     const rest: Record<string, string> = { ...base };
-    for (const key of ['AUTH_STUB', 'PORT', 'NODE_ENV', 'CORS_ORIGINS']) {
+    for (const key of ['AUTH_STUB', 'PORT', 'CORS_ORIGINS']) {
       delete rest[key];
     }
     const env = validateEnv(rest);
     expect(env.AUTH_STUB).toBe(false);
     expect(env.PORT).toBe(3000);
-    expect(env.NODE_ENV).toBe(NodeEnv.Development);
+  });
+
+  it('requires NODE_ENV explicitly', () => {
+    const rest: Record<string, string> = { ...base };
+    delete rest.NODE_ENV;
+    expect(() => validateEnv(rest)).toThrow(/NODE_ENV/);
   });
 
   it('names every missing variable', () => {

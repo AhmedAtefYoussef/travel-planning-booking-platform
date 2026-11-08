@@ -1,3 +1,4 @@
+import { InvalidInputError } from '../errors/invalid-input.error';
 import { DateTime, IANAZone } from 'luxon';
 
 /**
@@ -14,7 +15,7 @@ export function isValidTimeZone(zone: string): boolean {
 
 function assertZone(zone: string): void {
   if (!isValidTimeZone(zone))
-    throw new RangeError(`Unknown IANA time zone "${zone}"`);
+    throw new InvalidInputError(`Unknown IANA time zone "${zone}"`);
 }
 
 /** Strict YYYY-MM-DD parse to the UTC midnight of that calendar date. */
@@ -23,7 +24,7 @@ export function parseIsoDate(date: string): DateTime {
     ? DateTime.fromISO(date, { zone: 'utc' })
     : DateTime.invalid('format');
   if (!dt.isValid)
-    throw new RangeError(`"${date}" is not a valid YYYY-MM-DD date`);
+    throw new InvalidInputError(`"${date}" is not a valid YYYY-MM-DD date`);
   return dt;
 }
 
@@ -35,20 +36,22 @@ export function parseIsoDate(date: string): DateTime {
 export function localToUtc(localDateTime: string, zone: string): Date {
   assertZone(zone);
   if (!LOCAL_DATE_TIME.test(localDateTime)) {
-    throw new RangeError(`"${localDateTime}" must look like YYYY-MM-DDTHH:mm`);
+    throw new InvalidInputError(
+      `"${localDateTime}" must look like YYYY-MM-DDTHH:mm`,
+    );
   }
   const dt = DateTime.fromISO(localDateTime, { zone });
   if (!dt.isValid)
-    throw new RangeError(`"${localDateTime}" is not a valid date-time`);
+    throw new InvalidInputError(`"${localDateTime}" is not a valid date-time`);
   const wanted =
     localDateTime.length === 16 ? `${localDateTime}:00` : localDateTime;
   if (dt.toFormat("yyyy-MM-dd'T'HH:mm:ss") !== wanted) {
-    throw new RangeError(
+    throw new InvalidInputError(
       `${localDateTime} does not exist in ${zone} (daylight-saving change)`,
     );
   }
   if (dt.getPossibleOffsets().length > 1) {
-    throw new RangeError(
+    throw new InvalidInputError(
       `${localDateTime} occurs twice in ${zone} (clocks go back); choose a time outside the repeated hour`,
     );
   }
@@ -89,7 +92,9 @@ export function nightsBetween(checkIn: string, checkOut: string): number {
     'days',
   ).days;
   if (nights < 1)
-    throw new RangeError('checkOut must be at least one day after checkIn');
+    throw new InvalidInputError(
+      'checkOut must be at least one day after checkIn',
+    );
   return nights;
 }
 

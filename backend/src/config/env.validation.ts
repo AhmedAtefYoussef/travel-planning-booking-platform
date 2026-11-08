@@ -31,8 +31,11 @@ const DURATION = /^\d+(ms|s|m|h|d)$/;
  * (TRVL-130: fail fast), so a misconfigured teammate sees the exact variable instead of a runtime bug.
  */
 export class EnvironmentVariables {
-  @IsEnum(NodeEnv)
-  NODE_ENV: NodeEnv = NodeEnv.Development;
+  /** Required (no default): a deployment that forgets it must not silently run as development. */
+  @IsEnum(NodeEnv, {
+    message: 'NODE_ENV must be development, test or production',
+  })
+  NODE_ENV!: NodeEnv;
 
   @Transform(({ value }) => Number(value))
   @IsInt()

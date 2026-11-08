@@ -13,6 +13,7 @@ import {
   ValidationFailedException,
 } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
+import { InvalidInputError } from '../errors/invalid-input.error';
 import { AllExceptionsFilter } from './all-exceptions.filter';
 
 function run(exception: unknown) {
@@ -141,16 +142,34 @@ describe('AllExceptionsFilter (GEN-02)', () => {
 
   it('maps body-parser errors', () => {
     expect(
-      run({ status: 400, type: 'entity.parse.failed' }).body,
+      run({ status: 400, type: 'entity.parse.failed', expose: true }).body,
     ).toMatchObject({
       statusCode: 400,
       message: 'Malformed JSON request body',
     });
-    expect(run({ status: 413, type: 'entity.too.large' }).body).toMatchObject({
+    expect(
+      run({ status: 413, type: 'entity.too.large', expose: true }).body,
+    ).toMatchObject({
       statusCode: 413,
       code: 'PAYLOAD_TOO_LARGE',
     });
-    expect(run({ status: 400 }).body).toMatchObject({ message: 'Bad request' });
+    expect(
+      run({ status: 400, type: 'entity.verify.failed', expose: true }).body,
+    ).toMatchObject({ message: 'Bad request' });
+    // An upstream HTTP client error (e.g. FX API 404) is not the caller's fault.
+    expect(run({ status: 404, message: 'upstream' }).body).toMatchObject({
+      statusCode: 500,
+    });
+    expect(
+      run(new InvalidInputError('Unknown IANA time zone "X"')).body,
+    ).toMatchObject({
+      statusCode: 400,
+      code: 'BAD_REQUEST',
+      message: 'Unknown IANA time zone "X"',
+    });
+    expect(run(new RangeError('Invalid array length')).body).toMatchObject({
+      statusCode: 500,
+    });
   });
 
   it('turns anything else into a generic 500', () => {

@@ -1,3 +1,4 @@
+import { InvalidInputError } from '../errors/invalid-input.error';
 /**
  * Money is stored and computed as integer minor units (cents, fils, yen) in a single platform currency
  * for prices, payments and refunds (PAY-04). Floats are never used for money; conversions go through
@@ -20,7 +21,7 @@ export function currencyExponent(currency: string): number {
   const cached = exponentCache.get(code);
   if (cached !== undefined) return cached;
   if (!/^[A-Z]{3}$/.test(code) || !SUPPORTED_CURRENCIES.has(code))
-    throw new RangeError(`Invalid currency code "${currency}"`);
+    throw new InvalidInputError(`Invalid currency code "${currency}"`);
   let digits: number;
   try {
     digits =
@@ -29,7 +30,7 @@ export function currencyExponent(currency: string): number {
         currency: code,
       }).resolvedOptions().maximumFractionDigits ?? 2;
   } catch {
-    throw new RangeError(`Invalid currency code "${currency}"`);
+    throw new InvalidInputError(`Invalid currency code "${currency}"`);
   }
   exponentCache.set(code, digits);
   return digits;
@@ -41,7 +42,9 @@ export function isMinorUnits(value: unknown): value is number {
 
 export function assertMinorUnits(value: number, name = 'amount'): number {
   if (!isMinorUnits(value))
-    throw new RangeError(`${name} must be an integer number of minor units`);
+    throw new InvalidInputError(
+      `${name} must be an integer number of minor units`,
+    );
   return value;
 }
 
@@ -59,7 +62,7 @@ export function toMinor(major: string | number, currency: string): number {
       !Number.isFinite(major) ||
       Math.abs(scaled - Math.round(scaled)) > 1e-9
     ) {
-      throw new RangeError(
+      throw new InvalidInputError(
         `${major} is not an exact ${currency} amount; pass a decimal string`,
       );
     }
@@ -68,10 +71,10 @@ export function toMinor(major: string | number, currency: string): number {
     text = major.trim();
   }
   const m = /^(-)?(\d+)(?:\.(\d+))?$/.exec(text);
-  if (!m) throw new RangeError(`"${major}" is not a valid amount`);
+  if (!m) throw new InvalidInputError(`"${major}" is not a valid amount`);
   const [, sign, whole, fraction = ''] = m;
   if (fraction.length > exp) {
-    throw new RangeError(
+    throw new InvalidInputError(
       `${currency} amounts allow at most ${exp} decimal place(s)`,
     );
   }
@@ -100,7 +103,7 @@ export function sumMinor(amounts: readonly number[]): number {
 export function multiplyMinor(unitMinor: number, quantity: number): number {
   assertMinorUnits(unitMinor, 'unit price');
   if (!Number.isSafeInteger(quantity) || quantity < 0)
-    throw new RangeError('quantity must be a non-negative integer');
+    throw new InvalidInputError('quantity must be a non-negative integer');
   return assertMinorUnits(unitMinor * quantity, 'total');
 }
 
@@ -112,10 +115,10 @@ export function multiplyMinor(unitMinor: number, quantity: number): number {
 export function percentOfMinor(amountMinor: number, percent: number): number {
   assertMinorUnits(amountMinor);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100)
-    throw new RangeError('percent must be between 0 and 100');
+    throw new InvalidInputError('percent must be between 0 and 100');
   const basisPoints = Math.round(percent * 100);
   if (Math.abs(percent * 100 - basisPoints) > 1e-6)
-    throw new RangeError('percent allows at most two decimal places');
+    throw new InvalidInputError('percent allows at most two decimal places');
   if (basisPoints === 10_000) return amountMinor;
   return Number((BigInt(amountMinor) * BigInt(basisPoints)) / 10_000n);
 }
@@ -133,7 +136,7 @@ export function convertMinor(
 ): number {
   assertMinorUnits(amountMinor);
   if (!Number.isFinite(rate) || rate <= 0)
-    throw new RangeError('rate must be a positive number');
+    throw new InvalidInputError('rate must be a positive number');
   if (from.toUpperCase() === to.toUpperCase()) return amountMinor;
   const scaled =
     (amountMinor * rate * 10 ** currencyExponent(to)) /

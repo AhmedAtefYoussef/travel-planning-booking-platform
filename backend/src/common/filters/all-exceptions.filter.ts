@@ -11,6 +11,7 @@ import { Error as MongooseError } from 'mongoose';
 import { AppException, FieldError } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
 import { ErrorResponseDto } from '../errors/error-response.dto';
+import { InvalidInputError } from '../errors/invalid-input.error';
 
 const DEFAULT_CODES: Partial<Record<number, ErrorCode>> = {
   400: ErrorCode.BAD_REQUEST,
@@ -132,6 +133,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
     }
 
+    if (exception instanceof InvalidInputError) {
+      return {
+        status: HttpStatus.BAD_REQUEST,
+        code: ErrorCode.BAD_REQUEST,
+        message: exception.message,
+      };
+    }
+
     // Errors raised by Express middleware before Nest routing (malformed JSON, body too large).
     if (isClientHttpError(exception)) {
       const status = exception.status;
@@ -187,7 +196,23 @@ function isDuplicateKeyError(e: unknown): e is DuplicateKeyError {
   );
 }
 
+/**
+ * Only body-parser style errors (expose: true, type 'entity.*') are trusted as client errors. Any other
+ * object with a 4xx `status` (e.g. an HTTP client error from an upstream API) is a server problem.
+ */
 function isClientHttpError(e: unknown): e is { status: number; type?: string } {
-  const status = (e as { status?: unknown } | null)?.status;
-  return typeof status === 'number' && status >= 400 && status < 500;
+  if (typeof e !== 'object' || e === null) return false;
+  const { status, expose, type } = e as {
+    status?: unknown;
+    expose?: unknown;
+    type?: unknown;
+  };
+  return (
+    typeof status === 'number' &&
+    status >= 400 &&
+    status < 500 &&
+    expose === true &&
+    typeof type === 'string' &&
+    type.startsWith('entity.')
+  );
 }
