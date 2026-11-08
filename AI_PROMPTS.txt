@@ -46,3 +46,34 @@ Kept the generated implementation after reviewing each rule against the Jira acc
 added extra cases (DST gaps, JPY/KWD exponents, refund rounding down, ?limit rejection) and the
 conventions guide for teammates. Verified with npm run verify (61 unit + 18 e2e tests, 98% coverage).
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-13, ACC-11 (TRVL-131 auth contract stubs), TRVL-128
+Prompt:
+Implement the auth contract every module codes against: @Public, @Roles, @CurrentUser returning
+{id, role, assignedProvider}, a deny-by-default temporary guard that Abdelrahman can replace in ACC-11,
+role and provider-scope/ownership helpers, a bcrypt PasswordService, a public health endpoint and an
+Atlas connectivity check script, with unit and e2e tests.
+How the output was used:
+Reviewed the guard order and the production safety (stub disabled when NODE_ENV=production), added the
+72-byte bcrypt limit and forged-assignment cases to the tests, and kept the decorator API stable so
+the real guard is a drop-in replacement. Earlier review findings on the common layer (float refund
+percent, ambiguous DST times, production env checks) were fixed in PR #2 before this work.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-02, GEN-05, GEN-13 (Swagger demo requirement)
+Prompt:
+Validate every Sprint 0 task again against Jira and the project description, and test the endpoints
+through Swagger with screenshots in the PRs.
+How the output was used:
+The Jira criteria require each rule to be "enforced and demoable in Swagger", so a dev-only
+Diagnostics module was added (never registered in production) with e2e tests, then each scenario was
+run in Swagger UI and the screenshots were attached to the PRs.
+================================================
