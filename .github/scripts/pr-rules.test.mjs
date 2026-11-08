@@ -117,3 +117,14 @@ test('stripHtmlComments removes nested and unterminated comments', async () => {
   assert.equal(stripHtmlComments('a<!-- never closed'), 'a');
   assert.equal(stripHtmlComments(undefined), '');
 });
+
+test('traceability check finds missing, unknown and duplicate rows', async () => {
+  const { traceabilityProblems } = await import('./check-traceability.mjs');
+  const ids = new Set(['FLT-22', 'GEN-01-B']);
+  assert.deepEqual(traceabilityProblems('| FLT-22 | x |\n| GEN-01-B | y |', ids), []);
+  assert.deepEqual(traceabilityProblems('| FLT-22 | x |\n| FLT-22 | y |\n| ACC-03 | z |', ids), [
+    'GEN-01-B has no row',
+    'FLT-22 has 2 rows',
+    'ACC-03 is not a workbook requirement',
+  ]);
+});
