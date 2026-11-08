@@ -27,3 +27,20 @@ booted with the new airlines and flights models ("Indexes ready for 12 model(s)"
 |---|---|
 | `flt-02/01-flt02-airports-200.png` | `GET /api/airports`: the FLT-02 summary, then the 8 airports by IATA code with city, country and IANA time zone, `{page: 1, limit: 10, total: 8}` |
 | `flt-02/02-flt02-page-invalid-400.png` | `GET /api/airports?page=1.5`: Swagger lets it through and the backend rejects it with 400 `VALIDATION_FAILED` and a `page` field error |
+
+## FLT-01 (TRVL-28) airline profiles and FLT-03 + GEN-06 (TRVL-30, TRVL-101) flight creation
+
+Captured on `feature/FLT-03-create-flight` (contains FLT-01) against the team Atlas cluster. Demo data is clearly
+named: airline **Joudy Demo Air** (`JD`, id `6af0ea42c77901aa9f22864e`) and flight **JD777**. The `x-dev-user`
+header in each curl shows who made the call.
+
+| File | What it shows |
+|---|---|
+| `flt-01/01-flt01-admin-creates-201.png` | `POST /api/airlines` as `ADMIN`: 201, code `jd` stored as `JD`, active, empty policy |
+| `flt-01/02-flt01-duplicate-code-409.png` | The same request again: 409 `DUPLICATE_KEY` on `code` |
+| `flt-01/03-flt01-moderator-edits-200.png` | `PATCH /api/airlines/{id}` as the JD moderator: 200, new name and logo |
+| `flt-01/04-flt01-other-moderator-403.png` | The same edit as a moderator of another airline: 403 "You can only manage your assigned airline" |
+| `flt-03/01-flt03-create-cai-dxb-201.png` | `POST /api/flights`: Cairo 14:30 (UTC+2) to Dubai 18:45 (UTC+4) stored as 12:30Z to 14:45Z, local times returned (GEN-06), 135 min |
+| `flt-03/02-flt03-duplicate-same-day-409.png` | JD777 again on the same local date: 409 `DUPLICATE_KEY` |
+| `flt-03/03-flt03-arrival-before-departure-400.png` | 17:00 Cairo to 18:00 Dubai (15:00Z to 14:00Z): 400, `arrivalLocal` field error |
+| `flt-03/04-flt03-departure-in-past-400.png` | Departure in 2024: 400, `departureLocal` field error |
