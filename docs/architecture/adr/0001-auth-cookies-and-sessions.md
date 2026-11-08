@@ -10,7 +10,8 @@ The brief forbids tokens in `localStorage`/`sessionStorage`. ACC-06 requires log
 - On login the API sets two **httpOnly, SameSite=Lax** cookies: a short-lived `access_token` JWT (`JWT_ACCESS_TTL`, 15 minutes) and a `refresh_token`. `Secure` is controlled by `COOKIE_SECURE`, which env validation forces to true in production.
 - Every refresh token maps to a `sessions` document: hashed token, `lastActivityAt`, `expiresAt`, `revokedAt`. Logout revokes the session. Refresh fails after `SESSION_IDLE_MINUTES` of inactivity or when the account is suspended.
 - Authentication is a **global, deny-by-default guard**. Routes opt out with `@Public()`. `RolesGuard` checks `@Roles()`. Ownership and provider scope are checked in services (`common/auth/access.ts`).
-- Until ACC-11 lands, a stub guard reads `x-dev-user`, only when `AUTH_STUB=true` and outside production. It keeps the same `request.user` contract, so module code does not change.
+- Until ACC-11 lands, a stub guard reads `x-dev-user`, only when `AUTH_STUB=true`, outside production, and only from localhost. `NODE_ENV` is required, so a deployment cannot fall back to development by omission. The stub keeps the same `request.user` contract, so module code does not change.
+- Route visibility gives method-level metadata precedence: a `@Roles()` method stays protected inside a `@Public()` controller.
 
 ## Consequences
 - XSS cannot read the tokens. Cross-site requests from other origins are blocked by SameSite and the CORS allow-list (`CORS_ORIGINS`).
