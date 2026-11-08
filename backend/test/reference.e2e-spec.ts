@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 import { INestApplication } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
+import type { Model } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { REFERENCE_SERVICE, ReferenceService } from '../src/common/contracts';
@@ -7,6 +9,7 @@ import {
   loadReferenceDataset,
   ReferenceSeedService,
 } from '../src/modules/reference';
+import { Country } from '../src/modules/reference/schemas/country.schema';
 import { createTestApp } from './support/create-test-app';
 
 const DATA_DIR = join(__dirname, '..', 'seed', 'data');
@@ -32,6 +35,21 @@ describe('Reference data (e2e): GEN-12', () => {
     expect(again.countries).toEqual({ total: 8, inserted: 0, updated: 0 });
     expect(again.airports).toEqual({ total: 8, inserted: 0, updated: 0 });
     expect(again.currencies).toEqual({ total: 7, inserted: 0, updated: 0 });
+  });
+
+  it('seeding again restores a record that drifted from the dataset, counting it as updated', async () => {
+    const countries = app.get<Model<Country>>(getModelToken(Country.name));
+    await countries.updateOne(
+      { code: 'EG' },
+      { $set: { name: 'Egypt (edited)' } },
+    );
+    const again = await app
+      .get(ReferenceSeedService)
+      .seed(loadReferenceDataset(DATA_DIR));
+    expect(again.countries).toEqual({ total: 8, inserted: 0, updated: 1 });
+    await expect(
+      countries.findOne({ code: 'EG' }).lean().exec(),
+    ).resolves.toMatchObject({ name: 'Egypt' });
   });
 
   it('GET /api/countries is public and returns the seeded countries by name', async () => {

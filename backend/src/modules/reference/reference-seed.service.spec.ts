@@ -55,8 +55,16 @@ describe('ReferenceSeedService (GEN-12)', () => {
         {
           updateOne: {
             filter: { code: 'EG' },
-            update: { $set: dataset.countries[0] },
+            update: {
+              $set: dataset.countries[0],
+              $setOnInsert: {
+                createdAt: expect.any(Date) as unknown,
+                updatedAt: expect.any(Date) as unknown,
+              },
+            },
             upsert: true,
+            // Without this, every re-run would bump updatedAt and count unchanged records as updated.
+            timestamps: false,
           },
         },
       ],

@@ -61,11 +61,19 @@ export class ReferenceSeedService {
     key: keyof R & string,
   ): Promise<SeedCollectionResult> {
     if (records.length === 0) return { total: 0, inserted: 0, updated: 0 };
+    const now = new Date();
+    // Automatic timestamps are off for these writes: Mongoose would otherwise set a new updatedAt on
+    // every upsert, so MongoDB would count every unchanged record as "modified" on a re-run. Here only
+    // a real change (e.g. a corrected name) counts as updated; createdAt/updatedAt record the first seed.
     const ops = records.map((record) => ({
       updateOne: {
         filter: { [key]: record[key] },
-        update: { $set: record },
+        update: {
+          $set: record,
+          $setOnInsert: { createdAt: now, updatedAt: now },
+        },
         upsert: true,
+        timestamps: false,
       },
     })) as unknown as Parameters<Model<T>['bulkWrite']>[0];
     const res = await model.bulkWrite(ops, { ordered: true });
