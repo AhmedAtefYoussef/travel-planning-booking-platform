@@ -1,10 +1,25 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { Matches, ValidateBy } from 'class-validator';
-import type { CabinClass } from '../../../common/contracts';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  Matches,
+  Min,
+  ValidateBy,
+} from 'class-validator';
+import type { CabinClass, FlightSearchQuery } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
 import { FlightEndpointDto } from './flight.dto';
+
+/** FLT-15 sort keys (the FLIGHTS_SEARCH contract); every sort is ascending: earliest, cheapest, shortest. */
+export type FlightSort = NonNullable<FlightSearchQuery['sort']>;
+export const FLIGHT_SORTS: readonly FlightSort[] = [
+  'departure',
+  'price',
+  'duration',
+];
 
 /** One rule, one message (GEN-02): a missing or out-of-range count reports a single field error. */
 function IsPassengerCount() {
@@ -21,13 +36,19 @@ function IsPassengerCount() {
   });
 }
 
+/** Query strings arrive as text: "25000" becomes 25000, anything else is left for the validator. */
+const toInteger = ({ value }: { value: unknown }) =>
+  typeof value === 'string' && /^-?\d+$/.test(value.trim())
+    ? Number(value)
+    : value;
+
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
 
 /**
  * FLT-11: one-way search by departure and arrival airport, the local departure date at the departure
- * airport, and the number of passengers. Round trips, passenger types and the cabin filter are FLT-12;
- * the price range and sorting are FLT-15.
+ * airport, and the number of passengers. FLT-15 adds an inclusive price range and sorting. Round trips,
+ * passenger types and the cabin filter are FLT-12.
  */
 export class FlightSearchQueryDto extends PaginationQueryDto {
   @ApiProperty({
@@ -67,6 +88,42 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   )
   @IsPassengerCount()
   passengers!: number;
+
+  @ApiPropertyOptional({
+    example: 30000,
+    minimum: 0,
+    description:
+      'FLT-15: lowest total fare for all passengers, inclusive, in minor units (30000 = 300.00)',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsInt({ message: 'minPriceMinor must be a whole number of minor units' })
+  @Min(0)
+  minPriceMinor?: number;
+
+  @ApiPropertyOptional({
+    example: 90000,
+    minimum: 0,
+    description:
+      'FLT-15: highest total fare for all passengers, inclusive, in minor units; must be >= minPriceMinor',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsInt({ message: 'maxPriceMinor must be a whole number of minor units' })
+  @Min(0)
+  maxPriceMinor?: number;
+
+  @ApiPropertyOptional({
+    enum: FLIGHT_SORTS,
+    default: 'departure',
+    description:
+      'FLT-15: price = cheapest total first, duration = shortest first, departure = earliest first',
+  })
+  @IsOptional()
+  @IsIn(FLIGHT_SORTS, {
+    message: `sort must be one of: ${FLIGHT_SORTS.join(', ')}`,
+  })
+  sort?: FlightSort;
 }
 
 /** One selectable option: a flight and one of its cabins with enough seats (FLT-11). */
