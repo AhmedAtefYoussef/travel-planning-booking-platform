@@ -1,6 +1,6 @@
-import { Logger, Module } from '@nestjs/common';
+import { Logger, Module, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
+import { InjectConnection, MongooseModule } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 import { EnvironmentVariables } from '../config/env.validation';
 
@@ -30,4 +30,17 @@ import { EnvironmentVariables } from '../config/env.validation';
     }),
   ],
 })
-export class DatabaseModule {}
+export class DatabaseModule implements OnApplicationBootstrap {
+  constructor(@InjectConnection() private readonly connection: Connection) {}
+
+  /**
+   * Unique indexes are business rules (unique email, one room per night, one success per booking).
+   * Mongoose builds them in the background, so the app waits for every model's index build before it
+   * starts serving; otherwise a request right after startup could slip a duplicate past the index.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    const names = this.connection.modelNames();
+    await Promise.all(names.map((name) => this.connection.model(name).init()));
+    Logger.log(`Indexes ready for ${names.length} model(s)`, 'Database');
+  }
+}

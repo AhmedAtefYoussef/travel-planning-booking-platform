@@ -60,3 +60,6 @@ With `NODE_ENV=development`, Swagger shows a **Diagnostics (dev only)** tag that
 - 401 and 403 from the guards
 
 The module is never registered in production (`diagnosticsEnabled`).
+
+## Unique indexes are ready before the first request
+`DatabaseModule` waits for every registered model to finish building its indexes (`Model.init()`) before the app starts serving. A unique index (email, room night, payment) is therefore enforced from the very first request. Define uniqueness with schema indexes; never rely on a "find, then insert" check.
