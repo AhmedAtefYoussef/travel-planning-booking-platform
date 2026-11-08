@@ -12,6 +12,12 @@ export const API_PREFIX = 'api';
  */
 export function configureApp(app: INestApplication): INestApplication {
   app.setGlobalPrefix(API_PREFIX);
+  // Do not advertise the server stack (x-powered-by: Express) to clients.
+  (
+    app.getHttpAdapter().getInstance() as {
+      disable?: (setting: string) => void;
+    }
+  ).disable?.('x-powered-by');
   // Auth uses httpOnly cookies (ACC-19); the frontend calls the API with credentials.
   app.use(cookieParser());
   const origins = (app.get(ConfigService).get<string>('CORS_ORIGINS') ?? '')

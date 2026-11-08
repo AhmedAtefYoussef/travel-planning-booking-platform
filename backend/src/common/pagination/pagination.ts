@@ -1,11 +1,30 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, Max, Min } from 'class-validator';
+import { ValidateBy } from 'class-validator';
 import type { FilterQuery, Model, SortOrder } from 'mongoose';
 
 /** GEN-05: every list is paginated with a fixed page size of 10. Clients choose the page only. */
 export const PAGE_SIZE = 10;
 const MAX_PAGE = 100_000;
+const PAGE_MESSAGE = `page must be a whole number between 1 and ${MAX_PAGE}`;
+
+/**
+ * One rule, one message: separate IsInt/Min/Max validators would report three contradictory
+ * messages for input such as "1.5" (GEN-02 asks for accurate field-level messages).
+ */
+function IsPageNumber() {
+  return ValidateBy({
+    name: 'isPageNumber',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value >= 1 &&
+        value <= MAX_PAGE,
+      defaultMessage: () => PAGE_MESSAGE,
+    },
+  });
+}
 
 /**
  * Query DTO for every list endpoint. Extend it for module-specific filters:
@@ -14,7 +33,9 @@ const MAX_PAGE = 100_000;
  */
 export class PaginationQueryDto {
   @ApiPropertyOptional({
+    type: Number,
     minimum: 1,
+    maximum: MAX_PAGE,
     default: 1,
     example: 1,
     description: 'Page number (page size is fixed at 10, GEN-05)',
@@ -28,9 +49,7 @@ export class PaginationQueryDto {
           ? value
           : Number.NaN,
   )
-  @IsInt({ message: 'page must be a whole number' })
-  @Min(1, { message: 'page must be at least 1' })
-  @Max(MAX_PAGE)
+  @IsPageNumber()
   page: number = 1;
 }
 

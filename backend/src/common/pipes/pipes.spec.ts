@@ -79,6 +79,19 @@ describe('ParseObjectIdPipe', () => {
 });
 
 describe('pagination (GEN-05)', () => {
+  it.each(['0', '1.5', 'abc', '100001', '-3', '0x10'])(
+    'reports exactly one accurate message for page=%s',
+    (page) => {
+      const errors = validateSync(
+        plainToInstance(PaginationQueryDto, { page }),
+      );
+      expect(errors).toHaveLength(1);
+      expect(Object.values(errors[0].constraints ?? {})).toEqual([
+        'page must be a whole number between 1 and 100000',
+      ]);
+    },
+  );
+
   const validate = (query: Record<string, unknown>) => {
     const dto = plainToInstance(PaginationQueryDto, query);
     return { dto, errors: validateSync(dto) };
