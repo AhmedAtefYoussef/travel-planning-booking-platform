@@ -49,7 +49,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | #11 | In review (baggage-policy endpoint comes with FLT-08) |
 | FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | - | Not started |
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
-| FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | - | In review |
+| FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | In review |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy | Joudy | TRVL-35 | #4 | Partial: tier rule |
 | FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | - | Not started |
 | FLT-12 | Mandatory | GET /api/flights/search | Ahmed | TRVL-37 | - | Not started |
