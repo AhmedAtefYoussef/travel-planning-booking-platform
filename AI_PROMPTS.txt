@@ -234,3 +234,18 @@ Claude wrote FlightStatusService (one conditional updateMany at startup and ever
 departure-time guard on edits, and the tests. I checked that search already filters by status and time so nothing
 slips through between runs, and that the job is safe on several API instances.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-09 (TRVL-35 airline cancellation tiers)
+Prompt:
+Implement FLT-09: an airline moderator defines cancellation tiers (unique whole-number days-before threshold,
+refund 0-100%); a refund uses the tier with the highest threshold not exceeding the days remaining, else 0%.
+Reuse the shared selectCancellationTier helper, make both rules demoable in Swagger, and add tests.
+How the output was used:
+Claude added PUT /api/airlines/:id/cancellation-policy (validation, duplicate thresholds reported on the exact
+tier, moderator-only) and a public refund-preview endpoint so the selection rule can be shown in Swagger before
+booking cancellation (FLT-26) exists. I reviewed the boundary cases (exactly on a threshold, 0 days, no tiers).
+================================================

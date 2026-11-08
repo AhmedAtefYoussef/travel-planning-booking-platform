@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
@@ -16,7 +25,10 @@ import { AirlinesService } from './airlines.service';
 import {
   AirlineDto,
   BaggagePolicyDto,
+  CancellationPolicyDto,
   CreateAirlineDto,
+  RefundPreviewDto,
+  RefundPreviewQueryDto,
   UpdateAirlineDto,
 } from './dto/airline.dto';
 
@@ -139,5 +151,79 @@ export class AirlinesController {
     @Body() dto: BaggagePolicyDto,
   ): Promise<AirlineDto> {
     return this.airlines.setBaggagePolicy(user, id, dto);
+  }
+
+  @Put(':id/cancellation-policy')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary:
+      'FLT-09 Set the cancellation tiers (days-before threshold, refund %)',
+    description:
+      'Only the moderator of this airline. Sends the full list of tiers and replaces the previous one. Each daysBefore is a whole number >= 0 and unique (a repeat is a 400 on that tier); each refundPercent is 0-100 with up to two decimals. An empty list means cancellations are never refunded. Tiers are returned sorted by daysBefore. Existing bookings keep the policy they accepted (PAY-02).',
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiBody({
+    type: CancellationPolicyDto,
+    examples: {
+      valid: {
+        summary: '100% at 30+ days, 50% at 7+ days, 25% at 1+ day',
+        value: {
+          tiers: [
+            { daysBefore: 30, refundPercent: 100 },
+            { daysBefore: 7, refundPercent: 50 },
+            { daysBefore: 1, refundPercent: 25 },
+          ],
+        },
+      },
+      noRefunds: {
+        summary: 'No refunds at all',
+        value: { tiers: [] },
+      },
+      duplicate: {
+        summary: 'Invalid: the threshold 7 is used twice',
+        value: {
+          tiers: [
+            { daysBefore: 7, refundPercent: 50 },
+            { daysBefore: 7, refundPercent: 40 },
+          ],
+        },
+      },
+      invalid: {
+        summary: 'Invalid: negative/fractional days, refund above 100%',
+        value: {
+          tiers: [
+            { daysBefore: -1, refundPercent: 50 },
+            { daysBefore: 2.5, refundPercent: 120 },
+          ],
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: AirlineDto })
+  @ApiErrorResponses(400, 404)
+  setCancellationPolicy(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: CancellationPolicyDto,
+  ): Promise<AirlineDto> {
+    return this.airlines.setCancellationPolicy(user, id, dto);
+  }
+
+  @Get(':id/cancellation-policy/refund-preview')
+  @Public()
+  @ApiOperation({
+    summary:
+      'FLT-09 Preview which cancellation tier applies N days before departure',
+    description:
+      "Applies the FLT-09 rule to this airline's tiers: the tier with the highest threshold not exceeding daysRemaining is used; if none applies the refund is 0%. Example with tiers 30/100%, 7/50%, 1/25%: 10 days gives 50%, 7 days gives 50%, 0 days gives 0%.",
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiOkResponse({ type: RefundPreviewDto })
+  @ApiErrorResponses(400, 404)
+  previewRefund(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: RefundPreviewQueryDto,
+  ): Promise<RefundPreviewDto> {
+    return this.airlines.previewRefund(id, query.daysRemaining);
   }
 }

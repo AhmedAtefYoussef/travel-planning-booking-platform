@@ -3,12 +3,18 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType } from '../../common/auth/auth.types';
-import { AppException } from '../../common/errors/app.exception';
+import { selectCancellationTier } from '../../common/contracts';
+import {
+  AppException,
+  ValidationFailedException,
+} from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type {
   AirlineDto,
   BaggagePolicyDto,
+  CancellationPolicyDto,
   CreateAirlineDto,
+  RefundPreviewDto,
   UpdateAirlineDto,
 } from './dto/airline.dto';
 import { Airline, AirlineDocument } from './schemas/airline.schema';
@@ -76,6 +82,66 @@ export class AirlinesService {
     });
     await airline.save();
     return toAirlineDto(airline);
+  }
+
+  /**
+   * FLT-09: replaces the airline's cancellation tiers. Each threshold must be unique; tiers are
+   * stored sorted by threshold so they read naturally. Existing bookings keep the policy they
+   * accepted (PAY-02 snapshot), so this only affects future bookings.
+   */
+  async setCancellationPolicy(
+    user: AuthUser,
+    id: string,
+    dto: CancellationPolicyDto,
+  ): Promise<AirlineDto> {
+    const airline = await this.load(id);
+    assertProviderScope(user, ProviderType.Airline, airline._id);
+    const firstIndex = new Map<number, number>();
+    const duplicates = dto.tiers.flatMap((tier, i) => {
+      const first = firstIndex.get(tier.daysBefore);
+      if (first === undefined) {
+        firstIndex.set(tier.daysBefore, i);
+        return [];
+      }
+      return [
+        {
+          field: `tiers[${i}].daysBefore`,
+          message: `daysBefore ${tier.daysBefore} is already used by tiers[${first}]; thresholds must be unique`,
+        },
+      ];
+    });
+    if (duplicates.length) throw new ValidationFailedException(duplicates);
+    const tiers = [...dto.tiers]
+      .sort((a, b) => a.daysBefore - b.daysBefore)
+      .map((t) => ({
+        daysBefore: t.daysBefore,
+        refundPercent: t.refundPercent,
+      }));
+    airline.set('policy.cancellationTiers', tiers);
+    await airline.save();
+    return toAirlineDto(airline);
+  }
+
+  /**
+   * FLT-09 selection rule: the tier with the highest threshold not exceeding the days remaining;
+   * none applies means 0%. Uses the shared selectCancellationTier that refunds (PAY-03) also use.
+   */
+  async previewRefund(
+    id: string,
+    daysRemaining: number,
+  ): Promise<RefundPreviewDto> {
+    const airline = await this.load(id);
+    const tier = selectCancellationTier(
+      airline.policy?.cancellationTiers ?? [],
+      daysRemaining,
+    );
+    return {
+      daysRemaining,
+      tierApplied: tier
+        ? { daysBefore: tier.daysBefore, refundPercent: tier.refundPercent }
+        : null,
+      refundPercent: tier?.refundPercent ?? 0,
+    };
   }
 
   /** Loads an airline or throws 404; other services reuse it (flights, policies). */

@@ -234,4 +234,151 @@ describe('Airlines (e2e): FLT-01', () => {
         .expect(401);
     });
   });
+
+  describe('FLT-09 cancellation tiers', () => {
+    const policyUrl = () => `/api/airlines/${airlineId}/cancellation-policy`;
+    const preview = (days: string | number) =>
+      http().get(`${policyUrl()}/refund-preview?daysRemaining=${days}`);
+
+    it('the assigned moderator sets tiers; they are stored sorted by threshold', async () => {
+      const res = await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({
+          tiers: [
+            { daysBefore: 7, refundPercent: 50 },
+            { daysBefore: 30, refundPercent: 100 },
+            { daysBefore: 1, refundPercent: 25.5 },
+          ],
+        })
+        .expect(200);
+      expect(res.body.policy.cancellationTiers).toEqual([
+        { daysBefore: 1, refundPercent: 25.5 },
+        { daysBefore: 7, refundPercent: 50 },
+        { daysBefore: 30, refundPercent: 100 },
+      ]);
+      const after = await http().get(`/api/airlines/${airlineId}`).expect(200);
+      expect(after.body.policy.cancellationTiers).toHaveLength(3);
+    });
+
+    it('uses the tier with the highest threshold not exceeding the days remaining', async () => {
+      const cases: [number, number][] = [
+        [40, 100],
+        [30, 100],
+        [10, 50],
+        [7, 50],
+        [6, 25.5],
+        [1, 25.5],
+      ];
+      for (const [days, percent] of cases) {
+        const res = await preview(days).expect(200);
+        expect(res.body.daysRemaining).toBe(days);
+        expect(res.body.refundPercent).toBe(percent);
+        expect(res.body.tierApplied.refundPercent).toBe(percent);
+      }
+    });
+
+    it('refunds 0% when no tier applies', async () => {
+      const res = await preview(0).expect(200);
+      expect(res.body).toEqual({
+        daysRemaining: 0,
+        tierApplied: null,
+        refundPercent: 0,
+      });
+    });
+
+    it('rejects a repeated threshold (400 on the repeat) and keeps the old tiers', async () => {
+      const res = await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({
+          tiers: [
+            { daysBefore: 7, refundPercent: 50 },
+            { daysBefore: 7, refundPercent: 40 },
+          ],
+        })
+        .expect(400);
+      expect(res.body.fieldErrors).toEqual([
+        {
+          field: 'tiers[1].daysBefore',
+          message:
+            'daysBefore 7 is already used by tiers[0]; thresholds must be unique',
+        },
+      ]);
+      const after = await http().get(`/api/airlines/${airlineId}`).expect(200);
+      expect(after.body.policy.cancellationTiers).toHaveLength(3);
+    });
+
+    it('rejects negative or fractional days, refunds outside 0-100 and unknown fields', async () => {
+      const res = await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({
+          tiers: [
+            { daysBefore: -1, refundPercent: 50 },
+            { daysBefore: 2.5, refundPercent: 120 },
+            { daysBefore: 3, refundPercent: -5 },
+            { daysBefore: 4, refundPercent: 10.123 },
+          ],
+        })
+        .expect(400);
+      const fields = new Set(
+        res.body.fieldErrors.map((f: { field: string }) => f.field),
+      );
+      expect([...fields].sort()).toEqual([
+        'tiers[0].daysBefore',
+        'tiers[1].daysBefore',
+        'tiers[1].refundPercent',
+        'tiers[2].refundPercent',
+        'tiers[3].refundPercent',
+      ]);
+      await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ tiers: [{ daysBefore: 1, refundPercent: 1, fee: 5 }] })
+        .expect(400);
+      await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({})
+        .expect(400);
+    });
+
+    it('an empty list means no refunds', async () => {
+      const res = await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ tiers: [] })
+        .expect(200);
+      expect(res.body.policy.cancellationTiers).toEqual([]);
+      expect((await preview(365).expect(200)).body.refundPercent).toBe(0);
+    });
+
+    it('only the moderator of this airline may set tiers', async () => {
+      const body = { tiers: [{ daysBefore: 0, refundPercent: 100 }] };
+      await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(new Types.ObjectId().toHexString()))
+        .send(body)
+        .expect(403);
+      await http()
+        .put(policyUrl())
+        .set('x-dev-user', admin)
+        .send(body)
+        .expect(403);
+      await http().put(policyUrl()).send(body).expect(401);
+    });
+
+    it('the preview validates daysRemaining and returns 404 for an unknown airline', async () => {
+      await preview(-1).expect(400);
+      await preview('abc').expect(400);
+      await preview(1.5).expect(400);
+      await http().get(`${policyUrl()}/refund-preview`).expect(400);
+      await http()
+        .get(
+          `/api/airlines/${new Types.ObjectId().toHexString()}/cancellation-policy/refund-preview?daysRemaining=3`,
+        )
+        .expect(404);
+    });
+  });
 });
