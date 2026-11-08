@@ -76,4 +76,13 @@ How the output was used:
 The Jira criteria require each rule to be "enforced and demoable in Swagger", so a dev-only
 Diagnostics module was added (never registered in production) with e2e tests, then each scenario was
 run in Swagger UI and the screenshots were attached to the PRs.
+Related Requirement: TRVL-132 contracts, TRVL-161 payment schemas, TRVL-162 audit log (GEN-07, GEN-11, PAY-01, PAY-03, FLT-09)
+Prompt:
+Define the cross-module contracts (PayableBooking, RefundsService, policies, search, currency, reference,
+audit, notifications, uploads) with injection tokens, the GEN-11 lifecycle and FLT-09 tier rule, and
+implement the payments/refunds/stripe_events and audit_logs schemas with their indexes and tests.
+How the output was used:
+Checked every rule against the workbook text (FLT-09 tier selection, HTL-21 no partial cancellation,
+PAY-01 no card data, PAY-03 refund statuses). The e2e tests caught that Types.ObjectId as a Prop type
+breaks query casting; switched to Schema.Types.ObjectId and documented it for the team.
 ================================================

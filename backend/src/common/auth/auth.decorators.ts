@@ -42,21 +42,25 @@ export const Roles = (...roles: Role[]) =>
     ApiErrorResponses(401, 403),
   );
 
+/** Resolves @CurrentUser(); exported for unit tests. */
+export function currentUserFactory(
+  _: unknown,
+  ctx: ExecutionContext,
+): AuthUser {
+  const user = ctx.switchToHttp().getRequest<Request>().user;
+  if (!user) {
+    // Reaching this means @CurrentUser() was used on a @Public() route: a programming error.
+    throw new AppException(
+      HttpStatus.UNAUTHORIZED,
+      ErrorCode.UNAUTHENTICATED,
+      'Authentication required',
+    );
+  }
+  return user;
+}
+
 /** The authenticated caller: {id, role, assignedProvider?}. Only valid on protected routes. */
-export const CurrentUser = createParamDecorator(
-  (_: unknown, ctx: ExecutionContext): AuthUser => {
-    const user = ctx.switchToHttp().getRequest<Request>().user;
-    if (!user) {
-      // Reaching this means @CurrentUser() was used on a @Public() route: a programming error.
-      throw new AppException(
-        HttpStatus.UNAUTHORIZED,
-        ErrorCode.UNAUTHENTICATED,
-        'Authentication required',
-      );
-    }
-    return user;
-  },
-);
+export const CurrentUser = createParamDecorator(currentUserFactory);
 
 /**
  * Route visibility with method-level precedence: a method marked @Public() is open; a method marked
