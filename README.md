@@ -32,8 +32,14 @@ Prerequisites: Node.js 22 LTS or newer, npm, and access to the team MongoDB Atla
 npm install                     # repo tooling: git hooks and commit linting
 cd backend && npm install
 cp ../.env.example .env         # then fill in MONGODB_URI and the secrets you were given privately
+npm run seed                    # load the official reference data (GEN-12); safe to run again
 npm run start:dev               # http://localhost:3000/api, Swagger at http://localhost:3000/api/docs
 ```
+
+`npm run seed` loads the official reference datasets from `backend/seed/data` (Countries, Cities, Airports and
+Attractions CSVs, brief section 5.1) and derives the supported currencies from Countries.csv. It validates the files
+first and writes nothing if a rule fails. Records are upserted by their dataset ids (country `code`, `city_id`,
+`iata_code`, `attraction_id`), so running it again never creates duplicates.
 
 `backend/.env` is gitignored. Never commit it, and never paste the connection string into chat, issues or AI tools.
 
