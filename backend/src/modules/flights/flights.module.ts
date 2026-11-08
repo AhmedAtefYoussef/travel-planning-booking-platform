@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AirlinesController } from './airlines.controller';
 import { AirlinesService } from './airlines.service';
+import { FlightsController } from './flights.controller';
+import { FlightsService } from './flights.service';
 import { Airline, AirlineSchema } from './schemas/airline.schema';
 import { Flight, FlightSchema } from './schemas/flight.schema';
 
@@ -16,8 +18,8 @@ import { Flight, FlightSchema } from './schemas/flight.schema';
       { name: Flight.name, schema: FlightSchema },
     ]),
   ],
-  controllers: [AirlinesController],
-  providers: [AirlinesService],
+  controllers: [AirlinesController, FlightsController],
+  providers: [AirlinesService, FlightsService],
   exports: [MongooseModule, AirlinesService],
 })
 export class FlightsModule {}
