@@ -2,6 +2,8 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import { SCHEMA_OPTIONS } from '../../../common/contracts';
 
+export const AIRLINES_COLLECTION = 'airlines';
+
 const integer = (name: string) => ({
   validator: Number.isSafeInteger,
   message: `${name} must be a whole number`,
@@ -66,7 +68,7 @@ const AirlinePolicySchema = SchemaFactory.createForClass(AirlinePolicyDoc);
  * moderator assigned to it (assignedProvider, ACC-13). `isActive` false hides its flights from search
  * and booking while existing Confirmed bookings stay valid (ACC-15, ACTIVE_PROVIDER_FILTER).
  */
-@Schema({ ...SCHEMA_OPTIONS, collection: 'airlines' })
+@Schema({ ...SCHEMA_OPTIONS, collection: AIRLINES_COLLECTION })
 export class Airline {
   @Prop({
     type: String,

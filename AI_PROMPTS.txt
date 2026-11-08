@@ -204,3 +204,18 @@ How the output was used:
 Claude wrote the DTO, the service method and route, and the tests. I confirmed that the extra-bag weight limit
 is the cabin's free-baggage maximum (FLT-04), so it is not a separate field, and verified the endpoint in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-11 (TRVL-36 one-way flight search)
+Prompt:
+Implement FLT-11: a public GET /api/flights/search by departure and arrival airport, local departure date at the
+departure airport and passenger count, listing Scheduled flights of active airlines with enough available seats
+as selectable flight + cabin options with local times; provide it as FLIGHTS_SEARCH; unit and e2e tests.
+How the output was used:
+Claude wrote the query DTO, the aggregation-based FlightSearchService and the tests. I checked the local-day
+boundaries by hand (Cairo UTC+2, Tokyo UTC+9: 00:30 on 2 Dec in Tokyo is 1 Dec in UTC but a 2 Dec flight) and that
+cancelled flights, inactive airlines and full cabins are excluded, then verified the search in Swagger.
+================================================
