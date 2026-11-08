@@ -1,0 +1,212 @@
+name: CI
+
+# Validation & verification for every pull request and for the long-lived branches.
+# Jobs whose paths did not change are skipped (a skipped required check counts as passing),
+# so docs-only PRs stay fast while code PRs get the full gate.
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'docs/requirements/requirements.json'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'frontend/**'
+            workflows:
+              - '.github/**'
+
+  backend-quality:
+    name: backend-quality
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Prettier
+        run: npm run format:check
+      - name: ESLint (zero warnings)
+        run: npm run lint:ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Rebuild (a second build must also emit output)
+        run: npm run build
+      - name: Production entrypoint exists after repeated builds (npm run start:prod runs node dist/main)
+        run: test -f dist/main.js || { echo "::error::dist/main.js missing after a rebuild; check tsconfig.build.json (rootDir, include, incremental)"; find dist -maxdepth 2 | head -20; exit 1; }
+
+  backend-test:
+    name: backend-test
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # e2e tests start an in-memory MongoDB replica set; cache its binary between runs.
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+      - run: npm ci
+      - name: Unit tests with coverage thresholds
+        run: npm run test:cov -- --ci
+      - name: e2e tests (in-memory MongoDB replica set)
+        run: npm run test:e2e -- --ci
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          if-no-files-found: ignore
+          retention-days: 7
+
+  openapi-contract:
+    name: openapi-contract
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+      - run: npm ci
+      - name: Generate OpenAPI document from the running app
+        run: npm run openapi:generate
+      - name: Check Swagger contract (requirement IDs, error responses, GEN-05 paging)
+        run: npm run openapi:check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: openapi
+          path: backend/openapi.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  architecture:
+    name: architecture
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - name: Module boundaries and MVC layering (dependency-cruiser)
+        run: npm run arch:check
+        working-directory: backend
+      - name: Guard rails (token storage, card data, secrets, public routes)
+        run: node .github/scripts/check-forbidden-patterns.mjs
+
+  frontend:
+    name: frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Next.js app (Milestone 2)
+        id: app
+        run: |
+          if [ -f package.json ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/setup-node@v4
+        if: steps.app.outputs.present == 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: steps.app.outputs.present == 'true'
+        run: npm ci
+      - if: steps.app.outputs.present == 'true'
+        run: npm run lint --if-present
+      - if: steps.app.outputs.present == 'true'
+        run: npm run typecheck --if-present
+      - if: steps.app.outputs.present == 'true'
+        run: npm test --if-present
+      - if: steps.app.outputs.present == 'true'
+        run: npm run build
+
+  workflow-lint:
+    name: workflow-lint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: actionlint
+        uses: raven-actions/actionlint@v2
+      - name: Governance script tests
+        run: node --test .github/scripts/*.test.mjs

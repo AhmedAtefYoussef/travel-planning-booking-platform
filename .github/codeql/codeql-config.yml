@@ -1,0 +1,8 @@
+name: travel-platform-codeql
+
+# Test files contain deliberately unsafe probes (echo controllers, fake secrets); scan only shipped code.
+paths-ignore:
+  - '**/*.spec.ts'
+  - '**/*.e2e-spec.ts'
+  - 'backend/test/**'
+  - '.github/scripts/*.test.mjs'

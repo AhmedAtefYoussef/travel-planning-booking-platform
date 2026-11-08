@@ -1,0 +1,15 @@
+# Code owners (brief section 10.5: every PR is reviewed by the team leader).
+# With "Require review from Code Owners" on main and develop, a PR cannot merge without
+# @AhmedAtefYoussef's approval. As repository admin the team leader may merge their own PRs
+# once every required check passes (GitHub does not allow self-approval).
+# Later rules override earlier ones: add module co-owners below as teammates join the repo.
+
+*                                   @AhmedAtefYoussef
+
+# Shared contracts and infrastructure: changes affect every module.
+/backend/src/common/                @AhmedAtefYoussef
+/backend/src/app.module.ts          @AhmedAtefYoussef
+/backend/src/app.setup.ts           @AhmedAtefYoussef
+/.github/                           @AhmedAtefYoussef
+/docs/requirements/                 @AhmedAtefYoussef
+/docs/architecture/                 @AhmedAtefYoussef
