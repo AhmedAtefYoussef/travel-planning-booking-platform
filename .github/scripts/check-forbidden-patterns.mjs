@@ -45,25 +45,33 @@ function* walk(dir) {
 }
 
 const violations = [];
+const exemptions = [];
 const publicRoutes = [];
+// A reviewed exception is marked on the same or previous line: `// guard-rails: allow <rule-id> - <reason>`.
+const allowed = (lines, i, id) =>
+  [lines[i], lines[i - 1] ?? ''].some((l) => l.includes(`guard-rails: allow ${id}`));
 for (const root of ROOTS) {
   for (const full of walk(root)) {
     const file = relative('.', full).replaceAll('\\', '/');
-    readFileSync(full, 'utf8')
-      .split(/\r?\n/)
-      .forEach((line, i) => {
-        if (/^\s*(\/\/|\*)/.test(line)) return;
-        for (const rule of RULES) {
-          if (rule.test(line, file)) violations.push({ file, line: i + 1, rule });
-        }
-        if (/@Public\(\)/.test(line) && !file.endsWith('public.decorator.ts')) publicRoutes.push(`${file}:${i + 1}`);
-      });
+    const lines = readFileSync(full, 'utf8').split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (/^\s*(\/\/|\*)/.test(line)) return;
+      for (const rule of RULES) {
+        if (!rule.test(line, file)) continue;
+        if (allowed(lines, i, rule.id)) exemptions.push(`${file}:${i + 1} (${rule.id})`);
+        else violations.push({ file, line: i + 1, rule });
+      }
+      if (/@Public\(\)/.test(line) && !file.endsWith('auth.decorators.ts')) publicRoutes.push(`${file}:${i + 1}`);
+    });
   }
 }
 
 const out = [
   `### Guard rails: ${violations.length ? `${violations.length} violation(s)` : 'OK'}`,
   ...violations.map((v) => `- :x: \`${v.file}:${v.line}\` **${v.rule.id}**: ${v.rule.why}`),
+  '',
+  `#### Reviewed exemptions: ${exemptions.length}`,
+  ...(exemptions.length ? exemptions.map((e) => `- \`${e}\``) : ['- none']),
   '',
   `#### Public (unauthenticated) routes: ${publicRoutes.length}`,
   ...(publicRoutes.length ? publicRoutes.map((p) => `- \`${p}\``) : ['- none']),
