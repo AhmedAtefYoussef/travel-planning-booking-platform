@@ -4,6 +4,7 @@ import { ClientSession, Model, Types } from 'mongoose';
 import type { AuditEntry, AuditService } from '../../common/contracts';
 import { AuditLog } from './schemas/audit-log.schema';
 
+// guard-rails: allow no-raw-card-data - redaction pattern that strips card-like keys from audit metadata
 const SENSITIVE_KEY = /pass(word)?|secret|token|hash|card|cvc|cvv/i;
 
 /** Drops secret-looking keys so an audit entry can never leak credentials. */
