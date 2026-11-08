@@ -48,3 +48,15 @@ Every error has the same body (`ErrorResponseDto`):
 
 ## Checking your Atlas connection (TRVL-128)
 From `backend/`, run `npm run db:check`. It prints the cluster host, replica set and transaction support, and never the credentials. With the app running, `GET /api/health` (public) reports `db: up`.
+
+## Demoing the rules in Swagger (dev only)
+With `NODE_ENV=development`, Swagger shows a **Diagnostics (dev only)** tag that demos the cross-cutting rules (GEN-02, GEN-05, GEN-13):
+
+- validation with nested `fieldErrors` (pick the `invalid` example)
+- page size 10 over 23 sample rows
+- duplicate key returning 409
+- malformed or unknown id returning 400 or 404
+- salted password hashes
+- 401 and 403 from the guards
+
+The module is never registered in production (`diagnosticsEnabled`).

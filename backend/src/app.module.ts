@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CommonModule } from './common/common.module';
 import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
+import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
 import { HealthModule } from './modules/health';
 
 /**
@@ -9,6 +10,13 @@ import { HealthModule } from './modules/health';
  * are registered here by their owners as they land; cross-cutting infrastructure lives in common/.
  */
 @Module({
-  imports: [AppConfigModule, DatabaseModule, CommonModule, HealthModule],
+  imports: [
+    AppConfigModule,
+    DatabaseModule,
+    CommonModule,
+    HealthModule,
+    // Dev-only Swagger demos; evaluated after AppConfigModule has loaded .env into process.env.
+    ...(diagnosticsEnabled(process.env.NODE_ENV) ? [DiagnosticsModule] : []),
+  ],
 })
 export class AppModule {}

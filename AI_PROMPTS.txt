@@ -63,3 +63,17 @@ Reviewed the guard order and the production safety (stub disabled when NODE_ENV=
 the real guard is a drop-in replacement. Earlier review findings on the common layer (float refund
 percent, ambiguous DST times, production env checks) were fixed in PR #2 before this work.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-02, GEN-05, GEN-13 (Swagger demo requirement)
+Prompt:
+Validate every Sprint 0 task again against Jira and the project description, and test the endpoints
+through Swagger with screenshots in the PRs.
+How the output was used:
+The Jira criteria require each rule to be "enforced and demoable in Swagger", so a dev-only
+Diagnostics module was added (never registered in production) with e2e tests, then each scenario was
+run in Swagger UI and the screenshots were attached to the PRs.
+================================================
