@@ -70,3 +70,48 @@ Captured on `feature/FLT-11-flight-search` (contains FLT-08) against the team At
 | `flt-11/01-flt11-guest-search-200.png` | `GET /api/flights/search` CAI to DXB on 2026-12-01 for 2 passengers, **no `x-dev-user` (guest)**: JD777 Economy with Cairo and Dubai local times, 150 seats left, 275.00 per passenger, 550.00 total |
 | `flt-11/02-flt11-no-flights-empty-page.png` | The same search on 2026-12-02: an empty page, the "no flights found" result |
 | `flt-11/03-flt11-unknown-airport-400.png` | `to=XXX`: 400 "Unknown airport" field error |
+
+## FLT-30 (TRVL-107) flight status lifecycle
+
+Captured on `feature/FLT-05-edit-flight` (contains FLT-30, FLT-09, FLT-17, FLT-15 and FLT-05). Demo flight JD430 was
+created to depart three minutes later; after its departure time the status job marked it Departed on its own.
+
+| File | What it shows |
+|---|---|
+| `flt-30/01-flt30-departed-details.png` | `GET /api/flights/:id` for JD430 after departure: `"status": "DEPARTED"`, `"bookable": false` |
+| `flt-30/02-flt30-departed-edit-409.png` | `PATCH /api/flights/:id/cabins/:cabinId` on the departed flight: 409 "Only Scheduled flights can be changed (FLT-30)" |
+
+## FLT-09 (TRVL-35) cancellation tiers
+
+| File | What it shows |
+|---|---|
+| `flt-09/01-flt09-set-tiers-200.png` | `PUT /api/airlines/:id/cancellation-policy` as the moderator with 30/100%, 7/50%, 1/25%: 200, tiers returned sorted 1/7/30 |
+| `flt-09/02-flt09-duplicate-threshold-400.png` | Threshold 7 used twice: 400 on `tiers[1].daysBefore` |
+| `flt-09/03-flt09-invalid-values-400.png` | Negative and fractional days, refund 120%: 400 with one field error per problem |
+| `flt-09/04-flt09-preview-10-days-50pct.png` | `GET .../refund-preview?daysRemaining=10`: the 7-day tier, 50% |
+| `flt-09/05-flt09-preview-0-days-0pct.png` | `daysRemaining=0`: no tier applies, `tierApplied: null`, 0% |
+
+## FLT-17 (TRVL-39) flight details
+
+| File | What it shows |
+|---|---|
+| `flt-17/01-flt17-flight-details-200.png` | `GET /api/flights/:id` (JD401, public): local times RUH 06:00+03:00 / DXB 10:00+04:00, 180 min, Economy and Business cabins with price, seats and bags, airline, extra baggage, tiers, `bookable: true` |
+| `flt-17/02-flt17-unknown-flight-404.png` | Unknown flight id: 404 `NOT_FOUND` |
+
+## FLT-15 (TRVL-38) price range and sort
+
+Demo data: JD401 (Economy 200.00, Business 900.00), JD402 (350.00), JD403 (150.00) RUH -> DXB on 2027-12-20, 2 passengers.
+
+| File | What it shows |
+|---|---|
+| `flt-15/01-flt15-price-range-sort-price-200.png` | `minPriceMinor=40000&maxPriceMinor=70000&sort=price`: JD401 Economy (40000) then JD402 (70000), both ends included, total 2 |
+| `flt-15/02-flt15-sort-duration-200.png` | `maxPriceMinor=40000&sort=duration`: JD403 (120 min) before JD401 (180 min) |
+| `flt-15/03-flt15-min-above-max-400.png` | `minPriceMinor=90000&maxPriceMinor=30000`: 400 on `maxPriceMinor` |
+
+## FLT-05 (TRVL-32) edit Scheduled flights
+
+| File | What it shows |
+|---|---|
+| `flt-05/01-flt05-change-times-200.png` | `PATCH /api/flights/:id` on JD403 with new local times: 200, 14:00+03:00 / 17:00+04:00, 120 min |
+| `flt-05/02-flt05-change-airport-200.png` | `{"to": "CAI"}` with nothing booked: arrival now Cairo at the same local time 17:00+02:00, 240 min |
+| `flt-05/03-flt05-arrival-before-departure-400.png` | Arrival not after departure (compared in UTC): 400 on `arrivalLocal` |
