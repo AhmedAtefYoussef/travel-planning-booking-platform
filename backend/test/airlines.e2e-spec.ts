@@ -173,4 +173,65 @@ describe('Airlines (e2e): FLT-01', () => {
       expect(res.body.fieldErrors[0].field).toBe('isActive');
     });
   });
+
+  describe('PUT /api/airlines/:id/baggage-policy (FLT-08)', () => {
+    it('the assigned moderator sets the price per extra bag and the per-passenger cap', async () => {
+      const res = await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 2 })
+        .expect(200);
+      expect(res.body.policy.extraBaggage).toEqual({
+        pricePerBagMinor: 4000,
+        maxExtraBagsPerPassenger: 2,
+      });
+      const after = await http().get(`/api/airlines/${airlineId}`).expect(200);
+      expect(after.body.policy.extraBaggage.maxExtraBagsPerPassenger).toBe(2);
+    });
+
+    it('replaces the policy; a cap of 0 means no extra bags', async () => {
+      const res = await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ pricePerBagMinor: 5000, maxExtraBagsPerPassenger: 0 })
+        .expect(200);
+      expect(res.body.policy.extraBaggage).toEqual({
+        pricePerBagMinor: 5000,
+        maxExtraBagsPerPassenger: 0,
+      });
+    });
+
+    it('rejects a price that is not > 0, a negative cap and fractions', async () => {
+      const res = await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ pricePerBagMinor: 0, maxExtraBagsPerPassenger: -1 })
+        .expect(400);
+      expect(
+        res.body.fieldErrors.map((f: { field: string }) => f.field).sort(),
+      ).toEqual(['maxExtraBagsPerPassenger', 'pricePerBagMinor']);
+      await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ pricePerBagMinor: 40.5, maxExtraBagsPerPassenger: 1.5 })
+        .expect(400);
+    });
+
+    it('only the moderator of this airline may set it', async () => {
+      await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', moderatorOf(new Types.ObjectId().toHexString()))
+        .send({ pricePerBagMinor: 1, maxExtraBagsPerPassenger: 9 })
+        .expect(403);
+      await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', 'ADMIN')
+        .send({ pricePerBagMinor: 1, maxExtraBagsPerPassenger: 9 })
+        .expect(403);
+      await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .send({ pricePerBagMinor: 1, maxExtraBagsPerPassenger: 9 })
+        .expect(401);
+    });
+  });
 });

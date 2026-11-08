@@ -1,12 +1,15 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsInt,
   IsOptional,
   IsString,
   IsUrl,
   Length,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -55,6 +58,32 @@ export class CreateAirlineDto {
 
 /** FLT-01: the assigned airline moderator edits name, code and logo (any subset). */
 export class UpdateAirlineDto extends PartialType(CreateAirlineDto) {}
+
+/**
+ * FLT-08: the airline's extra-baggage policy. Each extra bag has the same maximum weight as the
+ * cabin's free baggage allowance (FLT-04), so only the price and the per-passenger cap are set here.
+ */
+export class BaggagePolicyDto {
+  @ApiProperty({
+    example: 4000,
+    minimum: 1,
+    description:
+      'Price per extra bag in minor units (4000 = 40.00 in the platform currency), > 0',
+  })
+  @IsInt({ message: 'pricePerBagMinor must be a whole number of minor units' })
+  @Min(1)
+  pricePerBagMinor!: number;
+
+  @ApiProperty({
+    example: 2,
+    minimum: 0,
+    description: 'Maximum extra bags one passenger may buy; 0 means none',
+  })
+  @IsInt({ message: 'maxExtraBagsPerPassenger must be a whole number' })
+  @Min(0)
+  @Max(10)
+  maxExtraBagsPerPassenger!: number;
+}
 
 export class CancellationTierDto {
   @ApiProperty({ example: 7 })

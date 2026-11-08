@@ -191,3 +191,16 @@ Claude wrote the cabin DTOs, the atomic add and conditional seat-change updates 
 the tests, including a race test of 20 parallel holds against a seat reduction. I checked the seat arithmetic
 (taken = total - available) against ADR-0002 and verified the endpoints in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-08 (TRVL-34 extra baggage policy)
+Prompt:
+Implement FLT-08: PUT /api/airlines/:id/baggage-policy lets the airline's moderator set a price per extra bag
+(> 0, minor units) and a maximum number of extra bags per passenger (>= 0), with unit and e2e tests.
+How the output was used:
+Claude wrote the DTO, the service method and route, and the tests. I confirmed that the extra-bag weight limit
+is the cabin's free-baggage maximum (FLT-04), so it is not a separate field, and verified the endpoint in Swagger.
+================================================

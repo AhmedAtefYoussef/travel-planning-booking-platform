@@ -15,10 +15,21 @@ function fakeAirline() {
     code: 'MS',
     logoUrl: null as string | null,
     isActive: true,
-    policy: { cancellationTiers: [{ daysBefore: 7, refundPercent: 50 }] },
+    policy: {
+      cancellationTiers: [{ daysBefore: 7, refundPercent: 50 }],
+      extraBaggage: undefined as
+        | { pricePerBagMinor: number; maxExtraBagsPerPassenger: number }
+        | undefined,
+    },
     createdAt: now,
     updatedAt: now,
     save: jest.fn().mockResolvedValue(undefined),
+    set(
+      path: string,
+      value: { pricePerBagMinor: number; maxExtraBagsPerPassenger: number },
+    ) {
+      if (path === 'policy.extraBaggage') this.policy.extraBaggage = value;
+    },
   };
 }
 
@@ -110,5 +121,46 @@ describe('AirlinesService (FLT-01)', () => {
       service.update(moderatorOf(airline.id), airline.id, {}),
     ).rejects.toMatchObject({ status: 400 });
     expect(airline.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('AirlinesService.setBaggagePolicy (FLT-08)', () => {
+  it("sets the moderator's own airline policy and returns it", async () => {
+    const airline = fakeAirline();
+    const { service } = setup(airline);
+    const dto = await service.setBaggagePolicy(
+      moderatorOf(airline.id),
+      airline.id,
+      {
+        pricePerBagMinor: 4000,
+        maxExtraBagsPerPassenger: 2,
+      },
+    );
+    expect(airline.save).toHaveBeenCalled();
+    expect(dto.policy.extraBaggage).toEqual({
+      pricePerBagMinor: 4000,
+      maxExtraBagsPerPassenger: 2,
+    });
+    // The cancellation tiers are untouched.
+    expect(dto.policy.cancellationTiers).toEqual([
+      { daysBefore: 7, refundPercent: 50 },
+    ]);
+  });
+
+  it('forbids a moderator of another airline and saves nothing', async () => {
+    const airline = fakeAirline();
+    const { service } = setup(airline);
+    await expect(
+      service.setBaggagePolicy(
+        moderatorOf(new Types.ObjectId().toHexString()),
+        airline.id,
+        {
+          pricePerBagMinor: 1,
+          maxExtraBagsPerPassenger: 9,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(airline.save).not.toHaveBeenCalled();
+    expect(airline.policy.extraBaggage).toBeUndefined();
   });
 });

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put } from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
@@ -15,6 +15,7 @@ import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator'
 import { AirlinesService } from './airlines.service';
 import {
   AirlineDto,
+  BaggagePolicyDto,
   CreateAirlineDto,
   UpdateAirlineDto,
 } from './dto/airline.dto';
@@ -102,5 +103,41 @@ export class AirlinesController {
     @Body() dto: UpdateAirlineDto,
   ): Promise<AirlineDto> {
     return this.airlines.update(user, id, dto);
+  }
+
+  @Put(':id/baggage-policy')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary:
+      'FLT-08 Set the extra baggage policy (price per extra bag, max per passenger)',
+    description:
+      "Only the moderator of this airline. pricePerBagMinor is a whole number of minor units > 0; maxExtraBagsPerPassenger is a whole number >= 0 (0 = no extra bags). Each extra bag has the same maximum weight as the cabin's free baggage allowance (cabins[].maxKgPerBag, FLT-04). Replaces any previous policy; existing bookings keep the policy they accepted (PAY-02).",
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiBody({
+    type: BaggagePolicyDto,
+    examples: {
+      valid: {
+        summary: '40.00 per extra bag, up to 2 per passenger',
+        value: { pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 2 },
+      },
+      noExtras: {
+        summary: 'No extra bags allowed',
+        value: { pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 0 },
+      },
+      invalid: {
+        summary: 'Invalid: free extra bags, negative cap',
+        value: { pricePerBagMinor: 0, maxExtraBagsPerPassenger: -1 },
+      },
+    },
+  })
+  @ApiOkResponse({ type: AirlineDto })
+  @ApiErrorResponses(400, 404)
+  setBaggagePolicy(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: BaggagePolicyDto,
+  ): Promise<AirlineDto> {
+    return this.airlines.setBaggagePolicy(user, id, dto);
   }
 }
