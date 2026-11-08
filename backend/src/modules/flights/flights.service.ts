@@ -2,6 +2,7 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { DateTime } from 'luxon';
 import { Model, Types } from 'mongoose';
+import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType } from '../../common/auth/auth.types';
 import {
   REFERENCE_SERVICE,
@@ -15,9 +16,14 @@ import { ValidationFailedException } from '../../common/errors/app.exception';
 import { InvalidInputError } from '../../common/errors/invalid-input.error';
 import { localToUtc } from '../../common/utils/dates';
 import { AirlinesService } from './airlines.service';
+import type { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
 import type { CreateFlightDto, FlightDto } from './dto/flight.dto';
 import { toFlightDto, type AirportZones } from './flight-view';
-import { Flight, FlightStatus } from './schemas/flight.schema';
+import {
+  Flight,
+  FlightStatus,
+  type FlightDocument,
+} from './schemas/flight.schema';
 
 /**
  * Flights (FLT-03, GEN-06). All rules are enforced here (GEN-13):
@@ -105,6 +111,174 @@ export class FlightsService {
     return toFlightDto(flight, zonesOf(from, to));
   }
 
+  /**
+   * FLT-04: add one cabin category. The "class not present yet" check and the insert are one atomic
+   * update, so two parallel requests can never create the same class twice.
+   */
+  async addCabin(
+    user: AuthUser,
+    flightId: string,
+    dto: CreateCabinDto,
+  ): Promise<FlightDto> {
+    const flight = await this.loadEditable(user, flightId);
+    if (flight.cabins.some((c) => c.class === dto.class)) {
+      throw cabinExists(dto.class);
+    }
+    const updated = await this.flights
+      .findOneAndUpdate(
+        {
+          _id: flight._id,
+          status: FlightStatus.Scheduled,
+          'cabins.class': { $ne: dto.class },
+        },
+        {
+          $push: {
+            cabins: {
+              class: dto.class,
+              totalSeats: dto.totalSeats,
+              seatsAvailable: dto.totalSeats,
+              priceMinor: dto.priceMinor,
+              freeBags: dto.freeBags,
+              maxKgPerBag: dto.maxKgPerBag,
+            },
+          },
+        },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!updated) {
+      // Lost a race: another request added this class, or the flight stopped being Scheduled.
+      const now = await this.flights.findById(flight._id).exec();
+      if (now?.cabins.some((c) => c.class === dto.class))
+        throw cabinExists(dto.class);
+      throw notScheduled();
+    }
+    return this.view(updated);
+  }
+
+  /**
+   * FLT-04 / FLT-05: change seats, price or baggage of one cabin. Seats booked or held are
+   * totalSeats - seatsAvailable (ADR-0002); totalSeats can never go below them. The new total and
+   * the matching seatsAvailable change are applied in one conditional update, so a seat hold made
+   * at the same moment cannot push seatsAvailable below zero. Price changes do not touch existing
+   * bookings, which keep the fare they paid (FLT-05).
+   */
+  async updateCabin(
+    user: AuthUser,
+    flightId: string,
+    cabinId: string,
+    dto: UpdateCabinDto,
+  ): Promise<FlightDto> {
+    const flight = await this.loadEditable(user, flightId);
+    const cabin = flight.cabins.find((c) => c._id.toHexString() === cabinId);
+    if (!cabin) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Cabin not found on this flight',
+      );
+    }
+    if (
+      dto.totalSeats === undefined &&
+      dto.priceMinor === undefined &&
+      dto.freeBags === undefined &&
+      dto.maxKgPerBag === undefined
+    ) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.BAD_REQUEST,
+        'Send at least one of totalSeats, priceMinor, freeBags or maxKgPerBag',
+      );
+    }
+
+    const taken = cabin.totalSeats - cabin.seatsAvailable;
+    if (dto.totalSeats !== undefined && dto.totalSeats < taken) {
+      throw seatsBelowTaken(cabin.class, dto.totalSeats, taken);
+    }
+
+    const set: Record<string, number> = {};
+    if (dto.priceMinor !== undefined)
+      set['cabins.$.priceMinor'] = dto.priceMinor;
+    if (dto.freeBags !== undefined) set['cabins.$.freeBags'] = dto.freeBags;
+    if (dto.maxKgPerBag !== undefined)
+      set['cabins.$.maxKgPerBag'] = dto.maxKgPerBag;
+
+    const elem: Record<string, unknown> = { _id: cabin._id };
+    const update: {
+      $set: Record<string, number>;
+      $inc?: Record<string, number>;
+    } = {
+      $set: set,
+    };
+    if (dto.totalSeats !== undefined && dto.totalSeats !== cabin.totalSeats) {
+      const delta = dto.totalSeats - cabin.totalSeats;
+      // Same total as we read, and enough free seats left to absorb a reduction.
+      elem.totalSeats = cabin.totalSeats;
+      elem.seatsAvailable = { $gte: Math.max(0, -delta) };
+      set['cabins.$.totalSeats'] = dto.totalSeats;
+      update.$inc = { 'cabins.$.seatsAvailable': delta };
+    }
+    // Nothing actually changes (e.g. the same seat count was sent): return the flight as it is.
+    if (Object.keys(set).length === 0) return this.view(flight);
+
+    const updated = await this.flights
+      .findOneAndUpdate(
+        {
+          _id: flight._id,
+          status: FlightStatus.Scheduled,
+          cabins: { $elemMatch: elem },
+        },
+        update,
+        { new: true },
+      )
+      .exec();
+    if (!updated) {
+      const now = await this.flights.findById(flight._id).exec();
+      const current = now?.cabins.find((c) => c._id.equals(cabin._id));
+      if (!now || now.status !== FlightStatus.Scheduled) throw notScheduled();
+      if (current && dto.totalSeats !== undefined) {
+        const takenNow = current.totalSeats - current.seatsAvailable;
+        if (dto.totalSeats < takenNow)
+          throw seatsBelowTaken(current.class, dto.totalSeats, takenNow);
+      }
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        'The cabin changed while you were editing it; reload and try again',
+      );
+    }
+    return this.view(updated);
+  }
+
+  /** A flight the caller may change: exists (404), belongs to their airline (403), Scheduled (409). */
+  private async loadEditable(
+    user: AuthUser,
+    flightId: string,
+  ): Promise<FlightDocument> {
+    const flight = await this.flights.findById(flightId).exec();
+    if (!flight) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Flight not found',
+      );
+    }
+    assertProviderScope(user, ProviderType.Airline, flight.airlineId);
+    if (flight.status !== FlightStatus.Scheduled) throw notScheduled();
+    return flight;
+  }
+
+  /** GEN-06 response with both airports' zones from the reference data. */
+  private async view(flight: FlightDocument): Promise<FlightDto> {
+    const [from, to] = await Promise.all([
+      this.reference.getAirport(flight.from),
+      this.reference.getAirport(flight.to),
+    ]);
+    if (!from || !to)
+      throw new Error(`Reference airport missing for flight ${flight.id}`);
+    return toFlightDto(flight, zonesOf(from, to));
+  }
+
   /** The airline a moderator manages (brief section 4: exactly one assigned provider). */
   private assignedAirlineId(user: AuthUser): Types.ObjectId {
     const provider = user.assignedProvider;
@@ -139,4 +313,32 @@ function convert(
 
 function zonesOf(...airports: Airport[]): AirportZones {
   return new Map(airports.map((a) => [a.iataCode, a.timeZone]));
+}
+
+function cabinExists(cabinClass: string): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.CONFLICT,
+    `This flight already has a ${cabinClass} cabin; edit it instead`,
+  );
+}
+
+function notScheduled(): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.CONFLICT,
+    'Only Scheduled flights can be changed (FLT-30)',
+  );
+}
+
+function seatsBelowTaken(
+  cabinClass: string,
+  requested: number,
+  taken: number,
+): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.CONFLICT,
+    `Cannot reduce ${cabinClass} to ${requested} seats: ${taken} are already booked or held`,
+  );
 }

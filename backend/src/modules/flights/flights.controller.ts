@@ -1,14 +1,18 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Param, Patch, Post } from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiOkResponse,
+  ApiParam,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
 import { CreateFlightDto, FlightDto } from './dto/flight.dto';
 import { FlightsService } from './flights.service';
 
@@ -104,5 +108,92 @@ export class FlightsController {
     @Body() dto: CreateFlightDto,
   ): Promise<FlightDto> {
     return this.flights.create(user, dto);
+  }
+
+  @Post(':id/cabins')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary:
+      'FLT-04 Add a cabin category to a flight (seats, price, free baggage, max kg)',
+    description:
+      "Only the moderator of the flight's airline, and only while the flight is Scheduled. Class is one of ECONOMY, PREMIUM_ECONOMY, BUSINESS, FIRST and can be used at most once per flight (409 if it already exists). totalSeats is a whole number > 0; seatsAvailable starts equal to it. priceMinor is the fare in minor units (25000 = 250.00).",
+  })
+  @ApiParam({ name: 'id', description: 'Flight id' })
+  @ApiBody({
+    type: CreateCabinDto,
+    examples: {
+      economy: {
+        summary: 'Economy: 150 seats, 250.00, 1 bag of 23 kg',
+        value: {
+          class: 'ECONOMY',
+          totalSeats: 150,
+          priceMinor: 25000,
+          freeBags: 1,
+          maxKgPerBag: 23,
+        },
+      },
+      business: {
+        summary: 'Business: 20 seats, 900.00, 2 bags of 32 kg',
+        value: {
+          class: 'BUSINESS',
+          totalSeats: 20,
+          priceMinor: 90000,
+          freeBags: 2,
+          maxKgPerBag: 32,
+        },
+      },
+      invalid: {
+        summary: 'Invalid: unknown class, zero seats, fractional price',
+        value: {
+          class: 'LUXURY',
+          totalSeats: 0,
+          priceMinor: 99.5,
+          freeBags: -1,
+          maxKgPerBag: 0,
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    type: FlightDto,
+    description: 'The flight with all its cabins',
+  })
+  @ApiErrorResponses(400, 404, 409)
+  addCabin(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: CreateCabinDto,
+  ): Promise<FlightDto> {
+    return this.flights.addCabin(user, id, dto);
+  }
+
+  @Patch(':id/cabins/:cabinId')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary: "FLT-04, FLT-05 Change a cabin's seats, price or baggage",
+    description:
+      "Any subset of totalSeats, priceMinor, freeBags and maxKgPerBag; the class cannot change. totalSeats cannot go below the seats already booked or held (409). A price change applies to new bookings only. Only the moderator of the flight's airline, only while Scheduled.",
+  })
+  @ApiParam({ name: 'id', description: 'Flight id' })
+  @ApiParam({
+    name: 'cabinId',
+    description: 'Cabin id (cabins[].id in the flight response)',
+  })
+  @ApiBody({
+    type: UpdateCabinDto,
+    examples: {
+      price: { summary: 'New fare: 275.00', value: { priceMinor: 27500 } },
+      seats: { summary: 'More seats: 180', value: { totalSeats: 180 } },
+    },
+  })
+  @ApiOkResponse({ type: FlightDto })
+  @ApiErrorResponses(400, 404, 409)
+  updateCabin(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('cabinId', ParseObjectIdPipe) cabinId: string,
+    @Body() dto: UpdateCabinDto,
+  ): Promise<FlightDto> {
+    return this.flights.updateCabin(user, id, cabinId, dto);
   }
 }

@@ -176,3 +176,18 @@ Claude wrote CreateFlightDto, FlightsService, the shared flight-view mapper and 
 zone examples by hand (Cairo UTC+2 and Dubai UTC+4 in December, London to New York, the London DST gap on
 28 March 2027) and verified the responses in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04 (TRVL-31 cabin categories per flight)
+Prompt:
+Implement FLT-04: the airline moderator adds cabin categories to their Scheduled flights (fixed class set, each
+once per flight, whole positive seats, price in minor units, free bags and max kg) and edits them, never letting
+total seats drop below seats already booked or held, safely under concurrent seat holds; with unit and e2e tests.
+How the output was used:
+Claude wrote the cabin DTOs, the atomic add and conditional seat-change updates in FlightsService, the routes and
+the tests, including a race test of 20 parallel holds against a seat reduction. I checked the seat arithmetic
+(taken = total - available) against ADR-0002 and verified the endpoints in Swagger.
+================================================
