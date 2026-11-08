@@ -145,3 +145,18 @@ I chose the ERD model after reviewing the evidence (ADR-0002 is the accepted inv
 Claude wrote the schemas, indexes, ERD update and tests, including a concurrency test of the ADR-0002
 conditional decrement. I checked every field and rule against FLT-01, FLT-03, FLT-04, FLT-08, FLT-09 and FLT-30.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-01 (TRVL-28 airline profiles)
+Prompt:
+Implement FLT-01 on the flights module: an admin creates an airline (POST /api/airlines), anyone views it
+(GET /api/airlines/:id), and only the assigned airline moderator edits name, code and logo
+(PATCH /api/airlines/:id), with validation, provider-scope checks in the service, and unit and e2e tests.
+How the output was used:
+Claude wrote the DTOs, AirlinesService, AirlinesController and tests. I decided that admins create but do not
+edit (FLT-01 gives editing to the moderator) and that the logo is a URL until the GEN-08 upload endpoint exists,
+then verified each rule in Swagger with the stub auth header.
+================================================
