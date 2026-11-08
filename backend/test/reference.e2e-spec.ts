@@ -106,6 +106,47 @@ describe('Reference data (e2e): GEN-12', () => {
     });
   });
 
+  describe('FLT-02 GET /api/airports', () => {
+    it('is public and lists the 8 predefined airports by IATA code, with IANA time zones', async () => {
+      const res = await http().get('/api/airports').expect(200);
+      expect(res.body).toMatchObject({
+        page: 1,
+        limit: 10,
+        total: 8,
+        totalPages: 1,
+      });
+      expect(
+        res.body.items.map((a: { iataCode: string }) => a.iataCode),
+      ).toEqual(['CAI', 'CDG', 'DXB', 'FRA', 'HND', 'JFK', 'LHR', 'RUH']);
+      expect(res.body.items[0]).toEqual({
+        iataCode: 'CAI',
+        name: 'Cairo International Airport',
+        cityId: 'cairo',
+        countryCode: 'EG',
+        timeZone: 'Africa/Cairo',
+      });
+    });
+
+    it('is read-only: there is no route to create, change or delete an airport', async () => {
+      // Unknown routes are answered by the auth guard before routing (deny by default) or by 404.
+      for (const req of [
+        http().post('/api/airports').send({ iataCode: 'ZZZ' }),
+        http().patch('/api/airports/CAI').send({ name: 'x' }),
+        http().delete('/api/airports/CAI'),
+      ]) {
+        const res = await req;
+        expect([401, 404]).toContain(res.status);
+      }
+      const after = await http().get('/api/airports').expect(200);
+      expect(after.body.total).toBe(8);
+    });
+
+    it('rejects a malformed page number (GEN-05)', async () => {
+      const res = await http().get('/api/airports?page=0').expect(400);
+      expect(res.body.fieldErrors[0].field).toBe('page');
+    });
+  });
+
   it('rejects a page-size parameter (GEN-05)', async () => {
     await http().get('/api/countries?limit=50').expect(400);
   });

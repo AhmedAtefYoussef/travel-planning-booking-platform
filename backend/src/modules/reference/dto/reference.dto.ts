@@ -28,6 +28,27 @@ export class CityDto {
   countryCode!: string;
 }
 
+export class AirportDto {
+  @ApiProperty({ example: 'CAI', description: '`iata_code` from Airports.csv' })
+  iataCode!: string;
+
+  @ApiProperty({ example: 'Cairo International Airport' })
+  name!: string;
+
+  @ApiProperty({ example: 'cairo', description: '`city_id` from Cities.csv' })
+  cityId!: string;
+
+  @ApiProperty({ example: 'EG' })
+  countryCode!: string;
+
+  @ApiProperty({
+    example: 'Africa/Cairo',
+    description:
+      'IANA time zone used to enter and display flight times (FLT-03, GEN-06)',
+  })
+  timeZone!: string;
+}
+
 export class CurrencyDto {
   @ApiProperty({ example: 'EGP' })
   code!: string;
