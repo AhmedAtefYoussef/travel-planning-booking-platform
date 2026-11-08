@@ -44,3 +44,17 @@ header in each curl shows who made the call.
 | `flt-03/02-flt03-duplicate-same-day-409.png` | JD777 again on the same local date: 409 `DUPLICATE_KEY` |
 | `flt-03/03-flt03-arrival-before-departure-400.png` | 17:00 Cairo to 18:00 Dubai (15:00Z to 14:00Z): 400, `arrivalLocal` field error |
 | `flt-03/04-flt03-departure-in-past-400.png` | Departure in 2024: 400, `departureLocal` field error |
+
+## FLT-04 (TRVL-31) cabin categories
+
+Captured on `feature/FLT-04-cabins` as the Joudy Demo Air moderator, on flight JD777 (`6af0eaaec77901aa9f228658`).
+
+| File | What it shows |
+|---|---|
+| `flt-04/01-flt04-add-economy-201.png` | `POST /api/flights/{id}/cabins` Economy: 201, 150 of 150 seats available, fare 25000 minor units, 1 bag of 23 kg |
+| `flt-04/02-flt04-duplicate-class-409.png` | Economy again: 409 "This flight already has a ECONOMY cabin; edit it instead" |
+| `flt-04/03-flt04-invalid-cabin-400.png` | Unknown class, zero seats, fractional price, negative bags, 0 kg: 400 with five field errors |
+| `flt-04/04-flt04-change-fare-200.png` | `PATCH /api/flights/{id}/cabins/{cabinId}` fare 27500: 200, seats unchanged |
+
+The seat floor (cannot go below seats booked or held) needs bookings, which do not exist yet; it is covered by the e2e
+tests, including 20 parallel holds racing a seat reduction.
