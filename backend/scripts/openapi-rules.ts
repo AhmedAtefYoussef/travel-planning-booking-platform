@@ -51,7 +51,6 @@ const FORBIDDEN_PAGE_SIZE_PARAMS = new Set([
   'page_size',
   'perpage',
   'per_page',
-  'size',
 ]);
 
 export function checkOpenApi(
