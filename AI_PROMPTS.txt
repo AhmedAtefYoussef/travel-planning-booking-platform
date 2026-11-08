@@ -30,3 +30,19 @@ scripts and unit tests. I reviewed the rules against brief sections 2, 10 and 11
 Definition of Done, ran every check locally, and adjusted the branch and scope conventions to the team's
 Jira keys before committing.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-02, GEN-05, GEN-13 (TRVL-130 common layer)
+Prompt:
+Implement the NestJS common layer from TRVL-130: fail-fast env validation, global ValidationPipe with
+field-level errors, AllExceptionsFilter (duplicate key -> 409, bad ObjectId -> 400), fixed page size 10
+pagination, ParseObjectIdPipe, money (integer minor units) and Luxon date utilities, Swagger with cookie
+auth, plus unit and e2e tests against an in-memory MongoDB replica set.
+How the output was used:
+Kept the generated implementation after reviewing each rule against the Jira acceptance criteria;
+added extra cases (DST gaps, JPY/KWD exponents, refund rounding down, ?limit rejection) and the
+conventions guide for teammates. Verified with npm run verify (61 unit + 18 e2e tests, 98% coverage).
+================================================

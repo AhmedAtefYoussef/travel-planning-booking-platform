@@ -5,7 +5,8 @@ import { configureApp } from './app.setup';
 import { SWAGGER_PATH, setupSwagger } from './common/swagger/swagger.setup';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: the Stripe webhook (PAY-01) verifies the signature against the exact request bytes.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   configureApp(app);
   setupSwagger(app);
   const port = Number(process.env.PORT ?? 3000);

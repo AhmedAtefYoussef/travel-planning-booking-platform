@@ -34,6 +34,17 @@ export default tseslint.config(
     },
   },
   {
+    // Tests assert on untyped HTTP bodies (supertest) and Jest mocks; production code keeps the strict rules.
+    files: ['**/*.spec.ts', '**/*.e2e-spec.ts', '**/test/support/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+    },
+  },
+  {
     // CLI scripts print reports to stdout.
     files: ['**/scripts/**/*.ts'],
     rules: { 'no-console': 'off' },
