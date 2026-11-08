@@ -66,5 +66,23 @@ class AdminAreaController {
   }
 }
 
-@Module({ controllers: [AuthProbeController, AdminAreaController] })
+/** A public controller must not open a method that declares @Roles(). */
+@Public()
+@Controller('__auth/public-area')
+class PublicAreaController {
+  @Get()
+  list() {
+    return { ok: true };
+  }
+
+  @Get('admin')
+  @Roles(Role.Admin)
+  admin() {
+    return { ok: true };
+  }
+}
+
+@Module({
+  controllers: [AuthProbeController, AdminAreaController, PublicAreaController],
+})
 export class AuthProbeModule {}

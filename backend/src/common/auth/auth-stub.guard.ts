@@ -14,7 +14,7 @@ import {
 } from '../../config/env.validation';
 import { AppException } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
-import { IS_PUBLIC_KEY } from './auth.decorators';
+import { isPublicRoute } from './auth.decorators';
 import { AuthUser, MODERATOR_PROVIDER, Role } from './auth.types';
 
 export const DEV_USER_HEADER = 'x-dev-user';
@@ -55,6 +55,13 @@ export function parseDevUser(header: string): AuthUser | null {
   };
 }
 
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
+/** True when the TCP peer is this machine (proxy headers are ignored on purpose). */
+export function isLoopback(req: Request): boolean {
+  return LOOPBACK.has(req.socket?.remoteAddress ?? '');
+}
+
 /**
  * TEMPORARY global authentication guard (TRVL-131) until the real cookie/JWT guard lands (ACC-11).
  *
@@ -84,13 +91,17 @@ export class AuthStubGuard implements CanActivate {
   }
 
   canActivate(context: ExecutionContext): boolean {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
-    if (isPublic) return true;
+    if (isPublicRoute(this.reflector, context)) return true;
 
     const req = context.switchToHttp().getRequest<Request>();
+    if (this.enabled && !isLoopback(req)) {
+      // The stub trusts a plain header, so it is only honoured from this machine.
+      throw new AppException(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.UNAUTHENTICATED,
+        'Stub authentication only accepts requests from localhost',
+      );
+    }
     const header = req.headers[DEV_USER_HEADER];
     if (!this.enabled || typeof header !== 'string' || header.length === 0) {
       throw new AppException(

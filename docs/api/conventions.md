@@ -38,12 +38,12 @@ Every error has the same body (`ErrorResponseDto`):
 
 ## Authentication and authorization (TRVL-131, GEN-13, ACC-11)
 - **Every route requires a signed-in caller by default.** Mark guest routes with `@Public()`, such as searches and published posts (brief section 4). CI lists every public route in the job summary so reviewers can check them.
-- `@Roles(Role.Admin)`, `@Roles(Role.User, Role.Admin)`, or `@Roles()` for any signed-in account. It can go on the controller or the method, and the method-level one wins. It also documents cookie auth and the 401/403 responses.
+- `@Roles(Role.Admin)`, `@Roles(Role.User, Role.Admin)`, or `@Roles()` for any signed-in account. It can go on the controller or the method, and method-level metadata always wins: a `@Roles()` method stays protected even inside a `@Public()` controller. It also documents cookie auth and the 401/403 responses.
 - `@CurrentUser() user: AuthUser` gives `{ id, role, assignedProvider? }`.
 - Ownership and provider scope are checked in **services** after loading the resource, using `common/auth/access.ts`:
   - `assertOwner(user, booking.userId, { bypassRoles: [Role.Admin] })` for private bookings and itineraries
   - `assertProviderScope(user, ProviderType.Hotel, room.hotelId)` so moderators manage only their assigned provider
-- **Temporary stub (until ACC-11):** with `AUTH_STUB=true` (never in production), send the header `x-dev-user: ROLE[:userId[:providerId]]`, for example `ADMIN`, `USER:<userId>` or `HOTEL_MODERATOR:<userId>:<hotelId>`. In Swagger, click **Authorize** and fill in `dev-user`. Module code does not change when the real cookie guard replaces the stub.
+- **Temporary stub (until ACC-11):** with `AUTH_STUB=true` (never in production), send the header `x-dev-user: ROLE[:userId[:providerId]]` from localhost (other hosts get 401), for example `ADMIN`, `USER:<userId>` or `HOTEL_MODERATOR:<userId>:<hotelId>`. In Swagger, click **Authorize** and fill in `dev-user`. Module code does not change when the real cookie guard replaces the stub.
 - Passwords: inject `PasswordService` and call `hash()` / `verify()`. It uses bcrypt (cost 12) with a per-hash salt and rejects passwords over 72 bytes. Never store or log plain passwords.
 
 ## Checking your Atlas connection (TRVL-128)

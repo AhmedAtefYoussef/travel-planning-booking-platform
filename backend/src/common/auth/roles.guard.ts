@@ -8,7 +8,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { AppException } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
-import { IS_PUBLIC_KEY, ROLES_KEY } from './auth.decorators';
+import { isPublicRoute, ROLES_KEY } from './auth.decorators';
 import { Role } from './auth.types';
 
 /**
@@ -21,8 +21,7 @@ export class RolesGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const targets = [context.getHandler(), context.getClass()];
-    if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets))
-      return true;
+    if (isPublicRoute(this.reflector, context)) return true;
 
     const roles = this.reflector.getAllAndOverride<Role[] | undefined>(
       ROLES_KEY,

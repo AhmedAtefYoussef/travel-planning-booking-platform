@@ -73,6 +73,13 @@ describe('Auth contract (e2e): TRVL-131, GEN-13, ACC-11', () => {
     await get('/api/__auth/admin-area/open').expect(200);
   });
 
+  it('keeps @Roles() methods protected inside a @Public() controller', async () => {
+    await get('/api/__auth/public-area').expect(200);
+    await get('/api/__auth/public-area/admin').expect(401);
+    await get('/api/__auth/public-area/admin', 'USER').expect(403);
+    await get('/api/__auth/public-area/admin', 'ADMIN').expect(200);
+  });
+
   it('enforces ownership: owners and admins only (ACC-11)', async () => {
     await get(`/api/__auth/bookings/${OWNER}`, `USER:${OWNER}`).expect(200);
     await get(`/api/__auth/bookings/${OWNER}`, `USER:${DEV_IDS.USER}`).expect(

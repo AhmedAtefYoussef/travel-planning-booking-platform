@@ -9,6 +9,7 @@ import {
 import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthStubGuard, DEV_IDS, parseDevUser } from './auth-stub.guard';
+import { IS_PUBLIC_KEY, isPublicRoute, ROLES_KEY } from './auth.decorators';
 import { AuthUser, ProviderType, Role } from './auth.types';
 
 const HOTEL = '6730c5f1e4b0a1b2c3d4e5aa';
@@ -120,14 +121,21 @@ describe('provider scope (moderators manage exactly one provider)', () => {
 });
 
 describe('AuthStubGuard safety', () => {
-  const context = (headers: Record<string, string>) => {
-    const req: { headers: Record<string, string>; user?: AuthUser } = {
-      headers,
-    };
+  const HANDLER = {};
+  const CLASS = {};
+  const context = (
+    headers: Record<string, string>,
+    remoteAddress = '127.0.0.1',
+  ) => {
+    const req: {
+      headers: Record<string, string>;
+      socket: { remoteAddress: string };
+      user?: AuthUser;
+    } = { headers, socket: { remoteAddress } };
     return {
       ctx: {
-        getHandler: () => undefined,
-        getClass: () => undefined,
+        getHandler: () => HANDLER,
+        getClass: () => CLASS,
         switchToHttp: () => ({ getRequest: () => req }),
       } as unknown as ExecutionContext,
       req,
@@ -135,15 +143,19 @@ describe('AuthStubGuard safety', () => {
   };
   const guard = (env: Record<string, unknown>, isPublic = false) =>
     new AuthStubGuard(
-      { getAllAndOverride: () => isPublic } as unknown as Reflector,
+      {
+        get: (key: string, target: unknown) =>
+          key === IS_PUBLIC_KEY && target === HANDLER && isPublic
+            ? true
+            : undefined,
+      } as unknown as Reflector,
       { get: (key: string) => env[key] } as never,
     );
+  const dev = { AUTH_STUB: true, NODE_ENV: 'development' };
 
   it('authenticates from the header only when AUTH_STUB is on outside production', () => {
     const on = context({ 'x-dev-user': 'ADMIN' });
-    expect(
-      guard({ AUTH_STUB: true, NODE_ENV: 'development' }).canActivate(on.ctx),
-    ).toBe(true);
+    expect(guard(dev).canActivate(on.ctx)).toBe(true);
     expect(on.req.user).toEqual(admin);
 
     for (const env of [
@@ -156,11 +168,64 @@ describe('AuthStubGuard safety', () => {
     }
   });
 
+  it('honours the stub header only from localhost', () => {
+    expect(
+      guard(dev).canActivate(context({ 'x-dev-user': 'ADMIN' }, '::1').ctx),
+    ).toBe(true);
+    expect(() =>
+      guard(dev).canActivate(
+        context({ 'x-dev-user': 'ADMIN' }, '203.0.113.7').ctx,
+      ),
+    ).toThrow(/localhost/);
+  });
+
   it('lets public routes through even with the stub off', () => {
     expect(
       guard({ AUTH_STUB: false, NODE_ENV: 'production' }, true).canActivate(
-        context({}).ctx,
+        context({}, '203.0.113.7').ctx,
       ),
     ).toBe(true);
+  });
+});
+
+describe('isPublicRoute (method-level metadata wins)', () => {
+  const HANDLER = {};
+  const CLASS = {};
+  const ctx = {
+    getHandler: () => HANDLER,
+    getClass: () => CLASS,
+  } as unknown as ExecutionContext;
+  const reflector = (meta: Map<unknown, Record<string, unknown>>) =>
+    ({
+      get: (key: string, target: unknown) => meta.get(target)?.[key],
+    }) as unknown as Reflector;
+
+  it.each([
+    ['public method', { [IS_PUBLIC_KEY]: true }, {}, true],
+    [
+      'roles method in a public controller',
+      { [ROLES_KEY]: [Role.Admin] },
+      { [IS_PUBLIC_KEY]: true },
+      false,
+    ],
+    [
+      'plain method in a public controller',
+      {},
+      { [IS_PUBLIC_KEY]: true },
+      true,
+    ],
+    [
+      'public method in a roles controller',
+      { [IS_PUBLIC_KEY]: true },
+      { [ROLES_KEY]: [Role.Admin] },
+      true,
+    ],
+    ['nothing anywhere', {}, {}, false],
+  ])('%s -> %s', (_name, handlerMeta, classMeta, expected) => {
+    const meta = new Map<unknown, Record<string, unknown>>([
+      [HANDLER, handlerMeta],
+      [CLASS, classMeta],
+    ]);
+    expect(isPublicRoute(reflector(meta), ctx)).toBe(expected);
   });
 });

@@ -5,6 +5,7 @@ import {
   HttpStatus,
   SetMetadata,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { ApiCookieAuth, ApiExtension, ApiSecurity } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AppException } from '../errors/app.exception';
@@ -56,3 +57,26 @@ export const CurrentUser = createParamDecorator(
     return user;
   },
 );
+
+/**
+ * Route visibility with method-level precedence: a method marked @Public() is open; a method marked
+ * @Roles() is protected even inside a @Public() controller; otherwise the controller decides.
+ * Both global guards use this, so the two can never disagree.
+ */
+export function isPublicRoute(
+  reflector: Reflector,
+  context: ExecutionContext,
+): boolean {
+  const handler = context.getHandler();
+  const handlerPublic = reflector.get<boolean | undefined>(
+    IS_PUBLIC_KEY,
+    handler,
+  );
+  if (handlerPublic !== undefined) return handlerPublic;
+  if (reflector.get<Role[] | undefined>(ROLES_KEY, handler) !== undefined)
+    return false;
+  return (
+    reflector.get<boolean | undefined>(IS_PUBLIC_KEY, context.getClass()) ===
+    true
+  );
+}
