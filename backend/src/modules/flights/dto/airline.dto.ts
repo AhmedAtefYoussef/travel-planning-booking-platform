@@ -151,6 +151,7 @@ export class RefundPreviewDto {
   @ApiProperty({
     type: () => CancellationTierDto,
     nullable: true,
+    example: { daysBefore: 1, refundPercent: 25 },
     description:
       'The tier with the highest threshold not exceeding daysRemaining; null when none applies',
   })
