@@ -159,6 +159,36 @@ describe('Airlines (e2e): FLT-01', () => {
         .expect(409);
     });
 
+    it('rejects null for name and code; logoUrl null removes the logo', async () => {
+      const res = await http()
+        .patch(`/api/airlines/${airlineId}`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ name: null, code: null })
+        .expect(400);
+      expect(
+        [
+          ...new Set(
+            res.body.fieldErrors.map((f: { field: string }) => f.field),
+          ),
+        ].sort(),
+      ).toEqual(['code', 'name']);
+      await http()
+        .patch(`/api/airlines/${airlineId}`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ logoUrl: 'https://cdn.example.com/logos/x.png' })
+        .expect(200);
+      const cleared = await http()
+        .patch(`/api/airlines/${airlineId}`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ logoUrl: null })
+        .expect(200);
+      expect(cleared.body.logoUrl).toBeNull();
+      expect(
+        (await http().get(`/api/airlines/${airlineId}`).expect(200)).body
+          .logoUrl,
+      ).toBeNull();
+    });
+
     it('rejects an empty edit and fields that cannot be edited here', async () => {
       await http()
         .patch(`/api/airlines/${airlineId}`)
@@ -187,6 +217,15 @@ describe('Airlines (e2e): FLT-01', () => {
       });
       const after = await http().get(`/api/airlines/${airlineId}`).expect(200);
       expect(after.body.policy.extraBaggage.maxExtraBagsPerPassenger).toBe(2);
+    });
+
+    it('has no upper limit on extra bags per passenger (FLT-08 sets none)', async () => {
+      const res = await http()
+        .put(`/api/airlines/${airlineId}/baggage-policy`)
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 25 })
+        .expect(200);
+      expect(res.body.policy.extraBaggage.maxExtraBagsPerPassenger).toBe(25);
     });
 
     it('replaces the policy; a cap of 0 means no extra bags', async () => {

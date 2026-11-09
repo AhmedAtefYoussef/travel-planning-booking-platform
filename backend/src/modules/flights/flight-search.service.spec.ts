@@ -87,10 +87,23 @@ describe('FlightSearchService.searchOneWay (FLT-11)', () => {
       to: 'DXB',
       status: 'SCHEDULED',
       departureUtc: {
-        $gt: new Date('2026-11-30T22:00:00Z'),
+        $gte: new Date('2026-11-30T22:00:00Z'),
         $lt: new Date('2026-12-01T22:00:00Z'),
+        $gt: NOW,
       },
     });
+  });
+
+  it('includes a departure at exactly 00:00 local time (the start of the day is inclusive)', async () => {
+    const { service, pipelines } = setup();
+    await service.searchOneWay(criteria, NOW);
+    const range = (
+      pipelines[0][0] as {
+        $match: { departureUtc: { $gte: Date; $lt: Date } };
+      }
+    ).$match.departureUtc;
+    const midnight = new Date('2026-11-30T22:00:00Z'); // 1 Dec 00:00 in Cairo
+    expect(midnight >= range.$gte && midnight < range.$lt).toBe(true);
   });
 
   it('never returns flights that already left when searching today', async () => {

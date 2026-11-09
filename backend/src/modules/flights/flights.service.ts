@@ -48,8 +48,8 @@ export class FlightsService {
     now: Date = new Date(),
   ): Promise<FlightDto> {
     const airlineId = this.assignedAirlineId(user);
-    // 404 if the moderator's airline no longer exists.
-    await this.airlines.load(airlineId);
+    // 404 if the moderator's airline no longer exists, 403 if it is deactivated (ACC-15).
+    await this.airlines.loadActive(airlineId);
 
     const errors: FieldError[] = [];
     const [from, to] = await Promise.all([
@@ -129,6 +129,9 @@ export class FlightsService {
         {
           _id: flight._id,
           status: FlightStatus.Scheduled,
+          // FLT-30: re-checked in the write itself, so a departure between the read and the write
+          // (before the status job runs) cannot slip through.
+          departureUtc: { $gt: new Date() },
           'cabins.class': { $ne: dto.class },
         },
         {
@@ -147,10 +150,12 @@ export class FlightsService {
       )
       .exec();
     if (!updated) {
-      // Lost a race: another request added this class, or the flight stopped being Scheduled.
+      // Lost a race: another request added this class, the flight departed, or it stopped being
+      // Scheduled.
       const now = await this.flights.findById(flight._id).exec();
       if (now?.cabins.some((c) => c.class === dto.class))
         throw cabinExists(dto.class);
+      if (now && now.status === FlightStatus.Scheduled) throw alreadyDeparted();
       throw notScheduled();
     }
     return this.view(updated);
@@ -179,10 +184,10 @@ export class FlightsService {
       );
     }
     if (
-      dto.totalSeats === undefined &&
-      dto.priceMinor === undefined &&
-      dto.freeBags === undefined &&
-      dto.maxKgPerBag === undefined
+      dto.totalSeats == null &&
+      dto.priceMinor == null &&
+      dto.freeBags == null &&
+      dto.maxKgPerBag == null
     ) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
@@ -192,16 +197,14 @@ export class FlightsService {
     }
 
     const taken = cabin.totalSeats - cabin.seatsAvailable;
-    if (dto.totalSeats !== undefined && dto.totalSeats < taken) {
+    if (dto.totalSeats != null && dto.totalSeats < taken) {
       throw seatsBelowTaken(cabin.class, dto.totalSeats, taken);
     }
 
     const set: Record<string, number> = {};
-    if (dto.priceMinor !== undefined)
-      set['cabins.$.priceMinor'] = dto.priceMinor;
-    if (dto.freeBags !== undefined) set['cabins.$.freeBags'] = dto.freeBags;
-    if (dto.maxKgPerBag !== undefined)
-      set['cabins.$.maxKgPerBag'] = dto.maxKgPerBag;
+    if (dto.priceMinor != null) set['cabins.$.priceMinor'] = dto.priceMinor;
+    if (dto.freeBags != null) set['cabins.$.freeBags'] = dto.freeBags;
+    if (dto.maxKgPerBag != null) set['cabins.$.maxKgPerBag'] = dto.maxKgPerBag;
 
     const elem: Record<string, unknown> = { _id: cabin._id };
     const update: {
@@ -210,7 +213,7 @@ export class FlightsService {
     } = {
       $set: set,
     };
-    if (dto.totalSeats !== undefined && dto.totalSeats !== cabin.totalSeats) {
+    if (dto.totalSeats != null && dto.totalSeats !== cabin.totalSeats) {
       const delta = dto.totalSeats - cabin.totalSeats;
       // Same total as we read, and enough free seats left to absorb a reduction.
       elem.totalSeats = cabin.totalSeats;
@@ -226,6 +229,7 @@ export class FlightsService {
         {
           _id: flight._id,
           status: FlightStatus.Scheduled,
+          departureUtc: { $gt: new Date() }, // FLT-30, see addCabin
           cabins: { $elemMatch: elem },
         },
         update,
@@ -236,7 +240,8 @@ export class FlightsService {
       const now = await this.flights.findById(flight._id).exec();
       const current = now?.cabins.find((c) => c._id.equals(cabin._id));
       if (!now || now.status !== FlightStatus.Scheduled) throw notScheduled();
-      if (current && dto.totalSeats !== undefined) {
+      if (now.departureUtc <= new Date()) throw alreadyDeparted();
+      if (current && dto.totalSeats != null) {
         const takenNow = current.totalSeats - current.seatsAvailable;
         if (dto.totalSeats < takenNow)
           throw seatsBelowTaken(current.class, dto.totalSeats, takenNow);
@@ -250,7 +255,10 @@ export class FlightsService {
     return this.view(updated);
   }
 
-  /** A flight the caller may change: exists (404), belongs to their airline (403), Scheduled (409). */
+  /**
+   * A flight the caller may change: exists (404), belongs to their airline (403), the airline is
+   * active (403, ACC-15), Scheduled (409).
+   */
   private async loadEditable(
     user: AuthUser,
     flightId: string,
@@ -266,13 +274,9 @@ export class FlightsService {
     assertProviderScope(user, ProviderType.Airline, flight.airlineId);
     if (flight.status !== FlightStatus.Scheduled) throw notScheduled();
     // FLT-30: a flight whose departure has passed is Departed even before the status job runs.
-    if (flight.departureUtc <= new Date()) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.CONFLICT,
-        'This flight has already departed and can no longer be changed (FLT-30)',
-      );
-    }
+    if (flight.departureUtc <= new Date()) throw alreadyDeparted();
+    // ACC-15: a deactivated airline's flights cannot be changed.
+    await this.airlines.loadActive(flight.airlineId);
     return flight;
   }
 
@@ -328,6 +332,14 @@ function cabinExists(cabinClass: string): AppException {
     HttpStatus.CONFLICT,
     ErrorCode.CONFLICT,
     `This flight already has a ${cabinClass} cabin; edit it instead`,
+  );
+}
+
+function alreadyDeparted(): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.CONFLICT,
+    'This flight has already departed and can no longer be changed (FLT-30)',
   );
 }
 
