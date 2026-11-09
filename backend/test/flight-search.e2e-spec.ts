@@ -144,19 +144,19 @@ describe('Flight search (e2e): FLT-11', () => {
       [economy],
     );
 
-    // 3 Dec: one flight at exactly 00:00 Tokyo time and one at 23:59 (both belong to 3 Dec).
+    // 7 Dec: one flight at exactly 00:00 Tokyo time and one at 23:59 (both belong to 7 Dec).
     await flight(
       sr.moderator,
       'SR700',
-      '2027-12-03T00:00',
-      '2027-12-03T06:00',
+      '2027-12-07T00:00',
+      '2027-12-07T06:00',
       [economy],
     );
     await flight(
       sr.moderator,
       'SR710',
-      '2027-12-03T23:59',
-      '2027-12-04T05:59',
+      '2027-12-07T23:59',
+      '2027-12-08T05:59',
       [economy],
     );
 
@@ -258,14 +258,14 @@ describe('Flight search (e2e): FLT-11', () => {
       const body = res.body as { items: { flightNumber: string }[] };
       return body.items.map((i) => i.flightNumber);
     };
-    expect(await numbers('2027-12-03')).toEqual(['SR700', 'SR710']);
-    expect(await numbers('2027-12-02')).not.toContain('SR700');
-    expect(await numbers('2027-12-04')).toEqual([]);
+    expect(await numbers('2027-12-07')).toEqual(['SR700', 'SR710']);
+    expect(await numbers('2027-12-06')).toEqual([]);
+    expect(await numbers('2027-12-08')).toEqual([]);
   });
 
   it('has no upper limit on passengers (FLT-11 sets none); seats still decide', async () => {
     const res = await search({
-      departureDate: '2027-12-03',
+      departureDate: '2027-12-07',
       passengers: 12,
     }).expect(200);
     expect(
