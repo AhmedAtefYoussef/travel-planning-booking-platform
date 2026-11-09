@@ -219,6 +219,19 @@ describe('Airlines (e2e): FLT-01', () => {
       expect(after.body.policy.extraBaggage.maxExtraBagsPerPassenger).toBe(2);
     });
 
+    it('rejects numbers too large to count exactly (1e20, 1e300) with field errors', async () => {
+      for (const value of [1e20, 1e300]) {
+        const res = await http()
+          .put(`/api/airlines/${airlineId}/baggage-policy`)
+          .set('x-dev-user', moderatorOf(airlineId))
+          .send({ pricePerBagMinor: value, maxExtraBagsPerPassenger: value })
+          .expect(400);
+        expect(
+          res.body.fieldErrors.map((f: { field: string }) => f.field).sort(),
+        ).toEqual(['maxExtraBagsPerPassenger', 'pricePerBagMinor']);
+      }
+    });
+
     it('has no upper limit on extra bags per passenger (FLT-08 sets none)', async () => {
       const res = await http()
         .put(`/api/airlines/${airlineId}/baggage-policy`)
