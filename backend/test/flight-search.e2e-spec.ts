@@ -273,6 +273,19 @@ describe('Flight search (e2e): FLT-11', () => {
     ).toEqual(['SR700', 'SR710']);
   });
 
+  it('rejects a passenger count too large to count exactly (400, not an empty page)', async () => {
+    const res = await search({
+      departureDate: '2027-12-07',
+      passengers: '99999999999999999999',
+    }).expect(400);
+    expect(res.body.fieldErrors).toEqual([
+      {
+        field: 'passengers',
+        message: 'passengers must be a whole number of at least 1',
+      },
+    ]);
+  });
+
   it('returns an empty page when nothing matches ("no flights found")', async () => {
     const res = await search({
       departureDate: '2027-12-03',
