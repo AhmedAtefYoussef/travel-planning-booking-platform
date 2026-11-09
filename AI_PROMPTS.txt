@@ -537,3 +537,17 @@ a forged session id cannot end someone else's session. Claude also caught a flaw
 (the token hash changes on rotation) before running it. I checked logout, rotation and the 29 versus
 31 minute boundary against a running app and the database.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: TRVL-140 (hotel schemas backing HTL-01 to HTL-24)
+Prompt:
+Port my hotels, rooms, room_nights and reviews Mongoose schemas onto the latest develop as their own pull request,
+following the team branch, PR and traceability conventions.
+How the output was used:
+Claude adapted the existing schemas to the shared helpers on develop (CancellationTier, parseIsoDate), ran format,
+lint, typecheck, architecture, OpenAPI and the unit tests locally, and opened the PR. I reviewed the diff and the
+schema rules before asking for review.
+================================================
