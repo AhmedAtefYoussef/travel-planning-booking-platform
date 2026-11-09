@@ -11,7 +11,7 @@ import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
-import { CreateRoomDto, RoomDto } from './dto/room.dto';
+import { AddAvailabilityDto, CreateRoomDto, RoomDto } from './dto/room.dto';
 import { RoomsService } from './rooms.service';
 
 /**
@@ -64,5 +64,51 @@ export class RoomsController {
     @Body() dto: CreateRoomDto,
   ): Promise<RoomDto> {
     return this.rooms.create(user, hotelId, dto);
+  }
+
+  @Post(':roomId/availability')
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary: 'HTL-04 Hotel moderator adds bookable date ranges to a room',
+    description:
+      'Each range is {from, to}: `from` is the first bookable night and `to` the first night no longer included (up to 366 nights). Ranges must not overlap each other (400) or dates the room is already bookable for (409, and nothing is added); ranges that touch are fine. Only the moderator assigned to this hotel may do this (403 otherwise, ACC-11).',
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiParam({ name: 'roomId', description: 'Room id' })
+  @ApiBody({
+    type: AddAvailabilityDto,
+    examples: {
+      valid: {
+        summary: 'Two bookable ranges',
+        value: {
+          ranges: [
+            { from: '2027-01-10', to: '2027-02-10' },
+            { from: '2027-03-01', to: '2027-03-15' },
+          ],
+        },
+      },
+      overlapping: {
+        summary: 'Invalid: the two ranges overlap',
+        value: {
+          ranges: [
+            { from: '2027-01-10', to: '2027-02-10' },
+            { from: '2027-02-01', to: '2027-03-01' },
+          ],
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    type: RoomDto,
+    description: 'The room with all its bookable ranges, earliest first',
+  })
+  @ApiErrorResponses(400, 404, 409)
+  addAvailability(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) hotelId: string,
+    @Param('roomId', ParseObjectIdPipe) roomId: string,
+    @Body() dto: AddAvailabilityDto,
+  ): Promise<RoomDto> {
+    return this.rooms.addAvailability(user, hotelId, roomId, dto);
   }
 }

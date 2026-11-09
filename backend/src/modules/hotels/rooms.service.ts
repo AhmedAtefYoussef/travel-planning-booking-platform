@@ -1,8 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import type { AuthUser } from '../../common/auth/auth.types';
-import type { CreateRoomDto, RoomDto } from './dto/room.dto';
+import { assertProviderScope } from '../../common/auth/access';
+import { AuthUser, ProviderType } from '../../common/auth/auth.types';
+import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
+import type {
+  AddAvailabilityDto,
+  AvailabilityRangeInputDto,
+  CreateRoomDto,
+  RoomDto,
+} from './dto/room.dto';
 import { HotelsService } from './hotels.service';
 import { Room, RoomDocument } from './schemas/room.schema';
 
@@ -35,6 +43,78 @@ export class RoomsService {
     });
     return toRoomDto(room);
   }
+
+  /**
+   * HTL-04: adds bookable date ranges. The overlap check and the insert are one atomic update, so two
+   * concurrent requests cannot both add overlapping ranges. Ranges are half-open: they may touch.
+   */
+  async addAvailability(
+    user: AuthUser,
+    hotelId: string,
+    roomId: string,
+    dto: AddAvailabilityDto,
+  ): Promise<RoomDto> {
+    const hotel = await this.hotels.loadActive(hotelId);
+    assertProviderScope(user, ProviderType.Hotel, hotel._id);
+    const ranges = sortedRanges(dto.ranges);
+    const clash = firstOverlap(ranges);
+    if (clash) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.BAD_REQUEST,
+        `The ranges ${clash[0].from} to ${clash[0].to} and ${clash[1].from} to ${clash[1].to} overlap each other`,
+      );
+    }
+    const filter = {
+      _id: roomId,
+      hotelId: hotel._id,
+      $nor: ranges.map((range) => ({
+        availability: {
+          $elemMatch: { from: { $lt: range.to }, to: { $gt: range.from } },
+        },
+      })),
+    };
+    const room = await this.rooms
+      .findOneAndUpdate(
+        filter,
+        { $push: { availability: { $each: ranges, $sort: { from: 1 } } } },
+        { new: true },
+      )
+      .exec();
+    if (room) return toRoomDto(room);
+    const exists = await this.rooms.exists({ _id: roomId, hotelId: hotel._id });
+    if (!exists) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Room not found',
+      );
+    }
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.CONFLICT,
+      'A range overlaps dates this room is already bookable for. Nothing was added',
+    );
+  }
+}
+
+type RangeLike = Pick<AvailabilityRangeInputDto, 'from' | 'to'>;
+
+/** The ranges as plain `{from, to}` objects, earliest first (ISO dates sort as text). */
+export function sortedRanges(ranges: RangeLike[]): RangeLike[] {
+  return ranges
+    .map(({ from, to }) => ({ from, to }))
+    .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+}
+
+/** The first two neighbours that overlap in a list sorted by `from`, or null. */
+export function firstOverlap(
+  sorted: RangeLike[],
+): [RangeLike, RangeLike] | null {
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].from < sorted[i - 1].to) return [sorted[i - 1], sorted[i]];
+  }
+  return null;
 }
 
 export function toRoomDto(room: RoomDocument): RoomDto {

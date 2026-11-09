@@ -1,8 +1,18 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-import { IsString, Length, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsString,
+  Length,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { IsWholeNumber } from '../../../common/validation';
+import { IsCalendarDate, IsRangeEnd } from './validators';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -109,4 +119,41 @@ export class RoomDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: Date;
+}
+
+/** Longest single bookable range, in nights. */
+export const MAX_RANGE_NIGHTS = 366;
+/** Most ranges that can be sent in one request. */
+export const MAX_RANGES_PER_REQUEST = 100;
+
+/** One bookable date range: `from` is the first night, `to` the first night no longer included. */
+export class AvailabilityRangeInputDto {
+  @ApiProperty({ example: '2027-01-10', description: 'First bookable night' })
+  @IsCalendarDate()
+  from!: string;
+
+  @ApiProperty({
+    example: '2027-02-10',
+    description: `Exclusive end: after from, at most ${MAX_RANGE_NIGHTS} nights later`,
+  })
+  @IsCalendarDate()
+  @IsRangeEnd('from', MAX_RANGE_NIGHTS)
+  to!: string;
+}
+
+/** HTL-04: add bookable date ranges to a room. */
+export class AddAvailabilityDto {
+  @ApiProperty({
+    type: [AvailabilityRangeInputDto],
+    minItems: 1,
+    maxItems: MAX_RANGES_PER_REQUEST,
+    description:
+      "Ranges must not overlap each other or the room's existing ranges. Touching ranges (one ends the day the next starts) are allowed.",
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_RANGES_PER_REQUEST)
+  @ValidateNested({ each: true })
+  @Type(() => AvailabilityRangeInputDto)
+  ranges!: AvailabilityRangeInputDto[];
 }

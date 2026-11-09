@@ -5,7 +5,7 @@ import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { HotelsService } from './hotels.service';
 import type { Room } from './schemas/room.schema';
-import { RoomsService } from './rooms.service';
+import { firstOverlap, RoomsService, sortedRanges } from './rooms.service';
 
 const hotelId = new Types.ObjectId();
 const now = new Date('2026-11-09T10:00:00Z');
@@ -98,5 +98,152 @@ describe('RoomsService (HTL-03)', () => {
       ).rejects.toMatchObject({ status });
       expect(model.create).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe('range helpers (HTL-04)', () => {
+  const r = (from: string, to: string) => ({ from, to });
+
+  it('sorts ranges by start and drops extra properties', () => {
+    expect(
+      sortedRanges([
+        { ...r('2027-03-01', '2027-03-05'), extra: 1 } as ReturnType<typeof r>,
+        r('2027-01-01', '2027-01-05'),
+      ]),
+    ).toEqual([r('2027-01-01', '2027-01-05'), r('2027-03-01', '2027-03-05')]);
+  });
+
+  it('finds overlapping neighbours, but not ranges that only touch', () => {
+    expect(
+      firstOverlap([
+        r('2027-01-01', '2027-01-10'),
+        r('2027-01-10', '2027-01-20'),
+      ]),
+    ).toBeNull();
+    expect(
+      firstOverlap([
+        r('2027-01-01', '2027-01-10'),
+        r('2027-01-09', '2027-01-20'),
+      ]),
+    ).toEqual([r('2027-01-01', '2027-01-10'), r('2027-01-09', '2027-01-20')]);
+    expect(firstOverlap([])).toBeNull();
+  });
+});
+
+describe('RoomsService.addAvailability (HTL-04)', () => {
+  const roomId = new Types.ObjectId().toHexString();
+  const ranges = [
+    { from: '2027-03-01', to: '2027-03-10' },
+    { from: '2027-01-01', to: '2027-01-10' },
+  ];
+
+  function setupAvail(opts: { updated: object | null; exists: boolean }) {
+    const model = {
+      findOneAndUpdate: jest.fn(() => ({
+        exec: () => Promise.resolve(opts.updated),
+      })),
+      exists: jest.fn(() =>
+        Promise.resolve(opts.exists ? { _id: roomId } : null),
+      ),
+    };
+    const hotels = {
+      loadActive: jest.fn(() => Promise.resolve({ _id: hotelId })),
+    };
+    return {
+      model,
+      service: new RoomsService(
+        model as unknown as Model<Room>,
+        hotels as unknown as HotelsService,
+      ),
+    };
+  }
+  const stored = {
+    id: roomId,
+    hotelId,
+    number: '101',
+    type: 'Double',
+    beds: 2,
+    maxOccupancy: 3,
+    priceMinor: 10000,
+    availability: [{ from: '2027-01-01', to: '2027-01-10' }],
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  it('adds the ranges in one atomic update that refuses overlaps', async () => {
+    const { service, model } = setupAvail({ updated: stored, exists: true });
+    const room = await service.addAvailability(
+      moderatorOf(hotelId),
+      hotelId.toHexString(),
+      roomId,
+      { ranges },
+    );
+    expect(model.findOneAndUpdate).toHaveBeenCalledTimes(1);
+    const [filter, update] = model.findOneAndUpdate.mock
+      .calls[0] as unknown as [
+      { $nor: unknown[] },
+      { $push: { availability: { $each: unknown[] } } },
+    ];
+    expect(filter.$nor).toHaveLength(2);
+    expect(update.$push.availability.$each).toEqual([
+      { from: '2027-01-01', to: '2027-01-10' },
+      { from: '2027-03-01', to: '2027-03-10' },
+    ]);
+    expect(room.availability).toEqual([
+      { from: '2027-01-01', to: '2027-01-10' },
+    ]);
+  });
+
+  it('rejects overlapping ranges inside the request with 400 before touching the database', async () => {
+    const { service, model } = setupAvail({ updated: stored, exists: true });
+    await expect(
+      service.addAvailability(
+        moderatorOf(hotelId),
+        hotelId.toHexString(),
+        roomId,
+        {
+          ranges: [
+            { from: '2027-01-01', to: '2027-01-10' },
+            { from: '2027-01-05', to: '2027-01-15' },
+          ],
+        },
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('returns 409 when a range overlaps existing dates, and 404 for an unknown room', async () => {
+    const clash = setupAvail({ updated: null, exists: true });
+    await expect(
+      clash.service.addAvailability(
+        moderatorOf(hotelId),
+        hotelId.toHexString(),
+        roomId,
+        { ranges },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    const missing = setupAvail({ updated: null, exists: false });
+    await expect(
+      missing.service.addAvailability(
+        moderatorOf(hotelId),
+        hotelId.toHexString(),
+        roomId,
+        { ranges },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("refuses another hotel's moderator with 403 before touching the database", async () => {
+    const { service, model } = setupAvail({ updated: stored, exists: true });
+    await expect(
+      service.addAvailability(
+        moderatorOf(new Types.ObjectId()),
+        hotelId.toHexString(),
+        roomId,
+        { ranges },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 });
