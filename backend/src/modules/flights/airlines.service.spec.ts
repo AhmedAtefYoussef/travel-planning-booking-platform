@@ -123,3 +123,19 @@ describe('AirlinesService (FLT-01)', () => {
     expect(airline.save).not.toHaveBeenCalled();
   });
 });
+
+describe('AirlinesService.loadActive (ACC-15)', () => {
+  it('returns an active airline', async () => {
+    const airline = fakeAirline();
+    const { service } = setup(airline);
+    await expect(service.loadActive(airline.id)).resolves.toBe(airline);
+  });
+
+  it('refuses a deactivated airline with 403', async () => {
+    const airline = { ...fakeAirline(), isActive: false };
+    const { service } = setup(airline);
+    await expect(service.loadActive(airline.id)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+});

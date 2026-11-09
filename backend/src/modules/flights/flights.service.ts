@@ -42,8 +42,8 @@ export class FlightsService {
     now: Date = new Date(),
   ): Promise<FlightDto> {
     const airlineId = this.assignedAirlineId(user);
-    // 404 if the moderator's airline no longer exists.
-    await this.airlines.load(airlineId);
+    // 404 if the moderator's airline no longer exists, 403 if it is deactivated (ACC-15).
+    await this.airlines.loadActive(airlineId);
 
     const errors: FieldError[] = [];
     const [from, to] = await Promise.all([
