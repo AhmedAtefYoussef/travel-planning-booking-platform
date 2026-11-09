@@ -8,7 +8,6 @@ import {
   IsUrl,
   Length,
   Matches,
-  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -115,11 +114,11 @@ export class BaggagePolicyDto {
   @ApiProperty({
     example: 2,
     minimum: 0,
-    description: 'Maximum extra bags one passenger may buy; 0 means none',
+    description:
+      'Maximum extra bags one passenger may buy, whole number >= 0; 0 means none',
   })
   @IsInt({ message: 'maxExtraBagsPerPassenger must be a whole number' })
   @Min(0)
-  @Max(10)
   maxExtraBagsPerPassenger!: number;
 }
 
