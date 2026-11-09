@@ -179,10 +179,10 @@ export class FlightsService {
       );
     }
     if (
-      dto.totalSeats === undefined &&
-      dto.priceMinor === undefined &&
-      dto.freeBags === undefined &&
-      dto.maxKgPerBag === undefined
+      dto.totalSeats == null &&
+      dto.priceMinor == null &&
+      dto.freeBags == null &&
+      dto.maxKgPerBag == null
     ) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
@@ -192,16 +192,14 @@ export class FlightsService {
     }
 
     const taken = cabin.totalSeats - cabin.seatsAvailable;
-    if (dto.totalSeats !== undefined && dto.totalSeats < taken) {
+    if (dto.totalSeats != null && dto.totalSeats < taken) {
       throw seatsBelowTaken(cabin.class, dto.totalSeats, taken);
     }
 
     const set: Record<string, number> = {};
-    if (dto.priceMinor !== undefined)
-      set['cabins.$.priceMinor'] = dto.priceMinor;
-    if (dto.freeBags !== undefined) set['cabins.$.freeBags'] = dto.freeBags;
-    if (dto.maxKgPerBag !== undefined)
-      set['cabins.$.maxKgPerBag'] = dto.maxKgPerBag;
+    if (dto.priceMinor != null) set['cabins.$.priceMinor'] = dto.priceMinor;
+    if (dto.freeBags != null) set['cabins.$.freeBags'] = dto.freeBags;
+    if (dto.maxKgPerBag != null) set['cabins.$.maxKgPerBag'] = dto.maxKgPerBag;
 
     const elem: Record<string, unknown> = { _id: cabin._id };
     const update: {
@@ -210,7 +208,7 @@ export class FlightsService {
     } = {
       $set: set,
     };
-    if (dto.totalSeats !== undefined && dto.totalSeats !== cabin.totalSeats) {
+    if (dto.totalSeats != null && dto.totalSeats !== cabin.totalSeats) {
       const delta = dto.totalSeats - cabin.totalSeats;
       // Same total as we read, and enough free seats left to absorb a reduction.
       elem.totalSeats = cabin.totalSeats;
@@ -236,7 +234,7 @@ export class FlightsService {
       const now = await this.flights.findById(flight._id).exec();
       const current = now?.cabins.find((c) => c._id.equals(cabin._id));
       if (!now || now.status !== FlightStatus.Scheduled) throw notScheduled();
-      if (current && dto.totalSeats !== undefined) {
+      if (current && dto.totalSeats != null) {
         const takenNow = current.totalSeats - current.seatsAvailable;
         if (dto.totalSeats < takenNow)
           throw seatsBelowTaken(current.class, dto.totalSeats, takenNow);
@@ -250,7 +248,10 @@ export class FlightsService {
     return this.view(updated);
   }
 
-  /** A flight the caller may change: exists (404), belongs to their airline (403), Scheduled (409). */
+  /**
+   * A flight the caller may change: exists (404), belongs to their airline (403), the airline is
+   * active (403, ACC-15), Scheduled (409).
+   */
   private async loadEditable(
     user: AuthUser,
     flightId: string,
@@ -265,6 +266,8 @@ export class FlightsService {
     }
     assertProviderScope(user, ProviderType.Airline, flight.airlineId);
     if (flight.status !== FlightStatus.Scheduled) throw notScheduled();
+    // ACC-15: a deactivated airline's flights cannot be changed.
+    await this.airlines.loadActive(flight.airlineId);
     return flight;
   }
 

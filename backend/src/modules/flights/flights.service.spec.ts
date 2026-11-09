@@ -80,6 +80,14 @@ function setup() {
   return { service, model, created, airlines };
 }
 
+/** AirlinesService stub whose airline is active (ACC-15). */
+const activeAirline = () =>
+  ({
+    loadActive: jest.fn(() =>
+      Promise.resolve({ _id: airlineId, isActive: true }),
+    ),
+  }) as unknown as AirlinesService;
+
 const base: CreateFlightDto = {
   flightNumber: 'MS777',
   from: 'CAI',
@@ -317,7 +325,7 @@ describe('FlightsService cabins (FLT-04)', () => {
     const service = new FlightsService(
       model as unknown as Model<Flight>,
       reference,
-      {} as AirlinesService,
+      activeAirline(),
     );
     return { service, model };
   }
@@ -429,6 +437,33 @@ describe('FlightsService cabins (FLT-04)', () => {
       totalSeats: 100,
       seatsAvailable: 70,
     });
+  });
+
+  it("refuses changes to a deactivated airline's flights (ACC-15)", async () => {
+    const { model } = setupCabins();
+    const inactive = {
+      loadActive: jest.fn(() =>
+        Promise.reject(
+          Object.assign(new Error('deactivated'), { status: 403 }),
+        ),
+      ),
+    } as unknown as AirlinesService;
+    const blocked = new FlightsService(
+      model as unknown as Model<Flight>,
+      {} as ReferenceService,
+      inactive,
+    );
+    await expect(
+      blocked.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        {
+          priceMinor: 1,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   it('rejects an empty edit, another airline, and a flight that is not Scheduled', async () => {

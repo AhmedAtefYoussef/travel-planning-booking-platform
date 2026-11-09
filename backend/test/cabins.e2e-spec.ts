@@ -4,7 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Flight } from '../src/modules/flights';
+import { Airline, Flight } from '../src/modules/flights';
 import {
   loadReferenceDataset,
   ReferenceSeedService,
@@ -179,6 +179,28 @@ describe('Flight cabins (e2e): FLT-04', () => {
   });
 
   describe('PATCH /api/flights/:id/cabins/:cabinId', () => {
+    it('rejects null for every field and changes nothing', async () => {
+      const before = await flights.findById(flightId).lean();
+      for (const field of [
+        'totalSeats',
+        'priceMinor',
+        'freeBags',
+        'maxKgPerBag',
+      ]) {
+        const res = await http()
+          .patch(`/api/flights/${flightId}/cabins/${economyId}`)
+          .set('x-dev-user', moderator)
+          .send({ [field]: null })
+          .expect(400);
+        expect(res.body.code).toBe('VALIDATION_FAILED');
+        expect(
+          res.body.fieldErrors.map((f: { field: string }) => f.field),
+        ).toContain(field);
+      }
+      const after = await flights.findById(flightId).lean();
+      expect(after?.cabins).toEqual(before?.cabins);
+    });
+
     it('changes the price without touching seats', async () => {
       const res = await http()
         .patch(`/api/flights/${flightId}/cabins/${economyId}`)
@@ -298,5 +320,62 @@ describe('Flight cabins (e2e): FLT-04', () => {
         .send({ ...economy, class: 'FIRST' })
         .expect(409);
     });
+  });
+
+  describe('limits (review of #11)', () => {
+    it('accepts large seat counts and free-bag allowances; only maxKgPerBag is capped (100 kg)', async () => {
+      const id = await newFlight('CB800');
+      await http()
+        .post(`/api/flights/${id}/cabins`)
+        .set('x-dev-user', moderator)
+        .send({ ...economy, totalSeats: 5000, freeBags: 12 })
+        .expect(201);
+      const heavy = await http()
+        .post(`/api/flights/${id}/cabins`)
+        .set('x-dev-user', moderator)
+        .send({ ...economy, class: 'BUSINESS', maxKgPerBag: 101 })
+        .expect(400);
+      expect(heavy.body.fieldErrors[0].field).toBe('maxKgPerBag');
+    });
+  });
+
+  it("a deactivated airline's moderator cannot add or change cabins (ACC-15)", async () => {
+    const other = await http()
+      .post('/api/airlines')
+      .set('x-dev-user', 'ADMIN')
+      .send({ name: 'Inactive Cabin Air', code: 'CX' })
+      .expect(201);
+    const mod = `AIRLINE_MODERATOR:${new Types.ObjectId().toHexString()}:${other.body.id}`;
+    const created = await http()
+      .post('/api/flights')
+      .set('x-dev-user', mod)
+      .send({
+        flightNumber: 'CX100',
+        from: 'CAI',
+        to: 'DXB',
+        departureLocal: '2027-12-01T14:30',
+        arrivalLocal: '2027-12-01T18:45',
+      })
+      .expect(201);
+    const withCabin = await http()
+      .post(`/api/flights/${created.body.id}/cabins`)
+      .set('x-dev-user', mod)
+      .send(economy)
+      .expect(201);
+    await app
+      .get<Model<Airline>>(getModelToken(Airline.name))
+      .updateOne({ _id: other.body.id }, { isActive: false });
+    await http()
+      .post(`/api/flights/${created.body.id}/cabins`)
+      .set('x-dev-user', mod)
+      .send({ ...economy, class: 'FIRST' })
+      .expect(403);
+    await http()
+      .patch(
+        `/api/flights/${created.body.id}/cabins/${withCabin.body.cabins[0].id}`,
+      )
+      .set('x-dev-user', mod)
+      .send({ priceMinor: 1 })
+      .expect(403);
   });
 });
