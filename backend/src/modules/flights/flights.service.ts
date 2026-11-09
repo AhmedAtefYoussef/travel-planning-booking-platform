@@ -129,6 +129,9 @@ export class FlightsService {
         {
           _id: flight._id,
           status: FlightStatus.Scheduled,
+          // FLT-30: re-checked in the write itself, so a departure between the read and the write
+          // (before the status job runs) cannot slip through.
+          departureUtc: { $gt: new Date() },
           'cabins.class': { $ne: dto.class },
         },
         {
@@ -147,10 +150,12 @@ export class FlightsService {
       )
       .exec();
     if (!updated) {
-      // Lost a race: another request added this class, or the flight stopped being Scheduled.
+      // Lost a race: another request added this class, the flight departed, or it stopped being
+      // Scheduled.
       const now = await this.flights.findById(flight._id).exec();
       if (now?.cabins.some((c) => c.class === dto.class))
         throw cabinExists(dto.class);
+      if (now && now.status === FlightStatus.Scheduled) throw alreadyDeparted();
       throw notScheduled();
     }
     return this.view(updated);
@@ -224,6 +229,7 @@ export class FlightsService {
         {
           _id: flight._id,
           status: FlightStatus.Scheduled,
+          departureUtc: { $gt: new Date() }, // FLT-30, see addCabin
           cabins: { $elemMatch: elem },
         },
         update,
@@ -234,6 +240,7 @@ export class FlightsService {
       const now = await this.flights.findById(flight._id).exec();
       const current = now?.cabins.find((c) => c._id.equals(cabin._id));
       if (!now || now.status !== FlightStatus.Scheduled) throw notScheduled();
+      if (now.departureUtc <= new Date()) throw alreadyDeparted();
       if (current && dto.totalSeats != null) {
         const takenNow = current.totalSeats - current.seatsAvailable;
         if (dto.totalSeats < takenNow)
@@ -267,13 +274,7 @@ export class FlightsService {
     assertProviderScope(user, ProviderType.Airline, flight.airlineId);
     if (flight.status !== FlightStatus.Scheduled) throw notScheduled();
     // FLT-30: a flight whose departure has passed is Departed even before the status job runs.
-    if (flight.departureUtc <= new Date()) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.CONFLICT,
-        'This flight has already departed and can no longer be changed (FLT-30)',
-      );
-    }
+    if (flight.departureUtc <= new Date()) throw alreadyDeparted();
     // ACC-15: a deactivated airline's flights cannot be changed.
     await this.airlines.loadActive(flight.airlineId);
     return flight;
@@ -331,6 +332,14 @@ function cabinExists(cabinClass: string): AppException {
     HttpStatus.CONFLICT,
     ErrorCode.CONFLICT,
     `This flight already has a ${cabinClass} cabin; edit it instead`,
+  );
+}
+
+function alreadyDeparted(): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.CONFLICT,
+    'This flight has already departed and can no longer be changed (FLT-30)',
   );
 }
 

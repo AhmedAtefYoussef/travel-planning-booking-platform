@@ -363,6 +363,7 @@ describe('FlightsService cabins (FLT-04)', () => {
       {
         _id: flightId,
         status: 'SCHEDULED',
+        departureUtc: { $gt: expect.any(Date) as Date },
         'cabins.class': { $ne: 'BUSINESS' },
       },
       {
@@ -410,6 +411,7 @@ describe('FlightsService cabins (FLT-04)', () => {
       {
         _id: flightId,
         status: 'SCHEDULED',
+        departureUtc: { $gt: expect.any(Date) as Date },
         cabins: {
           $elemMatch: {
             _id: cabinId,
@@ -440,6 +442,34 @@ describe('FlightsService cabins (FLT-04)', () => {
     expect(dto.cabins[0]).toMatchObject({
       totalSeats: 100,
       seatsAvailable: 70,
+    });
+  });
+
+  it('re-checks the departure in the write: a flight that departs mid-request gets the FLT-30 409', async () => {
+    const { service, model } = setupCabins();
+    // The read sees a future departure; by the time of the write it has passed, so the conditional
+    // update matches nothing and the re-read shows the past departure.
+    const flight = await model.findById().exec();
+    const departed = { ...flight, departureUtc: new Date(Date.now() - 1000) };
+    model.findById
+      .mockReturnValueOnce({ exec: () => Promise.resolve(flight) })
+      .mockReturnValueOnce({ exec: () => Promise.resolve(departed) });
+    model.findOneAndUpdate.mockReturnValueOnce({
+      exec: () => Promise.resolve(null as never),
+    });
+    await expect(
+      service.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        {
+          priceMinor: 1,
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'This flight has already departed and can no longer be changed (FLT-30)',
     });
   });
 
