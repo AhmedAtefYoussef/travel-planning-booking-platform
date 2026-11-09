@@ -43,26 +43,30 @@ export interface SearchCriteria {
   /** Passengers who need a seat. */
   seats: number;
   page: number;
-  /** FLT-15: inclusive range on the total fare for all passengers, minor units. */
+  /** FLT-15: inclusive range on the fare per passenger (the cabin price), minor units. */
   minPriceMinor?: number;
   maxPriceMinor?: number;
   /** FLT-15; default 'departure'. */
   sort?: FlightSort;
 }
 
-/** Ties are broken by departure, then fare, then ids, so pages never overlap or skip rows. */
+/**
+ * FLT-15 sorts, all ascending. "price" is the fare per passenger (the same order as the total, since
+ * every row is for the same party). Ties are broken by departure, then fare, then ids, so pages
+ * never overlap or skip rows.
+ */
 const SORT_STAGES: Record<FlightSort, Record<string, 1>> = {
   departure: {
     departureUtc: 1,
-    totalPriceMinor: 1,
+    'cabin.priceMinor': 1,
     _id: 1,
     'cabin._id': 1,
   },
-  price: { totalPriceMinor: 1, departureUtc: 1, _id: 1, 'cabin._id': 1 },
+  price: { 'cabin.priceMinor': 1, departureUtc: 1, _id: 1, 'cabin._id': 1 },
   duration: {
     durationMs: 1,
     departureUtc: 1,
-    totalPriceMinor: 1,
+    'cabin.priceMinor': 1,
     _id: 1,
     'cabin._id': 1,
   },
@@ -97,7 +101,7 @@ interface SearchRow {
  *  - it departs on the requested local date at the departure airport (localDayRangeUtc, GEN-06);
  *  - its airline is active (ACC-15, ACTIVE_PROVIDER_FILTER);
  *  - the cabin has at least `seats` seats available (total - booked - held, ADR-0002).
- * FLT-15 then keeps rows whose total fare is within [minPriceMinor, maxPriceMinor] (inclusive) and sorts
+ * FLT-15 then keeps rows whose fare per passenger is within [minPriceMinor, maxPriceMinor] (inclusive) and sorts
  * by departure (default), price or duration, all other criteria unchanged.
  * Only seeded airports are accepted (FLT-02). An empty page is the "no flights found" result.
  */
@@ -190,15 +194,15 @@ export class FlightSearchService implements FlightsSearch {
       throw new ValidationFailedException(errors);
     }
 
-    // Flights later today are still searchable; ones that already left are not.
-    const earliest = day.start > now ? day.start : now;
     const pipeline: PipelineStage[] = [
       {
         $match: {
           from,
           to,
           status: FlightStatus.Scheduled,
-          departureUtc: { $gt: earliest, $lt: day.end },
+          // The local day includes its first instant (a 00:00 departure) but not the next midnight;
+          // flights later today are still searchable, ones that already left are not.
+          departureUtc: { $gte: day.start, $lt: day.end, $gt: now },
         },
       },
       {
@@ -263,7 +267,10 @@ export class FlightSearchService implements FlightsSearch {
   }
 }
 
-/** FLT-15 inclusive price range on the total fare; no stage when neither bound is given. */
+/**
+ * FLT-15 inclusive price range on the fare per passenger (decided in PR #17: it is the price users
+ * compare and the one shown next to each result); no stage when neither bound is given.
+ */
 function priceRangeStage(
   min: number | undefined,
   max: number | undefined,
@@ -272,7 +279,7 @@ function priceRangeStage(
   const range: { $gte?: number; $lte?: number } = {};
   if (min !== undefined) range.$gte = min;
   if (max !== undefined) range.$lte = max;
-  return [{ $match: { totalPriceMinor: range } }];
+  return [{ $match: { 'cabins.priceMinor': range } }];
 }
 
 function toResult(

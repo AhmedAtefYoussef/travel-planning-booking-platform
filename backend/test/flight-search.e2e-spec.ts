@@ -144,6 +144,22 @@ describe('Flight search (e2e): FLT-11', () => {
       [economy],
     );
 
+    // 3 Dec: one flight at exactly 00:00 Tokyo time and one at 23:59 (both belong to 3 Dec).
+    await flight(
+      sr.moderator,
+      'SR700',
+      '2027-12-03T00:00',
+      '2027-12-03T06:00',
+      [economy],
+    );
+    await flight(
+      sr.moderator,
+      'SR710',
+      '2027-12-03T23:59',
+      '2027-12-04T05:59',
+      [economy],
+    );
+
     // A deactivated airline's flight on 1 Dec must not appear (ACC-15).
     const si = await airlineWithModerator('SI');
     await flight(
@@ -236,6 +252,27 @@ describe('Flight search (e2e): FLT-11', () => {
     ).toEqual(['SR400']);
   });
 
+  it('finds a flight departing at exactly 00:00 local time on its own date only', async () => {
+    const numbers = async (departureDate: string): Promise<string[]> => {
+      const res = await search({ departureDate, passengers: 1 }).expect(200);
+      const body = res.body as { items: { flightNumber: string }[] };
+      return body.items.map((i) => i.flightNumber);
+    };
+    expect(await numbers('2027-12-03')).toEqual(['SR700', 'SR710']);
+    expect(await numbers('2027-12-02')).not.toContain('SR700');
+    expect(await numbers('2027-12-04')).toEqual([]);
+  });
+
+  it('has no upper limit on passengers (FLT-11 sets none); seats still decide', async () => {
+    const res = await search({
+      departureDate: '2027-12-03',
+      passengers: 12,
+    }).expect(200);
+    expect(
+      res.body.items.map((i: { flightNumber: string }) => i.flightNumber),
+    ).toEqual(['SR700', 'SR710']);
+  });
+
   it('returns an empty page when nothing matches ("no flights found")', async () => {
     const res = await search({
       departureDate: '2027-12-03',
@@ -282,7 +319,7 @@ describe('Flight search (e2e): FLT-11', () => {
       ),
     ).toEqual({
       field: 'passengers',
-      message: 'passengers must be a whole number from 1 to 9',
+      message: 'passengers must be a whole number of at least 1',
     });
     await search({
       departureDate: '2027-12-01',

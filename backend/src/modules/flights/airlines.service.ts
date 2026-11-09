@@ -3,7 +3,10 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType } from '../../common/auth/auth.types';
-import { selectCancellationTier } from '../../common/contracts';
+import {
+  cancellationTierFieldErrors,
+  selectCancellationTier,
+} from '../../common/contracts';
 import {
   AppException,
   ValidationFailedException,
@@ -85,7 +88,8 @@ export class AirlinesService {
   }
 
   /**
-   * FLT-09: replaces the airline's cancellation tiers. Each threshold must be unique; tiers are
+   * FLT-09: replaces the airline's cancellation tiers. Each threshold must be unique (checked with
+   * the shared cancellationTierFieldErrors, like hotel policies); tiers are
    * stored sorted by threshold so they read naturally. Existing bookings keep the policy they
    * accepted (PAY-02 snapshot), so this only affects future bookings.
    */
@@ -96,21 +100,9 @@ export class AirlinesService {
   ): Promise<AirlineDto> {
     const airline = await this.load(id);
     assertProviderScope(user, ProviderType.Airline, airline._id);
-    const firstIndex = new Map<number, number>();
-    const duplicates = dto.tiers.flatMap((tier, i) => {
-      const first = firstIndex.get(tier.daysBefore);
-      if (first === undefined) {
-        firstIndex.set(tier.daysBefore, i);
-        return [];
-      }
-      return [
-        {
-          field: `tiers[${i}].daysBefore`,
-          message: `daysBefore ${tier.daysBefore} is already used by tiers[${first}]; thresholds must be unique`,
-        },
-      ];
-    });
-    if (duplicates.length) throw new ValidationFailedException(duplicates);
+    // Shared with hotel policies (HTL-10): unique integer thresholds >= 0, refunds 0..100 %.
+    const errors = cancellationTierFieldErrors(dto.tiers);
+    if (errors.length) throw new ValidationFailedException(errors);
     const tiers = [...dto.tiers]
       .sort((a, b) => a.daysBefore - b.daysBefore)
       .map((t) => ({
@@ -152,6 +144,22 @@ export class AirlinesService {
         HttpStatus.NOT_FOUND,
         ErrorCode.NOT_FOUND,
         'Airline not found',
+      );
+    }
+    return airline;
+  }
+
+  /**
+   * Loads an airline that may still manage flights: 404 if it doesn't exist, 403 if an admin has
+   * deactivated it (ACC-15). Its existing data stays readable; it just can't add or change flights.
+   */
+  async loadActive(id: string | Types.ObjectId): Promise<AirlineDocument> {
+    const airline = await this.load(id);
+    if (!airline.isActive) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+        'This airline is deactivated (ACC-15), so its flights cannot be created or changed',
       );
     }
     return airline;
