@@ -1,0 +1,1044 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/admin/audit-logs": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [
+          {
+            "name": "actorId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "64b7f0c2a1b2c3d4e5f60718",
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "payment.succeeded",
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-01-01T00:00:00Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "example": "2026-12-31T23:59:59Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "1-based; page size is fixed at 10",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Authenticated but not allowed"
+          }
+        },
+        "summary": "[GEN-07] List audit logs (admin, newest first)",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/uploads/{filename}": {
+      "get": {
+        "operationId": "UploadsController_serve",
+        "parameters": [
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "example": "a1b2c3.png",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image bytes (image/jpeg or image/png)",
+            "content": {
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        },
+        "summary": "[GEN-08] Serve a stored image (public)",
+        "tags": [
+          "uploads"
+        ]
+      }
+    },
+    "/api/currencies": {
+      "get": {
+        "operationId": "CurrencyController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyListDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "[ITN-18] List supported currencies",
+        "tags": [
+          "currency"
+        ]
+      }
+    },
+    "/api/currencies/rates": {
+      "get": {
+        "operationId": "CurrencyController_rates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrencyRatesDto"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No exchange rates have ever been fetched and the FX provider is unreachable"
+          }
+        },
+        "summary": "[ITN-18] Daily cached exchange rates",
+        "tags": [
+          "currency"
+        ]
+      }
+    },
+    "/api/bookings/{type}/{id}/policies": {
+      "get": {
+        "operationId": "BookingPoliciesController_policies",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "flight",
+                "hotel"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Booking id",
+            "schema": {
+              "example": "111111111111111111111111",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoliciesResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        },
+        "summary": "[PAY-02] Get the cancellation and baggage policies of a booking",
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/bookings/{type}/{id}/accept-policies": {
+      "post": {
+        "operationId": "BookingPoliciesController_accept",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "enum": [
+                "flight",
+                "hotel"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Booking id",
+            "schema": {
+              "example": "111111111111111111111111",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptPoliciesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptPoliciesResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Conflict with the current state"
+          }
+        },
+        "summary": "[PAY-02] Accept the booking policies (required before payment)",
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/payments": {
+      "post": {
+        "operationId": "PaymentsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePaymentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Authenticated but not allowed"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Conflict with the current state"
+          }
+        },
+        "summary": "[PAY-01] Create payment intent for a booking",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/webhook": {
+      "post": {
+        "description": "Called by Stripe, not by users. The raw body is verified against the stripe-signature header; an invalid signature is a 400.",
+        "operationId": "PaymentsController_webhook",
+        "parameters": [
+          {
+            "name": "stripe-signature",
+            "in": "header",
+            "description": "Stripe signature of the raw body",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "t=1700000000,v1=abc123"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "Raw Stripe event JSON",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "example": {
+                  "id": "evt_123",
+                  "type": "payment_intent.succeeded"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAckDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          }
+        },
+        "summary": "[PAY-01] Stripe webhook (public, verified by signature)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}/retry": {
+      "post": {
+        "operationId": "PaymentsController_retry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Payment id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatePaymentResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Authenticated but not allowed"
+          },
+          "404": {
+            "description": "Resource not found"
+          },
+          "409": {
+            "description": "Conflict with the current state"
+          }
+        },
+        "summary": "[PAY-01] Retry a failed payment",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}/test-confirm": {
+      "post": {
+        "description": "Confirms the PaymentIntent with pm_card_visa. 404 when NODE_ENV=production.",
+        "operationId": "PaymentsController_testConfirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Payment id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmedDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Authenticated but not allowed"
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        },
+        "summary": "[PAY-01] Confirm a payment with a Stripe test card (dev only)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}": {
+      "get": {
+        "operationId": "PaymentsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Payment id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentViewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "403": {
+            "description": "Authenticated but not allowed"
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        },
+        "summary": "[PAY-01] Get a payment (owner or admin)",
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/refunds/{id}": {
+      "get": {
+        "operationId": "RefundsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Refund id",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundViewDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
+          "401": {
+            "description": "Missing or invalid credentials"
+          },
+          "404": {
+            "description": "Resource not found"
+          }
+        },
+        "summary": "[PAY-03] Get a refund (owner or admin)",
+        "tags": [
+          "refunds"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Travel Planning and Booking API",
+    "description": "Every error has the shape {statusCode, error, message, fieldErrors?, path, timestamp}.",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "x-dev-user-id": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-dev-user-id"
+      },
+      "x-dev-role": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-dev-role"
+      },
+      "x-dev-provider": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-dev-provider"
+      }
+    },
+    "schemas": {
+      "AuditLogItemDto": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "example": "64b7f0c2a1b2c3d4e5f6071b"
+          },
+          "actorId": {
+            "type": "string",
+            "nullable": true,
+            "example": "64b7f0c2a1b2c3d4e5f60718"
+          },
+          "action": {
+            "type": "string",
+            "example": "payment.succeeded"
+          },
+          "targetType": {
+            "type": "string",
+            "example": "payment"
+          },
+          "targetId": {
+            "type": "string",
+            "example": "64b7f0c2a1b2c3d4e5f60719"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "_id",
+          "actorId",
+          "action",
+          "targetType",
+          "targetId",
+          "createdAt"
+        ]
+      },
+      "AuditPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditLogItemDto"
+            }
+          },
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "limit": {
+            "type": "number",
+            "example": 10
+          },
+          "total": {
+            "type": "number",
+            "example": 42
+          },
+          "totalPages": {
+            "type": "number",
+            "example": 5
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "limit",
+          "total",
+          "totalPages"
+        ]
+      },
+      "CurrencyListDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "example": [
+              "EGP",
+              "AED",
+              "GBP",
+              "USD"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "CurrencyRatesDto": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "example": "USD"
+          },
+          "rateDate": {
+            "type": "string",
+            "example": "2026-11-03",
+            "description": "Date of the rates"
+          },
+          "rates": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            },
+            "example": {
+              "EGP": 48.5,
+              "USD": 1
+            }
+          }
+        },
+        "required": [
+          "base",
+          "rateDate",
+          "rates"
+        ]
+      },
+      "RefundTierDto": {
+        "type": "object",
+        "properties": {
+          "daysBefore": {
+            "type": "number",
+            "example": 30,
+            "description": "Days before departure/check-in"
+          },
+          "refundPercent": {
+            "type": "number",
+            "example": 100,
+            "description": "0..100"
+          }
+        },
+        "required": [
+          "daysBefore",
+          "refundPercent"
+        ]
+      },
+      "ExtraBaggageDto": {
+        "type": "object",
+        "properties": {
+          "pricePerUnitMinor": {
+            "type": "number",
+            "example": 1500,
+            "description": "Minor units per unit"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "KG",
+              "BAG"
+            ]
+          },
+          "maxUnits": {
+            "type": "number",
+            "example": 10
+          }
+        },
+        "required": [
+          "pricePerUnitMinor",
+          "unit",
+          "maxUnits"
+        ]
+      },
+      "CabinBaggageDto": {
+        "type": "object",
+        "properties": {
+          "cabin": {
+            "type": "string",
+            "example": "ECONOMY"
+          },
+          "freeBaggageKg": {
+            "type": "number",
+            "example": 23
+          }
+        },
+        "required": [
+          "cabin",
+          "freeBaggageKg"
+        ]
+      },
+      "PoliciesResponseDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "AIRLINE",
+              "HOTEL"
+            ]
+          },
+          "providerId": {
+            "type": "string",
+            "example": "64b7f0c2a1b2c3d4e5f60718"
+          },
+          "tiers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefundTierDto"
+            }
+          },
+          "extraBaggage": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ExtraBaggageDto"
+              }
+            ]
+          },
+          "cabins": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CabinBaggageDto"
+            }
+          },
+          "checkInTime": {
+            "type": "string",
+            "example": "14:00",
+            "description": "Hotels only"
+          },
+          "checkOutTime": {
+            "type": "string",
+            "example": "11:00",
+            "description": "Hotels only"
+          }
+        },
+        "required": [
+          "kind",
+          "providerId",
+          "tiers"
+        ]
+      },
+      "AcceptPoliciesDto": {
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "example": true,
+            "description": "Must be true"
+          }
+        },
+        "required": [
+          "accepted"
+        ]
+      },
+      "AcceptPoliciesResponseDto": {
+        "type": "object",
+        "properties": {
+          "policiesAcceptedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "policiesAcceptedAt"
+        ]
+      },
+      "CreatePaymentDto": {
+        "type": "object",
+        "properties": {
+          "bookingType": {
+            "type": "string",
+            "enum": [
+              "FLIGHT",
+              "HOTEL"
+            ],
+            "example": "FLIGHT"
+          },
+          "bookingId": {
+            "type": "string",
+            "example": "111111111111111111111111"
+          }
+        },
+        "required": [
+          "bookingType",
+          "bookingId"
+        ]
+      },
+      "CreatePaymentResponseDto": {
+        "type": "object",
+        "properties": {
+          "paymentId": {
+            "type": "string",
+            "example": "64b7f0c2a1b2c3d4e5f60719"
+          },
+          "clientSecret": {
+            "type": "string",
+            "example": "pi_123_secret_456"
+          },
+          "amountMinor": {
+            "type": "number",
+            "example": 25000,
+            "description": "Minor units"
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          }
+        },
+        "required": [
+          "paymentId",
+          "clientSecret",
+          "amountMinor",
+          "currency"
+        ]
+      },
+      "WebhookAckDto": {
+        "type": "object",
+        "properties": {
+          "received": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "received"
+        ]
+      },
+      "ConfirmedDto": {
+        "type": "object",
+        "properties": {
+          "confirmed": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "confirmed"
+        ]
+      },
+      "PaymentViewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "64b7f0c2a1b2c3d4e5f60719"
+          },
+          "bookingType": {
+            "type": "string",
+            "enum": [
+              "FLIGHT",
+              "HOTEL"
+            ]
+          },
+          "bookingId": {
+            "type": "string",
+            "example": "111111111111111111111111"
+          },
+          "amountMinor": {
+            "type": "number",
+            "example": 25000
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "FAILED",
+              "CANCELLED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "bookingType",
+          "bookingId",
+          "amountMinor",
+          "currency",
+          "status"
+        ]
+      },
+      "RefundViewDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "64b7f0c2a1b2c3d4e5f6071a"
+          },
+          "bookingType": {
+            "type": "string",
+            "enum": [
+              "FLIGHT",
+              "HOTEL"
+            ]
+          },
+          "bookingId": {
+            "type": "string",
+            "example": "111111111111111111111111"
+          },
+          "amountMinor": {
+            "type": "number",
+            "example": 25000
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "USER",
+              "PROVIDER"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "REFUNDED",
+              "FAILED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "bookingType",
+          "bookingId",
+          "amountMinor",
+          "currency",
+          "reason",
+          "status"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "x-dev-user-id": [],
+      "x-dev-role": [],
+      "x-dev-provider": []
+    }
+  ]
+}

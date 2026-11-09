@@ -1,0 +1,1057 @@
+[
+ {
+  "id": "ACC-01",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Guest",
+  "requirement": "The system shall allow a guest to register by entering name, unique email, password and a mandatory terms-and-privacy consent checkbox. The password must have at least 8 characters, including at least one letter and one digit. The system shall reject the form with an inline error if the email is invalid or already registered, the password breaks these rules, or consent is not given.",
+  "dependencies": null,
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-04",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Registered User, Admin, Hotel Moderator, Airline Moderator",
+  "requirement": "The system shall allow a registered user, admin or moderator to log in with email and password and land on their role's home page. On failure it shall show a generic \"invalid email or password\" message. Suspended accounts shall see an \"account suspended\" message.",
+  "dependencies": "ACC-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-05",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "System",
+  "requirement": "After 5 consecutive failed login attempts, the system shall lock the account for 15 minutes and show a lockout message. A successful login resets the counter.",
+  "dependencies": "ACC-04",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-06",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Any logged-in user",
+  "requirement": "The system shall allow a logged-in user to log out, which clears the authentication cookies and revokes the refresh token on the server. A session with no authenticated request for 30 minutes shall expire and require a new login.",
+  "dependencies": "ACC-04,ACC-19",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-07a",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to reset a user's or moderator's password to a temporary password. The account must set a new password that meets the password rules at its next login.",
+  "dependencies": "ACC-04, ACC-14",
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-08",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Any logged-in user",
+  "requirement": "The system shall allow a logged-in user to change their password by entering the current password and a new one that meets the rules.",
+  "dependencies": "ACC-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-09",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Any logged-in user",
+  "requirement": "The system shall allow any logged-in user to edit name, phone number and preferred currency, saving only if all fields pass validation.",
+  "dependencies": "ACC-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-10",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Guest",
+  "requirement": "The system shall send a guest who attempts a restricted action (book, review, post) to login and return them to that action afterwards.",
+  "dependencies": "ACC-04",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-11",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "System",
+  "requirement": "The system shall restrict access to bookings and private itineraries to their owner, except that admins may view all bookings (ACC-17) and moderators may view bookings for their own hotel or airline (FLT-29, HTL-22). Unauthorised requests shall be rejected (403/404).",
+  "dependencies": "ACC-04",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-12",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to deactivate their own account after confirmation. Deactivation is blocked while the user has upcoming Confirmed bookings. A deactivated user cannot log in; their posts and public itineraries are hidden, and their comments and reviews are shown as \"Deleted user\".",
+  "dependencies": "ACC-04, GEN-11",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-13",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to create a hotel or airline moderator account (name, email, role) linked to exactly one hotel or airline, with a temporary password set by the admin. The moderator must change the password on first login.",
+  "dependencies": "ACC-04, FLT-01, HTL-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-14",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to view a paginated list of all accounts (name, email, role, status, registration date) and to search by name or email and filter by role and status.",
+  "dependencies": "ACC-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-15",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to suspend and reactivate a moderator account (a suspended moderator cannot log in) and, separately, to deactivate and reactivate a hotel or airline. A deactivated provider's listings are hidden from search and cannot be booked; existing Confirmed bookings remain valid. Affected parties receive an in-app notification.",
+  "dependencies": "ACC-13, GEN-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-16",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to suspend and reactivate registered users (for example, for abusive content). Suspended users cannot log in, their existing bookings remain valid, and their content stays visible unless hidden through GEN-10.",
+  "dependencies": "ACC-14",
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-17",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to view a read-only list of all flight and hotel bookings (reference, user, provider, dates, amount, status), filterable by type, status and date range.",
+  "dependencies": "FLT-23, HTL-17",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-01",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Admin, Airline Moderator",
+  "requirement": "The system shall allow an admin to create an airline profile and an airline moderator to edit their airline's profile (name, code, logo).",
+  "dependencies": "GEN-08",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-02",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "System",
+  "requirement": "The system shall provide a predefined, read-only list of airports (IATA code, name, city, country, IANA time zone) loaded at setup. Flight creation and flight search shall accept only airports from this list.",
+  "dependencies": "GEN-12",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-03",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to create a flight with flight number, departure and arrival airports, and departure and arrival date-times entered in each airport's local time and stored in UTC. It shall reject identical airports, an arrival not after departure (compared in UTC), a departure in the past, and a duplicate flight number for the same airline on the same departure date.",
+  "dependencies": "FLT-01, FLT-02",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-04",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to define cabin categories per flight from the fixed set {Economy, Premium Economy, Business, First}, each used at most once per flight, with a seat count (whole number, >0), price (>0), free baggage allowance (bag count) and maximum weight (kg) per bag.",
+  "dependencies": "FLT-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-05",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to edit departure/arrival times, cabin prices and cabin seat counts of their own Scheduled flights. Airports cannot be changed once the flight has any booking. Seat counts cannot be reduced below seats already booked or held. Price changes do not affect existing bookings. Any time change sends an in-app notification to passengers with Confirmed bookings.",
+  "dependencies": "FLT-03, FLT-04, GEN-01, FLT-30",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-06",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to cancel a Scheduled flight after confirmation. The flight becomes Cancelled and is hidden from search; all its Confirmed bookings become Cancelled with a 100% refund (PAY-03); pending seat holds are released; passengers receive an in-app notification.",
+  "dependencies": "FLT-23, PAY-03, GEN-01, FLT-30",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-08",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to define a price per extra bag (>0) and a maximum number of extra bags per passenger (>=0). Each extra bag has the same maximum weight as the cabin's free baggage allowance.",
+  "dependencies": "FLT-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-09",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to define cancellation tiers, each with a unique days-before-departure threshold (integer >=0) and a refund percentage (0-100%). The refund for a cancellation uses the tier with the highest threshold not exceeding the days remaining; if no tier applies, the refund is 0%.",
+  "dependencies": "FLT-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-11",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to search flights by selecting a departure airport, arrival airport, departure date (local date at the departure airport) and number of passengers; list Scheduled flights of active airlines on that date whose available seats (total - booked - held) are sufficient; allow the user to select a flight and cabin category to continue; or show \"no flights found\" when no match exists.",
+  "dependencies": "FLT-02, FLT-03, FLT-04, FLT-22",
+  "complexity": "High"
+ },
+ {
+  "id": "FLT-12",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall support: (a) round-trip search returning outbound and return options, booked as one booking with two segments, one payment and one reference, and cancelled as a whole using the outbound segment's tier; (b) passenger types adult (12+), child (2-11) and infant (<2): adults and children pay the cabin fare and occupy a seat, infants pay 10% of the fare and occupy no seat, each booking needs at least one adult and no more infants than adults, and the type is validated against the date of birth (FLT-19); (c) an optional cabin-class filter in search.",
+  "dependencies": "FLT-11, FLT-19",
+  "complexity": "High"
+ },
+ {
+  "id": "FLT-15",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to filter flight results by an inclusive minimum and maximum price while preserving the other search criteria, show an error if min > max, and sort results by price, duration or departure time.",
+  "dependencies": "FLT-11",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-17",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall provide a flight details page showing airline, flight number, airports, local departure and arrival times, duration, each cabin category with price, seats remaining and baggage allowance, and the airline's cancellation policy.",
+  "dependencies": "FLT-11",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-19",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user, during booking, to enter each passenger's full name, date of birth and passport/ID number and optionally add extra baggage (bags and weight) per passenger up to the airline's maximum, with any baggage fee added to the booking total.",
+  "dependencies": "FLT-11, FLT-08",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-21",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Registered User",
+  "requirement": "The system shall show a booking summary (flight, passengers, baggage, total) before payment.",
+  "dependencies": "FLT-19",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-22",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "System",
+  "requirement": "When a user proceeds to payment, the system shall atomically reserve the requested seats only if enough remain, creating a booking in Pending Payment status held for 10 minutes. If payment does not succeed within the hold, the booking becomes Expired and the seats are released. Concurrent requests shall never result in more seats booked than available.",
+  "dependencies": "FLT-11, GEN-11",
+  "complexity": "High"
+ },
+ {
+  "id": "FLT-23",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "System",
+  "requirement": "After successful payment, the system shall set the flight booking to Confirmed, convert the held seats into booked seats, generate a unique booking reference, show a confirmation page, send an in-app notification with the booking details, and offer a downloadable e-ticket (PDF).",
+  "dependencies": "FLT-21, FLT-22, PAY-01, PAY-02, GEN-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-25",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to view their flight bookings grouped as Upcoming, Past and Cancelled, showing reference, flight, date, passengers, cabin and status, and to open full details.",
+  "dependencies": "FLT-23",
+  "complexity": "Low"
+ },
+ {
+  "id": "FLT-26",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to cancel their own Confirmed flight booking any time before departure, after viewing the refund amount computed from the airline's tiers (FLT-09) and confirming. The booking becomes Cancelled, its seats return to inventory and a refund is created (PAY-03). Cancellation after departure is blocked.",
+  "dependencies": "FLT-23, FLT-09, PAY-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-29",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "Airline Moderator",
+  "requirement": "The system shall allow an airline moderator to view, per flight, its bookings (reference, passenger names, cabin, seats and status: Confirmed or Cancelled), see seats remaining per category, and view or export the passenger list as CSV.",
+  "dependencies": "FLT-23",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-01",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Admin, Hotel Moderator",
+  "requirement": "The system shall allow an admin to create a hotel profile and a hotel moderator to edit their hotel's profile (name, address, city and country, description, photos, star class, amenities).",
+  "dependencies": "GEN-08,GEN-12",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-02",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall provide a hotel details page showing the hotel profile, photos, amenities, check-in and check-out times, cancellation policy, average rating and reviews, and the available rooms when dates are provided.",
+  "dependencies": "HTL-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-03",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to add a room (an individually bookable unit) with a room number/name unique within the hotel, type, number of beds, maximum occupancy (>=1) and price per night (>0).",
+  "dependencies": "HTL-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-04",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to define non-overlapping date ranges when a room is bookable.",
+  "dependencies": "HTL-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-05",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to edit a room's beds, occupancy, price and availability. Price changes do not affect existing reservations, and availability cannot be removed for dates with confirmed reservations.",
+  "dependencies": "HTL-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-06",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to block date ranges for a room and to deactivate or delete a room. Blocking, deactivation or deletion is rejected if it overlaps any Confirmed or Pending Payment reservation. Deactivated rooms are excluded from search; deletion is allowed only for rooms that have never been reserved.",
+  "dependencies": "HTL-04, HTL-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-08",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to view each room's status for a chosen date range as Available, Booked (with reservation reference) or Blocked.",
+  "dependencies": "HTL-04",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-09",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to set the hotel's standard check-in and check-out times, shown on the hotel page and the booking summary.",
+  "dependencies": "HTL-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-10",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to define cancellation tiers, each with a unique days-before-check-in threshold (integer >=0) and a refund percentage (0-100%), applied with the same selection rule as FLT-09.",
+  "dependencies": "HTL-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-11",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to search hotels by city or country, check-in date, check-out date, number of guests and number of rooms (default 1). It shall list active hotels that have at least that many rooms free for the whole stay whose combined maximum occupancy covers the guests. Check-out must be after check-in, and check-in cannot be in the past.",
+  "dependencies": "HTL-03, HTL-04, HTL-06, HTL-18",
+  "complexity": "High"
+ },
+ {
+  "id": "HTL-12",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to filter hotel results by an inclusive minimum and maximum price per night (price of the cheapest qualifying room) and by minimum average rating (1-5; unrated hotels are excluded when a rating filter is set), and sort the results by that price or by rating.",
+  "dependencies": "HTL-11, HTL-23",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-15",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to view all of a hotel's rooms that are free for the searched dates, showing type, beds, maximum occupancy, price per night and total stay price, and to select one or more of them to book.",
+  "dependencies": "HTL-11",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-16",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to book one or more available rooms in the same hotel for the same dates in one reservation, assigning adults and children (ages 0-17) to each room, with at least one adult per reservation. No room's guests may exceed its maximum occupancy. The total price is the sum over rooms of nights x that room's price at booking time.",
+  "dependencies": "HTL-11, HTL-03, HTL-15",
+  "complexity": "High"
+ },
+ {
+  "id": "HTL-17",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "System",
+  "requirement": "After successful payment, the system shall set the reservation (all its rooms) to Confirmed, generate a unique booking reference, show a confirmation page and send an in-app notification with the reservation details.",
+  "dependencies": "HTL-16, PAY-01, PAY-02, GEN-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-18",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "System",
+  "requirement": "When a user proceeds to payment, the system shall hold all selected rooms together for 10 minutes as one Pending Payment reservation. If any room overlaps a Confirmed reservation, an unexpired hold or a blocked range, the whole request is rejected and nothing is held. If payment does not succeed within the hold, the reservation becomes Expired and the rooms are released. Dates must satisfy check-out after check-in and check-in not in the past.",
+  "dependencies": "HTL-16, GEN-11",
+  "complexity": "High"
+ },
+ {
+  "id": "HTL-20",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to view their hotel reservations grouped as Upcoming, Past and Cancelled, showing reference, hotel, rooms, dates, guests, total and status, and to open full details.",
+  "dependencies": "HTL-17",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-21",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to cancel their own Confirmed reservation as a whole before the check-in date, after viewing the refund computed from the hotel's tiers (HTL-10) on the full total. The reservation becomes Cancelled, all its rooms are released for those dates and a refund is created (PAY-03). Partial cancellation is not supported.",
+  "dependencies": "HTL-17, HTL-10, PAY-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-22",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to view reservations for their hotel (guest, dates, status).",
+  "dependencies": "HTL-17",
+  "complexity": "Low"
+ },
+ {
+  "id": "HTL-23",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Registered User",
+  "requirement": "A Confirmed reservation becomes Completed once its check-out date has passed. The system shall allow the user to submit one rating (1-5) and an optional review (max 1000 characters) per Completed reservation, regardless of the number of rooms, and later edit or delete it. The hotel's average rating is recalculated accordingly.",
+  "dependencies": "HTL-17, GEN-11",
+  "complexity": "Medium"
+ },
+ {
+  "id": "HTL-24",
+  "sheet": "Mandatory",
+  "module": "Hotels",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to view a hotel's average rating, number of ratings and reviews (newest first, paginated).",
+  "dependencies": "HTL-23",
+  "complexity": "Low"
+ },
+ {
+  "id": "PAY-01",
+  "sheet": "Mandatory",
+  "module": "Payments & Policies",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to pay for a Pending Payment flight booking or hotel reservation within its hold period using Stripe in test mode (Stripe Elements / PaymentIntents), so that card details never reach the backend. The booking is confirmed only after the backend verifies that the PaymentIntent succeeded (via Stripe webhook). On failure an error is shown and the user may retry until the hold expires; when the hold expires the PaymentIntent is cancelled. Only the Stripe payment ID, amount, currency and status are stored.",
+  "dependencies": "FLT-21, HTL-16, FLT-22, HTL-18",
+  "complexity": "High",
+  "acceptance": "POST /api/payments creates a Stripe PaymentIntent (platform currency, amountMinor = booking total) only for the owner's Pending Payment booking with unexpired hold and accepted policies, returning clientSecret; webhook with valid signature on payment_intent.succeeded (re-retrieved, status succeeded) calls markConfirmed once (idempotent); payment_failed marks payment FAILED and booking stays Pending Payment; POST /:id/retry allowed until hold expiry; cancelForExpiredHold cancels the PI; only stripeId, amountMinor, currency, status stored.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "PAY-02",
+  "sheet": "Mandatory",
+  "module": "Payments & Policies",
+  "actors": "Registered User",
+  "requirement": "Before payment, the system shall show the provider's policies (airline: cancellation and baggage policies; hotel: cancellation policy and check-in/check-out times) and require an acceptance checkbox. Payment is blocked until accepted, and acceptance is stored with a timestamp.",
+  "dependencies": "FLT-04, FLT-08, FLT-09, HTL-09, HTL-10",
+  "complexity": "Low",
+  "acceptance": "GET /api/bookings/:type/:id/policies returns airline (tiers + baggage) or hotel (tiers + check-in/out) policies to the owner; POST .../accept-policies with accepted=true stores policiesAcceptedAt and a policy snapshot; POST /api/payments returns 409/400 until accepted.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "PAY-03",
+  "sheet": "Mandatory",
+  "module": "Payments & Policies",
+  "actors": "System",
+  "requirement": "For every cancellation with a positive refund amount (user cancellations per the provider's tiers; provider-initiated cancellations at 100%), the system shall issue a refund through the Stripe Refunds API, record it, and show its status (Pending, Refunded, Failed) on the booking details. The user receives an in-app notification.",
+  "dependencies": "PAY-01, FLT-09, HTL-10, GEN-01",
+  "complexity": "Medium",
+  "acceptance": "RefundsService.refundFor(type,id,reason): USER uses snapshot tier with highest daysBefore <= daysRemaining (none -> 0%), PROVIDER = 100%; amount 0 issues nothing; positive amount calls Stripe Refunds API, stores refund PENDING, webhook updates to REFUNDED/FAILED, notifies the user; GET /api/refunds/:id shows status to owner/admin.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "ITN-01",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to create an itinerary with a required title (max 100 characters), one or more countries selected from a predefined list and a start date; edit its title, countries and start date; and delete it after confirmation. It is private by default. When deleted, it disappears from public search, while clones previously made by other users remain unaffected.",
+  "dependencies": "ACC-04, GEN-12",
+  "complexity": "Low"
+ },
+ {
+  "id": "ITN-03",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to list their itineraries (title, countries, start date, days and visibility), most recently updated first, and open any itinerary to view its full details.",
+  "dependencies": "ITN-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "ITN-05",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to add days to their itinerary and edit each day's city (selected from the predefined city list shared with hotels and airports) and notes. Days are numbered sequentially, their dates derive from the itinerary start date, and an itinerary has at most 60 days.",
+  "dependencies": "ITN-01,GEN-12",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-07",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to delete a day after confirmation. Remaining days are renumbered, and dates and budget totals are recalculated.",
+  "dependencies": "ITN-05",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-08",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to move a day to a new position, with days renumbered and dates and groupings recalculated.",
+  "dependencies": "ITN-05",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-09",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall require each itinerary day to have a city and shall display consecutive days in the same city as a group, with the group's day count and budget subtotal.",
+  "dependencies": "ITN-05",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-10",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to add, edit and delete activities for an itinerary day, including name, description, optional time and optional cost.",
+  "dependencies": "ITN-05",
+  "complexity": "Low"
+ },
+ {
+  "id": "ITN-12",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to attach images to and remove images from an activity under the shared media-upload rule (GEN-08).",
+  "dependencies": "ITN-10, GEN-08",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-14",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to add, edit and delete non-negative budget entries for each day across food, accommodation, in-city transport and activities in a selected currency, and show the itinerary's total budget broken down by category and by day. Totals include budget entries, activity costs from ITN-10 (counted under Activities) and intercity transport entries (ITN-16).",
+  "dependencies": "ITN-05, ITN-10, ITN-16",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-16",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to add, edit and delete a transport cost entry (mode, from-city, to-city, amount, currency, day).",
+  "dependencies": "ITN-05",
+  "complexity": "Low"
+ },
+ {
+  "id": "ITN-18",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User, System",
+  "requirement": "The system shall convert all itinerary budget amounts to the user's preferred currency (from the supported currency list) using exchange rates fetched once per day from a configured public exchange-rate API and cached in the database, and show the rate date. If the API is unavailable, the last cached rates are used. Booking prices are not converted (PAY-04).",
+  "dependencies": "ITN-14, ACC-09, PAY-04",
+  "complexity": "Medium",
+  "acceptance": "CurrencyService.convert(amountMinor,from,to) returns {amountMinor,rate,rateDate} using daily-cached FXRatesAPI rates stored in Mongo; on API failure uses last cached rates; unsupported code -> 400; GET /api/currencies and /api/currencies/rates expose list and rate date. (Ahmed owns the rates service; budget summary is Abdelrahman's.)",
+  "owner": "ahmed"
+ },
+ {
+  "id": "ITN-20",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to set an itinerary's visibility to Public or Private. Public itineraries appear in shared search and are read-only to other users. Setting Private removes them immediately.",
+  "dependencies": "ITN-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "ITN-21",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to search public itineraries by keyword matching title, country or city; filter results by duration (min/max days) and by country or city; and view a public itinerary read-only with author, days, activities and budget. A registered user may clone it; the clone includes all days, activities and budgets, is private, credits the original author and is independent of the original.",
+  "dependencies": "ITN-20",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-25",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to pick a city group in their itinerary and view hotels available for that group's dates (check-in = date of the group's first day, check-out = the day after its last day) and a guest count and number of rooms they enter, reusing hotel search (HTL-11).",
+  "dependencies": "ITN-09, HTL-11",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-26",
+  "sheet": "Mandatory",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to search one-way or round-trip flights from a chosen origin airport to any airport in the city of the itinerary's first day. The outbound date defaults to the start date and the return date to the last day's date; the search reuses FLT-11 and FLT-12.",
+  "dependencies": "FLT-02, FLT-11, FLT-12, ITN-05",
+  "complexity": "Medium"
+ },
+ {
+  "id": "BLG-01",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to create a post with a required title and body, optional tags and images, and save it as Draft or Publish. Published posts appear in the author's blog and in search.",
+  "dependencies": "ACC-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-02",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to browse a paginated list of published posts filterable by tag, and open a post page showing title, author, date, body, tags, images, like count and comments. Liking, commenting and reporting require login (ACC-10).",
+  "dependencies": "BLG-01, BLG-08",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-03",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to list their own posts, including drafts, with title, status, date, like count and comment count.",
+  "dependencies": "BLG-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-04",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow an author to edit and delete their own posts.",
+  "dependencies": "BLG-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-05",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to comment on a published post (non-empty, max 500 characters), shown in chronological order.",
+  "dependencies": "BLG-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-06",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to like a post once and remove the like, showing the like count.",
+  "dependencies": "BLG-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-07",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to edit and delete their own comments.",
+  "dependencies": "BLG-05",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-08",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow an author to add up to 5 tags (max 30 characters each) to a post and edit them later. Tags are searchable and clickable to list matching posts.",
+  "dependencies": "BLG-01",
+  "complexity": "Low"
+ },
+ {
+  "id": "BLG-09",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall allow a guest or registered user to search published posts by keyword in title, tags or author name, showing title, author, date and excerpt, or \"no results\". Results are ordered by interaction score (likes + comments) descending, with newest first as a tie-breaker.",
+  "dependencies": "BLG-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "BLG-10",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow an author to attach images to a post under the shared media-upload rule (GEN-08) and remove them.",
+  "dependencies": "BLG-01, GEN-08",
+  "complexity": "Medium"
+ },
+ {
+  "id": "BLG-12",
+  "sheet": "Mandatory",
+  "module": "Blog",
+  "actors": "Guest, Registered User",
+  "requirement": "The system shall provide a public author page showing the author's name, join date, published posts and public itineraries.",
+  "dependencies": "BLG-01, ITN-20",
+  "complexity": "Low"
+ },
+ {
+  "id": "GEN-01",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall show in-app notifications (unread count, notification list, mark as read) for booking confirmation, cancellation and refund, flight schedule change, and account or provider suspension.",
+  "dependencies": null,
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-02",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall show field-level validation messages on all forms.",
+  "dependencies": null,
+  "complexity": "Low",
+  "acceptance": "Any DTO validation failure returns 400 {statusCode,error,message,fieldErrors:[{field,message}],path,timestamp}; nested fields use dotted paths.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "GEN-03",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall ask for confirmation before destructive actions (delete, cancel).",
+  "dependencies": null,
+  "complexity": "Low"
+ },
+ {
+  "id": "GEN-04",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall show friendly empty states when a list or search has no results.",
+  "dependencies": null,
+  "complexity": "Low"
+ },
+ {
+  "id": "GEN-05",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall paginate every list longer than 10 rows (page size 10).",
+  "dependencies": null,
+  "complexity": "Low",
+  "acceptance": "Every list endpoint accepts ?page=N (default 1, >=1) with fixed page size 10 and returns {items,page,limit:10,total,totalPages}.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "GEN-06",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall show flight times in each airport's local time zone.",
+  "dependencies": "FLT-02, FLT-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-07",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall keep an audit log of admin actions (suspensions, deletions).",
+  "dependencies": "ACC-15, ACC-16, GEN-10",
+  "complexity": "Low",
+  "acceptance": "AuditService.record({actorId,action,targetType,targetId,metadata}) appends an immutable entry; GET /api/admin/audit-logs (admin only) is paginated newest-first and filterable by actor, action, date range; non-admin gets 403.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "GEN-08",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall accept image uploads in JPG or PNG format, up to 5 MB each, with up to 5 images per post, activity or hotel and 1 logo per airline, stored on the server and served by URL. Uploads outside these limits are rejected with an error.",
+  "dependencies": null,
+  "complexity": "Medium",
+  "acceptance": "Uploads accept only JPG/PNG verified by MIME and magic bytes, <=5 MB each, max 5 per post/activity/hotel and 1 airline logo, stored under UPLOAD_DIR and served by URL; violations return 400 with a clear message.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "GEN-09",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to report a post, comment, review or itinerary with a reason, at most once per item.",
+  "dependencies": "ACC-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "GEN-10",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "Admin",
+  "requirement": "The system shall allow an admin to view the list of open reports and resolve each by dismissing it, hiding the content or deleting it, and to hide or delete any post, comment, review or itinerary directly. Hidden content is visible only to its author and admins.",
+  "dependencies": "GEN-09",
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-11",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "Flight bookings and hotel reservations shall follow the lifecycle Pending Payment -> Confirmed -> Completed, with Pending Payment -> Expired (hold timeout) and Confirmed -> Cancelled (user or provider cancellation) as the only other transitions.",
+  "dependencies": "FLT-22, HTL-18, PAY-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-30",
+  "sheet": "Mandatory",
+  "module": "Flights",
+  "actors": "System",
+  "requirement": "Flights shall have a status of Scheduled, Cancelled or Departed. A flight becomes Departed once its departure time has passed; only Scheduled flights are searchable, editable or bookable.",
+  "dependencies": "FLT-03",
+  "complexity": "Low"
+ },
+ {
+  "id": "ACC-18",
+  "sheet": "Mandatory",
+  "module": "Accounts & Admin",
+  "actors": "System",
+  "requirement": "Admin accounts shall be created by seeding at setup; there is no admin self-registration.",
+  "dependencies": "ACC-04",
+  "complexity": "Low"
+ },
+ {
+  "id": "PAY-04",
+  "sheet": "Mandatory",
+  "module": "Payments & Policies",
+  "actors": "System",
+  "requirement": "All flight and hotel prices, payments and refunds shall use a single platform currency.",
+  "dependencies": null,
+  "complexity": "Low",
+  "acceptance": "PLATFORM_CURRENCY from env (validated ISO code) is the only currency for PaymentIntents, payment and refund records; all money is integer minor units; non-integer or negative amounts rejected.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "GEN-12",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall seed reference data at setup: airports, cities, countries and supported currencies.",
+  "dependencies": null,
+  "complexity": "Low"
+ },
+ {
+  "id": "GEN-13",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "All validation, business rules and authorisation shall be enforced by the backend regardless of frontend checks, and passwords shall be stored only as salted hashes.",
+  "dependencies": null,
+  "complexity": "Medium",
+  "acceptance": "Global ValidationPipe(whitelist, forbidNonWhitelisted, transform) rejects unknown fields (e.g. role) with 400; deny-by-default guard requires auth unless @Public; password hashing helper uses salted bcrypt and never stores plaintext.",
+  "owner": "ahmed"
+ },
+ {
+  "id": "ACC-19",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall not store authentication tokens or user credentials in localStorage, sessionStorage or any other JavaScript-accessible storage. Access and refresh tokens shall be issued as httpOnly, Secure, SameSite cookies, and the frontend shall obtain the current user from an /auth/me endpoint.",
+  "dependencies": "ACC-04, ACC-06",
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-14",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall provide a clear and organized information architecture, with logically grouped content, balanced spacing, correctly structured menus, and intuitive navigation. Users shall be able to return to previous pages or cancel actions where applicable without losing unrelated data.",
+  "dependencies": null,
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-15",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall provide an intuitive, easy-to-learn interface with clearly visible actions, understandable labels, and efficient workflows that minimize unnecessary steps and user effort.",
+  "dependencies": null,
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-16",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall provide clear feedback for user actions, including loading, success, and error states. The interface shall be responsive across desktop, tablet, and mobile screen sizes, prevent common input errors, and provide understandable error messages and recovery options.",
+  "dependencies": "GEN-02, GEN-03, GEN-04",
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-17",
+  "sheet": "Mandatory",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall maintain a consistent color palette, typography, spacing, alignment, and component styling across all pages. Menus, buttons, forms, tables, and other UI elements shall be visually consistent, properly aligned, and professionally designed.",
+  "dependencies": null,
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-02",
+  "sheet": "Bonus",
+  "module": "Accounts & Admin",
+  "actors": "System",
+  "requirement": "The system shall send a verification link by email after registration and block booking until the email is verified.",
+  "dependencies": "ACC-01, GEN-01-B",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ACC-07",
+  "sheet": "Bonus",
+  "module": "Accounts & Admin",
+  "actors": "Registered User (not logged in)",
+  "requirement": "The system shall allow a user who forgot their password to request a reset link by email; the link expires after 30 minutes, is single-use, is invalidated by a newer request, and the response does not reveal whether the email exists.",
+  "dependencies": "ACC-01, GEN-01-B",
+  "complexity": "Medium"
+ },
+ {
+  "id": "GEN-01-B",
+  "sheet": "Bonus",
+  "module": "Cross-cutting",
+  "actors": "System",
+  "requirement": "The system shall also send the GEN-01 notifications (plus moderator invitations) by email via SMTP, using a test inbox in development.",
+  "dependencies": "GEN-01",
+  "complexity": "Medium"
+ },
+ {
+  "id": "FLT-27",
+  "sheet": "Bonus",
+  "module": "Flights",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to change a Confirmed flight booking's date or flight (same route and cabin), paying any fare difference via Stripe or receiving a refund of a lower fare, subject to seat availability.",
+  "dependencies": "FLT-26, FLT-22, PAY-01, PAY-03",
+  "complexity": "High"
+ },
+ {
+  "id": "FLT-28",
+  "sheet": "Bonus",
+  "module": "Flights",
+  "actors": "Registered User",
+  "requirement": "The system shall allow seat selection.",
+  "dependencies": "FLT-11",
+  "complexity": "High"
+ },
+ {
+  "id": "HTL-26",
+  "sheet": "Bonus",
+  "module": "Hotels",
+  "actors": "Hotel Moderator",
+  "requirement": "The system shall allow a hotel moderator to reply to a review.",
+  "dependencies": "HTL-23",
+  "complexity": "Low"
+ },
+ {
+  "id": "ITN-27",
+  "sheet": "Bonus",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow booked flights and hotels to be linked to itinerary days, feeding the budget.",
+  "dependencies": "FLT-23, HTL-17, ITN-05",
+  "complexity": "Medium"
+ },
+ {
+  "id": "ITN-28",
+  "sheet": "Bonus",
+  "module": "Itineraries",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a user to export or print an itinerary as PDF.",
+  "dependencies": "ITN-03",
+  "complexity": "Medium"
+ },
+ {
+  "id": "BLG-13",
+  "sheet": "Bonus",
+  "module": "Blog",
+  "actors": "Registered User",
+  "requirement": "The system shall allow an author to attach an itinerary to a post.",
+  "dependencies": "BLG-01, ITN-03",
+  "complexity": "Low"
+ },
+ {
+  "id": "BON-01",
+  "sheet": "Bonus",
+  "module": "Accounts & Admin",
+  "actors": "Admin",
+  "requirement": "The system shall provide an admin analytics dashboard showing bookings and revenue per provider over a selected period.",
+  "dependencies": "ACC-17",
+  "complexity": "Medium"
+ },
+ {
+  "id": "BON-02",
+  "sheet": "Bonus",
+  "module": "Cross-cutting",
+  "actors": "Registered User",
+  "requirement": "The system shall allow a registered user to save hotels and public itineraries to a favourites list and view it.",
+  "dependencies": "HTL-11, ITN-21",
+  "complexity": "Low"
+ }
+]

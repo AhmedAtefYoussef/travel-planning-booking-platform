@@ -1,0 +1,62 @@
+name: CI
+
+# Runs on every push, so the check is attached to each commit, including
+# commits on PRs that the automation opened (bot-opened PRs do not fire
+# pull_request workflows).
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-lint-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # npm 11 (bundled with Node 24) matches the lockfile format
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # mongodb-memory-server downloads a MongoDB binary for the e2e suite
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+
+      # AI_PROMPTS.txt entry format (brief 11.1) and .env.example vs env.schema.ts
+      - name: Repository consistency
+        working-directory: .
+        run: node .github/scripts/repo-consistency.mjs
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - name: Build emits dist/main.js
+        run: test -f dist/main.js
+      - run: npm test
+      - run: npm run test:e2e
+
+      # docs/api/openapi.json must match what the code generates
+      - name: OpenAPI document is up to date
+        run: |
+          npm run openapi:export
+          if ! git diff --quiet -- ../docs/api/openapi.json; then
+            git diff --stat -- ../docs/api/openapi.json
+            echo "::error file=docs/api/openapi.json::OpenAPI document is out of date. Run 'npm run openapi:export' in backend/ and commit docs/api/openapi.json."
+            exit 1
+          fi

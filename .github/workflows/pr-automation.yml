@@ -1,0 +1,103 @@
+name: PR Automation
+
+# Keyless merge gate, using only the built-in GITHUB_TOKEN:
+# 1. PR Open (.github/workflows/pr-open.yml) opens a PR for a pushed work
+#    branch and dispatches this workflow for it.
+# 2. `pr-requirements` (pull_request / dispatch): checks the PR against the
+#    project rules and posts one sticky report comment. The rules script and
+#    reqs.json are taken from the BASE branch, so a PR cannot relax the rules
+#    it is judged by (.github/ and docs/requirements/ are also CODEOWNERS-gated).
+# 3. Nothing is merged automatically: the team leader reviews and merges every
+#    PR once this check and CI `build-lint-test` are green.
+
+on:
+  pull_request:
+    branches: [develop, main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      number:
+        description: Pull request number to check
+        required: true
+
+concurrency:
+  group: pr-automation-${{ github.event.pull_request.number || inputs.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  pr-requirements:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read the pull request
+        env:
+          NUMBER: ${{ github.event.pull_request.number || inputs.number }}
+        run: |
+          # mergeable is computed asynchronously; give GitHub a moment
+          for i in 1 2 3 4 5 6; do
+            gh pr view "$NUMBER" --json number,title,body,headRefName,baseRefName,commits,mergeable,isDraft > meta.json
+            [ "$(jq -r .mergeable meta.json)" != "UNKNOWN" ] && break
+            sleep 5
+          done
+          # The full file list (gh pr view caps files at 100)
+          gh api "repos/$GH_REPO/pulls/$NUMBER/files" --paginate --jq '.[] | {path: .filename}' \
+            | jq -s '{files: .}' > files.json
+          jq -s '.[0] * .[1]' meta.json files.json > pr.json
+          gh pr diff "$NUMBER" > pr.diff
+          echo "NUMBER=$NUMBER" >> "$GITHUB_ENV"
+          echo "BASE=$(jq -r .baseRefName pr.json)" >> "$GITHUB_ENV"
+
+      - name: Load the rules from the base branch
+        run: |
+          git fetch --quiet origin "$BASE"
+          mkdir -p "$RUNNER_TEMP/rules"
+          for f in .github/scripts/pr-requirements.mjs docs/requirements/reqs.json; do
+            out="$RUNNER_TEMP/rules/$(basename "$f")"
+            if git cat-file -e "origin/$BASE:$f" 2>/dev/null; then
+              git show "origin/$BASE:$f" > "$out"
+            else
+              # Bootstrap only: the base branch does not have the file yet
+              echo "::warning::$f is not on $BASE yet; using the PR's copy."
+              cp "$f" "$out"
+            fi
+          done
+
+      - name: Check requirements
+        id: check
+        run: |
+          set +e
+          node "$RUNNER_TEMP/rules/pr-requirements.mjs" pr.json pr.diff \
+            "$RUNNER_TEMP/rules/reqs.json" report.md docs/requirements/traceability.md
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post report
+        run: |
+          ID=$(gh api "repos/$GH_REPO/issues/$NUMBER/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- pr-requirements-report -->")) | .id' | head -1)
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$ID" -F body=@report.md > /dev/null
+          else
+            gh pr comment "$NUMBER" --body-file report.md
+          fi
+
+      - name: Result
+        env:
+          STATUS: ${{ steps.check.outputs.status }}
+        run: |
+          if [ "$STATUS" != "0" ]; then
+            echo "::error::PR #$NUMBER does not meet the project requirements. See the report comment."
+            exit 1
+          fi

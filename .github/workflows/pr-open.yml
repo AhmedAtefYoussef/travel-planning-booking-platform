@@ -1,0 +1,55 @@
+name: PR Open
+
+# A push to a work branch opens a PR into develop if none exists, then
+# dispatches PR Automation for it (PRs opened with GITHUB_TOKEN do not fire
+# pull_request events). Kept in its own workflow so push events never create a
+# (skipped) `pr-requirements` check next to the real one.
+
+on:
+  push:
+    branches: ['feature/**', 'fix/**', 'refactor/**', 'docs/**', 'test/**', 'chore/**', 'ci/**']
+
+concurrency:
+  group: pr-open-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+jobs:
+  open-pr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Open a pull request if none exists
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')" ]; then
+            echo "PR already open; its pull_request event runs the check."; exit 0
+          fi
+          if [ -z "$(git log --format=%H origin/develop..HEAD)" ]; then
+            echo "No commits ahead of develop; nothing to open."; exit 0
+          fi
+          TITLE=$(git log --reverse --format=%s origin/develop..HEAD | head -1)
+          {
+            echo "## What"; echo
+            git log --reverse --format='- %s' origin/develop..HEAD; echo
+            echo "## Why"; echo
+            echo "Opened automatically from branch \`$BRANCH\`. Edit this description to add context."; echo
+            echo "## How to verify"; echo
+            echo "- CI \`build-lint-test\`: lint, build, unit and e2e tests"
+            git diff --name-only origin/develop...HEAD | grep -E '\.spec\.ts$|^backend/test/' | sed 's/^/- Tests changed: `/; s/$/`/' || true
+          } > body.md
+          gh pr create --base develop --head "$BRANCH" --title "$TITLE" --body-file body.md
+          NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          gh workflow run pr-automation.yml --ref "$BRANCH" -f number="$NUMBER"

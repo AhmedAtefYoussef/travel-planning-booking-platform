@@ -1,33 +1,12 @@
-# Dependencies
 node_modules/
-
-# Build output
 dist/
-build/
-.next/
-out/
 coverage/
-*.tsbuildinfo
-
-# Environment (never commit secrets; see .env.example)
 .env
 .env.*
 !.env.example
-
-# Uploads (GEN-08, served from UPLOAD_DIR)
-uploads/
-backend/uploads/
-
-# Generated API spec (CI artifact)
-backend/openapi.json
-
-# Logs
+/uploads/
+/backend/uploads/
+.worktrees/
+.superpowers/
+.claude/worktrees/
 *.log
-npm-debug.log*
-
-# OS / editors
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/*
-!.vscode/extensions.json

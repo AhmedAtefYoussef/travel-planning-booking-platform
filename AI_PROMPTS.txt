@@ -1,0 +1,161 @@
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus orchestrating Claude Sonnet/Opus/Haiku subagents)
+Related Requirement: PAY-01, PAY-02, PAY-03, PAY-04, GEN-02, GEN-05, GEN-07, GEN-08, GEN-13, ITN-18
+Prompt:
+Act as the orchestrator for my share of Milestone 1 (foundation and common
+layer, payments, audit log, uploads, currency rates, docs). Read the
+requirements workbook, project description and engineering plan, write one
+line of acceptance criteria per requirement, ask me about ambiguities, then
+plan waves of subagent work with contracts first, tests written
+independently from the acceptance criteria, and independent verification.
+How the output was used:
+Acceptance criteria were written into docs/requirements/reqs.json. I answered
+four questions it raised: use mongodb-memory-server for tests, add a dev-only
+test-confirm endpoint, merge through GitHub PRs, and use USD as the platform
+currency. The work was then split into reviewed PRs.
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-129, TRVL-131, TRVL-132 (Sprint 0 scaffold and contracts)
+Prompt:
+Commit the NestJS skeleton and the cross-module contracts every teammate
+codes against: env schema, error shape, pagination DTO, money in minor
+units, PayableBooking / Payments / Refunds / Policies / Currency / Audit /
+Uploads interfaces with DI tokens, typed stubs and a temporary auth guard.
+How the output was used:
+Reviewed, extended (policy acceptance and refund fields on PayableBooking)
+and merged as PR #1. An automated security review then flagged the temporary
+header guard as fail-open; it was made opt-in (DEV_AUTH_ENABLED, refused in
+production) in PR #3.
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-02, GEN-05, GEN-13
+Prompt:
+Implement the common layer: global ValidationPipe (whitelist,
+forbidNonWhitelisted, transform), an exception filter returning field-level
+errors, duplicate key -> 409, invalid ObjectId -> 400, fixed page size 10,
+Swagger with cookie auth, cookie-parser, rawBody, Mongo connection and a
+salted bcrypt password hasher, test-first.
+How the output was used:
+Verified locally (build, lint, unit and e2e tests) and merged as PR #6
+together with the module wiring and an in-memory Mongo replica set for e2e.
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-07, GEN-08, ITN-18
+Prompt:
+Build the audit log (append-only, admin-only paginated listing with
+filters), image uploads (JPG/PNG checked by MIME and file signature, 5 MB,
+per-entity limits) and the currency service (daily FXRatesAPI rates cached
+in Mongo, fallback to last cached rates, unsupported code -> 400).
+How the output was used:
+Merged as PR #4. Two follow-ups merged in PR #5: a 30-minute cooldown on
+request-path rate refreshes after an API failure (security review finding),
+and the UploadsModule sources, which a too-broad "uploads/" .gitignore rule
+had silently excluded.
+================================================
+Date: 2026-11-03
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: PAY-01, PAY-02, PAY-03, PAY-04
+Prompt:
+Build the payments module: policy acceptance gate, Stripe test-mode
+PaymentIntents in the platform currency, webhook confirmation with signature
+verification on the raw body (idempotent), retry after failure, PaymentIntent
+cancel on hold expiry, and refunds using the tier with the highest
+days-before threshold not exceeding the days remaining (provider
+cancellations 100%, nothing issued at 0).
+How the output was used:
+Implemented test-first with Stripe mocked. Automated security reviews found
+money-safety gaps (late or superseded payment successes, double charge on
+retry, refund de-duplication and amounts). Each was sent back as a fix task
+with a failing test before the PR was merged.
+================================================
+Date: 2026-11-03
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-134, TRVL-135 (ERD, ADRs, README)
+Prompt:
+Write the Milestone 1 docs from the plan and the merged code: Mermaid ERD,
+ADRs for auth cookies, inventory concurrency, payments/webhook and money and
+time, README with setup, Swagger and Stripe CLI steps, and this prompt log.
+How the output was used:
+Reviewed for accuracy against the code; this log was corrected by hand to
+list only prompts that were actually used, with their real dates.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140 (Hotels, rooms, room_nights and reviews schemas)
+Prompt:
+Read Jira task TRVL-140 and move it to In Progress. Look at how existing
+schemas are written in backend/src and follow the same style. Create
+schemas for hotels, rooms, room_nights and reviews exactly as described in
+the task, including the unique indexes (room number per hotel, {roomId,
+date} for room_nights, reservationId for reviews). Explain your plan first
+and wait for my approval before writing code. Do not read any .env file.
+How the output was used:
+Claude Code moved TRVL-140 to In Progress, read the ERD and the plan doc,
+and proposed four schemas in backend/src/modules/hotels with spec tests.
+It asked whether references should be strings or ObjectIds. Overlap checks
+were left for HTL-04 and module registration for HTL-01.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140
+Prompt:
+Approved. Use Types.ObjectId for hotelId, roomId, reservationId and userId
+as the ERD says. Go ahead and implement the plan, then run lint and the
+tests and show me the results.
+How the output was used:
+Four schemas (hotel, room, room_night, review) and a shared
+schema-validators file were added in backend/src/modules/hotels with 58
+spec tests. The first run failed because @Prop could not infer types from
+the IsoDate and MinorUnits aliases; Claude Code added explicit types and
+reran. Lint: 0 errors. All 230 tests passed. Reviewed the decisions it
+flagged (optional review text, no starClass range, overlap checks left
+for HTL-04) and asked for a 1-5 range on starClass in the next prompt.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140
+Prompt:
+Add a 1-5 range check for starClass with a test. Then run lint and tests
+again. If they pass, commit with a message starting with "TRVL-140:", push
+the branch, and open a pull request into develop with "TRVL-140" in the
+title. Then add a comment on the Jira task with the PR link.
+How the output was used:
+starClass now accepts whole numbers 1-5 only (tests accept 1 and 5,
+reject 0, 6 and 3.5). Lint: 0 errors, all 234 tests passed, npm run build
+succeeded. Committed, pushed and opened PR #20 into develop using the
+repo's PR template, and the PR link was added as a comment on TRVL-140.
+The pr-requirements check then failed because the "TRVL-140:" prefix I
+asked for is not Conventional Commits format.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140
+Prompt:
+The PR check failed because the title and commit messages aren't
+Conventional Commits. Rewrite every commit message on this branch in the
+format feat(hotels): <description> [TRVL-140] (use test(hotels): or
+docs(prompts): where that fits better), then push with --force-with-lease.
+Change the PR #20 title to feat(hotels): add hotels, rooms, room_nights
+and reviews schemas [TRVL-140]. Also commit my AI_PROMPTS.txt changes as
+docs(prompts): add TRVL-140 prompt log entries [TRVL-140] and push.
+How the output was used:
+Claude Code rewrote the branch's single commit as feat(hotels): add
+hotels, rooms, room_nights and reviews schemas [TRVL-140], force-pushed
+with --force-with-lease and renamed PR #20 to match. All 3 checks then
+passed. The AI_PROMPTS.txt commit was skipped because my edits had not
+been saved yet; they were committed in a follow-up.
+================================================
