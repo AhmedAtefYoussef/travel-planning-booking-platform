@@ -12,11 +12,8 @@ function IsPassengerCount() {
     name: 'isPassengerCount',
     validator: {
       validate: (value: unknown) =>
-        typeof value === 'number' &&
-        Number.isInteger(value) &&
-        value >= 1 &&
-        value <= 9,
-      defaultMessage: () => 'passengers must be a whole number from 1 to 9',
+        typeof value === 'number' && Number.isInteger(value) && value >= 1,
+      defaultMessage: () => 'passengers must be a whole number of at least 1',
     },
   });
 }
@@ -59,8 +56,8 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   @ApiProperty({
     example: 2,
     minimum: 1,
-    maximum: 9,
-    description: 'Number of passengers; each needs a seat in the same cabin',
+    description:
+      'Number of passengers, whole number >= 1; each needs a seat in the same cabin',
   })
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
