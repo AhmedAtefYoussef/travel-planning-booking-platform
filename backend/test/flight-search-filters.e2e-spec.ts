@@ -14,6 +14,7 @@ const DATA_DIR = join(__dirname, '..', 'seed', 'data');
 interface Row {
   flightNumber: string;
   cabinClass: string;
+  pricePerPassengerMinor: number;
   totalPriceMinor: number;
   durationMinutes: number;
 }
@@ -111,10 +112,10 @@ describe('Flight search price range and sort (e2e): FLT-15', () => {
     ]);
   });
 
-  it('sort=price lists the cheapest total first', async () => {
+  it('sort=price lists the cheapest fare per passenger first', async () => {
     const res = await search({ sort: 'price' }).expect(200);
-    expect(res.body.items.map((r: Row) => r.totalPriceMinor)).toEqual([
-      30000, 40000, 55000, 70000, 180000,
+    expect(res.body.items.map((r: Row) => r.pricePerPassengerMinor)).toEqual([
+      15000, 20000, 27500, 35000, 90000,
     ]);
   });
 
@@ -134,48 +135,52 @@ describe('Flight search price range and sort (e2e): FLT-15', () => {
     ]);
   });
 
-  it('filters the total fare by an inclusive range and keeps the other criteria', async () => {
-    // Inclusive on both ends: 40000 (SP1) and 70000 (SP2 Economy) are kept.
-    const res = await search({
-      minPriceMinor: 40000,
-      maxPriceMinor: 70000,
+  it('filters the fare PER PASSENGER by an inclusive range, for any party size', async () => {
+    // 2 passengers. Inclusive on both ends: 20000 (SP1) and 35000 (SP2 Economy) per person are kept.
+    const two = await search({
+      minPriceMinor: 20000,
+      maxPriceMinor: 35000,
       sort: 'price',
     }).expect(200);
-    expect(options(res.body.items)).toEqual([
+    expect(options(two.body.items)).toEqual([
       'SP1/ECONOMY',
       'SP4/ECONOMY',
       'SP2/ECONOMY',
     ]);
-    expect(res.body.total).toBe(3);
+    // The totals are still for the whole party...
+    expect(two.body.items.map((r: Row) => r.totalPriceMinor)).toEqual([
+      40000, 55000, 70000,
+    ]);
+    // ...and the filter is not on them: SP3's total (30000) is inside 20000-35000, but its fare
+    // per person (15000) is not, so it is left out.
+    expect(options(two.body.items)).not.toContain('SP3/ECONOMY');
 
-    // Still the same route, date and party: 1 passenger halves every total.
+    // The same range gives the same options for 1 passenger.
     const one = await search({
       passengers: 1,
       minPriceMinor: 20000,
       maxPriceMinor: 35000,
+      sort: 'price',
     }).expect(200);
-    expect(options(one.body.items)).toEqual([
-      'SP1/ECONOMY',
-      'SP2/ECONOMY',
-      'SP4/ECONOMY',
-    ]);
-    // Another date with the same price range finds nothing.
+    expect(options(one.body.items)).toEqual(options(two.body.items));
+
+    // The other criteria are kept: another date with a price range finds nothing.
     await search({ departureDate: '2027-12-06', minPriceMinor: 0 })
       .expect(200)
       .expect((r) => expect(r.body.total).toBe(0));
   });
 
-  it('accepts either bound alone and min = max', async () => {
+  it('accepts either bound alone and min = max (per passenger)', async () => {
     expect(
-      options((await search({ minPriceMinor: 70000 }).expect(200)).body.items),
+      options((await search({ minPriceMinor: 35000 }).expect(200)).body.items),
     ).toEqual(['SP2/ECONOMY', 'SP2/BUSINESS']);
     expect(
-      options((await search({ maxPriceMinor: 30000 }).expect(200)).body.items),
+      options((await search({ maxPriceMinor: 15000 }).expect(200)).body.items),
     ).toEqual(['SP3/ECONOMY']);
     expect(
       options(
         (
-          await search({ minPriceMinor: 55000, maxPriceMinor: 55000 }).expect(
+          await search({ minPriceMinor: 27500, maxPriceMinor: 27500 }).expect(
             200,
           )
         ).body.items,

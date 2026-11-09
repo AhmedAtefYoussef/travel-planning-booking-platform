@@ -52,7 +52,7 @@ export class FlightsController {
     summary:
       'FLT-11, FLT-15 Search one-way flights; filter by price range and sort by price, duration or departure',
     description:
-      'Public (guests may search). Lists Scheduled flights of active airlines that depart on departureDate in the departure airport\'s local calendar day and have not left yet, one row per flight and cabin with at least `passengers` seats available (total - booked - held). Times are returned in UTC and in each airport\'s local time (GEN-06). FLT-15: minPriceMinor/maxPriceMinor keep options whose total fare for all passengers is within the inclusive range, without changing the other criteria; min > max is a 400. sort = departure (default, earliest first), price (cheapest first) or duration (shortest first). An empty page means "no flights found". Page size 10 (GEN-05).',
+      'Public (guests may search). Lists Scheduled flights of active airlines that depart on departureDate in the departure airport\'s local calendar day and have not left yet, one row per flight and cabin with at least `passengers` seats available (total - booked - held). Times are returned in UTC and in each airport\'s local time (GEN-06). FLT-15: minPriceMinor/maxPriceMinor keep options whose fare PER PASSENGER (pricePerPassengerMinor) is within the inclusive range, without changing the other criteria; min > max is a 400. sort = departure (default, earliest first), price (cheapest first) or duration (shortest first). An empty page means "no flights found". Page size 10 (GEN-05).',
   })
   @ApiPaginatedResponse(FlightSearchResultDto)
   @ApiErrorResponses(400)

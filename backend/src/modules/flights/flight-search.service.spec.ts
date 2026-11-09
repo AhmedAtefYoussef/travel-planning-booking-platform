@@ -265,7 +265,7 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
     );
   });
 
-  it('filters by an inclusive range, either bound alone, and adds nothing without one', async () => {
+  it('filters the fare PER PASSENGER by an inclusive range, either bound alone, and adds nothing without one', async () => {
     const run = async (min?: number, max?: number) => {
       const { service, pipelines } = setup();
       await service.searchOneWay(
@@ -273,20 +273,20 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
         NOW,
       );
       return pipelines[0].filter(
-        (st) => '$match' in st && 'totalPriceMinor' in st.$match,
+        (st) => '$match' in st && 'cabins.priceMinor' in st.$match,
       );
     };
     expect(await run(30000, 90000)).toEqual([
-      { $match: { totalPriceMinor: { $gte: 30000, $lte: 90000 } } },
+      { $match: { 'cabins.priceMinor': { $gte: 30000, $lte: 90000 } } },
     ]);
     expect(await run(30000)).toEqual([
-      { $match: { totalPriceMinor: { $gte: 30000 } } },
+      { $match: { 'cabins.priceMinor': { $gte: 30000 } } },
     ]);
     expect(await run(undefined, 90000)).toEqual([
-      { $match: { totalPriceMinor: { $lte: 90000 } } },
+      { $match: { 'cabins.priceMinor': { $lte: 90000 } } },
     ]);
     expect(await run(55000, 55000)).toEqual([
-      { $match: { totalPriceMinor: { $gte: 55000, $lte: 55000 } } },
+      { $match: { 'cabins.priceMinor': { $gte: 55000, $lte: 55000 } } },
     ]);
     expect(await run()).toEqual([]);
   });
@@ -334,19 +334,22 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
   it.each([
     [
       undefined,
-      { departureUtc: 1, totalPriceMinor: 1, _id: 1, 'cabin._id': 1 },
+      { departureUtc: 1, 'cabin.priceMinor': 1, _id: 1, 'cabin._id': 1 },
     ],
     [
       'departure',
-      { departureUtc: 1, totalPriceMinor: 1, _id: 1, 'cabin._id': 1 },
+      { departureUtc: 1, 'cabin.priceMinor': 1, _id: 1, 'cabin._id': 1 },
     ],
-    ['price', { totalPriceMinor: 1, departureUtc: 1, _id: 1, 'cabin._id': 1 }],
+    [
+      'price',
+      { 'cabin.priceMinor': 1, departureUtc: 1, _id: 1, 'cabin._id': 1 },
+    ],
     [
       'duration',
       {
         durationMs: 1,
         departureUtc: 1,
-        totalPriceMinor: 1,
+        'cabin.priceMinor': 1,
         _id: 1,
         'cabin._id': 1,
       },
@@ -375,11 +378,11 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
     });
     expect(pipelines[0]).toEqual(
       expect.arrayContaining([
-        { $match: { totalPriceMinor: { $gte: 100, $lte: 200 } } },
+        { $match: { 'cabins.priceMinor': { $gte: 100, $lte: 200 } } },
       ]),
     );
     expect(
       (stageOf(pipelines[0], '$sort') as { $sort: object }).$sort,
-    ).toMatchObject({ totalPriceMinor: 1 });
+    ).toMatchObject({ 'cabin.priceMinor': 1 });
   });
 });

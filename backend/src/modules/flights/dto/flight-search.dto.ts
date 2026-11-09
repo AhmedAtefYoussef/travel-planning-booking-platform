@@ -87,10 +87,10 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   passengers!: number;
 
   @ApiPropertyOptional({
-    example: 30000,
+    example: 15000,
     minimum: 0,
     description:
-      'FLT-15: lowest total fare for all passengers, inclusive, in minor units (30000 = 300.00)',
+      'FLT-15: lowest fare PER PASSENGER (pricePerPassengerMinor), inclusive, in minor units (15000 = 150.00). The total for the party is still shown in totalPriceMinor.',
   })
   @IsOptional()
   @Transform(toInteger)
@@ -99,10 +99,10 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   minPriceMinor?: number;
 
   @ApiPropertyOptional({
-    example: 90000,
+    example: 45000,
     minimum: 0,
     description:
-      'FLT-15: highest total fare for all passengers, inclusive, in minor units; must be >= minPriceMinor',
+      'FLT-15: highest fare PER PASSENGER (pricePerPassengerMinor), inclusive, in minor units; must be >= minPriceMinor',
   })
   @IsOptional()
   @Transform(toInteger)
@@ -114,7 +114,7 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     enum: FLIGHT_SORTS,
     default: 'departure',
     description:
-      'FLT-15: price = cheapest total first, duration = shortest first, departure = earliest first',
+      'FLT-15: price = cheapest fare per passenger first, duration = shortest first, departure = earliest first',
   })
   @IsOptional()
   @IsIn(FLIGHT_SORTS, {
