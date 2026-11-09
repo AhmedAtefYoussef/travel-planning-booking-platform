@@ -1,6 +1,8 @@
 import { join } from 'node:path';
 import { INestApplication } from '@nestjs/common';
-import { Types } from 'mongoose';
+import { getModelToken } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Airline } from '../src/modules/flights';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import {
@@ -191,5 +193,27 @@ describe('Flights (e2e): FLT-03, GEN-06', () => {
       )
       .send(flight({ flightNumber: 'FT5' }))
       .expect(404);
+  });
+
+  it("a deactivated airline's moderator cannot create flights (ACC-15)", async () => {
+    const other = await http()
+      .post('/api/airlines')
+      .set('x-dev-user', 'ADMIN')
+      .send({ name: 'Inactive Test Air', code: 'FX' })
+      .expect(201);
+    await app
+      .get<Model<Airline>>(getModelToken(Airline.name))
+      .updateOne({ _id: other.body.id }, { isActive: false });
+    const res = await http()
+      .post('/api/flights')
+      .set(
+        'x-dev-user',
+        `AIRLINE_MODERATOR:${new Types.ObjectId().toHexString()}:${other.body.id}`,
+      )
+      .send(flight({ flightNumber: 'FX100' }))
+      .expect(403);
+    expect(res.body.message).toBe(
+      'This airline is deactivated (ACC-15), so its flights cannot be created or changed',
+    );
   });
 });

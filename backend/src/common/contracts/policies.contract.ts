@@ -59,26 +59,57 @@ export function selectCancellationTier(
   return best;
 }
 
-/** Validation shared by the airline and hotel policy DTOs: unique integer thresholds, 0..100 %. */
-export function cancellationTierErrors(
+/** One problem in a tier list, addressed like a request field (GEN-02), e.g. tiers[1].daysBefore. */
+export interface TierFieldError {
+  field: string;
+  message: string;
+}
+
+/**
+ * Validation shared by the airline (FLT-09) and hotel (HTL-10) cancellation policies: unique
+ * integer thresholds >= 0, refunds 0..100 %. Returns one entry per problem, with the field path, so
+ * services can raise it as a 400 with fieldErrors.
+ */
+export function cancellationTierFieldErrors(
   tiers: readonly CancellationTier[],
-): string[] {
-  const errors: string[] = [];
+  path = 'tiers',
+): TierFieldError[] {
+  const errors: TierFieldError[] = [];
   const seen = new Set<number>();
   tiers.forEach((t, i) => {
+    const at = (key: keyof CancellationTier) => `${path}[${i}].${key}`;
     if (!Number.isInteger(t.daysBefore) || t.daysBefore < 0) {
-      errors.push(`tiers[${i}].daysBefore must be an integer >= 0`);
+      errors.push({
+        field: at('daysBefore'),
+        message: 'daysBefore must be an integer >= 0',
+      });
     }
     if (
       !Number.isFinite(t.refundPercent) ||
       t.refundPercent < 0 ||
       t.refundPercent > 100
     ) {
-      errors.push(`tiers[${i}].refundPercent must be between 0 and 100`);
+      errors.push({
+        field: at('refundPercent'),
+        message: 'refundPercent must be between 0 and 100',
+      });
     }
-    if (seen.has(t.daysBefore))
-      errors.push(`tiers[${i}].daysBefore ${t.daysBefore} is duplicated`);
+    if (seen.has(t.daysBefore)) {
+      errors.push({
+        field: at('daysBefore'),
+        message: `daysBefore ${t.daysBefore} is duplicated`,
+      });
+    }
     seen.add(t.daysBefore);
   });
   return errors;
+}
+
+/** The same checks as plain messages ("tiers[1].daysBefore 7 is duplicated"). */
+export function cancellationTierErrors(
+  tiers: readonly CancellationTier[],
+): string[] {
+  return cancellationTierFieldErrors(tiers).map(
+    (e) => `${e.field.slice(0, e.field.lastIndexOf('.') + 1)}${e.message}`,
+  );
 }

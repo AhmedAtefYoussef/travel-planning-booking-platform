@@ -70,7 +70,7 @@ function setup() {
     ),
   } as unknown as ReferenceService;
   const airlines = {
-    load: jest.fn(() => Promise.resolve({ _id: airlineId })),
+    loadActive: jest.fn(() => Promise.resolve({ _id: airlineId })),
   } as unknown as AirlinesService;
   const service = new FlightsService(
     model as unknown as Model<Flight>,
@@ -79,6 +79,14 @@ function setup() {
   );
   return { service, model, created, airlines };
 }
+
+/** AirlinesService stub whose airline is active (ACC-15). */
+const activeAirline = () =>
+  ({
+    loadActive: jest.fn(() =>
+      Promise.resolve({ _id: airlineId, isActive: true }),
+    ),
+  }) as unknown as AirlinesService;
 
 const base: CreateFlightDto = {
   flightNumber: 'MS777',
@@ -260,7 +268,7 @@ describe('FlightsService.create (FLT-03, GEN-06)', () => {
   it("uses the moderator's assigned airline and refuses a caller without one", async () => {
     const { service, airlines } = setup();
     await service.create(moderator, base, NOW);
-    expect(airlines.load).toHaveBeenCalledWith(airlineId);
+    expect(airlines.loadActive).toHaveBeenCalledWith(airlineId);
     const noAirline: AuthUser = {
       id: moderator.id,
       role: Role.AirlineModerator,
@@ -321,7 +329,7 @@ describe('FlightsService cabins (FLT-04)', () => {
     const service = new FlightsService(
       model as unknown as Model<Flight>,
       reference,
-      {} as AirlinesService,
+      activeAirline(),
     );
     return { service, model };
   }
@@ -355,6 +363,7 @@ describe('FlightsService cabins (FLT-04)', () => {
       {
         _id: flightId,
         status: 'SCHEDULED',
+        departureUtc: { $gt: expect.any(Date) as Date },
         'cabins.class': { $ne: 'BUSINESS' },
       },
       {
@@ -402,6 +411,7 @@ describe('FlightsService cabins (FLT-04)', () => {
       {
         _id: flightId,
         status: 'SCHEDULED',
+        departureUtc: { $gt: expect.any(Date) as Date },
         cabins: {
           $elemMatch: {
             _id: cabinId,
@@ -433,6 +443,61 @@ describe('FlightsService cabins (FLT-04)', () => {
       totalSeats: 100,
       seatsAvailable: 70,
     });
+  });
+
+  it('re-checks the departure in the write: a flight that departs mid-request gets the FLT-30 409', async () => {
+    const { service, model } = setupCabins();
+    // The read sees a future departure; by the time of the write it has passed, so the conditional
+    // update matches nothing and the re-read shows the past departure.
+    const flight = await model.findById().exec();
+    const departed = { ...flight, departureUtc: new Date(Date.now() - 1000) };
+    model.findById
+      .mockReturnValueOnce({ exec: () => Promise.resolve(flight) })
+      .mockReturnValueOnce({ exec: () => Promise.resolve(departed) });
+    model.findOneAndUpdate.mockReturnValueOnce({
+      exec: () => Promise.resolve(null as never),
+    });
+    await expect(
+      service.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        {
+          priceMinor: 1,
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'This flight has already departed and can no longer be changed (FLT-30)',
+    });
+  });
+
+  it("refuses changes to a deactivated airline's flights (ACC-15)", async () => {
+    const { model } = setupCabins();
+    const inactive = {
+      loadActive: jest.fn(() =>
+        Promise.reject(
+          Object.assign(new Error('deactivated'), { status: 403 }),
+        ),
+      ),
+    } as unknown as AirlinesService;
+    const blocked = new FlightsService(
+      model as unknown as Model<Flight>,
+      {} as ReferenceService,
+      inactive,
+    );
+    await expect(
+      blocked.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        {
+          priceMinor: 1,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
   });
 
   it('rejects an empty edit, another airline, and a flight that is not Scheduled', async () => {
