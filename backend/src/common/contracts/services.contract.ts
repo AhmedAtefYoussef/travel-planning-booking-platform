@@ -21,6 +21,7 @@ export interface FlightSearchQuery {
   children?: number;
   infants?: number;
   cabinClass?: CabinClass;
+  /** FLT-15: inclusive range on the fare per passenger, minor units. */
   minPriceMinor?: number;
   maxPriceMinor?: number;
   sort?: 'price' | 'duration' | 'departure';
