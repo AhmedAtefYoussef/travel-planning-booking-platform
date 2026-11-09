@@ -296,3 +296,18 @@ the same moment cannot slip past the airport lock), a FLIGHT_BOOKINGS_LOOKUP con
 optional notifier that sends FLIGHT_SCHEDULE_CHANGED notifications once both modules exist. The e2e test plugs in
 fake bookings and notifications to prove the notifications are sent. I chose this approach over waiting.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: review fixes for FLT-01, FLT-03, FLT-04, FLT-05, FLT-08, FLT-09, FLT-11, FLT-15, FLT-30, GEN-12
+Prompt:
+Apply Ahmed's review of PRs #7-#18: reject null in every PATCH DTO (it skipped validation and was written),
+find flights departing at exactly 00:00 local time, block a deactivated airline's flights (ACC-15), re-check
+the departure inside every atomic update (FLT-30), reuse the shared tier validation, filter search by the fare
+per passenger, and remove limits the workbook does not ask for. Fix each on the lowest branch and carry it up.
+How the output was used:
+I chose the decisions (price per passenger, remove all extra limits except the documented 100 kg bag cap) and
+Claude implemented and tested them on each branch, resolving the merge conflicts between the stacked branches.
+================================================

@@ -218,6 +218,36 @@ describe('Edit flights (e2e): FLT-05', () => {
     expect(sent).toEqual([]);
   });
 
+  it('rejects null for every field (400) and changes nothing, flight and cabin alike', async () => {
+    const id = await newFlight('FE550');
+    const before = await flights.findById(id).lean();
+    for (const field of ['from', 'to', 'departureLocal', 'arrivalLocal']) {
+      const res = await edit(id, { [field]: null }).expect(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(
+        res.body.fieldErrors.map((f: { field: string }) => f.field),
+      ).toContain(field);
+    }
+    const cabinId = String(before?.cabins[0]._id);
+    for (const field of [
+      'totalSeats',
+      'priceMinor',
+      'freeBags',
+      'maxKgPerBag',
+    ]) {
+      await http()
+        .patch(`/api/flights/${id}/cabins/${cabinId}`)
+        .set('x-dev-user', moderator)
+        .send({ [field]: null })
+        .expect(400);
+    }
+    const after = await flights.findById(id).lean();
+    expect(after?.from).toBe(before?.from);
+    expect(after?.departureUtc).toEqual(before?.departureUtc);
+    expect(after?.cabins).toEqual(before?.cabins);
+    expect(sent).toEqual([]);
+  });
+
   it('only the moderator of this airline, only Scheduled flights', async () => {
     const id = await newFlight('FE600');
     await edit(id, { arrivalLocal: '2027-12-01T11:30' }, otherModerator).expect(

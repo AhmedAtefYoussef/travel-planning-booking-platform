@@ -135,10 +135,10 @@ export class FlightsService {
   ): Promise<FlightDto> {
     const flight = await this.loadEditable(user, flightId);
     if (
-      dto.from === undefined &&
-      dto.to === undefined &&
-      dto.departureLocal === undefined &&
-      dto.arrivalLocal === undefined
+      dto.from == null &&
+      dto.to == null &&
+      dto.departureLocal == null &&
+      dto.arrivalLocal == null
     ) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
@@ -147,6 +147,7 @@ export class FlightsService {
       );
     }
 
+    // `??` also covers null, as a second line of defence behind the DTO (which rejects it).
     const fromCode = dto.from ?? flight.from;
     const toCode = dto.to ?? flight.to;
     const airportsChanged = fromCode !== flight.from || toCode !== flight.to;
@@ -214,7 +215,8 @@ export class FlightsService {
         {
           _id: flight._id,
           status: FlightStatus.Scheduled,
-          departureUtc: flight.departureUtc,
+          // The departure we validated against, and still in the future (FLT-30, see addCabin).
+          departureUtc: { $eq: flight.departureUtc, $gt: new Date() },
           arrivalUtc: flight.arrivalUtc,
           from: flight.from,
           to: flight.to,
@@ -236,7 +238,10 @@ export class FlightsService {
       .exec();
     if (!updated) {
       const current = await this.flights.findById(flight._id).exec();
-      if (airportsChanged && current && seatsTaken(current) > 0)
+      if (!current || current.status !== FlightStatus.Scheduled)
+        throw notScheduled();
+      if (current.departureUtc <= new Date()) throw alreadyDeparted();
+      if (airportsChanged && seatsTaken(current) > 0)
         throw airportsLocked(seatsTaken(current));
       throw new AppException(
         HttpStatus.CONFLICT,

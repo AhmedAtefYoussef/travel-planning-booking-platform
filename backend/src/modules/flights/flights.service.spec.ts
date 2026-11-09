@@ -742,7 +742,7 @@ describe('FlightsService.update (FLT-05)', () => {
       activeAirline(),
       { timesChanged } as unknown as FlightScheduleNotifier,
     );
-    return { service, findOneAndUpdate, timesChanged };
+    return { service, findOneAndUpdate, timesChanged, model, flight };
   }
 
   it('changes the times in local time, saves UTC and the new local date, and notifies', async () => {
@@ -757,7 +757,10 @@ describe('FlightsService.update (FLT-05)', () => {
     expect(filter).toMatchObject({
       _id: flightId,
       status: 'SCHEDULED',
-      departureUtc: new Date('2030-12-01T12:30:00Z'),
+      departureUtc: {
+        $eq: new Date('2030-12-01T12:30:00Z'),
+        $gt: expect.any(Date) as Date,
+      },
     });
     expect(filter).not.toHaveProperty('$expr');
     expect(update.$set).toEqual({
@@ -871,6 +874,32 @@ describe('FlightsService.update (FLT-05)', () => {
         )
       ).map((e) => e.field),
     ).toContain('departureLocal');
+  });
+
+  it('a flight that departs mid-request gets the FLT-30 409 and nobody is notified', async () => {
+    const { service, findOneAndUpdate, timesChanged, model, flight } =
+      updateSetup();
+    // Read: still in the future. Write: matches nothing, because the departure has just passed.
+    findOneAndUpdate.mockReturnValueOnce({
+      exec: () => Promise.resolve(null as never),
+    });
+    const departed = { ...flight, departureUtc: new Date(Date.now() - 1000) };
+    model.findById
+      .mockReturnValueOnce({ exec: () => Promise.resolve(flight) })
+      .mockReturnValueOnce({ exec: () => Promise.resolve(departed) });
+    await expect(
+      service.update(
+        moderator,
+        flightId.toHexString(),
+        { departureLocal: '2030-12-01T15:00' },
+        NOW,
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'This flight has already departed and can no longer be changed (FLT-30)',
+    });
+    expect(timesChanged).not.toHaveBeenCalled();
   });
 
   it('rejects an empty edit; an unchanged edit saves and notifies nothing', async () => {
