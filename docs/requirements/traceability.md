@@ -43,9 +43,9 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | #9 | In review |
-| FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | In review |
-| FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10 | In review |
+| FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | #9 | Done |
+| FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | Done |
+| FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10 | Done |
 | FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | - | Not started |
 | FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | - | Not started |
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
