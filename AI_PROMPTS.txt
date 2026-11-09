@@ -594,3 +594,17 @@ Claude wrote CreateHotelDto, UpdateHotelDto, HotelsService, HotelsController and
 reference city and reusing the shared auth, ownership and error helpers. I reviewed the diff and will verify each endpoint
 by hand in Swagger before asking for review.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: HTL-03 (TRVL-49)
+Prompt:
+Implement HTL-03: the hotel moderator adds a room to their own hotel with a room number unique within the hotel, type,
+number of beds, maximum occupancy of at least 1 and a price per night above 0, following the team conventions, with
+unit and e2e tests.
+How the output was used:
+Claude wrote CreateRoomDto, RoomsService, RoomsController and the tests, relying on the unique {hotelId, number} index
+for duplicate and concurrent adds. I reviewed the diff and will verify each endpoint by hand in Swagger.
+================================================
