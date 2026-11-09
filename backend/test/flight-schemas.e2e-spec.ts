@@ -106,4 +106,33 @@ describe('Airlines and flights schemas (e2e): TRVL-138', () => {
     const after = await flights.findById(created._id).lean().exec();
     expect(after?.cabins[0].seatsAvailable).toBe(0);
   });
+
+  it('update validators reject unsafe integers in a positional cabin update (second line behind the DTO)', async () => {
+    const created = await flights.create(
+      flight(new Types.ObjectId(), { flightNumber: 'MS200' }),
+    );
+    const cabinId = created.cabins[0]._id;
+    const setCabin = (path: string, value: number) =>
+      flights
+        .findOneAndUpdate(
+          { _id: created._id, 'cabins._id': cabinId },
+          { $set: { [`cabins.$.${path}`]: value } },
+          { new: true, runValidators: true },
+        )
+        .exec();
+    await expect(setCabin('totalSeats', 1e20)).rejects.toThrow(
+      'totalSeats must be a whole number',
+    );
+    await expect(setCabin('priceMinor', 1e300)).rejects.toThrow();
+    await expect(setCabin('freeBags', 1e300)).rejects.toThrow();
+    const after = await flights.findById(created._id).lean().exec();
+    expect(after?.cabins[0]).toMatchObject({
+      totalSeats: 5,
+      seatsAvailable: 5,
+      priceMinor: 25_000,
+      freeBags: 1,
+    });
+    // A normal positional update still passes the validators.
+    await expect(setCabin('priceMinor', 27_500)).resolves.toBeTruthy();
+  });
 });
