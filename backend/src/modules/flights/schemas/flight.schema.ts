@@ -55,6 +55,10 @@ export class Cabin {
     validate: [
       integer('seatsAvailable'),
       {
+        // On a document save `this` is the cabin, so the bound is checked. In update validators
+        // (runValidators) `this` is the query and has no totalSeats, so this check is skipped:
+        // updates change seatsAvailable only with $inc, which update validators never run on, and
+        // the conditional filter (ADR-0002) keeps it between 0 and totalSeats.
         validator: function (this: Cabin, value: number) {
           return (
             typeof this.totalSeats !== 'number' || value <= this.totalSeats
