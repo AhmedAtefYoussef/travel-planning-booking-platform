@@ -190,15 +190,15 @@ export class FlightSearchService implements FlightsSearch {
       throw new ValidationFailedException(errors);
     }
 
-    // Flights later today are still searchable; ones that already left are not.
-    const earliest = day.start > now ? day.start : now;
     const pipeline: PipelineStage[] = [
       {
         $match: {
           from,
           to,
           status: FlightStatus.Scheduled,
-          departureUtc: { $gt: earliest, $lt: day.end },
+          // The local day includes its first instant (a 00:00 departure) but not the next midnight;
+          // flights later today are still searchable, ones that already left are not.
+          departureUtc: { $gte: day.start, $lt: day.end, $gt: now },
         },
       },
       {
