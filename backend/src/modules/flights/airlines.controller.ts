@@ -92,6 +92,14 @@ export class AirlinesController {
         summary: 'Change the logo',
         value: { logoUrl: 'https://cdn.example.com/logos/egyptair-2026.png' },
       },
+      removeLogo: {
+        summary: 'Remove the logo',
+        value: { logoUrl: null },
+      },
+      invalid: {
+        summary: 'Invalid: name and code cannot be null',
+        value: { name: null, code: null },
+      },
     },
   })
   @ApiOkResponse({ type: AirlineDto })
