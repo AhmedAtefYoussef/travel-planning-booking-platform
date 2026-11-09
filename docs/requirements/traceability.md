@@ -43,7 +43,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | - | Not started |
-| FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | - | Not started |
+| FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | In review |
 | FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | - | Not started |
 | FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | - | Not started |
 | FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | - | Not started |
@@ -154,7 +154,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS) | Ahmed | TRVL-106 | #4 | Partial: transition table |
-| GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | In review |
+| GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | In review |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | - | Not started |
 | GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |

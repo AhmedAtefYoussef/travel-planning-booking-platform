@@ -7,6 +7,7 @@ import {
   ApiPaginatedResponse,
 } from '../../common/swagger/api-responses.decorator';
 import {
+  AirportDto,
   CityDto,
   CityQueryDto,
   CountryDto,
@@ -15,7 +16,7 @@ import {
 import { ReferenceDataService } from './reference.service';
 
 /**
- * Read-only reference data seeded from the official datasets (GEN-12, brief section 5.1).
+ * Read-only reference data seeded from the official datasets (GEN-12, FLT-02, brief section 5.1).
  * Public: guests need countries and cities for hotel search and currencies for budgets (brief section 4).
  * There are no write endpoints; the data changes only through `npm run seed`.
  */
@@ -47,6 +48,18 @@ export class ReferenceController {
   @ApiErrorResponses(400)
   citiesList(@Query() query: CityQueryDto) {
     return this.reference.pageCities(query.page, query.countryCode);
+  }
+
+  @Get('airports')
+  @ApiOperation({
+    summary: 'FLT-02 List the predefined airports with their IANA time zones',
+    description:
+      'The read-only airport list loaded at setup from the official Airports.csv, sorted by IATA code. Flight creation (FLT-03) and flight search (FLT-11) accept only these airports. Page size 10 (GEN-05).',
+  })
+  @ApiPaginatedResponse(AirportDto)
+  @ApiErrorResponses(400)
+  airportsList(@Query() query: PaginationQueryDto) {
+    return this.reference.pageAirports(query.page);
   }
 
   @Get('currencies')

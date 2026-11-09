@@ -120,6 +120,14 @@ export class ReferenceDataService implements ReferenceService {
     });
   }
 
+  /** GET /api/airports (FLT-02): the predefined airport list, sorted by IATA code. */
+  pageAirports(page: number): Promise<Page<AirportInfo>> {
+    return paginate(this.airports, {}, page, {
+      sort: { iataCode: 1 },
+      projection: AIRPORT_FIELDS,
+    });
+  }
+
   /** GET /api/currencies: sorted by code. */
   pageCurrencies(page: number): Promise<Page<CurrencyDto>> {
     return paginate(this.currencies, {}, page, {
