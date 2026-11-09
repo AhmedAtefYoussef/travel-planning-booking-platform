@@ -103,6 +103,17 @@ describe('AirlinesService (FLT-01)', () => {
     ).rejects.toBeInstanceOf(AppException);
   });
 
+  it('removes the logo when logoUrl is null', async () => {
+    const airline = fakeAirline();
+    airline.logoUrl = 'https://cdn.example.com/a.png';
+    const { service } = setup(airline);
+    const dto = await service.update(moderatorOf(airline.id), airline.id, {
+      logoUrl: null,
+    });
+    expect(dto.logoUrl).toBeNull();
+    expect(airline.save).toHaveBeenCalled();
+  });
+
   it('rejects an empty edit with 400', async () => {
     const airline = fakeAirline();
     const { service } = setup(airline);
@@ -110,5 +121,21 @@ describe('AirlinesService (FLT-01)', () => {
       service.update(moderatorOf(airline.id), airline.id, {}),
     ).rejects.toMatchObject({ status: 400 });
     expect(airline.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('AirlinesService.loadActive (ACC-15)', () => {
+  it('returns an active airline', async () => {
+    const airline = fakeAirline();
+    const { service } = setup(airline);
+    await expect(service.loadActive(airline.id)).resolves.toBe(airline);
+  });
+
+  it('refuses a deactivated airline with 403', async () => {
+    const airline = { ...fakeAirline(), isActive: false };
+    const { service } = setup(airline);
+    await expect(service.loadActive(airline.id)).rejects.toMatchObject({
+      status: 403,
+    });
   });
 });

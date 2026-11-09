@@ -70,7 +70,7 @@ function setup() {
     ),
   } as unknown as ReferenceService;
   const airlines = {
-    load: jest.fn(() => Promise.resolve({ _id: airlineId })),
+    loadActive: jest.fn(() => Promise.resolve({ _id: airlineId })),
   } as unknown as AirlinesService;
   const service = new FlightsService(
     model as unknown as Model<Flight>,
@@ -260,7 +260,7 @@ describe('FlightsService.create (FLT-03, GEN-06)', () => {
   it("uses the moderator's assigned airline and refuses a caller without one", async () => {
     const { service, airlines } = setup();
     await service.create(moderator, base, NOW);
-    expect(airlines.load).toHaveBeenCalledWith(airlineId);
+    expect(airlines.loadActive).toHaveBeenCalledWith(airlineId);
     const noAirline: AuthUser = {
       id: moderator.id,
       role: Role.AirlineModerator,

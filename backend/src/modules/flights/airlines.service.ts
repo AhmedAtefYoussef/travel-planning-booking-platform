@@ -73,6 +73,22 @@ export class AirlinesService {
     }
     return airline;
   }
+
+  /**
+   * Loads an airline that may still manage flights: 404 if it doesn't exist, 403 if an admin has
+   * deactivated it (ACC-15). Its existing data stays readable; it just can't add or change flights.
+   */
+  async loadActive(id: string | Types.ObjectId): Promise<AirlineDocument> {
+    const airline = await this.load(id);
+    if (!airline.isActive) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+        'This airline is deactivated (ACC-15), so its flights cannot be created or changed',
+      );
+    }
+    return airline;
+  }
 }
 
 export function toAirlineDto(airline: AirlineDocument): AirlineDto {
