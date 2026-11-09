@@ -130,3 +130,18 @@ How the output was used:
 Claude added the airports endpoint, its response DTO and e2e tests (sorted list, no write routes, page
 validation). I checked the response fields against FLT-02 and Airports.csv and verified the endpoint in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: TRVL-138 (airlines, flights and cabins schemas)
+Prompt:
+Investigate the conflict between the TRVL-138 Jira description (seats/booked/held) and the merged ERD and
+ADR-0002 (totalSeats/seatsAvailable), then implement the airlines and flights schemas following the ERD, plus
+the local departure date and unique index FLT-03 needs, with unit and e2e tests.
+How the output was used:
+I chose the ERD model after reviewing the evidence (ADR-0002 is the accepted inventory design for FLT-22).
+Claude wrote the schemas, indexes, ERD update and tests, including a concurrency test of the ADR-0002
+conditional decrement. I checked every field and rule against FLT-01, FLT-03, FLT-04, FLT-08, FLT-09 and FLT-30.
+================================================
