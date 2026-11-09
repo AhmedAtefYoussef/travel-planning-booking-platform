@@ -325,3 +325,18 @@ Claude ran the checks, merged the PRs after all 12 required checks passed and mo
 and TRVL-138 to Done. This PR only changes the FLT-01, FLT-02 and FLT-03 rows from "In review" to "Done"; GEN-06
 stays open until search (#13) and details (#16) are merged. I reviewed the diff before opening the PR.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04 re-review (also FLT-08, FLT-09, FLT-11, FLT-15)
+Prompt:
+Apply Ahmed's re-review of #11: a cabin PATCH stored 1e20 / 1e300 because @IsInt accepts them and updateCabin
+skipped the schema validators. Reject unsafe integers in every whole-number DTO field, run the validators on the
+cabin update, add tests, and carry the fix up the stack after merging develop.
+How the output was used:
+Claude added an IsWholeNumber (Number.isSafeInteger) rule used by all whole-number fields, enabled runValidators
+on the cabin update, documented the seatsAvailable validator in update context, and added unit, e2e and schema
+tests. I checked that the error messages match the existing "must be a whole number" wording.
+================================================
