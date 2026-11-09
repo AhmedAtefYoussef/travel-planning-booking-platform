@@ -64,6 +64,10 @@ export class Hotel {
   @Prop({ default: 0, min: 0, max: 5 }) ratingAvg: number;
   @Prop({ default: 0, min: 0, validate: safeInteger('ratingCount') })
   ratingCount: number;
+
+  /** Set by Mongoose `timestamps`. */
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export type HotelDocument = HydratedDocument<Hotel>;
