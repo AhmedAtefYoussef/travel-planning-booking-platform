@@ -201,6 +201,30 @@ describe('Flight cabins (e2e): FLT-04', () => {
       expect(after?.cabins).toEqual(before?.cabins);
     });
 
+    it('rejects 1e20 and 1e300 for every field (400) and changes nothing', async () => {
+      const before = await flights.findById(flightId).lean();
+      for (const field of [
+        'totalSeats',
+        'priceMinor',
+        'freeBags',
+        'maxKgPerBag',
+      ]) {
+        for (const value of [1e20, 1e300]) {
+          const res = await http()
+            .patch(`/api/flights/${flightId}/cabins/${economyId}`)
+            .set('x-dev-user', moderator)
+            .send({ [field]: value })
+            .expect(400);
+          expect(res.body.code).toBe('VALIDATION_FAILED');
+          expect(
+            res.body.fieldErrors.map((f: { field: string }) => f.field),
+          ).toEqual([field]);
+        }
+      }
+      const after = await flights.findById(flightId).lean();
+      expect(after?.cabins).toEqual(before?.cabins);
+    });
+
     it('changes the price without touching seats', async () => {
       const res = await http()
         .patch(`/api/flights/${flightId}/cabins/${economyId}`)

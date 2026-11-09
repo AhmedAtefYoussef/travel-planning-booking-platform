@@ -424,7 +424,8 @@ describe('FlightsService cabins (FLT-04)', () => {
         $set: { 'cabins.$.priceMinor': 27_500, 'cabins.$.totalSeats': 40 },
         $inc: { 'cabins.$.seatsAvailable': -60 },
       },
-      { new: true },
+      // Schema validators (safe integers, minimums) also run on the update, behind the DTO.
+      { new: true, runValidators: true },
     );
   });
 
