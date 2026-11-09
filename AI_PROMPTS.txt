@@ -608,3 +608,17 @@ How the output was used:
 Claude wrote CreateRoomDto, RoomsService, RoomsController and the tests, relying on the unique {hotelId, number} index
 for duplicate and concurrent adds. I reviewed the diff and will verify each endpoint by hand in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: HTL-04 (TRVL-50)
+Prompt:
+Implement HTL-04: the hotel moderator defines non-overlapping date ranges when a room is bookable, following the team
+conventions, with unit and e2e tests, including two requests racing for the same dates.
+How the output was used:
+Claude wrote AddAvailabilityDto, the date validators, RoomsService.addAvailability and the tests; the overlap check and
+insert are a single atomic update. The tests caught a bug in the range-end validator (end before start was accepted),
+which was fixed before the PR. I reviewed the diff and will verify each endpoint by hand in Swagger.
+================================================
