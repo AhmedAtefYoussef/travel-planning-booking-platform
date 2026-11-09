@@ -12,7 +12,10 @@ function IsPassengerCount() {
     name: 'isPassengerCount',
     validator: {
       validate: (value: unknown) =>
-        typeof value === 'number' && Number.isInteger(value) && value >= 1,
+        typeof value === 'number' &&
+        // Safe integer: 99999999999999999999 parses to 1e20, an integer JavaScript can't count exactly.
+        Number.isSafeInteger(value) &&
+        value >= 1,
       defaultMessage: () => 'passengers must be a whole number of at least 1',
     },
   });
