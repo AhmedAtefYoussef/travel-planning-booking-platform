@@ -340,8 +340,7 @@ describe('Airlines (e2e): FLT-01', () => {
       expect(res.body.fieldErrors).toEqual([
         {
           field: 'tiers[1].daysBefore',
-          message:
-            'daysBefore 7 is already used by tiers[0]; thresholds must be unique',
+          message: 'daysBefore 7 is duplicated',
         },
       ]);
       const after = await http().get(`/api/airlines/${airlineId}`).expect(200);

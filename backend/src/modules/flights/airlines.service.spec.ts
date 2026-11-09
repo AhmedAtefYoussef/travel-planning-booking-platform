@@ -235,8 +235,7 @@ describe('AirlinesService cancellation tiers (FLT-09)', () => {
     expect((err as ValidationFailedException).fieldErrors).toEqual([
       {
         field: 'tiers[2].daysBefore',
-        message:
-          'daysBefore 7 is already used by tiers[0]; thresholds must be unique',
+        message: 'daysBefore 7 is duplicated',
       },
     ]);
     expect(airline.save).not.toHaveBeenCalled();
