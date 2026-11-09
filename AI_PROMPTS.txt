@@ -580,3 +580,17 @@ Claude made one fix commit per PR, moved the hotel date and time checks into com
 e2e test that the room_nights and reviews unique indexes are built. I reviewed each change and the test results
 before the branches were pushed.
 ================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: HTL-01 (TRVL-47)
+Prompt:
+Implement HTL-01: an admin creates a hotel profile and the hotel moderator assigned to that hotel edits it (name, address,
+city and country, description, photos, star class, amenities), following the team conventions, with unit and e2e tests.
+How the output was used:
+Claude wrote CreateHotelDto, UpdateHotelDto, HotelsService, HotelsController and the tests, taking the country from the
+reference city and reusing the shared auth, ownership and error helpers. I reviewed the diff and will verify each endpoint
+by hand in Swagger before asking for review.
+================================================
