@@ -4,7 +4,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -17,6 +16,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Omittable } from './omittable';
+import { IsWholeNumber } from './whole-number';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -112,7 +112,7 @@ export class BaggagePolicyDto {
     description:
       'Price per extra bag in minor units (4000 = 40.00 in the platform currency), > 0',
   })
-  @IsInt({ message: 'pricePerBagMinor must be a whole number of minor units' })
+  @IsWholeNumber('pricePerBagMinor must be a whole number of minor units')
   @Min(1)
   pricePerBagMinor!: number;
 
@@ -122,7 +122,7 @@ export class BaggagePolicyDto {
     description:
       'Maximum extra bags one passenger may buy, whole number >= 0; 0 means none',
   })
-  @IsInt({ message: 'maxExtraBagsPerPassenger must be a whole number' })
+  @IsWholeNumber('maxExtraBagsPerPassenger must be a whole number')
   @Min(0)
   maxExtraBagsPerPassenger!: number;
 }
@@ -135,7 +135,7 @@ export class CancellationTierInputDto {
     description:
       'Days before departure (whole number >= 0), unique within the policy. Cancelling at least this many days ahead earns this tier.',
   })
-  @IsInt({ message: 'daysBefore must be a whole number of days' })
+  @IsWholeNumber('daysBefore must be a whole number of days')
   @Min(0)
   daysBefore!: number;
 
@@ -177,7 +177,7 @@ export class RefundPreviewQueryDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && value.trim() !== '' ? Number(value) : value,
   )
-  @IsInt({ message: 'daysRemaining must be a whole number of days' })
+  @IsWholeNumber('daysRemaining must be a whole number of days')
   @Min(0)
   daysRemaining!: number;
 }

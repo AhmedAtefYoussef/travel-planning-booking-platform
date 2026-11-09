@@ -237,7 +237,7 @@ export class FlightsService {
           cabins: { $elemMatch: elem },
         },
         update,
-        { new: true },
+        { new: true, runValidators: true },
       )
       .exec();
     if (!updated) {
