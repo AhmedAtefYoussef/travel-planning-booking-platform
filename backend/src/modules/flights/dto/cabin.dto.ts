@@ -1,27 +1,22 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsInt, IsNumber, Max, Min } from 'class-validator';
+import { IsIn, IsNumber, Max, Min } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
 import { Omittable } from './omittable';
+import { IsWholeNumber } from './whole-number';
 
 /** Rules shared by adding and editing a cabin (FLT-04). */
 const TotalSeatsRules = () =>
-  applyDecorators(
-    IsInt({ message: 'totalSeats must be a whole number' }),
-    Min(1),
-  );
+  applyDecorators(IsWholeNumber('totalSeats must be a whole number'), Min(1));
 const PriceRules = () =>
   applyDecorators(
-    IsInt({ message: 'priceMinor must be a whole number of minor units' }),
+    IsWholeNumber('priceMinor must be a whole number of minor units'),
     Min(1),
   );
 const FreeBagsRules = () =>
-  applyDecorators(
-    IsInt({ message: 'freeBags must be a whole number' }),
-    Min(0),
-  );
+  applyDecorators(IsWholeNumber('freeBags must be a whole number'), Min(0));
 const MaxKgRules = () =>
   applyDecorators(
     IsNumber({ allowNaN: false, allowInfinity: false }),
@@ -29,7 +24,11 @@ const MaxKgRules = () =>
     Max(100),
   );
 
-const SEATS = { example: 150, minimum: 1, description: 'Whole number > 0' };
+const SEATS = {
+  example: 150,
+  minimum: 1,
+  description: 'Whole number > 0 (at most 2^53 - 1, so seat counts stay exact)',
+};
 const PRICE = {
   example: 25000,
   minimum: 1,
