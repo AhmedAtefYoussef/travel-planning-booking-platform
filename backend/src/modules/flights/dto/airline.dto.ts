@@ -4,7 +4,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -136,7 +135,7 @@ export class CancellationTierInputDto {
     description:
       'Days before departure (whole number >= 0), unique within the policy. Cancelling at least this many days ahead earns this tier.',
   })
-  @IsInt({ message: 'daysBefore must be a whole number of days' })
+  @IsWholeNumber('daysBefore must be a whole number of days')
   @Min(0)
   daysBefore!: number;
 
@@ -178,7 +177,7 @@ export class RefundPreviewQueryDto {
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && value.trim() !== '' ? Number(value) : value,
   )
-  @IsInt({ message: 'daysRemaining must be a whole number of days' })
+  @IsWholeNumber('daysRemaining must be a whole number of days')
   @Min(0)
   daysRemaining!: number;
 }

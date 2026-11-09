@@ -395,6 +395,18 @@ describe('Airlines (e2e): FLT-01', () => {
         .expect(400);
     });
 
+    it('rejects day counts too large to count exactly (1e20) with field errors', async () => {
+      const res = await http()
+        .put(policyUrl())
+        .set('x-dev-user', moderatorOf(airlineId))
+        .send({ tiers: [{ daysBefore: 1e20, refundPercent: 50 }] })
+        .expect(400);
+      expect(
+        res.body.fieldErrors.map((f: { field: string }) => f.field),
+      ).toEqual(['tiers[0].daysBefore']);
+      await preview('99999999999999999999').expect(400);
+    });
+
     it('an empty list means no refunds', async () => {
       const res = await http()
         .put(policyUrl())
