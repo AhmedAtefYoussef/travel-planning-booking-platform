@@ -1,13 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsIn,
-  IsInt,
-  IsOptional,
-  Matches,
-  Min,
-  ValidateBy,
-} from 'class-validator';
+import { IsIn, IsOptional, Matches, Min, ValidateBy } from 'class-validator';
+import { IsWholeNumber } from './whole-number';
 import type { CabinClass, FlightSearchQuery } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
@@ -97,7 +91,7 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   })
   @IsOptional()
   @Transform(toInteger)
-  @IsInt({ message: 'minPriceMinor must be a whole number of minor units' })
+  @IsWholeNumber('minPriceMinor must be a whole number of minor units')
   @Min(0)
   minPriceMinor?: number;
 
@@ -109,7 +103,7 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   })
   @IsOptional()
   @Transform(toInteger)
-  @IsInt({ message: 'maxPriceMinor must be a whole number of minor units' })
+  @IsWholeNumber('maxPriceMinor must be a whole number of minor units')
   @Min(0)
   maxPriceMinor?: number;
 
