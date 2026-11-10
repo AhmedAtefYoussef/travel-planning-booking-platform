@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
+import { safeInteger } from '../../../common/validation';
 import { SCHEMA_OPTIONS, type CabinClass } from '../../../common/contracts';
 
 /** FLT-30 lifecycle. Only SCHEDULED flights are searchable, editable or bookable. */
@@ -16,11 +17,6 @@ export const CABIN_CLASSES: readonly CabinClass[] = [
   'BUSINESS',
   'FIRST',
 ];
-
-const integer = (name: string) => ({
-  validator: Number.isSafeInteger,
-  message: `${name} must be a whole number`,
-});
 
 /**
  * One cabin category of a flight (FLT-04), embedded because it is bounded and owned by the flight
@@ -43,7 +39,7 @@ export class Cabin {
     type: Number,
     required: true,
     min: 1,
-    validate: integer('totalSeats'),
+    validate: safeInteger('totalSeats'),
   })
   totalSeats!: number;
 
@@ -53,7 +49,7 @@ export class Cabin {
     required: true,
     min: 0,
     validate: [
-      integer('seatsAvailable'),
+      safeInteger('seatsAvailable'),
       {
         // On a document save `this` is the cabin, so the bound is checked. In update validators
         // (runValidators) `this` is the query and has no totalSeats, so this check is skipped:
@@ -75,12 +71,17 @@ export class Cabin {
     type: Number,
     required: true,
     min: 1,
-    validate: integer('priceMinor'),
+    validate: safeInteger('priceMinor'),
   })
   priceMinor!: number;
 
   /** Free checked bags per passenger (FLT-04). */
-  @Prop({ type: Number, required: true, min: 0, validate: integer('freeBags') })
+  @Prop({
+    type: Number,
+    required: true,
+    min: 0,
+    validate: safeInteger('freeBags'),
+  })
   freeBags!: number;
 
   /** Maximum kg per bag; extra bags share the same limit (FLT-08). */

@@ -1,13 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
+import { safeInteger } from '../../../common/validation';
 import { SCHEMA_OPTIONS } from '../../../common/contracts';
 
 export const AIRLINES_COLLECTION = 'airlines';
-
-const integer = (name: string) => ({
-  validator: Number.isSafeInteger,
-  message: `${name} must be a whole number`,
-});
 
 /** One tier of the airline cancellation policy (FLT-09); same shape as CancellationTier. */
 @Schema({ _id: false })
@@ -17,7 +13,7 @@ export class CancellationTierDoc {
     type: Number,
     required: true,
     min: 0,
-    validate: integer('daysBefore'),
+    validate: safeInteger('daysBefore'),
   })
   daysBefore!: number;
 
@@ -36,7 +32,7 @@ export class ExtraBaggageDoc {
     type: Number,
     required: true,
     min: 1,
-    validate: integer('pricePerBagMinor'),
+    validate: safeInteger('pricePerBagMinor'),
   })
   pricePerBagMinor!: number;
 
@@ -45,7 +41,7 @@ export class ExtraBaggageDoc {
     type: Number,
     required: true,
     min: 0,
-    validate: integer('maxExtraBagsPerPassenger'),
+    validate: safeInteger('maxExtraBagsPerPassenger'),
   })
   maxExtraBagsPerPassenger!: number;
 }
