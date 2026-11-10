@@ -1,4 +1,12 @@
-import { Body, Controller, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
@@ -7,11 +15,19 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import {
+  ApiErrorResponses,
+  ApiPaginatedResponse,
+} from '../../common/swagger/api-responses.decorator';
+import {
+  FlightSearchQueryDto,
+  FlightSearchResultDto,
+} from './dto/flight-search.dto';
+import { FlightSearchService } from './flight-search.service';
 import { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
 import { CreateFlightDto, FlightDto } from './dto/flight.dto';
 import { FlightsService } from './flights.service';
@@ -24,7 +40,31 @@ import { FlightsService } from './flights.service';
 @ApiTags('Flights')
 @Controller('flights')
 export class FlightsController {
-  constructor(private readonly flights: FlightsService) {}
+  constructor(
+    private readonly flights: FlightsService,
+    private readonly search: FlightSearchService,
+  ) {}
+
+  /** Declared before any GET /:id route so "search" is never read as an id. */
+  @Get('search')
+  @Public()
+  @ApiOperation({
+    summary:
+      'FLT-11 Search one-way flights by airports, local date and passengers',
+    description:
+      'Public (guests may search). Lists Scheduled flights of active airlines that depart on departureDate in the departure airport\'s local calendar day and have not left yet, one row per flight and cabin with at least `passengers` seats available (total - booked - held). Times are returned in UTC and in each airport\'s local time (GEN-06). Sorted by departure, then fare. An empty page means "no flights found". Page size 10 (GEN-05).',
+  })
+  @ApiPaginatedResponse(FlightSearchResultDto)
+  @ApiErrorResponses(400)
+  searchFlights(@Query() query: FlightSearchQueryDto) {
+    return this.search.searchOneWay({
+      from: query.from,
+      to: query.to,
+      departureDate: query.departureDate,
+      seats: query.passengers,
+      page: query.page,
+    });
+  }
 
   @Post()
   @Roles(Role.AirlineModerator)

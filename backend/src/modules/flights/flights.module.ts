@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { FLIGHTS_SEARCH } from '../../common/contracts';
 import { AirlinesController } from './airlines.controller';
 import { AirlinesService } from './airlines.service';
+import { FlightSearchService } from './flight-search.service';
 import { FlightsController } from './flights.controller';
 import { FlightsService } from './flights.service';
 import { Airline, AirlineSchema } from './schemas/airline.schema';
@@ -19,7 +21,12 @@ import { Flight, FlightSchema } from './schemas/flight.schema';
     ]),
   ],
   controllers: [AirlinesController, FlightsController],
-  providers: [AirlinesService, FlightsService],
-  exports: [MongooseModule, AirlinesService],
+  providers: [
+    AirlinesService,
+    FlightsService,
+    FlightSearchService,
+    { provide: FLIGHTS_SEARCH, useExisting: FlightSearchService },
+  ],
+  exports: [MongooseModule, AirlinesService, FLIGHTS_SEARCH],
 })
 export class FlightsModule {}
