@@ -221,6 +221,21 @@ cancelled flights, inactive airlines and full cabins are excluded, then verified
 ================================================
 
 ================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-30 (TRVL-107 flight status lifecycle)
+Prompt:
+Implement FLT-30: flights are Scheduled, Cancelled or Departed; a job marks Scheduled flights Departed once
+their departure time has passed; only Scheduled flights are searchable, editable or bookable. Avoid adding a
+scheduler dependency; add unit and e2e tests.
+How the output was used:
+Claude wrote FlightStatusService (one conditional updateMany at startup and every minute, off in tests), the
+departure-time guard on edits, and the tests. I checked that search already filters by status and time so nothing
+slips through between runs, and that the job is safe on several API instances.
+================================================
+
+================================================
 Student: Ahmed Atef Youssef
 Tool: Claude (Claude Opus, agentic coding session)
 Related Requirement: FLT-01, FLT-02, FLT-03 (TRVL-28, TRVL-29, TRVL-30 traceability after merge)

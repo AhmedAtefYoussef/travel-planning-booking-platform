@@ -4,6 +4,7 @@ import { FLIGHTS_SEARCH } from '../../common/contracts';
 import { AirlinesController } from './airlines.controller';
 import { AirlinesService } from './airlines.service';
 import { FlightSearchService } from './flight-search.service';
+import { FlightStatusService } from './flight-status.service';
 import { FlightsController } from './flights.controller';
 import { FlightsService } from './flights.service';
 import { Airline, AirlineSchema } from './schemas/airline.schema';
@@ -25,6 +26,7 @@ import { Flight, FlightSchema } from './schemas/flight.schema';
     AirlinesService,
     FlightsService,
     FlightSearchService,
+    FlightStatusService,
     { provide: FLIGHTS_SEARCH, useExisting: FlightSearchService },
   ],
   exports: [MongooseModule, AirlinesService, FLIGHTS_SEARCH],
