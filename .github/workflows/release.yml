@@ -1,0 +1,82 @@
+name: Release
+
+# Publishes a GitHub release when the team leader pushes a v* tag on main (TRVL-136, e.g. v1.0.0-m1).
+# The notes are generated from the merged PR titles since the previous tag (Conventional Commits plus
+# requirement IDs), and the Swagger contract (openapi.json) is attached for graders.
+# Run it by hand (Actions > Release > Run workflow) to preview the notes for any ref without publishing.
+# This workflow never pushes to a branch, so the "only the team leader merges" ruleset does not affect it.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag or commit to preview notes for (nothing is published)'
+        required: true
+        default: develop
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: A release tag must point at a commit on main
+        if: github.event_name == 'push'
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag ${GITHUB_REF_NAME} is not on main. Merge develop into main first, then tag main."
+            exit 1
+          fi
+
+      - name: Generate release notes from merged PRs
+        env:
+          TITLE: ${{ github.event_name == 'push' && github.ref_name || format('preview of {0}', inputs.ref) }}
+          REF: ${{ github.event_name == 'push' && github.ref_name || 'HEAD' }}
+        run: |
+          node .github/scripts/release-notes.mjs "$REF" --title "$TITLE" > release-notes.md
+          cat release-notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/cache@v4
+        if: github.event_name == 'push'
+        with:
+          path: ${{ github.workspace }}/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+      - name: Build the backend and its OpenAPI document
+        if: github.event_name == 'push'
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+          npm run openapi:generate
+
+      - name: Publish the GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" backend/openapi.json \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md

@@ -420,3 +420,17 @@ Claude exempted unit-spec-only module changes from the traceability-row rule (wi
 issue templates that point feature work to Jira, and set a coverage floor on src/modules (70% lines, measured at
 76% today) so new modules cannot land without unit tests. npm run verify passes.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-136 (code freeze and v1.0.0-m1 release)
+Prompt:
+Add a release-notes workflow before the code freeze that does not push to develop or main: publish a GitHub
+release when a v* tag is pushed, with notes built from the merged PR titles.
+How the output was used:
+Claude wrote release-notes.mjs (groups merged PRs by Conventional Commit type and tabulates the requirement IDs
+they cite) with unit tests, and release.yml, which refuses tags that are not on main, attaches openapi.json, and
+can preview notes without publishing. I previewed the notes on the current develop history before committing.
+================================================
