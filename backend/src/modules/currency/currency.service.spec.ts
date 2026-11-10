@@ -47,6 +47,16 @@ function setup(
       sort: () => ({ lean: () => ({ exec: () => Promise.resolve(cached) }) }),
     })),
     updateOne,
+    exists: jest.fn((filter: { fetchedAt: { $gte: Date; $lt: Date } }) => ({
+      exec: () =>
+        Promise.resolve(
+          cached &&
+            cached.fetchedAt >= filter.fetchedAt.$gte &&
+            cached.fetchedAt < filter.fetchedAt.$lt
+            ? { _id: 'x' }
+            : null,
+        ),
+    })),
   };
   const reference = {
     listCountries: jest.fn(() =>
@@ -210,6 +220,19 @@ describe('CurrencyRatesService (TRVL-133, ITN-18)', () => {
       );
     });
 
+    it('rejects a bad amount with 400 on every path, even while no rates are cached', async () => {
+      const { service } = setup({ cached: null });
+      for (const [from, to] of [
+        ['USD', 'USD'],
+        ['USD', 'EGP'],
+      ]) {
+        await expect(service.convert(1.5, from, to)).rejects.toMatchObject({
+          status: 400,
+          message: 'amountMinor must be an integer number of minor units',
+        });
+      }
+    });
+
     it('rejects an amount whose converted value is too large to be exact', async () => {
       const { service } = setup();
       await expect(
@@ -252,11 +275,62 @@ describe('CurrencyRatesService (TRVL-133, ITN-18)', () => {
           base: 'USD',
           rateDate: '2026-11-09',
           fetchedAt: new Date('2026-11-10T00:00:05Z'),
-          rates: { EUR: 0.8 },
+          rates: { EUR: 0.8, EGP: 50, JPY: 150 },
         },
       });
       await expect(service.refresh(NOW)).resolves.toBe('fresh');
       expect(client.fetchLatest).not.toHaveBeenCalled();
+    });
+
+    it('fetches again the same day when a supported currency has no cached rate yet', async () => {
+      const { service, client } = setup({
+        cached: {
+          base: 'USD',
+          rateDate: '2026-11-09',
+          fetchedAt: new Date('2026-11-10T00:00:05Z'),
+          rates: { EUR: 0.8 },
+        },
+      });
+      client.fetchLatest.mockResolvedValue({
+        base: 'USD',
+        rateDate: '2026-11-10',
+        rates: { EUR: 0.81, EGP: 50.2, JPY: 151 },
+      });
+      await expect(service.refresh(NOW)).resolves.toBe('fetched');
+    });
+
+    it('never throws when the database is unavailable (it runs from a timer)', async () => {
+      const { service, model, client } = setup();
+      model.findOne.mockImplementationOnce(() => {
+        throw new Error('connection lost');
+      });
+      await expect(service.refresh(NOW)).resolves.toBe('failed');
+      expect(client.fetchLatest).not.toHaveBeenCalled();
+    });
+
+    it('treats a duplicate-key race with another instance as already fetched', async () => {
+      const { service, client, updateOne } = setup();
+      client.fetchLatest.mockResolvedValue({
+        base: 'USD',
+        rateDate: '2026-11-10',
+        rates: { EUR: 0.81, EGP: 50.2, JPY: 151 },
+      });
+      updateOne.mockImplementationOnce(() => ({
+        exec: () =>
+          Promise.reject(Object.assign(new Error('E11000'), { code: 11000 })),
+      }));
+      await expect(service.refresh(NOW)).resolves.toBe('fresh');
+    });
+
+    it('refuses a rate date in the future, which would stay newest for ever', async () => {
+      const { service, client, updateOne } = setup();
+      client.fetchLatest.mockResolvedValue({
+        base: 'USD',
+        rateDate: '2026-11-13',
+        rates: { EUR: 0.81, EGP: 50.2, JPY: 151 },
+      });
+      await expect(service.refresh(NOW)).resolves.toBe('failed');
+      expect(updateOne).not.toHaveBeenCalled();
     });
 
     it('fetches when nothing is cached yet', async () => {
@@ -324,7 +398,7 @@ describe('CurrencyRatesService (TRVL-133, ITN-18)', () => {
       expect(client.fetchLatest).toHaveBeenCalledTimes(1);
       await jest.advanceTimersByTimeAsync(RATES_CHECK_INTERVAL_MS);
       expect(client.fetchLatest).toHaveBeenCalledTimes(2);
-      service.onApplicationShutdown();
+      await service.onApplicationShutdown();
       await jest.advanceTimersByTimeAsync(RATES_CHECK_INTERVAL_MS * 3);
       expect(client.fetchLatest).toHaveBeenCalledTimes(2);
     });

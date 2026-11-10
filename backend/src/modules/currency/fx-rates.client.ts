@@ -88,10 +88,7 @@ function parseSnapshot(body: unknown, requestedBase: string): FxRatesSnapshot {
     );
   }
   const rateDate = typeof date === 'string' ? date.slice(0, 10) : '';
-  if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(rateDate) ||
-    Number.isNaN(Date.parse(rateDate))
-  ) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rateDate) || !isCalendarDate(rateDate)) {
     throw new FxRatesApiError('FXRatesAPI returned no usable rate date');
   }
   if (typeof rates !== 'object' || rates === null) {
@@ -113,4 +110,12 @@ function parseSnapshot(body: unknown, requestedBase: string): FxRatesSnapshot {
     throw new FxRatesApiError('FXRatesAPI returned no usable rates');
   }
   return { base: requestedBase, rateDate, rates: clean };
+}
+
+/** 2026-02-30 parses in some runtimes; only a date that survives a round trip is real. */
+function isCalendarDate(day: string): boolean {
+  const parsed = new Date(`${day}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === day
+  );
 }

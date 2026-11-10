@@ -18,7 +18,7 @@ import {
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { InvalidInputError } from '../../common/errors/invalid-input.error';
-import { assertMinorUnits, convertMinor } from '../../common/utils/money';
+import { convertMinor, isMinorUnits } from '../../common/utils/money';
 import {
   NodeEnv,
   type EnvironmentVariables,
@@ -39,6 +39,7 @@ export interface CachedRates {
 
 export type RefreshOutcome = 'fetched' | 'fresh' | 'failed';
 
+const DAY_MS = 24 * 60 * 60 * 1000;
 const utcDay = (instant: Date): string => instant.toISOString().slice(0, 10);
 
 /**
@@ -59,6 +60,7 @@ export class CurrencyRatesService
 {
   private readonly logger = new Logger(CurrencyRatesService.name);
   private timer?: NodeJS.Timeout;
+  private running?: Promise<RefreshOutcome>;
 
   constructor(
     @InjectModel(ExchangeRate.name)
@@ -127,6 +129,14 @@ export class CurrencyRatesService
     from: string,
     to: string,
   ): Promise<Conversion> {
+    // Input is checked before anything else, so a bad amount is a 400 even while rates are missing.
+    if (!isMinorUnits(amountMinor)) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.BAD_REQUEST,
+        'amountMinor must be an integer number of minor units',
+      );
+    }
     const source = from.trim().toUpperCase();
     const target = to.trim().toUpperCase();
     const supported = await this.supportedCurrencies();
@@ -142,7 +152,7 @@ export class CurrencyRatesService
     if (source === target) {
       const latest = await this.latestRates();
       return {
-        amountMinor: convertMinor(amountMinor, source, target, 1),
+        amountMinor,
         rate: 1,
         rateDate: latest?.rateDate ?? utcDay(new Date()),
       };
@@ -178,7 +188,6 @@ export class CurrencyRatesService
     to: string,
     rate: number,
   ): number {
-    assertMinorUnits(amountMinor, 'amountMinor');
     try {
       return convertMinor(amountMinor, from, to, rate);
     } catch (e) {
@@ -192,27 +201,47 @@ export class CurrencyRatesService
   }
 
   /**
-   * Fetches today's rates unless they were already fetched today (UTC). A failed fetch is logged and
-   * reported as 'failed'; the cache is left untouched so the last good rates keep being used.
+   * Fetches today's rates unless they were already fetched today (UTC) and cover every supported
+   * currency. A failed fetch is logged and reported as 'failed'; the cache is left untouched so the
+   * last good rates keep being used. Never throws: it runs unattended from a timer.
    */
   async refresh(now: Date = new Date()): Promise<RefreshOutcome> {
     const base = this.baseCurrency;
-    const latest = await this.latestRates();
-    if (latest && utcDay(latest.fetchedAt) === utcDay(now)) return 'fresh';
+    let latest: CachedRates | null = null;
     try {
+      latest = await this.latestRates();
       const currencies = (await this.supportedCurrencies()).filter(
         (code) => code !== base,
       );
       // Nothing to ask for before the reference data is seeded (startup already warned about that).
       if (currencies.length === 0) return 'failed';
+      const cached = latest;
+      const fetchedToday = await this.fetchedOn(base, utcDay(now));
+      const complete =
+        cached !== null &&
+        currencies.every((code) => typeof cached.rates[code] === 'number');
+      if (fetchedToday && complete) return 'fresh';
+
       const snapshot = await this.client.fetchLatest(base, currencies);
-      await this.exchangeRates
-        .updateOne(
-          { base, rateDate: snapshot.rateDate },
-          { $set: { rates: snapshot.rates, fetchedAt: now } },
-          { upsert: true, runValidators: true },
-        )
-        .exec();
+      // A rate day in the future would stay "newest" for ever; the API reports today or earlier.
+      if (snapshot.rateDate > utcDay(new Date(now.getTime() + DAY_MS))) {
+        throw new Error(
+          `FXRatesAPI returned a rate date in the future (${snapshot.rateDate})`,
+        );
+      }
+      try {
+        await this.exchangeRates
+          .updateOne(
+            { base, rateDate: snapshot.rateDate },
+            { $set: { rates: snapshot.rates, fetchedAt: now } },
+            { upsert: true, runValidators: true },
+          )
+          .exec();
+      } catch (e) {
+        // Another API instance stored the same rate day a moment earlier: its document is the cache.
+        if ((e as { code?: number }).code === 11000) return 'fresh';
+        throw e;
+      }
       this.logger.log(
         `Exchange rates of ${snapshot.rateDate} cached (base ${base}, ${Object.keys(snapshot.rates).length} currencies)`,
       );
@@ -225,19 +254,33 @@ export class CurrencyRatesService
     }
   }
 
+  /** True when any rate document of `base` was stored on the given UTC day. */
+  private async fetchedOn(base: string, day: string): Promise<boolean> {
+    const start = new Date(`${day}T00:00:00.000Z`);
+    const found = await this.exchangeRates
+      .exists({
+        base,
+        fetchedAt: { $gte: start, $lt: new Date(start.getTime() + DAY_MS) },
+      })
+      .exec();
+    return found !== null;
+  }
+
   async onApplicationBootstrap(): Promise<void> {
     await this.assertPlatformCurrencyIsSeeded();
     if (this.config.get('NODE_ENV', { infer: true }) === NodeEnv.Test) return;
-    void this.refresh();
-    this.timer = setInterval(
-      () => void this.refresh(),
-      RATES_CHECK_INTERVAL_MS,
-    );
+    const run = () => {
+      this.running = this.refresh();
+    };
+    run();
+    this.timer = setInterval(run, RATES_CHECK_INTERVAL_MS);
     this.timer.unref();
   }
 
-  onApplicationShutdown(): void {
+  /** Lets a fetch that is in flight finish, so a short-lived process (the seed script) closes cleanly. */
+  async onApplicationShutdown(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
+    await this.running;
   }
 
   /**

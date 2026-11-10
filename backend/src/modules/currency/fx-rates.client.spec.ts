@@ -64,7 +64,17 @@ describe('FxRatesClient (TRVL-133)', () => {
   it('drops rates that are not positive finite numbers', async () => {
     respondWith({
       ...OK,
-      rates: { EUR: 0.92, EGP: 0, GBP: -1, JPY: 'x', SAR: null, aed: 3.67 },
+      rates: {
+        EUR: 0.92,
+        EGP: 0,
+        GBP: -1,
+        JPY: 'x',
+        SAR: null,
+        aed: 3.67,
+        'A.B': 1,
+        $US: 1,
+        ['__proto__']: 1,
+      },
     });
     const snapshot = await client().fetchLatest('USD', ['EUR']);
     expect(snapshot.rates).toEqual({ EUR: 0.92 });
@@ -76,6 +86,7 @@ describe('FxRatesClient (TRVL-133)', () => {
     ['another base', { ...OK, base: 'EUR' }, 200, 'another base currency'],
     ['no date', { ...OK, date: undefined }, 200, 'no usable rate date'],
     ['a bad date', { ...OK, date: '2026-13-45' }, 200, 'no usable rate date'],
+    ['an impossible date', { ...OK, date: '2026-02-30' }, 200, 'no usable'],
     ['no rates', { ...OK, rates: undefined }, 200, 'no rates'],
     ['only unusable rates', { ...OK, rates: { EUR: 0 } }, 200, 'no usable'],
     ['a body without the expected fields', [1], 200, 'failed request'],
