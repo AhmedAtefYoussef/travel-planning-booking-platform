@@ -80,6 +80,14 @@ function setup() {
   return { service, model, created, airlines };
 }
 
+/** AirlinesService stub whose airline is active (ACC-15). */
+const activeAirline = () =>
+  ({
+    loadActive: jest.fn(() =>
+      Promise.resolve({ _id: airlineId, isActive: true }),
+    ),
+  }) as unknown as AirlinesService;
+
 const base: CreateFlightDto = {
   flightNumber: 'MS777',
   from: 'CAI',
@@ -268,5 +276,225 @@ describe('FlightsService.create (FLT-03, GEN-06)', () => {
     await expect(service.create(noAirline, base, NOW)).rejects.toMatchObject({
       status: 403,
     });
+  });
+});
+
+describe('FlightsService cabins (FLT-04)', () => {
+  const flightId = new Types.ObjectId();
+  const cabinId = new Types.ObjectId();
+
+  function setupCabins(
+    overrides: { status?: string; airline?: Types.ObjectId } = {},
+  ) {
+    const flight = {
+      _id: flightId,
+      id: flightId.toHexString(),
+      airlineId: overrides.airline ?? airlineId,
+      flightNumber: 'MS777',
+      from: 'CAI',
+      to: 'DXB',
+      departureUtc: new Date('2026-12-01T12:30:00Z'),
+      arrivalUtc: new Date('2026-12-01T14:45:00Z'),
+      departureLocalDate: '2026-12-01',
+      status: overrides.status ?? 'SCHEDULED',
+      cabins: [
+        {
+          _id: cabinId,
+          class: 'ECONOMY',
+          totalSeats: 100,
+          seatsAvailable: 70,
+          priceMinor: 25_000,
+          freeBags: 1,
+          maxKgPerBag: 23,
+        },
+      ],
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    const model = {
+      findById: jest.fn(() => ({ exec: () => Promise.resolve(flight) })),
+      findOneAndUpdate: jest.fn(() => ({
+        exec: () => Promise.resolve(flight),
+      })),
+    };
+    const reference = {
+      getAirport: jest.fn((code: string) =>
+        Promise.resolve(AIRPORTS[code] ?? null),
+      ),
+    } as unknown as ReferenceService;
+    const service = new FlightsService(
+      model as unknown as Model<Flight>,
+      reference,
+      activeAirline(),
+    );
+    return { service, model };
+  }
+
+  const economy = {
+    class: 'ECONOMY' as const,
+    totalSeats: 150,
+    priceMinor: 25_000,
+    freeBags: 1,
+    maxKgPerBag: 23,
+  };
+
+  it('refuses a class the flight already has, before writing', async () => {
+    const { service, model } = setupCabins();
+    await expect(
+      service.addCabin(moderator, flightId.toHexString(), economy),
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('adds a new class with seatsAvailable equal to totalSeats, guarded against duplicates', async () => {
+    const { service, model } = setupCabins();
+    await service.addCabin(moderator, flightId.toHexString(), {
+      ...economy,
+      class: 'BUSINESS',
+      totalSeats: 20,
+    });
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: flightId,
+        status: 'SCHEDULED',
+        'cabins.class': { $ne: 'BUSINESS' },
+      },
+      {
+        $push: {
+          cabins: expect.objectContaining({
+            class: 'BUSINESS',
+            totalSeats: 20,
+            seatsAvailable: 20,
+          }) as unknown,
+        },
+      },
+      { new: true, runValidators: true },
+    );
+  });
+
+  it('refuses to drop totalSeats below the 30 seats already taken', async () => {
+    const { service, model } = setupCabins();
+    await expect(
+      service.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        { totalSeats: 29 },
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'Cannot reduce ECONOMY to 29 seats: 30 are already booked or held',
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('applies a seat reduction as one conditional update that keeps seatsAvailable >= 0', async () => {
+    const { service, model } = setupCabins();
+    await service.updateCabin(
+      moderator,
+      flightId.toHexString(),
+      cabinId.toHexString(),
+      {
+        totalSeats: 40,
+        priceMinor: 27_500,
+      },
+    );
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: flightId,
+        status: 'SCHEDULED',
+        cabins: {
+          $elemMatch: {
+            _id: cabinId,
+            totalSeats: 100,
+            seatsAvailable: { $gte: 60 },
+          },
+        },
+      },
+      {
+        $set: { 'cabins.$.priceMinor': 27_500, 'cabins.$.totalSeats': 40 },
+        $inc: { 'cabins.$.seatsAvailable': -60 },
+      },
+      // Schema validators (safe integers, minimums) also run on the update, behind the DTO.
+      { new: true, runValidators: true },
+    );
+  });
+
+  it('treats the same seat count as no change', async () => {
+    const { service, model } = setupCabins();
+    const dto = await service.updateCabin(
+      moderator,
+      flightId.toHexString(),
+      cabinId.toHexString(),
+      {
+        totalSeats: 100,
+      },
+    );
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(dto.cabins[0]).toMatchObject({
+      totalSeats: 100,
+      seatsAvailable: 70,
+    });
+  });
+
+  it("refuses changes to a deactivated airline's flights (ACC-15)", async () => {
+    const { model } = setupCabins();
+    const inactive = {
+      loadActive: jest.fn(() =>
+        Promise.reject(
+          Object.assign(new Error('deactivated'), { status: 403 }),
+        ),
+      ),
+    } as unknown as AirlinesService;
+    const blocked = new FlightsService(
+      model as unknown as Model<Flight>,
+      {} as ReferenceService,
+      inactive,
+    );
+    await expect(
+      blocked.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        {
+          priceMinor: 1,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty edit, another airline, and a flight that is not Scheduled', async () => {
+    await expect(
+      setupCabins().service.updateCabin(
+        moderator,
+        flightId.toHexString(),
+        cabinId.toHexString(),
+        {},
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      setupCabins({ airline: new Types.ObjectId() }).service.addCabin(
+        moderator,
+        flightId.toHexString(),
+        {
+          ...economy,
+          class: 'FIRST',
+        },
+      ),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(
+      setupCabins({ status: 'DEPARTED' }).service.addCabin(
+        moderator,
+        flightId.toHexString(),
+        {
+          ...economy,
+          class: 'FIRST',
+        },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });
