@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   aiPromptLogErrors,
+  brokenRelativeLinks,
   conflictMarkerLines,
   SEPARATOR,
 } from './repo-hygiene.mjs';
@@ -129,5 +130,25 @@ test('a template without its closing separator cannot switch the check off', () 
   assert.match(
     aiPromptLogErrors(text)[0],
     /template must end with a separator/,
+  );
+});
+
+test('relative Markdown links to missing files are reported', () => {
+  const md = [
+    'See [conventions](api/conventions.md) and [the ERD](architecture/erd.md#users).',
+    '[web](https://example.com) [anchor](#setup) [mail](mailto:a@b.c)',
+    '`[not a link](missing.md)` inside code',
+    '```',
+    '[also code](missing.md)',
+    '```',
+    '![diagram](img/missing.png "Flow")',
+  ].join('\n');
+  const present = new Set(['api/conventions.md']);
+  assert.deepEqual(
+    brokenRelativeLinks(md, (p) => present.has(p)),
+    [
+      { line: 1, target: 'architecture/erd.md#users' },
+      { line: 7, target: 'img/missing.png' },
+    ],
   );
 });

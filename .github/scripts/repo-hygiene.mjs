@@ -148,3 +148,30 @@ function findFirstEntry(lines) {
   }
   return -1;
 }
+
+/**
+ * Relative Markdown links whose target file or folder does not exist: [{ line, target }]. `exists(path)` gets
+ * the target resolved against the linking file's folder, without any #anchor. Web links, mail links,
+ * same-page anchors and links inside code (fenced blocks or `inline code`) are skipped.
+ */
+export function brokenRelativeLinks(markdown, exists) {
+  const broken = [];
+  let fenced = false;
+  lineList(markdown).forEach((line, i) => {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      return;
+    }
+    if (fenced) return;
+    const prose = line.replace(/`[^`]*`/g, '');
+    for (const m of prose.matchAll(
+      /!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+    )) {
+      const target = m[1];
+      if (/^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(target)) continue;
+      const path = decodeURI(target.split('#')[0]);
+      if (path && !exists(path)) broken.push({ line: i + 1, target });
+    }
+  });
+  return broken;
+}

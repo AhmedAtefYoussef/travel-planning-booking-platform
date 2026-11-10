@@ -434,3 +434,18 @@ Claude wrote release-notes.mjs (groups merged PRs by Conventional Commit type an
 they cite) with unit tests, and release.yml, which refuses tags that are not on main, attaches openapi.json, and
 can preview notes without publishing. I previewed the notes on the current develop history before committing.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-129 (CI quality gates), TRVL-134 (traceability), TRVL-135 (AI prompt log)
+Prompt:
+Make the GitHub workflows more precise: run guard rails when only scripts change, check the matrix statuses and
+PR numbers, make the AI prompt log append-only, format-check the repo scripts, check Markdown links, and warn on
+stacked or cumulative PRs.
+How the output was used:
+Claude added each rule with unit tests (33 script tests pass) and docs for teammates. I ran the new governance
+check against real PRs: it warns on the stacked hotels PRs, flags the AI-log repair in #26 (now labelled
+ai-log-fix), and the stale-status rule finds exactly the three GEN rows that were left In review on develop.
+================================================

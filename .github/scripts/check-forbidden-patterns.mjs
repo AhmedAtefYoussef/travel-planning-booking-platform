@@ -13,25 +13,33 @@ const RULES = [
   {
     id: 'no-browser-token-storage',
     why: 'Auth tokens must live only in httpOnly cookies, never localStorage/sessionStorage (ACC-19).',
-    test: (line) => /\b(localStorage|sessionStorage)\b/.test(line) && /token|jwt|auth|session/i.test(line),
+    test: (line) =>
+      /\b(localStorage|sessionStorage)\b/.test(line) &&
+      /token|jwt|auth|session/i.test(line),
   },
   {
     id: 'no-raw-card-data',
     why: 'Never store or accept raw card data; Stripe Elements/PaymentIntents only (PAY-01, brief 6.4).',
     test: (line, file) =>
-      file.startsWith('backend/') && /\b(cardNumber|card_number|cvc|cvv|cardCvc|expiryMonth|exp_month)\b/.test(line),
+      file.startsWith('backend/') &&
+      /\b(cardNumber|card_number|cvc|cvv|cardCvc|expiryMonth|exp_month)\b/.test(
+        line,
+      ),
   },
   {
     id: 'no-hardcoded-secrets',
     why: 'Secrets come from environment variables validated at startup, never from source.',
     test: (line) =>
-      /\b(sk_(live|test)_[A-Za-z0-9]{10,}|whsec_[A-Za-z0-9]{10,}|mongodb(\+srv)?:\/\/[^<\s'"]+:[^<\s'"]+@)/.test(line),
+      /\b(sk_(live|test)_[A-Za-z0-9]{10,}|whsec_[A-Za-z0-9]{10,}|mongodb(\+srv)?:\/\/[^<\s'"]+:[^<\s'"]+@)/.test(
+        line,
+      ),
   },
   {
     id: 'no-unsafe-integer-check',
     why: 'Number.isInteger and @IsInt() accept 1e20, which breaks $inc and money sums. Use IsWholeNumber (DTOs) or safeInteger (schemas) from common/validation (ADR-0002, PAY-04).',
     test: (line, file) =>
-      file.startsWith('backend/src/modules/') && /(@IsInt\(|\bNumber\.isInteger\()/.test(line),
+      file.startsWith('backend/src/modules/') &&
+      /(@IsInt\(|\bNumber\.isInteger\()/.test(line),
   },
 ];
 
@@ -46,7 +54,8 @@ function* walk(dir) {
     if (SKIP_DIRS.has(name)) continue;
     const full = join(dir, name);
     if (statSync(full).isDirectory()) yield* walk(full);
-    else if (EXT.test(name) && !/\.(spec|test|e2e-spec)\.[jt]sx?$/.test(name)) yield full;
+    else if (EXT.test(name) && !/\.(spec|test|e2e-spec)\.[jt]sx?$/.test(name))
+      yield full;
   }
 }
 
@@ -55,7 +64,9 @@ const exemptions = [];
 const publicRoutes = [];
 // A reviewed exception is marked on the same or previous line: `// guard-rails: allow <rule-id> - <reason>`.
 const allowed = (lines, i, id) =>
-  [lines[i], lines[i - 1] ?? ''].some((l) => l.includes(`guard-rails: allow ${id}`));
+  [lines[i], lines[i - 1] ?? ''].some((l) =>
+    l.includes(`guard-rails: allow ${id}`),
+  );
 for (const root of ROOTS) {
   for (const full of walk(root)) {
     const file = relative('.', full).replaceAll('\\', '/');
@@ -64,17 +75,21 @@ for (const root of ROOTS) {
       if (/^\s*(\/\/|\*)/.test(line)) return;
       for (const rule of RULES) {
         if (!rule.test(line, file)) continue;
-        if (allowed(lines, i, rule.id)) exemptions.push(`${file}:${i + 1} (${rule.id})`);
+        if (allowed(lines, i, rule.id))
+          exemptions.push(`${file}:${i + 1} (${rule.id})`);
         else violations.push({ file, line: i + 1, rule });
       }
-      if (/@Public\(\)/.test(line) && !file.endsWith('auth.decorators.ts')) publicRoutes.push(`${file}:${i + 1}`);
+      if (/@Public\(\)/.test(line) && !file.endsWith('auth.decorators.ts'))
+        publicRoutes.push(`${file}:${i + 1}`);
     });
   }
 }
 
 const out = [
   `### Guard rails: ${violations.length ? `${violations.length} violation(s)` : 'OK'}`,
-  ...violations.map((v) => `- :x: \`${v.file}:${v.line}\` **${v.rule.id}**: ${v.rule.why}`),
+  ...violations.map(
+    (v) => `- :x: \`${v.file}:${v.line}\` **${v.rule.id}**: ${v.rule.why}`,
+  ),
   '',
   `#### Reviewed exemptions: ${exemptions.length}`,
   ...(exemptions.length ? exemptions.map((e) => `- \`${e}\``) : ['- none']),
@@ -85,6 +100,10 @@ const out = [
   '<sub>Reviewers: confirm each public route is meant to be reachable by guests (brief section 4).</sub>',
 ].join('\n');
 console.log(out);
-if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, out + '\n');
-for (const v of violations) console.log(`::error file=${v.file},line=${v.line}::${v.rule.id}: ${v.rule.why}`);
+if (process.env.GITHUB_STEP_SUMMARY)
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, out + '\n');
+for (const v of violations)
+  console.log(
+    `::error file=${v.file},line=${v.line}::${v.rule.id}: ${v.rule.why}`,
+  );
 process.exit(violations.length ? 1 : 0);

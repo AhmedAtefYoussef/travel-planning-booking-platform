@@ -78,8 +78,8 @@ Write your module against `@CurrentUser()`, `@Roles()` and `@Public()`. When the
 
 1. Run the local gate in `backend/`: `npm run verify`. CI runs the same steps.
 2. Add your entry at the bottom of `AI_PROMPTS.txt` if AI helped (the format is at the top of the file).
-3. Update your requirement's row in `docs/requirements/traceability.md`: endpoint, PR number, status `In review`.
-4. Push, then open the PR **into `develop`** (never `main`, and never another feature branch). Fill in every template section. Tick a checklist item that doesn't apply and write `(N/A)` after it.
+3. Push, then open the PR **into `develop`** (never `main`, and never another feature branch). Fill in every template section. Tick a checklist item that doesn't apply and write `(N/A)` after it.
+4. Now that the PR has a number, update your requirement's row in `docs/requirements/traceability.md`: the endpoint, the PR number (e.g. `#31`) and the status it will have once merged (`Done`, or `Partial: <what is done>`). Commit and push it. CI fails until the row cites this PR.
 5. Comment the PR link on the Jira issue.
 6. Check your own diff against [docs/process/review-checklist.md](process/review-checklist.md), then request a review from the team leader (@AhmedAtefYoussef). They are the only reviewer and the only person who merges, so never press Merge yourself.
 7. Once they have merged it, move the Jira issue to **Done** and delete your local branch.
