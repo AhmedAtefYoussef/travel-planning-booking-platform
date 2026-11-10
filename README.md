@@ -12,19 +12,24 @@ GIU Software Project I (Winter 2026). One web platform for flight and hotel book
 
 ```
 backend/            NestJS API (Milestone 1)
-  src/common/       shared infrastructure: config, validation, errors, pagination, auth decorators, contracts
-  src/modules/      one folder per feature module (auth, flights, hotels, payments, itineraries, blog, admin, ...)
-  scripts/          OpenAPI generation and Swagger contract checks used by CI
+  src/config/       environment validation (fails fast on a missing or unsafe variable)
+  src/common/       shared infrastructure: validation, errors, pagination, auth decorators, utils, contracts
+  src/modules/      one folder per feature module; today audit, flights, health, payments (schemas), reference
+  scripts/          seed, db:check, OpenAPI generation and the Swagger contract checks used by CI
 frontend/           Next.js app (Milestone 2)
 docs/requirements/  requirements.json (from the official workbook) and traceability.md
 docs/architecture/  ERD and architecture decision records (ADRs)
-docs/api/           API notes and the Swagger demo script
+docs/api/           API conventions every module follows (the Swagger demo script lands with TRVL-135)
 docs/setup/         environment and MongoDB Atlas setup
+docs/process/       review checklist
+docs/ONBOARDING.md  first day: clone to first merged PR
 AI_PROMPTS.txt      mandatory AI prompt log (brief section 11.1)
 .env.example        every environment variable the backend needs, without values
 ```
 
 ## Getting started
+
+New to the team? Follow [docs/ONBOARDING.md](docs/ONBOARDING.md): it covers access, `.env`, `db:check`, the Swagger `dev-user` stub and your first PR. The short version:
 
 Prerequisites: Node.js 22 LTS or newer, npm, and access to the team MongoDB Atlas cluster.
 

@@ -145,10 +145,10 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | GEN-01 | Mandatory | GET /api/notifications; PATCH /api/notifications/:id/read | Karim | TRVL-96 | - | Not started |
-| GEN-02 | Mandatory | global ValidationPipe + AllExceptionsFilter (all endpoints); demo: POST /api/diagnostics/validation, /api/diagnostics/records | Ahmed | TRVL-97 | #2, #3 | In review |
+| GEN-02 | Mandatory | global ValidationPipe + AllExceptionsFilter (all endpoints); demo: POST /api/diagnostics/validation, /api/diagnostics/records | Ahmed | TRVL-97 | #2, #3 | Done |
 | GEN-03 | Mandatory | (frontend, Milestone 2) | Karim | TRVL-98 | - | Not started |
 | GEN-04 | Mandatory | (frontend, Milestone 2) | Sarah | TRVL-99 | - | Not started |
-| GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | In review |
+| GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | Done |
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4 | Partial: AUDIT_SERVICE + schema; endpoint pending |
 | GEN-08 | Mandatory | UPLOADS_SERVICE (image endpoints) | Ahmed | TRVL-103 | - | Not started |
@@ -156,7 +156,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS) | Ahmed | TRVL-106 | #4 | Partial: transition table |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
-| GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | In review |
+| GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | Done |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | - | Not started |
 | GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |
 | GEN-15 | Mandatory | (frontend, Milestone 2) | Joudy | TRVL-114 | - | Not started |

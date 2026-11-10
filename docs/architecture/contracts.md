@@ -1,6 +1,6 @@
 # Cross-module contracts (TRVL-132)
 
-Modules never import each other's services or schemas. dependency-cruiser enforces this in CI. A module that needs another module's behaviour injects a **token** from `backend/src/common/contracts` and codes against the **interface** next to it. The owner provides the implementation:
+Modules never import each other's internals. dependency-cruiser enforces this in CI: a module may import another only through its public `index.ts` (which may export schemas, e.g. `flights/index.ts`, so a consumer can register a read model) or through a token below. A module that needs another module's behaviour injects a **token** from `backend/src/common/contracts` and codes against the **interface** next to it. The owner provides the implementation:
 
 ```ts
 // consumer
@@ -21,6 +21,7 @@ exports: [AUDIT_SERVICE],
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
+| `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | flight-bookings (Karim) | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
 | `UPLOADS_SERVICE` | `UploadsService.saveImages` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (Ahmed) | blog, itineraries, hotels, airlines |
 
 ## Shared rules that live in the contracts
