@@ -7,6 +7,7 @@ import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type {
   AirlineDto,
+  BaggagePolicyDto,
   CreateAirlineDto,
   UpdateAirlineDto,
 } from './dto/airline.dto';
@@ -57,6 +58,22 @@ export class AirlinesService {
     if (dto.name !== undefined) airline.name = dto.name;
     if (dto.code !== undefined) airline.code = dto.code;
     if (dto.logoUrl !== undefined) airline.logoUrl = dto.logoUrl;
+    await airline.save();
+    return toAirlineDto(airline);
+  }
+
+  /** FLT-08: set (or replace) the extra-baggage policy; only the airline's moderator. */
+  async setBaggagePolicy(
+    user: AuthUser,
+    id: string,
+    dto: BaggagePolicyDto,
+  ): Promise<AirlineDto> {
+    const airline = await this.load(id);
+    assertProviderScope(user, ProviderType.Airline, airline._id);
+    airline.set('policy.extraBaggage', {
+      pricePerBagMinor: dto.pricePerBagMinor,
+      maxExtraBagsPerPassenger: dto.maxExtraBagsPerPassenger,
+    });
     await airline.save();
     return toAirlineDto(airline);
   }

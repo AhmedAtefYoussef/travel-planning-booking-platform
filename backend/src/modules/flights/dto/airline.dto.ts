@@ -8,8 +8,10 @@ import {
   Length,
   Matches,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { Omittable } from './omittable';
+import { IsWholeNumber } from './whole-number';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -92,6 +94,32 @@ export class UpdateAirlineDto {
   @IsOptional()
   @LogoUrlRules()
   logoUrl?: string | null;
+}
+
+/**
+ * FLT-08: the airline's extra-baggage policy. Each extra bag has the same maximum weight as the
+ * cabin's free baggage allowance (FLT-04), so only the price and the per-passenger cap are set here.
+ */
+export class BaggagePolicyDto {
+  @ApiProperty({
+    example: 4000,
+    minimum: 1,
+    description:
+      'Price per extra bag in minor units (4000 = 40.00 in the platform currency), > 0',
+  })
+  @IsWholeNumber('pricePerBagMinor must be a whole number of minor units')
+  @Min(1)
+  pricePerBagMinor!: number;
+
+  @ApiProperty({
+    example: 2,
+    minimum: 0,
+    description:
+      'Maximum extra bags one passenger may buy, whole number >= 0; 0 means none',
+  })
+  @IsWholeNumber('maxExtraBagsPerPassenger must be a whole number')
+  @Min(0)
+  maxExtraBagsPerPassenger!: number;
 }
 
 export class CancellationTierDto {
