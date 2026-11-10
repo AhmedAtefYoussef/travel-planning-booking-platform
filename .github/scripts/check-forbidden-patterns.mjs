@@ -27,6 +27,12 @@ const RULES = [
     test: (line) =>
       /\b(sk_(live|test)_[A-Za-z0-9]{10,}|whsec_[A-Za-z0-9]{10,}|mongodb(\+srv)?:\/\/[^<\s'"]+:[^<\s'"]+@)/.test(line),
   },
+  {
+    id: 'no-unsafe-integer-check',
+    why: 'Number.isInteger and @IsInt() accept 1e20, which breaks $inc and money sums. Use IsWholeNumber (DTOs) or safeInteger (schemas) from common/validation (ADR-0002, PAY-04).',
+    test: (line, file) =>
+      file.startsWith('backend/src/modules/') && /(@IsInt\(|\bNumber\.isInteger\()/.test(line),
+  },
 ];
 
 function* walk(dir) {

@@ -22,6 +22,18 @@ Every error has the same body (`ErrorResponseDto`):
 - Mongo duplicate keys become 409 `DUPLICATE_KEY`, and invalid ids become 400 `INVALID_ID`. Guard every `:id` route with `ParseObjectIdPipe`.
 - 5xx responses never expose internal messages. The details are logged on the server.
 
+### Validation helpers (`common/validation`)
+These rules came out of the flights review (PRs #11 and #18). Each one fixed a real bug, so use them in every module:
+
+| Use | Instead of | Why |
+|---|---|---|
+| `@Omittable()` on every optional field of an edit (PATCH) DTO | `@IsOptional()`, `PartialType(...)` | `IsOptional` skips the validators for `null` too, so `{"seats": null}` was saved. `Omittable` lets a field be left out but still validates `null`. Keep `@IsOptional()` for query DTOs and for a field where `null` means "remove" (documented on the field). |
+| `@IsWholeNumber('<field> must be a whole number')` | `@IsInt()` | `IsInt` accepts `1e20`. Above 2^53 `$inc` and money sums lose precision. |
+| `validate: safeInteger('<field>')` in a `@Prop` | `Number.isInteger`, a local `integer()` helper | The same rule on the schema side. |
+| `runValidators: true` on every `findOneAndUpdate` / `updateOne` | the default | Schema validators are skipped on updates without it. They never run on `$inc`, so also guard the value in the filter (`{ seatsAvailable: { $gte: n } }`). |
+
+The `architecture` CI job fails on `@IsInt(` or `Number.isInteger(` under `backend/src/modules/` (rule `no-unsafe-integer-check`).
+
 ## Lists (GEN-05)
 - Query DTOs extend `PaginationQueryDto`, which accepts `page` only (digits only). The page size is fixed at 10. A global middleware returns 400 for `limit`, `pageSize` or `perPage` (any casing or snake_case) on any route.
 - Return `paginate(model, filter, query.page, { sort })`, or `toPage(items, total, page)` for aggregations.

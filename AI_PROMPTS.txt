@@ -377,3 +377,17 @@ leftover conflict marker, and wrote check-repo-hygiene.mjs with unit tests. I ra
 develop copy to confirm it reports every damaged entry. A merge=union rule for the log was tried and dropped: the
 check showed that union merging removes the shared header lines of entries appended by different PRs.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-13 (shared validation rules), ADR-0002, PAY-04
+Prompt:
+The flights review found that null slipped through PATCH DTOs and that IsInt accepts 1e20, and the hotels branch
+repeated both bugs. Move the fixes out of flights into common so every module uses them, and make CI catch it.
+How the output was used:
+Claude moved Omittable and IsWholeNumber to common/validation, added a shared safeInteger schema validator used
+by the airline and flight schemas, documented all three in conventions.md, and added a guard rule that fails on
+@IsInt( or Number.isInteger( in module code. Behaviour is unchanged: all 159 e2e tests pass, plus 15 new unit tests.
+================================================

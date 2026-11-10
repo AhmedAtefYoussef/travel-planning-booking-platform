@@ -15,8 +15,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Omittable } from './omittable';
-import { IsWholeNumber } from './whole-number';
+import { IsWholeNumber, Omittable } from '../../../common/validation';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;

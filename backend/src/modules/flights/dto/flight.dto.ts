@@ -5,7 +5,7 @@ import { IsString, Matches } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
 import { CABIN_CLASSES, FlightStatus } from '../schemas/flight.schema';
 import { CancellationTierDto, ExtraBaggageDto } from './airline.dto';
-import { Omittable } from './omittable';
+import { Omittable } from '../../../common/validation';
 
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;

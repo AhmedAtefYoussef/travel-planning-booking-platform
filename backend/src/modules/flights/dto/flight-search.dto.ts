@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsIn, IsOptional, Matches, Min, ValidateBy } from 'class-validator';
-import { IsWholeNumber } from './whole-number';
+import { IsWholeNumber } from '../../../common/validation';
 import type { CabinClass, FlightSearchQuery } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { CABIN_CLASSES } from '../schemas/flight.schema';

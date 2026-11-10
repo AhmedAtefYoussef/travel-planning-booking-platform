@@ -4,8 +4,7 @@ import { Transform } from 'class-transformer';
 import { IsIn, IsNumber, Max, Min } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
-import { Omittable } from './omittable';
-import { IsWholeNumber } from './whole-number';
+import { IsWholeNumber, Omittable } from '../../../common/validation';
 
 /** Rules shared by adding and editing a cabin (FLT-04). */
 const TotalSeatsRules = () =>
