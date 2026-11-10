@@ -57,9 +57,14 @@ jobs:
       - name: Install commitlint
         run: npm ci
 
+      # Lint only this PR's own commits: from the merge base with the base branch as it is now. The event's
+      # base.sha does not move when develop moves, so it would also re-lint commits merged since.
       - name: Every commit follows Conventional Commits
         if: github.event.pull_request.user.type != 'Bot'
-        run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx commitlint --from "$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")" --to "$HEAD_SHA" --verbose
 
       - name: Branch, traceability, template, env files, AI log
         run: node .github/scripts/check-pr.mjs

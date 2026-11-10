@@ -12,7 +12,17 @@ const requirements = JSON.parse(
 
 const git = (...args) =>
   execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-const range = `${pr.base.sha}...${pr.head.sha}`;
+// The event's base.sha is the base as it was when the PR was opened or last pushed; it does not move when
+// develop moves. Compare against the base branch as it is now (fetched by actions/checkout with
+// fetch-depth 0), so a PR is judged by what it would actually change if merged today.
+const baseSha = (() => {
+  try {
+    return git('rev-parse', '--verify', `origin/${pr.base.ref}`).trim();
+  } catch {
+    return pr.base.sha;
+  }
+})();
+const range = `${baseSha}...${pr.head.sha}`;
 const changedFiles = git('diff', '--name-only', range)
   .split('\n')
   .filter(Boolean);
@@ -32,7 +42,7 @@ const commitSubjects = git(
   'log',
   '--no-merges',
   '--format=%s',
-  `${pr.base.sha}..${pr.head.sha}`,
+  `${baseSha}..${pr.head.sha}`,
 )
   .split('\n')
   .filter(Boolean);
