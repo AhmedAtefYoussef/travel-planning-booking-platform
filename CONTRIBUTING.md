@@ -67,3 +67,13 @@ The allowed scopes are listed in `commitlint.config.cjs`. The husky `commit-msg`
 AI tools are allowed, and their use must be recorded. Add an entry to `AI_PROMPTS.txt` for every prompt that materially shaped your code, in the format at the top of that file, and set `AI-assisted: yes` in your PR. Never paste credentials, connection strings or `.env` contents into an AI tool. You must be able to explain every line you submit.
 
 Append your entry at the bottom of `AI_PROMPTS.txt` and never edit someone else's entry. When two PRs both append an entry, the second one to merge gets a conflict in `AI_PROMPTS.txt`. Resolve it by keeping **both** entries, each between its own separator lines, with the newer one last. Do not let Git auto-merge the file with `merge=union`: entries share identical lines (separators, `Date:`, `Student:`), so union merging silently drops headers. Check the log before you push with `node .github/scripts/check-repo-hygiene.mjs`. It fails when an entry is missing a field, an entry got kept twice, or a merge left conflict markers anywhere in the repo.
+
+## Releases (team leader)
+
+Milestone releases go from `develop` to `main`, then get a tag, for example `v1.0.0-m1` for Milestone 1 (TRVL-136):
+
+1. Preview the notes: Actions > Release > Run workflow on `develop`, or locally `node .github/scripts/release-notes.mjs develop --title v1.0.0-m1`.
+2. Merge the `develop` into `main` PR.
+3. Tag `main` and push the tag: `git checkout main && git pull && git tag v1.0.0-m1 && git push origin v1.0.0-m1`.
+
+The Release workflow refuses a tag that is not on `main`. It publishes a GitHub release whose notes group the merged PRs by type and list every requirement ID they cite, and it attaches `openapi.json`. The notes come from PR titles, so a clear Conventional Commit title with its requirement ID is what makes the release notes readable.
