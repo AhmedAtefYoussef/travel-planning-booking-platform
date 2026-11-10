@@ -340,3 +340,18 @@ Claude added an IsWholeNumber (Number.isSafeInteger) rule used by all whole-numb
 on the cabin update, documented the seatsAvailable validator in update context, and added unit, e2e and schema
 tests. I checked that the error messages match the existing "must be a whole number" wording.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04, FLT-08, FLT-09, FLT-11, FLT-15, FLT-17, FLT-30, GEN-06 (traceability after merge)
+Prompt:
+Re-verify Joudy's PRs #11 to #18 (local gate, PR governance, CI, live API and Swagger tests), post the
+code-owner sign-offs, merge them into develop in stack order, sync Jira, and mark the merged requirements
+Done in the traceability matrix.
+How the output was used:
+Claude ran the checks, merged each PR after all 12 required checks passed and updated Jira. This PR only
+changes eight matrix rows to "Done" (FLT-04 also lists #12, which added the baggage-policy endpoint in its
+row). FLT-05 stays "Partial" until the passenger notification works. I reviewed the diff before opening it.
+================================================
