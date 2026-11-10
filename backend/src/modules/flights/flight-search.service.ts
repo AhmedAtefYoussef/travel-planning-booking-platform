@@ -27,11 +27,14 @@ import {
   localDayRangeUtc,
   utcToLocalIso,
 } from '../../common/utils/dates';
-import type { FlightSearchResultDto } from './dto/flight-search.dto';
+import type {
+  FlightSearchResultDto,
+  FlightSort,
+} from './dto/flight-search.dto';
 import { AIRLINES_COLLECTION } from './schemas/airline.schema';
 import { Flight, FlightStatus } from './schemas/flight.schema';
 
-/** What every search needs; FLT-12 (round trip, passenger types) and FLT-15 (price, sort) extend it. */
+/** What every search needs; FLT-12 (round trip, passenger types) extends it. */
 export interface SearchCriteria {
   from: string;
   to: string;
@@ -40,7 +43,34 @@ export interface SearchCriteria {
   /** Passengers who need a seat. */
   seats: number;
   page: number;
+  /** FLT-15: inclusive range on the fare per passenger (the cabin price), minor units. */
+  minPriceMinor?: number;
+  maxPriceMinor?: number;
+  /** FLT-15; default 'departure'. */
+  sort?: FlightSort;
 }
+
+/**
+ * FLT-15 sorts, all ascending. "price" is the fare per passenger (the same order as the total, since
+ * every row is for the same party). Ties are broken by departure, then fare, then ids, so pages
+ * never overlap or skip rows.
+ */
+const SORT_STAGES: Record<FlightSort, Record<string, 1>> = {
+  departure: {
+    departureUtc: 1,
+    'cabin.priceMinor': 1,
+    _id: 1,
+    'cabin._id': 1,
+  },
+  price: { 'cabin.priceMinor': 1, departureUtc: 1, _id: 1, 'cabin._id': 1 },
+  duration: {
+    durationMs: 1,
+    departureUtc: 1,
+    'cabin.priceMinor': 1,
+    _id: 1,
+    'cabin._id': 1,
+  },
+};
 
 interface SearchRow {
   _id: Types.ObjectId;
@@ -59,6 +89,8 @@ interface SearchRow {
     freeBags: number;
     maxKgPerBag: number;
   };
+  totalPriceMinor: number;
+  durationMs: number;
 }
 
 /**
@@ -69,6 +101,8 @@ interface SearchRow {
  *  - it departs on the requested local date at the departure airport (localDayRangeUtc, GEN-06);
  *  - its airline is active (ACC-15, ACTIVE_PROVIDER_FILTER);
  *  - the cabin has at least `seats` seats available (total - booked - held, ADR-0002).
+ * FLT-15 then keeps rows whose fare per passenger is within [minPriceMinor, maxPriceMinor] (inclusive) and sorts
+ * by departure (default), price or duration, all other criteria unchanged.
  * Only seeded airports are accepted (FLT-02). An empty page is the "no flights found" result.
  */
 @Injectable()
@@ -86,6 +120,9 @@ export class FlightSearchService implements FlightsSearch {
       departureDate: query.departureDate,
       seats: query.adults + (query.children ?? 0),
       page: query.page,
+      minPriceMinor: query.minPriceMinor,
+      maxPriceMinor: query.maxPriceMinor,
+      sort: query.sort,
     });
     return {
       ...page,
@@ -131,6 +168,18 @@ export class FlightSearchService implements FlightsSearch {
         field: 'to',
         message: 'Departure and arrival airports must differ',
       });
+    // FLT-15: min > max is an error, not an empty result; checked here so contract callers get it too.
+    const { minPriceMinor, maxPriceMinor } = criteria;
+    if (
+      minPriceMinor !== undefined &&
+      maxPriceMinor !== undefined &&
+      minPriceMinor > maxPriceMinor
+    ) {
+      errors.push({
+        field: 'maxPriceMinor',
+        message: `maxPriceMinor (${maxPriceMinor}) must be greater than or equal to minPriceMinor (${minPriceMinor})`,
+      });
+    }
 
     let day: { start: Date; end: Date } | null = null;
     if (origin) {
@@ -177,6 +226,15 @@ export class FlightSearchService implements FlightsSearch {
       { $unwind: '$cabins' },
       { $match: { 'cabins.seatsAvailable': { $gte: criteria.seats } } },
       {
+        $addFields: {
+          totalPriceMinor: {
+            $multiply: ['$cabins.priceMinor', criteria.seats],
+          },
+          durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
+        },
+      },
+      ...priceRangeStage(minPriceMinor, maxPriceMinor),
+      {
         $project: {
           airlineId: 1,
           flightNumber: 1,
@@ -186,16 +244,11 @@ export class FlightSearchService implements FlightsSearch {
           arrivalUtc: 1,
           airline: { name: '$airline.name', code: '$airline.code' },
           cabin: '$cabins',
+          totalPriceMinor: 1,
+          durationMs: 1,
         },
       },
-      {
-        $sort: {
-          departureUtc: 1,
-          'cabin.priceMinor': 1,
-          _id: 1,
-          'cabin._id': 1,
-        },
-      },
+      { $sort: SORT_STAGES[criteria.sort ?? 'departure'] },
       {
         $facet: {
           items: [{ $skip: skipFor(criteria.page) }, { $limit: PAGE_SIZE }],
@@ -208,15 +261,29 @@ export class FlightSearchService implements FlightsSearch {
       .exec();
     const total = result?.total[0]?.n ?? 0;
     const items = (result?.items ?? []).map((row) =>
-      toResult(row, criteria.seats, origin, destination),
+      toResult(row, origin, destination),
     );
     return toPage(items, total, criteria.page);
   }
 }
 
+/**
+ * FLT-15 inclusive price range on the fare per passenger (decided in PR #17: it is the price users
+ * compare and the one shown next to each result); no stage when neither bound is given.
+ */
+function priceRangeStage(
+  min: number | undefined,
+  max: number | undefined,
+): PipelineStage[] {
+  if (min === undefined && max === undefined) return [];
+  const range: { $gte?: number; $lte?: number } = {};
+  if (min !== undefined) range.$gte = min;
+  if (max !== undefined) range.$lte = max;
+  return [{ $match: { 'cabins.priceMinor': range } }];
+}
+
 function toResult(
   row: SearchRow,
-  seats: number,
   origin: Airport,
   destination: Airport,
 ): FlightSearchResultDto {
@@ -247,7 +314,7 @@ function toResult(
     cabinClass: row.cabin.class,
     seatsLeft: row.cabin.seatsAvailable,
     pricePerPassengerMinor: row.cabin.priceMinor,
-    totalPriceMinor: row.cabin.priceMinor * seats,
+    totalPriceMinor: row.totalPriceMinor,
     freeBags: row.cabin.freeBags,
     maxKgPerBag: row.cabin.maxKgPerBag,
   };

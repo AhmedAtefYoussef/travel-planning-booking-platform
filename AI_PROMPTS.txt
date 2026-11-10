@@ -266,6 +266,21 @@ duration in the e2e test and that cancelled or past flights still open but are m
 ================================================
 
 ================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-15 (TRVL-38 flight results price range and sort)
+Prompt:
+Implement FLT-15 on GET /api/flights/search: an inclusive minimum and maximum price that keeps the other search
+criteria, an error when min > max, and sorting by price, duration or departure time. Follow the FLIGHTS_SEARCH
+contract (minPriceMinor, maxPriceMinor, sort) and add tests.
+How the output was used:
+Claude computed each option's total fare and duration inside the MongoDB query, so the filter, sort and paging
+all happen in the database, and added stable tie-breaks so pages never overlap. The range applies to the total
+fare for all passengers (the price the contract returns); I asked Ahmed to confirm this in the PR.
+================================================
+
+================================================
 Student: Ahmed Atef Youssef
 Tool: Claude (Claude Opus, agentic coding session)
 Related Requirement: FLT-01, FLT-02, FLT-03 (TRVL-28, TRVL-29, TRVL-30 traceability after merge)

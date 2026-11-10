@@ -153,6 +153,9 @@ describe('FlightSearchService.searchOneWay (FLT-11)', () => {
           freeBags: 1,
           maxKgPerBag: 23,
         },
+        // Computed in the database (FLT-15): fare x 2 passengers, arrival - departure.
+        totalPriceMinor: 55000,
+        durationMs: 135 * 60_000,
       },
     ]);
     const page = await service.searchOneWay(criteria, NOW);
@@ -240,5 +243,146 @@ describe('FlightSearchService.searchOneWay (FLT-11)', () => {
         { $match: { 'cabins.seatsAvailable': { $gte: 3 } } },
       ]),
     );
+  });
+});
+
+describe('FlightSearchService price range and sort (FLT-15)', () => {
+  const stageOf = (stages: PipelineStage[], key: string) =>
+    stages.find((st) => key in st) as Record<string, unknown> | undefined;
+
+  it('computes the total fare for all passengers before filtering', async () => {
+    const { service, pipelines } = setup();
+    await service.searchOneWay({ ...criteria, seats: 3 }, NOW);
+    expect(pipelines[0]).toEqual(
+      expect.arrayContaining([
+        {
+          $addFields: {
+            totalPriceMinor: { $multiply: ['$cabins.priceMinor', 3] },
+            durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
+          },
+        },
+      ]),
+    );
+  });
+
+  it('filters the fare PER PASSENGER by an inclusive range, either bound alone, and adds nothing without one', async () => {
+    const run = async (min?: number, max?: number) => {
+      const { service, pipelines } = setup();
+      await service.searchOneWay(
+        { ...criteria, minPriceMinor: min, maxPriceMinor: max },
+        NOW,
+      );
+      return pipelines[0].filter(
+        (st) => '$match' in st && 'cabins.priceMinor' in st.$match,
+      );
+    };
+    expect(await run(30000, 90000)).toEqual([
+      { $match: { 'cabins.priceMinor': { $gte: 30000, $lte: 90000 } } },
+    ]);
+    expect(await run(30000)).toEqual([
+      { $match: { 'cabins.priceMinor': { $gte: 30000 } } },
+    ]);
+    expect(await run(undefined, 90000)).toEqual([
+      { $match: { 'cabins.priceMinor': { $lte: 90000 } } },
+    ]);
+    expect(await run(55000, 55000)).toEqual([
+      { $match: { 'cabins.priceMinor': { $gte: 55000, $lte: 55000 } } },
+    ]);
+    expect(await run()).toEqual([]);
+  });
+
+  it('keeps the other criteria when a price range is set', async () => {
+    const { service, pipelines } = setup();
+    await service.searchOneWay(
+      { ...criteria, seats: 3, minPriceMinor: 1, maxPriceMinor: 2 },
+      NOW,
+    );
+    const first = stageOf(pipelines[0], '$match') as {
+      $match: Record<string, unknown>;
+    };
+    expect(first.$match).toMatchObject({
+      from: 'CAI',
+      to: 'DXB',
+      status: 'SCHEDULED',
+    });
+    expect(pipelines[0]).toEqual(
+      expect.arrayContaining([
+        { $match: { 'airline.isActive': true } },
+        { $match: { 'cabins.seatsAvailable': { $gte: 3 } } },
+      ]),
+    );
+  });
+
+  it('rejects min > max with a field error, before querying', async () => {
+    const { service, pipelines } = setup();
+    const errors = await fieldErrors(
+      service.searchOneWay(
+        { ...criteria, minPriceMinor: 90000, maxPriceMinor: 30000 },
+        NOW,
+      ),
+    );
+    expect(errors).toEqual([
+      {
+        field: 'maxPriceMinor',
+        message:
+          'maxPriceMinor (30000) must be greater than or equal to minPriceMinor (90000)',
+      },
+    ]);
+    expect(pipelines).toHaveLength(0);
+  });
+
+  it.each([
+    [
+      undefined,
+      { departureUtc: 1, 'cabin.priceMinor': 1, _id: 1, 'cabin._id': 1 },
+    ],
+    [
+      'departure',
+      { departureUtc: 1, 'cabin.priceMinor': 1, _id: 1, 'cabin._id': 1 },
+    ],
+    [
+      'price',
+      { 'cabin.priceMinor': 1, departureUtc: 1, _id: 1, 'cabin._id': 1 },
+    ],
+    [
+      'duration',
+      {
+        durationMs: 1,
+        departureUtc: 1,
+        'cabin.priceMinor': 1,
+        _id: 1,
+        'cabin._id': 1,
+      },
+    ],
+  ] as const)('sort=%s orders by %j', async (sort, expected) => {
+    const { service, pipelines } = setup();
+    await service.searchOneWay({ ...criteria, sort }, NOW);
+    const stage = stageOf(pipelines[0], '$sort') as {
+      $sort: Record<string, number>;
+    };
+    expect(stage.$sort).toEqual(expected);
+    expect(Object.keys(stage.$sort)).toEqual(Object.keys(expected));
+  });
+
+  it('passes the range and sort through the FLIGHTS_SEARCH contract', async () => {
+    const { service, pipelines } = setup();
+    await service.search({
+      from: 'CAI',
+      to: 'DXB',
+      departureDate: '2026-12-01',
+      adults: 1,
+      minPriceMinor: 100,
+      maxPriceMinor: 200,
+      sort: 'price',
+      page: 1,
+    });
+    expect(pipelines[0]).toEqual(
+      expect.arrayContaining([
+        { $match: { 'cabins.priceMinor': { $gte: 100, $lte: 200 } } },
+      ]),
+    );
+    expect(
+      (stageOf(pipelines[0], '$sort') as { $sort: object }).$sort,
+    ).toMatchObject({ 'cabin.priceMinor': 1 });
   });
 });

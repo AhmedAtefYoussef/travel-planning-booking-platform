@@ -21,3 +21,18 @@ describe('FlightSearchQueryDto passengers (FLT-11)', () => {
     },
   );
 });
+
+describe('FlightSearchQueryDto price range (FLT-15)', () => {
+  it.each(['99999999999999999999', '1.5', '-1'])(
+    'rejects minPriceMinor and maxPriceMinor = %s',
+    (value) => {
+      expect(
+        fields({
+          passengers: '1',
+          minPriceMinor: value,
+          maxPriceMinor: value,
+        }).sort(),
+      ).toEqual(['maxPriceMinor', 'minPriceMinor']);
+    },
+  );
+});
