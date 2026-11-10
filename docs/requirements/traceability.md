@@ -6,7 +6,10 @@ Requirement ID -> endpoint(s) -> owner -> Jira -> PR -> status, for all 115 work
 enforces this when `backend/src/modules/**` changes). CI also fails if a workbook ID is missing here.
 
 Status values: `Not started`, `In progress`, `In review`, `Done`, `Partial: ...`. List every PR that implements
-or changes the requirement in the PR column (e.g. `#12, #18`).
+or changes the requirement in the PR column (e.g. `#12, #18`). CI enforces this: any other status word fails,
+`In review`, `Done` and `Partial` need a PR number, a row left `In review` after its PRs merged fails, and a PR
+that changes module code must cite its own number in its requirement's row. Set the status the row will have once
+the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 ## Notes on the brief vs the workbook
 - The brief cites **ACC-03** (`POST /api/auth/register`) and **BLG-11** (`GET /api/posts`, `GET /api/tags/:tag/posts`); neither ID exists in the workbook. Those endpoints are traced to ACC-01 and BLG-02/BLG-08/BLG-09.

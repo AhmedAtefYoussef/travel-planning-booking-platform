@@ -148,7 +148,8 @@ jobs:
   architecture:
     name: architecture
     needs: changes
-    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    # Also on .github changes, so a new or edited guard rail is run against the code in the PR that adds it.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true' || needs.changes.outputs.workflows == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -164,6 +165,8 @@ jobs:
         working-directory: backend
       - name: Guard rails (token storage, card data, secrets, public routes)
         run: node .github/scripts/check-forbidden-patterns.mjs
+      - name: Repository scripts are formatted (Prettier, backend config)
+        run: node backend/node_modules/prettier/bin/prettier.cjs --config backend/.prettierrc --check ".github/scripts/**/*.mjs"
 
   frontend:
     name: frontend

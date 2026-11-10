@@ -1,10 +1,16 @@
 // Repository hygiene checks. Run from the repo root:
 //   node .github/scripts/check-repo-hygiene.mjs
-// Fails on: leftover merge-conflict markers in any tracked text file, and a malformed AI_PROMPTS.txt
+// Fails on: leftover merge-conflict markers in any tracked text file, relative Markdown links to files that do
+// not exist, and a malformed AI_PROMPTS.txt
 // (brief section 11.1: every entry needs Date, Student, Tool, Related Requirement, Prompt, How the output was used).
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
-import { aiPromptLogErrors, conflictMarkerLines } from './repo-hygiene.mjs';
+import { dirname, join } from 'node:path';
+import {
+  aiPromptLogErrors,
+  brokenRelativeLinks,
+  conflictMarkerLines,
+} from './repo-hygiene.mjs';
 
 const BINARY = /\.(png|jpe?g|gif|pdf|xlsx|ico|woff2?|zip|exe)$/i;
 const files = execFileSync('git', ['ls-files', '-z'], {
@@ -31,6 +37,18 @@ for (const file of files) {
   }
   for (const line of conflictMarkerLines(text, file))
     problems.push({ file, line, msg: 'leftover merge-conflict marker' });
+}
+for (const file of files.filter((f) => /\.md$/i.test(f))) {
+  const dir = dirname(file);
+  const links = brokenRelativeLinks(readFileSync(file, 'utf8'), (target) =>
+    existsSync(join(dir, target)),
+  );
+  for (const { line, target } of links)
+    problems.push({
+      file,
+      line,
+      msg: `broken link: "${target}" does not exist`,
+    });
 }
 if (existsSync('AI_PROMPTS.txt')) {
   for (const err of aiPromptLogErrors(readFileSync('AI_PROMPTS.txt', 'utf8'))) {

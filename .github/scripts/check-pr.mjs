@@ -6,11 +6,34 @@ import { evaluatePullRequest } from './pr-rules.mjs';
 
 const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const pr = event.pull_request;
-const requirements = JSON.parse(readFileSync('docs/requirements/requirements.json', 'utf8')).requirements;
+const requirements = JSON.parse(
+  readFileSync('docs/requirements/requirements.json', 'utf8'),
+).requirements;
 
-const changedFiles = execFileSync('git', ['diff', '--name-only', `${pr.base.sha}...${pr.head.sha}`], {
-  encoding: 'utf8',
-})
+const git = (...args) =>
+  execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const range = `${pr.base.sha}...${pr.head.sha}`;
+const changedFiles = git('diff', '--name-only', range)
+  .split('\n')
+  .filter(Boolean);
+const matrixPath = 'docs/requirements/traceability.md';
+// The PR's own version of each file (head commit), independent of what is checked out.
+const atHead = (path) => {
+  try {
+    return git('show', `${pr.head.sha}:${path}`);
+  } catch {
+    return undefined;
+  }
+};
+const aiLogDiff = changedFiles.includes('AI_PROMPTS.txt')
+  ? git('diff', '--unified=0', range, '--', 'AI_PROMPTS.txt')
+  : '';
+const commitSubjects = git(
+  'log',
+  '--no-merges',
+  '--format=%s',
+  `${pr.base.sha}..${pr.head.sha}`,
+)
   .split('\n')
   .filter(Boolean);
 
@@ -23,7 +46,11 @@ const { errors, warnings } = evaluatePullRequest({
   changedFiles,
   knownIds: new Set(requirements.map((r) => r.id)),
   isBot: pr.user?.type === 'Bot',
-  matrixExists: existsSync('docs/requirements/traceability.md'),
+  matrixExists: existsSync(matrixPath),
+  number: pr.number,
+  matrixText: atHead(matrixPath),
+  aiLogDiff,
+  commitSubjects,
 });
 
 const lines = [
@@ -34,7 +61,8 @@ const lines = [
 ];
 const out = lines.join('\n') + '\n';
 console.log(out);
-if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, out);
+if (process.env.GITHUB_STEP_SUMMARY)
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, out);
 for (const e of errors) console.log(`::error::${e}`);
 for (const w of warnings) console.log(`::warning::${w}`);
 process.exit(errors.length ? 1 : 0);

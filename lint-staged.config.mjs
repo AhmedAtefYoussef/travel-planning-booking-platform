@@ -3,6 +3,9 @@
 const quote = (files) => files.map((f) => JSON.stringify(f)).join(' ');
 
 export default {
+  '.github/scripts/**/*.mjs': (files) => [
+    `node backend/node_modules/prettier/bin/prettier.cjs --config backend/.prettierrc --write ${quote(files)}`,
+  ],
   'backend/**/*.ts': (files) => [
     `node backend/node_modules/prettier/bin/prettier.cjs --write ${quote(files)}`,
     `node backend/node_modules/eslint/bin/eslint.js --config backend/eslint.config.mjs --fix --max-warnings 0 ${quote(files)}`,
