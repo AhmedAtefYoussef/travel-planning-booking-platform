@@ -1,6 +1,6 @@
 # Contributing
 
-This guide is the team's working agreement for brief section 10 (Git and GitHub workflow) and section 11 (AI usage). CI enforces the branch, commit, PR-template, traceability, AI-log and quality rules below, so a PR that breaks one cannot merge. The Definition of Done and the [review checklist](docs/process/review-checklist.md) are checked by the reviewer.
+This guide is the team's working agreement for brief section 10 (Git and GitHub workflow) and section 11 (AI usage). CI enforces the branch, commit, PR-template, traceability, AI-log and quality rules below, so a PR that breaks one cannot merge. The Definition of Done and the [review checklist](docs/process/review-checklist.md) are checked in review. The team leader (@AhmedAtefYoussef) is the only reviewer and the only person who merges.
 
 ## Branches
 
@@ -49,7 +49,7 @@ The allowed scopes are listed in `commitlint.config.cjs`. The husky `commit-msg`
 | `architecture` | Controllers never touch models (MVC); modules only use each other's public `index.ts` or `common/contracts`; no tokens in browser storage, raw card data or hard-coded secrets |
 | `secrets-scan`, `dependency-review`, `dependency-audit`, `codeql` | Secret leaks, vulnerable or GPL dependencies, code scanning |
 
-3. A code owner reviews against [docs/process/review-checklist.md](docs/process/review-checklist.md), within 24 hours. Resolve the important comments, then merge with **"Create a merge commit"** (what the history uses since #1). Sync your branch with `git pull --rebase origin develop` rather than merging `develop` into it, so the history does not fill with "bring develop into this branch" commits.
+3. Request a review from the team leader (@AhmedAtefYoussef). They are the only reviewer, the only approval that counts (CODEOWNERS), and the only person who merges. **Do not press Merge yourself**, even when the PR shows as mergeable. Check your own diff against [docs/process/review-checklist.md](docs/process/review-checklist.md) before you ask, and resolve every important comment. Merges use **"Create a merge commit"** (what the history uses since #1). Sync your branch with `git pull --rebase origin develop` rather than merging `develop` into it, so the history does not fill with "bring develop into this branch" commits.
 4. Add the label `no-trace` only for pure refactors that change no requirement behaviour.
 5. Keep PRs small and open them early: one requirement per PR, opened within a day of starting. Never stack a PR on another feature branch: CI, CodeQL and gitleaks only run for PRs into `develop` or `main`.
 

@@ -1,6 +1,6 @@
 # Pull request review checklist
 
-Authors: check your own diff against this list before you ask for a review. Reviewers: work through it in order and paste the numbers of failed items into one review comment. Every item comes from a bug found in an earlier review on this repo.
+The team leader (@AhmedAtefYoussef) is the only reviewer and the only person who approves and merges pull requests. Authors: check your own diff against this list before you request that review, so the review finds nothing new. The team leader works through it in order and posts the numbers of failed items in one review comment. Every item comes from a bug found in an earlier review on this repo.
 
 ## 1. Shape of the PR
 1. **One requirement or one task.** Under about 800 changed lines, excluding `package-lock.json`.
@@ -51,4 +51,4 @@ Authors: check your own diff against this list before you ask for a review. Revi
 - **One summary comment:** blockers first, then the rest; each one with the file and line, what's wrong, and how to fix it.
 - **Mark what's optional** as "nit".
 - **Approve** when only nits are left.
-- **Reply within 24 hours.** If you can't, say so and suggest another reviewer.
+- **Reply within 24 hours.** If a review will take longer, say so on the PR so the author knows when to expect it.

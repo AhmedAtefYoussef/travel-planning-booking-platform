@@ -81,8 +81,8 @@ Write your module against `@CurrentUser()`, `@Roles()` and `@Public()`. When the
 3. Update your requirement's row in `docs/requirements/traceability.md`: endpoint, PR number, status `In review`.
 4. Push, then open the PR **into `develop`** (never `main`, and never another feature branch). Fill in every template section. Tick a checklist item that doesn't apply and write `(N/A)` after it.
 5. Comment the PR link on the Jira issue.
-6. Ask your reviewer. Before asking, check your own diff against [docs/process/review-checklist.md](process/review-checklist.md).
-7. After the merge, move the Jira issue to **Done** and delete your local branch.
+6. Check your own diff against [docs/process/review-checklist.md](process/review-checklist.md), then request a review from the team leader (@AhmedAtefYoussef). They are the only reviewer and the only person who merges, so never press Merge yourself.
+7. Once they have merged it, move the Jira issue to **Done** and delete your local branch.
 
 Don't stack PRs on top of each other's branches. CI and the security scans only run for PRs into `develop` or `main`. If your work depends on an unmerged PR, wait for it or ask for it to be merged first.
 
@@ -120,4 +120,4 @@ Checklist for a new module:
 | Why things are built this way (holds, payments, cookies) | [docs/architecture/adr/](architecture/adr/) |
 | What each requirement needs and its status | [docs/requirements/traceability.md](requirements/traceability.md) and the Jira issue |
 | Branches, commits, PR rules, Definition of Done | [CONTRIBUTING.md](../CONTRIBUTING.md) |
-| What reviewers check | [docs/process/review-checklist.md](process/review-checklist.md) |
+| What the team leader checks in review | [docs/process/review-checklist.md](process/review-checklist.md) |

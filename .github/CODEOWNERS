@@ -2,7 +2,7 @@
 # With "Require review from Code Owners" on main and develop, a PR cannot merge without
 # @AhmedAtefYoussef's approval. As repository admin the team leader may merge their own PRs
 # once every required check passes (GitHub does not allow self-approval).
-# Later rules override earlier ones: add module co-owners below as teammates join the repo.
+# The team leader is the only reviewer and the only person who merges (CONTRIBUTING.md). Do not add co-owners.
 
 *                                   @AhmedAtefYoussef
 
