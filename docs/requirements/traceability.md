@@ -46,15 +46,15 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | #9 | Done |
 | FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | Done |
 | FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10 | Done |
-| FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | #11 | In review (baggage-policy endpoint comes with FLT-08) |
+| FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | #11, #12 | Done |
 | FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | #18 | Partial: edits and airport lock done; notifications wait for FLIGHT_BOOKINGS_LOOKUP + GEN-01 (Karim) |
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
-| FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | In review |
-| FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | In review |
-| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13 | In review |
+| FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
+| FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
+| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13 | Done |
 | FLT-12 | Mandatory | GET /api/flights/search | Ahmed | TRVL-37 | - | Not started |
-| FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | In review |
-| FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | In review |
+| FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
+| FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
 | FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |
 | FLT-21 | Mandatory | POST /api/flight-bookings | Karim | TRVL-41 | - | Not started |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold | Ahmed | TRVL-42 | - | Not started |
@@ -62,7 +62,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
 | FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |
-| FLT-30 | Mandatory | flight status lifecycle (scheduled job + FLT-06) | Joudy | TRVL-107 | #14 | In review |
+| FLT-30 | Mandatory | flight status lifecycle (scheduled job + FLT-06) | Joudy | TRVL-107 | #14 | Done |
 | FLT-27 | Bonus | PATCH /api/flight-bookings/:id/change-flight | Team | TRVL-120 | - | Not started |
 | FLT-28 | Bonus | PATCH /api/flight-bookings/:id/seat | Team | TRVL-121 | - | Not started |
 
@@ -149,7 +149,7 @@ or changes the requirement in the PR column (e.g. `#12, #18`).
 | GEN-03 | Mandatory | (frontend, Milestone 2) | Karim | TRVL-98 | - | Not started |
 | GEN-04 | Mandatory | (frontend, Milestone 2) | Sarah | TRVL-99 | - | Not started |
 | GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | In review |
-| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | In review: local times in POST /api/flights, GET /api/flights/search and GET /api/flights/:id (FLT-17) |
+| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4 | Partial: AUDIT_SERVICE + schema; endpoint pending |
 | GEN-08 | Mandatory | UPLOADS_SERVICE (image endpoints) | Ahmed | TRVL-103 | - | Not started |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
