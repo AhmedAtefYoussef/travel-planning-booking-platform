@@ -1,9 +1,11 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { applyDecorators } from '@nestjs/common';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsString, Matches } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
 import { CABIN_CLASSES, FlightStatus } from '../schemas/flight.schema';
 import { CancellationTierDto, ExtraBaggageDto } from './airline.dto';
+import { Omittable } from './omittable';
 
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -11,6 +13,38 @@ const upper = ({ value }: { value: unknown }) =>
 const LOCAL_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const LOCAL_MESSAGE = (field: string) =>
   `${field} must be a local date-time like 2026-12-01T14:30 (the airport's own time)`;
+
+/** Rules shared by creating (FLT-03) and editing (FLT-05) a flight. */
+const AirportRules = (field: 'from' | 'to') =>
+  applyDecorators(
+    Transform(upper),
+    IsString(),
+    Matches(/^[A-Z]{3}$/, {
+      message: `${field} must be a three-letter IATA code`,
+    }),
+  );
+const LocalTimeRules = (field: 'departureLocal' | 'arrivalLocal') =>
+  applyDecorators(
+    IsString(),
+    Matches(LOCAL_DATE_TIME, { message: LOCAL_MESSAGE(field) }),
+  );
+const FROM = {
+  example: 'CAI',
+  description: 'Departure airport IATA code from GET /api/airports (FLT-02)',
+};
+const TO = {
+  example: 'DXB',
+  description: 'Arrival airport IATA code from GET /api/airports (FLT-02)',
+};
+const DEPARTURE = {
+  example: '2026-12-01T14:30',
+  description:
+    'Departure, local time at the departure airport (YYYY-MM-DDTHH:mm)',
+};
+const ARRIVAL = {
+  example: '2026-12-01T18:45',
+  description: 'Arrival, local time at the arrival airport (YYYY-MM-DDTHH:mm)',
+};
 
 /**
  * FLT-03: the airline moderator creates a flight for their own airline. Times are entered as wall-clock
@@ -28,41 +62,48 @@ export class CreateFlightDto {
   })
   flightNumber!: string;
 
-  @ApiProperty({
-    example: 'CAI',
-    description: 'Departure airport IATA code from GET /api/airports (FLT-02)',
-  })
-  @Transform(upper)
-  @IsString()
-  @Matches(/^[A-Z]{3}$/, { message: 'from must be a three-letter IATA code' })
+  @ApiProperty(FROM)
+  @AirportRules('from')
   from!: string;
 
-  @ApiProperty({
-    example: 'DXB',
-    description: 'Arrival airport IATA code from GET /api/airports (FLT-02)',
-  })
-  @Transform(upper)
-  @IsString()
-  @Matches(/^[A-Z]{3}$/, { message: 'to must be a three-letter IATA code' })
+  @ApiProperty(TO)
+  @AirportRules('to')
   to!: string;
 
-  @ApiProperty({
-    example: '2026-12-01T14:30',
-    description:
-      'Departure, local time at the departure airport (YYYY-MM-DDTHH:mm)',
-  })
-  @IsString()
-  @Matches(LOCAL_DATE_TIME, { message: LOCAL_MESSAGE('departureLocal') })
+  @ApiProperty(DEPARTURE)
+  @LocalTimeRules('departureLocal')
   departureLocal!: string;
 
-  @ApiProperty({
-    example: '2026-12-01T18:45',
-    description:
-      'Arrival, local time at the arrival airport (YYYY-MM-DDTHH:mm)',
-  })
-  @IsString()
-  @Matches(LOCAL_DATE_TIME, { message: LOCAL_MESSAGE('arrivalLocal') })
+  @ApiProperty(ARRIVAL)
+  @LocalTimeRules('arrivalLocal')
   arrivalLocal!: string;
+}
+
+/**
+ * FLT-05: edit a Scheduled flight's times (and its airports while nothing is booked). Any subset; a
+ * field that is left out keeps its value (a time keeps its local wall-clock time); null is rejected
+ * (400). The flight number cannot change.
+ */
+export class UpdateFlightDto {
+  @ApiPropertyOptional(FROM)
+  @Omittable()
+  @AirportRules('from')
+  from?: string;
+
+  @ApiPropertyOptional(TO)
+  @Omittable()
+  @AirportRules('to')
+  to?: string;
+
+  @ApiPropertyOptional(DEPARTURE)
+  @Omittable()
+  @LocalTimeRules('departureLocal')
+  departureLocal?: string;
+
+  @ApiPropertyOptional(ARRIVAL)
+  @Omittable()
+  @LocalTimeRules('arrivalLocal')
+  arrivalLocal?: string;
 }
 
 /** One end of a flight, in UTC and in that airport's local time (GEN-06). */

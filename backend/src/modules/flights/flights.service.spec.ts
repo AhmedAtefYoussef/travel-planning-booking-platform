@@ -4,6 +4,7 @@ import type { Airport, ReferenceService } from '../../common/contracts';
 import { ValidationFailedException } from '../../common/errors/app.exception';
 import type { AirlinesService } from './airlines.service';
 import type { CreateFlightDto } from './dto/flight.dto';
+import type { FlightScheduleNotifier } from './flight-schedule-notifier';
 import { FlightsService } from './flights.service';
 import type { Flight } from './schemas/flight.schema';
 
@@ -49,6 +50,11 @@ const moderator: AuthUser = {
 };
 const NOW = new Date('2026-11-08T12:00:00Z');
 
+const silentNotifier = () =>
+  ({
+    timesChanged: jest.fn(() => Promise.resolve(null)),
+  }) as unknown as FlightScheduleNotifier;
+
 function setup() {
   const created: object[] = [];
   const model = {
@@ -76,6 +82,7 @@ function setup() {
     model as unknown as Model<Flight>,
     reference,
     airlines,
+    silentNotifier(),
   );
   return { service, model, created, airlines };
 }
@@ -330,6 +337,7 @@ describe('FlightsService cabins (FLT-04)', () => {
       model as unknown as Model<Flight>,
       reference,
       activeAirline(),
+      silentNotifier(),
     );
     return { service, model };
   }
@@ -487,6 +495,7 @@ describe('FlightsService cabins (FLT-04)', () => {
       model as unknown as Model<Flight>,
       {} as ReferenceService,
       inactive,
+      silentNotifier(),
     );
     await expect(
       blocked.updateCabin(
@@ -615,6 +624,7 @@ describe('FlightsService.details (FLT-17)', () => {
       model as unknown as Model<Flight>,
       reference,
       airlines,
+      silentNotifier(),
     );
   }
 
@@ -680,5 +690,231 @@ describe('FlightsService.details (FLT-17)', () => {
     await expect(
       detailsSetup().details(new Types.ObjectId().toHexString(), NOW),
     ).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe('FlightsService.update (FLT-05)', () => {
+  const flightId = new Types.ObjectId();
+
+  function updateSetup(
+    cabins: { totalSeats: number; seatsAvailable: number }[] = [],
+  ) {
+    const flight = {
+      _id: flightId,
+      id: flightId.toHexString(),
+      airlineId,
+      flightNumber: 'MS777',
+      from: 'CAI',
+      to: 'DXB',
+      // Cairo 14:30 (UTC+2) -> Dubai 18:45 (UTC+4) on 1 Dec 2030.
+      departureUtc: new Date('2030-12-01T12:30:00Z'),
+      arrivalUtc: new Date('2030-12-01T14:45:00Z'),
+      departureLocalDate: '2030-12-01',
+      status: 'SCHEDULED',
+      cabins: cabins.map((c) => ({
+        _id: new Types.ObjectId(),
+        class: 'ECONOMY',
+        priceMinor: 1000,
+        freeBags: 1,
+        maxKgPerBag: 23,
+        ...c,
+      })),
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+    const findOneAndUpdate = jest.fn(
+      (_filter: object, update: { $set: Record<string, unknown> }) => ({
+        exec: () => Promise.resolve({ ...flight, ...update.$set }),
+      }),
+    );
+    const model = {
+      findById: jest.fn(() => ({ exec: () => Promise.resolve(flight) })),
+      findOneAndUpdate,
+    };
+    const reference = {
+      getAirport: jest.fn((code: string) =>
+        Promise.resolve(AIRPORTS[code] ?? null),
+      ),
+    } as unknown as ReferenceService;
+    const timesChanged = jest.fn(() => Promise.resolve(1));
+    const service = new FlightsService(
+      model as unknown as Model<Flight>,
+      reference,
+      activeAirline(),
+      { timesChanged } as unknown as FlightScheduleNotifier,
+    );
+    return { service, findOneAndUpdate, timesChanged, model, flight };
+  }
+
+  it('changes the times in local time, saves UTC and the new local date, and notifies', async () => {
+    const { service, findOneAndUpdate, timesChanged } = updateSetup();
+    const dto = await service.update(
+      moderator,
+      flightId.toHexString(),
+      { departureLocal: '2030-12-02T01:00', arrivalLocal: '2030-12-02T05:15' },
+      NOW,
+    );
+    const [filter, update] = findOneAndUpdate.mock.calls[0];
+    expect(filter).toMatchObject({
+      _id: flightId,
+      status: 'SCHEDULED',
+      departureUtc: {
+        $eq: new Date('2030-12-01T12:30:00Z'),
+        $gt: expect.any(Date) as Date,
+      },
+    });
+    expect(filter).not.toHaveProperty('$expr');
+    expect(update.$set).toEqual({
+      from: 'CAI',
+      to: 'DXB',
+      departureUtc: new Date('2030-12-01T23:00:00Z'),
+      arrivalUtc: new Date('2030-12-02T01:15:00Z'),
+      departureLocalDate: '2030-12-02',
+    });
+    expect(dto.departure.local).toBe('2030-12-02T01:00:00.000+02:00');
+    expect(timesChanged).toHaveBeenCalledWith({
+      flightId: flightId.toHexString(),
+      flightNumber: 'MS777',
+      from: 'CAI',
+      to: 'DXB',
+      departureLocal: '2030-12-02T01:00:00.000+02:00',
+      arrivalLocal: '2030-12-02T05:15:00.000+04:00',
+    });
+  });
+
+  it('keeps the local time of a field that is not sent', async () => {
+    const { service, findOneAndUpdate } = updateSetup();
+    await service.update(
+      moderator,
+      flightId.toHexString(),
+      { arrivalLocal: '2030-12-01T19:30' },
+      NOW,
+    );
+    expect(findOneAndUpdate.mock.calls[0][1].$set).toMatchObject({
+      departureUtc: new Date('2030-12-01T12:30:00Z'),
+      arrivalUtc: new Date('2030-12-01T15:30:00Z'),
+    });
+  });
+
+  it('lets airports change while nothing is booked, guarded in the database, without notifying', async () => {
+    const { service, findOneAndUpdate, timesChanged } = updateSetup([
+      { totalSeats: 100, seatsAvailable: 100 },
+    ]);
+    // New arrival airport, same local wall-clock time: London 18:45 (UTC+0 in December).
+    await service.update(moderator, flightId.toHexString(), { to: 'LHR' }, NOW);
+    const [filter, update] = findOneAndUpdate.mock.calls[0];
+    expect(filter).toHaveProperty('$expr');
+    expect(update.$set).toMatchObject({
+      to: 'LHR',
+      arrivalUtc: new Date('2030-12-01T18:45:00Z'),
+    });
+    expect(timesChanged).toHaveBeenCalled();
+  });
+
+  it('refuses to change airports once any seat is booked or held', async () => {
+    const { service, findOneAndUpdate } = updateSetup([
+      { totalSeats: 100, seatsAvailable: 97 },
+    ]);
+    await expect(
+      service.update(moderator, flightId.toHexString(), { from: 'LHR' }, NOW),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'Airports cannot be changed once the flight has bookings (3 seat(s) booked or held) (FLT-05)',
+    });
+    expect(findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('still allows time changes when seats are booked', async () => {
+    const { service, findOneAndUpdate } = updateSetup([
+      { totalSeats: 100, seatsAvailable: 50 },
+    ]);
+    await service.update(
+      moderator,
+      flightId.toHexString(),
+      { departureLocal: '2030-12-01T15:00' },
+      NOW,
+    );
+    expect(findOneAndUpdate).toHaveBeenCalled();
+  });
+
+  it('validates like creating a flight', async () => {
+    const { service } = updateSetup();
+    const id = flightId.toHexString();
+    expect(
+      (
+        await fieldErrors(
+          service.update(
+            moderator,
+            id,
+            { arrivalLocal: '2030-12-01T13:00' },
+            NOW,
+          ),
+        )
+      ).map((e) => e.field),
+    ).toEqual(['arrivalLocal']);
+    expect(
+      (
+        await fieldErrors(service.update(moderator, id, { to: 'CAI' }, NOW))
+      ).map((e) => e.field),
+    ).toEqual(['to']);
+    expect(
+      (
+        await fieldErrors(service.update(moderator, id, { from: 'XXX' }, NOW))
+      ).map((e) => e.field),
+    ).toEqual(['from']);
+    expect(
+      (
+        await fieldErrors(
+          service.update(
+            moderator,
+            id,
+            { departureLocal: '2026-11-01T10:00' },
+            NOW,
+          ),
+        )
+      ).map((e) => e.field),
+    ).toContain('departureLocal');
+  });
+
+  it('a flight that departs mid-request gets the FLT-30 409 and nobody is notified', async () => {
+    const { service, findOneAndUpdate, timesChanged, model, flight } =
+      updateSetup();
+    // Read: still in the future. Write: matches nothing, because the departure has just passed.
+    findOneAndUpdate.mockReturnValueOnce({
+      exec: () => Promise.resolve(null as never),
+    });
+    const departed = { ...flight, departureUtc: new Date(Date.now() - 1000) };
+    model.findById
+      .mockReturnValueOnce({ exec: () => Promise.resolve(flight) })
+      .mockReturnValueOnce({ exec: () => Promise.resolve(departed) });
+    await expect(
+      service.update(
+        moderator,
+        flightId.toHexString(),
+        { departureLocal: '2030-12-01T15:00' },
+        NOW,
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message:
+        'This flight has already departed and can no longer be changed (FLT-30)',
+    });
+    expect(timesChanged).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty edit; an unchanged edit saves and notifies nothing', async () => {
+    const { service, findOneAndUpdate, timesChanged } = updateSetup();
+    await expect(
+      service.update(moderator, flightId.toHexString(), {}, NOW),
+    ).rejects.toMatchObject({ status: 400 });
+    await service.update(
+      moderator,
+      flightId.toHexString(),
+      { departureLocal: '2030-12-01T14:30' },
+      NOW,
+    );
+    expect(findOneAndUpdate).not.toHaveBeenCalled();
+    expect(timesChanged).not.toHaveBeenCalled();
   });
 });

@@ -14,14 +14,16 @@ import type { FieldError } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { ValidationFailedException } from '../../common/errors/app.exception';
 import { InvalidInputError } from '../../common/errors/invalid-input.error';
-import { localToUtc } from '../../common/utils/dates';
+import { localToUtc, utcToLocalIso } from '../../common/utils/dates';
 import { AirlinesService } from './airlines.service';
 import type { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
 import type {
   CreateFlightDto,
   FlightDetailsDto,
   FlightDto,
+  UpdateFlightDto,
 } from './dto/flight.dto';
+import { FlightScheduleNotifier } from './flight-schedule-notifier';
 import { toFlightDto, type AirportZones } from './flight-view';
 import {
   Flight,
@@ -44,6 +46,7 @@ export class FlightsService {
     @InjectModel(Flight.name) private readonly flights: Model<Flight>,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
     private readonly airlines: AirlinesService,
+    private readonly scheduleNotifier: FlightScheduleNotifier,
   ) {}
 
   async create(
@@ -113,6 +116,152 @@ export class FlightsService {
       cabins: [],
     });
     return toFlightDto(flight, zonesOf(from, to));
+  }
+
+  /**
+   * FLT-05: edit a Scheduled flight's departure/arrival times, and its airports while no seat is
+   * booked or held. Times not sent keep their local wall-clock time (at the new airport if it
+   * changed). Same checks as creating (FLT-03): seeded, different airports; real local times; future
+   * departure; arrival after departure. The save is one conditional update: it only applies if the
+   * flight is still Scheduled, still has the departure we validated against and, when airports
+   * change, still has no seat taken, so a booking made at the same moment cannot slip through.
+   * A time change notifies users with Confirmed bookings (FlightScheduleNotifier).
+   */
+  async update(
+    user: AuthUser,
+    flightId: string,
+    dto: UpdateFlightDto,
+    now: Date = new Date(),
+  ): Promise<FlightDto> {
+    const flight = await this.loadEditable(user, flightId);
+    if (
+      dto.from == null &&
+      dto.to == null &&
+      dto.departureLocal == null &&
+      dto.arrivalLocal == null
+    ) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.BAD_REQUEST,
+        'Send at least one of from, to, departureLocal or arrivalLocal',
+      );
+    }
+
+    // `??` also covers null, as a second line of defence behind the DTO (which rejects it).
+    const fromCode = dto.from ?? flight.from;
+    const toCode = dto.to ?? flight.to;
+    const airportsChanged = fromCode !== flight.from || toCode !== flight.to;
+    if (airportsChanged) {
+      const taken = seatsTaken(flight);
+      if (taken > 0) throw airportsLocked(taken);
+    }
+
+    const errors: FieldError[] = [];
+    const [oldFrom, oldTo, from, to] = await Promise.all([
+      this.reference.getAirport(flight.from),
+      this.reference.getAirport(flight.to),
+      this.reference.getAirport(fromCode),
+      this.reference.getAirport(toCode),
+    ]);
+    if (!oldFrom || !oldTo)
+      throw new Error(`Reference airport missing for flight ${flight.id}`);
+    if (!from)
+      errors.push({
+        field: 'from',
+        message: `Unknown airport "${fromCode}" (see GET /api/airports)`,
+      });
+    if (!to)
+      errors.push({
+        field: 'to',
+        message: `Unknown airport "${toCode}" (see GET /api/airports)`,
+      });
+    if (fromCode === toCode)
+      errors.push({
+        field: 'to',
+        message: 'Departure and arrival airports must differ',
+      });
+
+    const departureLocal =
+      dto.departureLocal ?? wallClock(flight.departureUtc, oldFrom.timeZone);
+    const arrivalLocal =
+      dto.arrivalLocal ?? wallClock(flight.arrivalUtc, oldTo.timeZone);
+    const departureUtc = from
+      ? convert(departureLocal, from, 'departureLocal', errors)
+      : null;
+    const arrivalUtc = to
+      ? convert(arrivalLocal, to, 'arrivalLocal', errors)
+      : null;
+    if (departureUtc && departureUtc <= now)
+      errors.push({
+        field: 'departureLocal',
+        message: 'Departure must be in the future',
+      });
+    if (departureUtc && arrivalUtc && arrivalUtc <= departureUtc)
+      errors.push({
+        field: 'arrivalLocal',
+        message: 'Arrival must be after departure (compared in UTC)',
+      });
+    if (errors.length || !from || !to || !departureUtc || !arrivalUtc) {
+      throw new ValidationFailedException(errors);
+    }
+
+    const timesChanged =
+      departureUtc.getTime() !== flight.departureUtc.getTime() ||
+      arrivalUtc.getTime() !== flight.arrivalUtc.getTime();
+    if (!timesChanged && !airportsChanged) return this.view(flight);
+
+    const updated = await this.flights
+      .findOneAndUpdate(
+        {
+          _id: flight._id,
+          status: FlightStatus.Scheduled,
+          // The departure we validated against, and still in the future (FLT-30, see addCabin).
+          departureUtc: { $eq: flight.departureUtc, $gt: new Date() },
+          arrivalUtc: flight.arrivalUtc,
+          from: flight.from,
+          to: flight.to,
+          ...(airportsChanged ? NO_SEAT_TAKEN : {}),
+        },
+        {
+          $set: {
+            from: from.iataCode,
+            to: to.iataCode,
+            departureUtc,
+            arrivalUtc,
+            departureLocalDate: DateTime.fromJSDate(departureUtc, {
+              zone: from.timeZone,
+            }).toISODate() as string,
+          },
+        },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!updated) {
+      const current = await this.flights.findById(flight._id).exec();
+      if (!current || current.status !== FlightStatus.Scheduled)
+        throw notScheduled();
+      if (current.departureUtc <= new Date()) throw alreadyDeparted();
+      if (airportsChanged && seatsTaken(current) > 0)
+        throw airportsLocked(seatsTaken(current));
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        'The flight changed while you were editing it; reload it and try again',
+      );
+    }
+
+    const dtoOut = toFlightDto(updated, zonesOf(from, to));
+    if (timesChanged) {
+      await this.scheduleNotifier.timesChanged({
+        flightId: dtoOut.id,
+        flightNumber: dtoOut.flightNumber,
+        from: dtoOut.departure.airport,
+        to: dtoOut.arrival.airport,
+        departureLocal: dtoOut.departure.local,
+        arrivalLocal: dtoOut.arrival.local,
+      });
+    }
+    return dtoOut;
   }
 
   /**
@@ -375,6 +524,41 @@ function convert(
     errors.push({ field, message: `${e.message} (${airport.iataCode})` });
     return null;
   }
+}
+
+/** Booked + held seats over all cabins (ADR-0002: totalSeats - seatsAvailable). */
+function seatsTaken(flight: Pick<Flight, 'cabins'>): number {
+  return flight.cabins.reduce(
+    (sum, c) => sum + (c.totalSeats - c.seatsAvailable),
+    0,
+  );
+}
+
+/** Database form of seatsTaken(flight) === 0, used in the conditional airport update. */
+const NO_SEAT_TAKEN = {
+  $expr: {
+    $allElementsTrue: [
+      {
+        $map: {
+          input: '$cabins',
+          in: { $eq: ['$$this.totalSeats', '$$this.seatsAvailable'] },
+        },
+      },
+    ],
+  },
+};
+
+function airportsLocked(taken: number): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.CONFLICT,
+    `Airports cannot be changed once the flight has bookings (${taken} seat(s) booked or held) (FLT-05)`,
+  );
+}
+
+/** "YYYY-MM-DDTHH:mm" at that airport, the format moderators type (FLT-03). */
+function wallClock(instant: Date, zone: string): string {
+  return utcToLocalIso(instant, zone).slice(0, 16);
 }
 
 function zonesOf(...airports: Airport[]): AirportZones {

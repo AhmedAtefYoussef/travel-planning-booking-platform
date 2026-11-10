@@ -281,6 +281,38 @@ fare for all passengers (the price the contract returns); I asked Ahmed to confi
 ================================================
 
 ================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-05 (TRVL-32 edit Scheduled flights)
+Prompt:
+Implement FLT-05 PATCH /api/flights/:id: the moderator edits departure/arrival times of their own Scheduled
+flights; airports cannot change once the flight has any booking; seat counts never drop below booked or held
+seats; price changes do not affect existing bookings; a time change notifies passengers with Confirmed bookings.
+Bookings and notifications (Karim) are not built yet: build what works now and leave a hook for them.
+How the output was used:
+Claude added the edit (same checks as creating a flight, one conditional database update so a booking made at
+the same moment cannot slip past the airport lock), a FLIGHT_BOOKINGS_LOOKUP contract for Karim to provide, and an
+optional notifier that sends FLIGHT_SCHEDULE_CHANGED notifications once both modules exist. The e2e test plugs in
+fake bookings and notifications to prove the notifications are sent. I chose this approach over waiting.
+=========================================================================================
+
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: review fixes for FLT-01, FLT-03, FLT-04, FLT-05, FLT-08, FLT-09, FLT-11, FLT-15, FLT-30, GEN-12
+Prompt:
+Apply Ahmed's review of PRs #7-#18: reject null in every PATCH DTO (it skipped validation and was written),
+find flights departing at exactly 00:00 local time, block a deactivated airline's flights (ACC-15), re-check
+the departure inside every atomic update (FLT-30), reuse the shared tier validation, filter search by the fare
+per passenger, and remove limits the workbook does not ask for. Fix each on the lowest branch and carry it up.
+How the output was used:
+I chose the decisions (price per passenger, remove all extra limits except the documented 100 kg bag cap) and
+Claude implemented and tested them on each branch, resolving the merge conflicts between the stacked branches.
+=======
 Student: Ahmed Atef Youssef
 Tool: Claude (Claude Opus, agentic coding session)
 Related Requirement: FLT-01, FLT-02, FLT-03 (TRVL-28, TRVL-29, TRVL-30 traceability after merge)
@@ -292,4 +324,19 @@ How the output was used:
 Claude ran the checks, merged the PRs after all 12 required checks passed and moved TRVL-28, TRVL-29, TRVL-30
 and TRVL-138 to Done. This PR only changes the FLT-01, FLT-02 and FLT-03 rows from "In review" to "Done"; GEN-06
 stays open until search (#13) and details (#16) are merged. I reviewed the diff before opening the PR.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04 re-review (also FLT-08, FLT-09, FLT-11, FLT-15)
+Prompt:
+Apply Ahmed's re-review of #11: a cabin PATCH stored 1e20 / 1e300 because @IsInt accepts them and updateCabin
+skipped the schema validators. Reject unsafe integers in every whole-number DTO field, run the validators on the
+cabin update, add tests, and carry the fix up the stack after merging develop.
+How the output was used:
+Claude added an IsWholeNumber (Number.isSafeInteger) rule used by all whole-number fields, enabled runValidators
+on the cabin update, documented the seatsAvailable validator in update context, and added unit, e2e and schema
+tests. I checked that the error messages match the existing "must be a whole number" wording.
 ================================================

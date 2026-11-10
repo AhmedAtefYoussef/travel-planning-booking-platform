@@ -29,7 +29,12 @@ import {
 } from './dto/flight-search.dto';
 import { FlightSearchService } from './flight-search.service';
 import { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
-import { CreateFlightDto, FlightDetailsDto, FlightDto } from './dto/flight.dto';
+import {
+  CreateFlightDto,
+  FlightDetailsDto,
+  FlightDto,
+  UpdateFlightDto,
+} from './dto/flight.dto';
 import { FlightsService } from './flights.service';
 
 /**
@@ -168,6 +173,52 @@ export class FlightsController {
     @Body() dto: CreateFlightDto,
   ): Promise<FlightDto> {
     return this.flights.create(user, dto);
+  }
+
+  @Patch(':id')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary:
+      "FLT-05 Edit a Scheduled flight's departure/arrival times (and airports while nothing is booked)",
+    description:
+      'Only the moderator of the flight\'s airline, only while the flight is Scheduled and has not departed (409 otherwise). Send any of departureLocal, arrivalLocal (airport-local "YYYY-MM-DDTHH:mm"), from, to; a time you do not send keeps its current local time. Same rules as creating: seeded and different airports, real local times, future departure, arrival after departure. Airports cannot be changed once any seat is booked or held (409). A time change sends an in-app notification to users with Confirmed bookings (GEN-01, once the bookings and notifications modules are available). Cabin prices and seat counts are edited with PATCH /api/flights/:id/cabins/:cabinId; price changes never affect existing bookings, which keep the price they paid.',
+  })
+  @ApiParam({ name: 'id', description: 'Flight id' })
+  @ApiBody({
+    type: UpdateFlightDto,
+    examples: {
+      delay: {
+        summary: 'Delay: new departure and arrival times',
+        value: {
+          departureLocal: '2027-12-01T16:00',
+          arrivalLocal: '2027-12-01T20:15',
+        },
+      },
+      arrival: {
+        summary: 'Only the arrival time',
+        value: { arrivalLocal: '2027-12-01T19:00' },
+      },
+      airport: {
+        summary: 'New arrival airport (only while nothing is booked)',
+        value: { to: 'RUH' },
+      },
+      invalid: {
+        summary: 'Invalid: arrival before departure',
+        value: {
+          departureLocal: '2027-12-01T16:00',
+          arrivalLocal: '2027-12-01T15:00',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: FlightDto })
+  @ApiErrorResponses(400, 404, 409)
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateFlightDto,
+  ): Promise<FlightDto> {
+    return this.flights.update(user, id, dto);
   }
 
   @Post(':id/cabins')

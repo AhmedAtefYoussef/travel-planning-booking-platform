@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { FLIGHTS_SEARCH } from '../../common/contracts';
 import { AirlinesController } from './airlines.controller';
 import { AirlinesService } from './airlines.service';
+import { FlightScheduleNotifier } from './flight-schedule-notifier';
 import { FlightSearchService } from './flight-search.service';
 import { FlightStatusService } from './flight-status.service';
 import { FlightsController } from './flights.controller';
@@ -27,6 +28,7 @@ import { Flight, FlightSchema } from './schemas/flight.schema';
     FlightsService,
     FlightSearchService,
     FlightStatusService,
+    FlightScheduleNotifier,
     { provide: FLIGHTS_SEARCH, useExisting: FlightSearchService },
   ],
   exports: [MongooseModule, AirlinesService, FLIGHTS_SEARCH],
