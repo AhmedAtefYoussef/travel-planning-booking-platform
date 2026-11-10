@@ -3,21 +3,33 @@
 // Fails on: leftover merge-conflict markers in any tracked text file, and a malformed AI_PROMPTS.txt
 // (brief section 11.1: every entry needs Date, Student, Tool, Related Requirement, Prompt, How the output was used).
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { aiPromptLogErrors, conflictMarkerLines } from './repo-hygiene.mjs';
 
 const BINARY = /\.(png|jpe?g|gif|pdf|xlsx|ico|woff2?|zip|exe)$/i;
-const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
+const files = execFileSync('git', ['ls-files', '-z'], {
+  encoding: 'utf8',
+  maxBuffer: 64 * 1024 * 1024,
+})
   .split('\0')
   .filter(
     (f) =>
-      f && !BINARY.test(f) && !f.endsWith('package-lock.json') && existsSync(f),
+      f &&
+      !BINARY.test(f) &&
+      !f.endsWith('package-lock.json') &&
+      existsSync(f) &&
+      statSync(f).isFile(),
   );
 
 const problems = [];
 for (const file of files) {
-  const text = readFileSync(file, 'utf8');
-  for (const line of conflictMarkerLines(text))
+  let text;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch {
+    continue; // unreadable (permissions, a file removed mid-run): nothing to check
+  }
+  for (const line of conflictMarkerLines(text, file))
     problems.push({ file, line, msg: 'leftover merge-conflict marker' });
 }
 if (existsSync('AI_PROMPTS.txt')) {
