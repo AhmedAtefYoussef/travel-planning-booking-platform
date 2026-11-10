@@ -82,6 +82,14 @@ test('AI-assisted PRs must update AI_PROMPTS.txt', () => {
   assert.match(errorsOf({ body: body.replace('AI-assisted: no', '') }).join(), /AI-assisted: yes/);
 });
 
+test('unit-spec-only module changes need no traceability update', () => {
+  const changedFiles = ['backend/src/modules/flights/flights.service.spec.ts'];
+  assert.deepEqual(errorsOf({ changedFiles }), []);
+  // A spec plus real code still needs the matrix.
+  const mixed = [...changedFiles, 'backend/src/modules/flights/flights.service.ts'];
+  assert.match(errorsOf({ changedFiles: mixed }).join(), /traceability\.md/);
+});
+
 test('module changes must update the traceability matrix unless labelled no-trace', () => {
   const changedFiles = ['backend/src/modules/flights/flights.service.ts'];
   assert.match(errorsOf({ changedFiles }).join(), /traceability\.md/);

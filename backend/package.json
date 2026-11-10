@@ -114,6 +114,12 @@
       },
       "./src/config/": {
         "lines": 85
+      },
+      "./src/modules/": {
+        "lines": 70,
+        "statements": 70,
+        "branches": 65,
+        "functions": 65
       }
     }
   },

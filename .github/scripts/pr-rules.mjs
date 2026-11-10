@@ -130,7 +130,8 @@ export function evaluatePullRequest(pr) {
   }
 
   // Traceability matrix kept in sync with module code.
-  const touchesModules = changed.some((f) => f.startsWith('backend/src/modules/'));
+  // Test-only changes (unit specs) change no requirement behaviour, so they need no matrix update.
+  const touchesModules = changed.some((f) => f.startsWith('backend/src/modules/') && !/\.spec\.ts$/.test(f));
   const matrix = 'docs/requirements/traceability.md';
   if (touchesModules && !changed.includes(matrix) && !labels.has('no-trace')) {
     if (pr.matrixExists) {
