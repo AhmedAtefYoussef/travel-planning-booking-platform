@@ -6,6 +6,7 @@ import {
 } from './booking.contract';
 import {
   cancellationTierErrors,
+  cancellationTierFieldErrors,
   selectCancellationTier,
 } from './policies.contract';
 import { InvalidInputError } from '../errors/invalid-input.error';
@@ -147,5 +148,28 @@ describe('computeRefundQuote (FLT-26, HTL-21, FLT-06)', () => {
       refundPercent: 100,
       tierApplied: null,
     });
+  });
+});
+
+describe('cancellationTierFieldErrors (FLT-09, HTL-10)', () => {
+  it('addresses each problem by field, under a configurable path', () => {
+    expect(
+      cancellationTierFieldErrors(
+        [
+          { daysBefore: 7, refundPercent: 50 },
+          { daysBefore: 7, refundPercent: 120 },
+        ],
+        'policy.tiers',
+      ),
+    ).toEqual([
+      {
+        field: 'policy.tiers[1].refundPercent',
+        message: 'refundPercent must be between 0 and 100',
+      },
+      {
+        field: 'policy.tiers[1].daysBefore',
+        message: 'daysBefore 7 is duplicated',
+      },
+    ]);
   });
 });

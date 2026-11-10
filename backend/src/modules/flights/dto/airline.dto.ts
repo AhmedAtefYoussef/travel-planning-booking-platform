@@ -1,14 +1,19 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   Length,
   Matches,
+  Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { Omittable } from './omittable';
 import { IsWholeNumber } from './whole-number';
@@ -120,6 +125,78 @@ export class BaggagePolicyDto {
   @IsWholeNumber('maxExtraBagsPerPassenger must be a whole number')
   @Min(0)
   maxExtraBagsPerPassenger!: number;
+}
+
+/** FLT-09: one tier as sent by the moderator. */
+export class CancellationTierInputDto {
+  @ApiProperty({
+    example: 7,
+    minimum: 0,
+    description:
+      'Days before departure (whole number >= 0), unique within the policy. Cancelling at least this many days ahead earns this tier.',
+  })
+  @IsWholeNumber('daysBefore must be a whole number of days')
+  @Min(0)
+  daysBefore!: number;
+
+  @ApiProperty({
+    example: 50,
+    minimum: 0,
+    maximum: 100,
+    description: 'Refund percentage, 0-100, up to two decimals',
+  })
+  @IsNumber(
+    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 },
+    { message: 'refundPercent must be a number with up to two decimals' },
+  )
+  @Min(0)
+  @Max(100)
+  refundPercent!: number;
+}
+
+/**
+ * FLT-09: the airline's full list of cancellation tiers; replaces the previous list. An empty list
+ * means no tier ever applies, so cancellations are refunded 0%.
+ */
+export class CancellationPolicyDto {
+  @ApiProperty({ type: [CancellationTierInputDto] })
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => CancellationTierInputDto)
+  tiers!: CancellationTierInputDto[];
+}
+
+/** FLT-09: which tier a cancellation N days before departure would use. */
+export class RefundPreviewQueryDto {
+  @ApiProperty({
+    example: 5,
+    minimum: 0,
+    description: 'Whole days remaining before departure',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' && value.trim() !== '' ? Number(value) : value,
+  )
+  @IsWholeNumber('daysRemaining must be a whole number of days')
+  @Min(0)
+  daysRemaining!: number;
+}
+
+export class RefundPreviewDto {
+  @ApiProperty({ example: 5 })
+  daysRemaining!: number;
+
+  @ApiProperty({
+    type: () => CancellationTierDto,
+    nullable: true,
+    example: { daysBefore: 1, refundPercent: 25 },
+    description:
+      'The tier with the highest threshold not exceeding daysRemaining; null when none applies',
+  })
+  tierApplied!: CancellationTierDto | null;
+
+  @ApiProperty({ example: 25, description: '0 when no tier applies' })
+  refundPercent!: number;
 }
 
 export class CancellationTierDto {
