@@ -5,7 +5,3 @@
 *.jpeg binary
 *.pdf binary
 *.xlsx binary
-
-# Append-only log: every PR adds an entry at the bottom, so keep both sides instead of conflicting.
-# check-repo-hygiene.mjs (pr-governance) catches a damaged result, such as an entry kept twice.
-AI_PROMPTS.txt merge=union

@@ -373,6 +373,7 @@ Review the project, Jira and the repository for process mistakes. First fix the 
 entries, stop AI_PROMPTS.txt from conflicting in every PR, and make CI reject conflict markers and broken entries.
 How the output was used:
 Claude restored the missing headers of the TRVL-132 and FLT-01..03 entries (dates taken from their PRs), removed a
-leftover conflict marker, added merge=union for the log, and wrote check-repo-hygiene.mjs with unit tests. I ran
-the check against the old develop copy to confirm it reports every damaged entry, and tested the union merge.
+leftover conflict marker, and wrote check-repo-hygiene.mjs with unit tests. I ran the check against the old
+develop copy to confirm it reports every damaged entry. A merge=union rule for the log was tried and dropped: the
+check showed that union merging removes the shared header lines of entries appended by different PRs.
 ================================================
