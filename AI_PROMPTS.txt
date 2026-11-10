@@ -449,3 +449,20 @@ Claude added each rule with unit tests (33 script tests pass) and docs for teamm
 check against real PRs: it warns on the stacked hotels PRs, flags the AI-log repair in #26 (now labelled
 ai-log-fix), and the stale-status rule finds exactly the three GEN rows that were left In review on develop.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Fable)
+Related Requirement: TRVL-133 (CurrencyModule), ITN-18, PAY-04
+Prompt:
+Implement the rest of my Milestone 1 tasks from the Jira criteria, starting with the currency module: fetch
+FXRatesAPI rates once per day through the NestJS backend, cache them in MongoDB, fall back to the last cached
+rates when the API fails, and never build a converted total from a missing rate. Verify every rule with tests
+and through Swagger.
+How the output was used:
+Claude wrote the exchange_rates schema, the FXRatesAPI client (key sent in a header, never in the URL), the
+CurrencyRatesService behind CURRENCY_SERVICE and GET /api/currencies/rates and /convert, with unit and e2e
+tests for the 400, 503 and cached-fallback rules. I reviewed the conversion maths (cross rates through the
+platform currency, minor units for JPY) and the test results before opening the pull request.
+================================================

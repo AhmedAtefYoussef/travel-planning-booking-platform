@@ -3,6 +3,7 @@ import { CommonModule } from './common/common.module';
 import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AuditModule } from './modules/audit';
+import { CurrencyModule } from './modules/currency';
 import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
 import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
@@ -22,6 +23,7 @@ import { ReferenceModule } from './modules/reference';
     AuditModule,
     PaymentsModule,
     ReferenceModule,
+    CurrencyModule,
     FlightsModule,
     // Dev-only Swagger demos; evaluated after AppConfigModule has loaded .env into process.env.
     ...(diagnosticsEnabled(process.env.NODE_ENV) ? [DiagnosticsModule] : []),

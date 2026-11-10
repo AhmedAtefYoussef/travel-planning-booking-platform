@@ -63,7 +63,7 @@ erDiagram
 | `itineraries` | Sarah (TRVL-141) | ownerId, title, countries, startDate, visibility, days[{order, cityId, notes}], clonedFrom{itineraryId, authorId}, isHidden | {ownerId, updatedAt}; text index for public search |
 | `activities` | Sarah (TRVL-141) | itineraryId, dayId, name, time, costMinor, images | {itineraryId, dayId} |
 | `budget_entries`, `transport_costs` | Malak (TRVL-143) | itineraryId, dayId, category, amountMinor, currency | {itineraryId} |
-| `exchange_rates` | Ahmed (TRVL-133) | base, rateDate, rates{CODE: rate} | unique {base, rateDate} |
+| `exchange_rates` | Ahmed (TRVL-133), **implemented** | base (= PLATFORM_CURRENCY), rateDate, rates{CODE: rate}, fetchedAt | unique {base, rateDate}; the newest document is the cache |
 | `posts`, `comments`, `likes`, `reports` | Malak (TRVL-142) | authorId, status DRAFT/PUBLISHED, tags, isHidden, likeCount, commentCount | unique {postId, userId} on likes; unique {reporterId, targetType, targetId} on reports |
 | `notifications` | Karim (TRVL-139) | userId, type, title, body, link, readAt | {userId, readAt, createdAt} |
 | `audit_logs` | Ahmed (TRVL-162), **implemented** | actorId, actorRole, action, targetType, targetId, reason, metadata | {createdAt:-1}, {actorId, createdAt}, {targetType, targetId}; append-only |

@@ -17,7 +17,7 @@ exports: [AUDIT_SERVICE],
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` | payments (Ahmed) | cancellations (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
-| `CURRENCY_SERVICE` | `CurrencyService.convert` | currency (Ahmed, TRVL-133) | budgets ITN-18 (Malak) |
+| `CURRENCY_SERVICE` | `CurrencyService`: `convert(amountMinor, from, to)` returns `{amountMinor, rate, rateDate}`; `supportedCurrencies()` | currency (Ahmed, TRVL-133, **implemented**) | budgets ITN-18 (Malak) |
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
@@ -40,3 +40,9 @@ exports: [AUDIT_SERVICE],
   - one refund per booking
   - unique Stripe refund id when present
   - unique Stripe event id, kept for 30 days through a TTL index
+
+## Implemented in Sprint 1
+- `modules/currency` (TRVL-133, ITN-18): `CurrencyRatesService` behind `CURRENCY_SERVICE`. Rates come from FXRatesAPI once per UTC day with `PLATFORM_CURRENCY` as the base and are cached in `exchange_rates`; the newest document serves every conversion, so an API outage falls back to the last cached rates. Rules for consumers:
+  - `convert` throws 400 for a currency outside `supportedCurrencies()` (the seeded currencies) and 503 `EXCHANGE_RATE_UNAVAILABLE` when a rate is missing. Never catch the 503 and show a total anyway.
+  - Show the returned `rateDate` next to converted totals.
+  - Booking prices are never converted (PAY-04).
