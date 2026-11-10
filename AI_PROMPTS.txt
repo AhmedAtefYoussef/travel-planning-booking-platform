@@ -406,3 +406,17 @@ starter copied from flights) and docs/process/review-checklist.md, fixed the REA
 CONTRIBUTING, the missing FLIGHT_BOOKINGS_LOOKUP row and the stale GEN-02/05/13 matrix rows. I checked each
 command and header value against the code before committing.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-129 (CI quality gates), TRVL-144 (test coverage)
+Prompt:
+Make the PR rules less tiring without losing traceability, add GitHub issue templates, and put a coverage floor
+on the module services, which hold the business rules but had no threshold.
+How the output was used:
+Claude exempted unit-spec-only module changes from the traceability-row rule (with tests), added bug and config
+issue templates that point feature work to Jira, and set a coverage floor on src/modules (70% lines, measured at
+76% today) so new modules cannot land without unit tests. npm run verify passes.
+================================================

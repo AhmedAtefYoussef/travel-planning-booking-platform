@@ -1,0 +1,35 @@
+name: Bug
+description: Something on develop behaves differently from the workbook or the API conventions.
+title: "[<REQ-ID>] <module>: <what is wrong>"
+labels: [bug]
+body:
+  - type: input
+    id: requirement
+    attributes:
+      label: Requirement ID and Jira key
+      description: The workbook ID whose rule is broken, and its TRVL issue.
+      placeholder: "HTL-18 / TRVL-61"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Endpoint, x-dev-user value, request body. Never paste secrets or connection strings.
+      placeholder: |
+        1. x-dev-user: USER:65a000000000000000000001
+        2. POST /api/hotel-bookings with { ... }
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected (quote the workbook rule) and actual result
+      placeholder: "Expected 409 ROOM_UNAVAILABLE (HTL-18). Got 201 and two bookings for the same night."
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or PR where you saw it
+      placeholder: "develop @ dfea2f4, or #24"
