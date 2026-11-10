@@ -59,7 +59,7 @@ Real login (ACC-04, ACC-19) isn't built yet. Until it is, the backend accepts a 
 
 For example, `POST /api/airlines` as `ADMIN` creates an airline. `PATCH /api/airlines/{id}` as that airline's moderator edits it, and as any other user it returns 403.
 
-Write your module against `@CurrentUser()`, `@Roles()` and `@Public()`. When the real cookie login replaces the stub, your code doesn't change (`docs/api/conventions.md`, "Authentication and authorization").
+Write your module against `@CurrentUser()`, `@Roles()` and `@Public()`. When the real cookie login replaces the stub, your code doesn't change (`docs/api/conventions.md`, "Authentication and authorization"). The plan for switching to real login is in [docs/architecture/auth-migration.md](architecture/auth-migration.md).
 
 ## 5. Start your first issue
 
