@@ -42,7 +42,7 @@ The allowed scopes are listed in `commitlint.config.cjs`. The husky `commit-msg`
 
 | Check | What it verifies |
 |---|---|
-| `pr-governance` | PR title and every commit are Conventional Commits; branch name; merge direction; Jira key and valid requirement IDs; complete template; no `.env` files; AI_PROMPTS.txt updated when AI was used; `traceability.md` updated when module code changes |
+| `pr-governance` | PR title and every commit are Conventional Commits; branch name; merge direction; Jira key and valid requirement IDs; complete template; no `.env` files; AI_PROMPTS.txt updated when AI was used; `traceability.md` updated when module code changes; no leftover merge-conflict markers; every AI_PROMPTS.txt entry well-formed |
 | `backend-quality` | Prettier, ESLint with zero warnings, TypeScript, build |
 | `backend-test` | Unit tests with coverage thresholds, e2e tests against an in-memory MongoDB replica set |
 | `openapi-contract` | Every endpoint is tagged, its summary starts with a valid requirement ID, it documents 400/401/403/404 where relevant, and no list endpoint takes a page-size parameter (GEN-05) |
@@ -64,3 +64,5 @@ The allowed scopes are listed in `commitlint.config.cjs`. The husky `commit-msg`
 ## AI usage (brief section 11)
 
 AI tools are allowed, and their use must be recorded. Add an entry to `AI_PROMPTS.txt` for every prompt that materially shaped your code, in the format at the top of that file, and set `AI-assisted: yes` in your PR. Never paste credentials, connection strings or `.env` contents into an AI tool. You must be able to explain every line you submit.
+
+Append your entry at the bottom of `AI_PROMPTS.txt` and never edit someone else's entry. When two PRs both append an entry, the second one to merge gets a conflict in `AI_PROMPTS.txt`. Resolve it by keeping **both** entries, each between its own separator lines, with the newer one last. Do not let Git auto-merge the file with `merge=union`: entries share identical lines (separators, `Date:`, `Student:`), so union merging silently drops headers. Check the log before you push with `node .github/scripts/check-repo-hygiene.mjs`. It fails when an entry is missing a field, an entry got kept twice, or a merge left conflict markers anywhere in the repo.

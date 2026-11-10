@@ -76,6 +76,12 @@ How the output was used:
 The Jira criteria require each rule to be "enforced and demoable in Swagger", so a dev-only
 Diagnostics module was added (never registered in production) with e2e tests, then each scenario was
 run in Swagger UI and the screenshots were attached to the PRs.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
 Related Requirement: TRVL-132 contracts, TRVL-161 payment schemas, TRVL-162 audit log (GEN-07, GEN-11, PAY-01, PAY-03, FLT-09)
 Prompt:
 Define the cross-module contracts (PayableBooking, RefundsService, policies, search, currency, reference,
@@ -295,8 +301,6 @@ Claude added the edit (same checks as creating a flight, one conditional databas
 the same moment cannot slip past the airport lock), a FLIGHT_BOOKINGS_LOOKUP contract for Karim to provide, and an
 optional notifier that sends FLIGHT_SCHEDULE_CHANGED notifications once both modules exist. The e2e test plugs in
 fake bookings and notifications to prove the notifications are sent. I chose this approach over waiting.
-=========================================================================================
-
 ================================================
 
 ================================================
@@ -312,7 +316,10 @@ per passenger, and remove limits the workbook does not ask for. Fix each on the 
 How the output was used:
 I chose the decisions (price per passenger, remove all extra limits except the documented 100 kg bag cap) and
 Claude implemented and tested them on each branch, resolving the merge conflicts between the stacked branches.
-=======
+================================================
+
+================================================
+Date: 2026-11-09
 Student: Ahmed Atef Youssef
 Tool: Claude (Claude Opus, agentic coding session)
 Related Requirement: FLT-01, FLT-02, FLT-03 (TRVL-28, TRVL-29, TRVL-30 traceability after merge)
@@ -354,4 +361,19 @@ How the output was used:
 Claude ran the checks, merged each PR after all 12 required checks passed and updated Jira. This PR only
 changes eight matrix rows to "Done" (FLT-04 also lists #12, which added the baggage-policy endpoint in its
 row). FLT-05 stays "Partial" until the passenger notification works. I reviewed the diff before opening it.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-135 (AI_PROMPTS.txt upkeep, brief section 11.1)
+Prompt:
+Review the project, Jira and the repository for process mistakes. First fix the prompt log: repair the broken
+entries, stop AI_PROMPTS.txt from conflicting in every PR, and make CI reject conflict markers and broken entries.
+How the output was used:
+Claude restored the missing headers of the TRVL-132 and FLT-01..03 entries (dates taken from their PRs), removed a
+leftover conflict marker, and wrote check-repo-hygiene.mjs with unit tests. I ran the check against the old
+develop copy to confirm it reports every damaged entry. A merge=union rule for the log was tried and dropped: the
+check showed that union merging removes the shared header lines of entries appended by different PRs.
 ================================================

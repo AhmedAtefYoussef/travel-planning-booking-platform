@@ -72,6 +72,9 @@ jobs:
             echo "traceability.md not present yet (TRVL-134)"
           fi
 
+      - name: No conflict markers, well-formed AI prompt log
+        run: node .github/scripts/check-repo-hygiene.mjs
+
   size-label:
     name: size-label
     runs-on: ubuntu-latest
