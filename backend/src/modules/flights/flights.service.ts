@@ -17,7 +17,11 @@ import { InvalidInputError } from '../../common/errors/invalid-input.error';
 import { localToUtc } from '../../common/utils/dates';
 import { AirlinesService } from './airlines.service';
 import type { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
-import type { CreateFlightDto, FlightDto } from './dto/flight.dto';
+import type {
+  CreateFlightDto,
+  FlightDetailsDto,
+  FlightDto,
+} from './dto/flight.dto';
 import { toFlightDto, type AirportZones } from './flight-view';
 import {
   Flight,
@@ -253,6 +257,56 @@ export class FlightsService {
       );
     }
     return this.view(updated);
+  }
+
+  /**
+   * FLT-17: public flight details. Any flight can be opened (a traveller may look up a past or
+   * cancelled trip), and `bookable` tells the page whether it can still be booked: Scheduled, not
+   * yet departed (FLT-30) and its airline active (ACC-15).
+   */
+  async details(
+    flightId: string,
+    now: Date = new Date(),
+  ): Promise<FlightDetailsDto> {
+    const flight = await this.flights.findById(flightId).exec();
+    if (!flight) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Flight not found',
+      );
+    }
+    const [base, airline] = await Promise.all([
+      this.view(flight),
+      this.airlines.load(flight.airlineId),
+    ]);
+    const extra = airline.policy?.extraBaggage;
+    return {
+      ...base,
+      airline: {
+        id: airline.id as string,
+        name: airline.name,
+        code: airline.code,
+        logoUrl: airline.logoUrl ?? null,
+        isActive: airline.isActive,
+      },
+      extraBaggage: extra
+        ? {
+            pricePerBagMinor: extra.pricePerBagMinor,
+            maxExtraBagsPerPassenger: extra.maxExtraBagsPerPassenger,
+          }
+        : null,
+      cancellationTiers: [...(airline.policy?.cancellationTiers ?? [])]
+        .sort((a, b) => a.daysBefore - b.daysBefore)
+        .map((t) => ({
+          daysBefore: t.daysBefore,
+          refundPercent: t.refundPercent,
+        })),
+      bookable:
+        flight.status === FlightStatus.Scheduled &&
+        flight.departureUtc > now &&
+        airline.isActive,
+    };
   }
 
   /**

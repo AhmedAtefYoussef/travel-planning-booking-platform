@@ -29,7 +29,7 @@ import {
 } from './dto/flight-search.dto';
 import { FlightSearchService } from './flight-search.service';
 import { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
-import { CreateFlightDto, FlightDto } from './dto/flight.dto';
+import { CreateFlightDto, FlightDetailsDto, FlightDto } from './dto/flight.dto';
 import { FlightsService } from './flights.service';
 
 /**
@@ -64,6 +64,23 @@ export class FlightsController {
       seats: query.passengers,
       page: query.page,
     });
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary:
+      'FLT-17 Flight details: local times, duration, cabins with seats left, baggage, cancellation policy',
+    description:
+      "Public. Shows the airline, flight number, both airports with departure and arrival in each airport's local time (and UTC), the duration, every cabin with its price (minor units), seats remaining and free baggage allowance, the airline's extra-baggage policy and its cancellation tiers. bookable is false for Cancelled or Departed flights and for deactivated airlines.",
+  })
+  @ApiParam({ name: 'id', description: 'Flight id' })
+  @ApiOkResponse({ type: FlightDetailsDto })
+  @ApiErrorResponses(400, 404)
+  details(
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<FlightDetailsDto> {
+    return this.flights.details(id);
   }
 
   @Post()

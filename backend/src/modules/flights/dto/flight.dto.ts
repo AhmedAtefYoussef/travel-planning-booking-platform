@@ -3,6 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsString, Matches } from 'class-validator';
 import type { CabinClass } from '../../../common/contracts';
 import { CABIN_CLASSES, FlightStatus } from '../schemas/flight.schema';
+import { CancellationTierDto, ExtraBaggageDto } from './airline.dto';
 
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
@@ -151,4 +152,60 @@ export class FlightDto {
 
   @ApiProperty()
   updatedAt!: Date;
+}
+
+/** FLT-17: the airline shown on the flight details page. */
+export class FlightAirlineDto {
+  @ApiProperty({ example: '6730d1c5e4b0a1b2c3d4e5f6' })
+  id!: string;
+
+  @ApiProperty({ example: 'EgyptAir' })
+  name!: string;
+
+  @ApiProperty({ example: 'MS' })
+  code!: string;
+
+  @ApiProperty({
+    example: 'https://cdn.example.com/logos/egyptair.png',
+    nullable: true,
+    type: String,
+  })
+  logoUrl!: string | null;
+
+  @ApiProperty({
+    example: true,
+    description: 'false when an admin deactivated the airline (ACC-15)',
+  })
+  isActive!: boolean;
+}
+
+/**
+ * FLT-17 flight details: everything in FlightDto (local and UTC times per GEN-06, duration, each cabin
+ * with price, seats remaining and free baggage) plus the airline, its extra-baggage policy (FLT-08)
+ * and its cancellation tiers (FLT-09).
+ */
+export class FlightDetailsDto extends FlightDto {
+  @ApiProperty({ type: FlightAirlineDto })
+  airline!: FlightAirlineDto;
+
+  @ApiProperty({
+    type: ExtraBaggageDto,
+    nullable: true,
+    description: 'null when the airline has not set an extra-baggage policy',
+  })
+  extraBaggage!: ExtraBaggageDto | null;
+
+  @ApiProperty({
+    type: [CancellationTierDto],
+    description:
+      'Sorted by daysBefore. The refund uses the tier with the highest daysBefore not exceeding the days remaining; none means 0% (FLT-09).',
+  })
+  cancellationTiers!: CancellationTierDto[];
+
+  @ApiProperty({
+    example: true,
+    description:
+      'true only when the flight is Scheduled, has not departed and its airline is active (FLT-30, ACC-15)',
+  })
+  bookable!: boolean;
 }
