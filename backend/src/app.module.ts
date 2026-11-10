@@ -9,6 +9,7 @@ import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
+import { UploadsModule } from './modules/uploads';
 
 /**
  * Root module. Feature modules (auth, flights, hotels, payments, itineraries, blog, admin, ...)
@@ -24,6 +25,7 @@ import { ReferenceModule } from './modules/reference';
     PaymentsModule,
     ReferenceModule,
     CurrencyModule,
+    UploadsModule,
     FlightsModule,
     // Dev-only Swagger demos; evaluated after AppConfigModule has loaded .env into process.env.
     ...(diagnosticsEnabled(process.env.NODE_ENV) ? [DiagnosticsModule] : []),

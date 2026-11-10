@@ -15,8 +15,10 @@ coverage/
 !.env.example
 
 # Uploads (GEN-08, served from UPLOAD_DIR)
-uploads/
-backend/uploads/
+# Anchored: a bare "uploads/" would also ignore backend/src/modules/uploads (the source code).
+/uploads/
+/backend/uploads/
+/backend/uploads-test/
 
 # Generated API spec (CI artifact)
 backend/openapi.json

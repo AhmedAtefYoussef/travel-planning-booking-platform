@@ -466,3 +466,19 @@ CurrencyRatesService behind CURRENCY_SERVICE and GET /api/currencies/rates and /
 tests for the 400, 503 and cached-fallback rules. I reviewed the conversion maths (cross rates through the
 platform currency, minor units for JPY) and the test results before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Fable)
+Related Requirement: GEN-08 (image uploads), FLT-01 (airline logo)
+Prompt:
+Continue my Milestone 1 tasks with the image upload rule: JPG or PNG only, at most 5 MB, at most 5 images per
+post, activity or hotel and 1 logo per airline, stored on the server and served by URL, rejecting anything
+outside the limits. Make it reusable by the blog, itinerary and hotel modules and demoable in Swagger.
+How the output was used:
+Claude wrote the uploads module behind UPLOADS_SERVICE (format decided from the file's first bytes, generated
+file names, all-or-nothing batches), read-only serving at /uploads, and the airline logo upload and removal
+endpoints as the first consumer, with unit and e2e tests. I checked the limits, the 403 and 413 cases and that
+a disguised HTML file is refused before opening the pull request.
+================================================

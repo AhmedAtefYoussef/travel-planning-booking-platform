@@ -49,7 +49,7 @@ const LogoUrlRules = () =>
 const CODE_DESCRIPTION =
   'Airline designator: 2-3 letters or digits, unique, stored in capitals';
 const LOGO_DESCRIPTION =
-  'Logo URL. The GEN-08 upload endpoint will set this from an uploaded JPG/PNG; until then a link is accepted.';
+  'Logo URL. Upload a JPG or PNG with PUT /api/airlines/{id}/logo (GEN-08), which sets this field; an external http(s) link is also accepted here.';
 
 /** FLT-01: an admin creates an airline profile. */
 export class CreateAirlineDto {

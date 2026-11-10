@@ -22,7 +22,7 @@ exports: [AUDIT_SERVICE],
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
 | `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | flight-bookings (Karim) | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
-| `UPLOADS_SERVICE` | `UploadsService.saveImages` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (Ahmed) | blog, itineraries, hotels, airlines |
+| `UPLOADS_SERVICE` | `UploadsService`: `saveImages(files, {entityType, entityId, existingCount})`, `deleteImage(url)` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (Ahmed, **implemented**) | blog, itineraries, hotels, airlines |
 
 ## Shared rules that live in the contracts
 - **Booking lifecycle (GEN-11):** `BookingStatus`, `BOOKING_TRANSITIONS` and `canTransition()`. Check transitions with `canTransition` and update with a status-conditioned query (`{ _id, status: from }`) so concurrent updates cannot skip a state.
@@ -46,3 +46,7 @@ exports: [AUDIT_SERVICE],
   - `convert` throws 400 for a currency outside `supportedCurrencies()` (the seeded currencies) and 503 `EXCHANGE_RATE_UNAVAILABLE` when a rate is missing. Never catch the 503 and show a total anyway.
   - Show the returned `rateDate` next to converted totals.
   - Booking prices are never converted (PAY-04).
+- `modules/uploads` (GEN-08): `ImageUploadsService` behind `UPLOADS_SERVICE`. It checks the format from the file's first bytes (JPG or PNG only), the 5 MB size and the per-entity count, rejects the whole batch on any problem, and stores files under `UPLOAD_DIR`, served read-only at `/uploads/<folder>/<file>`. How to add an image endpoint in your module (see `PUT /api/airlines/:id/logo` in `flights/airlines.controller.ts`):
+  - Use `FileInterceptor('file', { limits: { fileSize: UPLOAD_LIMITS.maxBytes, files: 1 } })` or `FilesInterceptor('files', UPLOAD_LIMITS.maxImagesPerEntity, ...)`, with `@ApiConsumes('multipart/form-data')` and `@ApiErrorResponses(400, 404, 413)`.
+  - Check ownership first, then call `saveImages` with `existingCount` = the images the entity already has, and store the returned `url` (and `imageId`) on your document.
+  - Call `deleteImage(url)` when an image is removed or its entity is deleted. If saving your document fails after `saveImages`, delete the new files again.

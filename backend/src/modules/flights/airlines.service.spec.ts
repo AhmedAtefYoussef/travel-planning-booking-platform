@@ -10,6 +10,8 @@ import type { Airline } from './schemas/airline.schema';
 const airlineId = new Types.ObjectId();
 const now = new Date('2026-11-08T10:00:00Z');
 
+const STORED_LOGO = `/uploads/airlines/${airlineId.toHexString()}-new.png`;
+
 function fakeAirline() {
   return {
     _id: airlineId,
@@ -49,9 +51,16 @@ function setup(found: ReturnType<typeof fakeAirline> | null) {
       Promise.resolve({ ...fakeAirline(), ...doc }),
     ),
   };
+  const uploads = {
+    saveImages: jest.fn(() =>
+      Promise.resolve([{ imageId: 'img', url: STORED_LOGO }]),
+    ),
+    deleteImage: jest.fn(() => Promise.resolve()),
+  };
   return {
     model,
-    service: new AirlinesService(model as unknown as Model<Airline>),
+    uploads,
+    service: new AirlinesService(model as unknown as Model<Airline>, uploads),
   };
 }
 
@@ -311,5 +320,159 @@ describe('AirlinesService.loadActive (ACC-15)', () => {
     await expect(service.loadActive(airline.id)).rejects.toMatchObject({
       status: 403,
     });
+  });
+});
+
+describe('AirlinesService logo (FLT-01, GEN-08)', () => {
+  const file = {
+    originalname: 'logo.png',
+    mimetype: 'image/png',
+    size: 4,
+    buffer: Buffer.from([1, 2, 3, 4]),
+  };
+
+  /** setup() plus a conditional update that behaves like MongoDB's findOneAndUpdate. */
+  function logoSetup(airline: ReturnType<typeof fakeAirline>) {
+    const ctx = setup(airline);
+    const findOneAndUpdate = jest.fn(
+      (
+        filter: { logoUrl: string | null },
+        update: { $set: { logoUrl: string | null } },
+      ) => ({
+        exec: () => {
+          if (filter.logoUrl !== airline.logoUrl) return Promise.resolve(null);
+          airline.logoUrl = update.$set.logoUrl;
+          return Promise.resolve(airline);
+        },
+      }),
+    );
+    Object.assign(ctx.model, { findOneAndUpdate });
+    return { ...ctx, findOneAndUpdate };
+  }
+
+  it('stores the upload as the single airline logo and returns its URL', async () => {
+    const airline = fakeAirline();
+    const { service, uploads, findOneAndUpdate } = logoSetup(airline);
+    const dto = await service.setLogo(
+      moderatorOf(airline.id),
+      airline.id,
+      file,
+    );
+    expect(uploads.saveImages).toHaveBeenCalledWith([file], {
+      entityType: 'AIRLINE_LOGO',
+      entityId: airline.id,
+      existingCount: 0,
+    });
+    expect(dto.logoUrl).toBe(STORED_LOGO);
+    expect(findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: airlineId, logoUrl: null },
+      { $set: { logoUrl: STORED_LOGO } },
+      { new: true, runValidators: true },
+    );
+    expect(uploads.deleteImage).not.toHaveBeenCalled();
+  });
+
+  it('deletes the previous logo after the new one is saved', async () => {
+    const airline = fakeAirline();
+    airline.logoUrl = '/uploads/airlines/old.png';
+    const { service, uploads } = logoSetup(airline);
+    await service.setLogo(moderatorOf(airline.id), airline.id, file);
+    expect(uploads.deleteImage).toHaveBeenCalledTimes(1);
+    expect(uploads.deleteImage).toHaveBeenCalledWith(
+      '/uploads/airlines/old.png',
+    );
+  });
+
+  it('answers 409 and removes its own file when another request changed the logo first', async () => {
+    const airline = fakeAirline();
+    airline.logoUrl = '/uploads/airlines/old.png';
+    const { service, uploads } = logoSetup(airline);
+    uploads.saveImages.mockImplementationOnce(() => {
+      // The other upload wins while this one is writing its file.
+      airline.logoUrl = '/uploads/airlines/winner.png';
+      return Promise.resolve([{ imageId: 'img', url: STORED_LOGO }]);
+    });
+    const stale = { ...airline, logoUrl: '/uploads/airlines/old.png' };
+    Object.assign(service, {
+      load: () => Promise.resolve(stale),
+    });
+    await expect(
+      service.setLogo(moderatorOf(airline.id), airline.id, file),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(uploads.deleteImage).toHaveBeenCalledTimes(1);
+    expect(uploads.deleteImage).toHaveBeenCalledWith(STORED_LOGO);
+    expect(airline.logoUrl).toBe('/uploads/airlines/winner.png');
+  });
+
+  it('removes the new file again when the airline cannot be saved', async () => {
+    const airline = fakeAirline();
+    airline.logoUrl = '/uploads/airlines/old.png';
+    const { service, uploads, findOneAndUpdate } = logoSetup(airline);
+    findOneAndUpdate.mockImplementationOnce(() => ({
+      exec: () => Promise.reject<null>(new Error('db down')),
+    }));
+    await expect(
+      service.setLogo(moderatorOf(airline.id), airline.id, file),
+    ).rejects.toThrow('db down');
+    expect(uploads.deleteImage).toHaveBeenCalledTimes(1);
+    expect(uploads.deleteImage).toHaveBeenCalledWith(STORED_LOGO);
+  });
+
+  it('requires a file', async () => {
+    const airline = fakeAirline();
+    const { service, uploads } = logoSetup(airline);
+    await expect(
+      service.setLogo(moderatorOf(airline.id), airline.id, undefined),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(uploads.saveImages).not.toHaveBeenCalled();
+  });
+
+  it('refuses another airline moderator before touching storage', async () => {
+    const airline = fakeAirline();
+    const { service, uploads } = logoSetup(airline);
+    const other = moderatorOf(new Types.ObjectId().toHexString());
+    await expect(
+      service.setLogo(other, airline.id, file),
+    ).rejects.toMatchObject({ status: 403 });
+    await expect(service.removeLogo(other, airline.id)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(uploads.saveImages).not.toHaveBeenCalled();
+    expect(uploads.deleteImage).not.toHaveBeenCalled();
+  });
+
+  it('removeLogo clears the field and deletes the file; with no logo it does nothing', async () => {
+    const airline = fakeAirline();
+    airline.logoUrl = '/uploads/airlines/old.png';
+    const { service, uploads, findOneAndUpdate } = logoSetup(airline);
+    const dto = await service.removeLogo(moderatorOf(airline.id), airline.id);
+    expect(dto.logoUrl).toBeNull();
+    expect(uploads.deleteImage).toHaveBeenCalledWith(
+      '/uploads/airlines/old.png',
+    );
+    await service.removeLogo(moderatorOf(airline.id), airline.id);
+    expect(findOneAndUpdate).toHaveBeenCalledTimes(1);
+    expect(uploads.deleteImage).toHaveBeenCalledTimes(1);
+  });
+
+  it('PATCH that clears logoUrl or replaces it with a link deletes the previous stored logo', async () => {
+    const airline = fakeAirline();
+    airline.logoUrl = '/uploads/airlines/old.png';
+    const { service, uploads } = logoSetup(airline);
+    await service.update(moderatorOf(airline.id), airline.id, { name: 'New' });
+    expect(uploads.deleteImage).not.toHaveBeenCalled();
+    await service.update(moderatorOf(airline.id), airline.id, {
+      logoUrl: 'https://cdn.example.com/logo.png',
+    });
+    expect(uploads.deleteImage).toHaveBeenLastCalledWith(
+      '/uploads/airlines/old.png',
+    );
+    airline.logoUrl = '/uploads/airlines/second.png';
+    await service.update(moderatorOf(airline.id), airline.id, {
+      logoUrl: null,
+    });
+    expect(uploads.deleteImage).toHaveBeenLastCalledWith(
+      '/uploads/airlines/second.png',
+    );
   });
 });

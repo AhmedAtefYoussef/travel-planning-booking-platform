@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
@@ -6,6 +6,9 @@ import { AuthUser, ProviderType } from '../../common/auth/auth.types';
 import {
   cancellationTierFieldErrors,
   selectCancellationTier,
+  UPLOADS_SERVICE,
+  type UploadedFileLike,
+  type UploadsService,
 } from '../../common/contracts';
 import {
   AppException,
@@ -31,6 +34,7 @@ import { Airline, AirlineDocument } from './schemas/airline.schema';
 export class AirlinesService {
   constructor(
     @InjectModel(Airline.name) private readonly airlines: Model<Airline>,
+    @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
   ) {}
 
   async create(dto: CreateAirlineDto): Promise<AirlineDto> {
@@ -64,11 +68,90 @@ export class AirlinesService {
         'Send at least one of name, code or logoUrl',
       );
     }
+    const previousLogo = airline.logoUrl;
     if (dto.name !== undefined) airline.name = dto.name;
     if (dto.code !== undefined) airline.code = dto.code;
     if (dto.logoUrl !== undefined) airline.logoUrl = dto.logoUrl;
     await airline.save();
+    // A logo replaced by a link or removed leaves no orphan file behind (GEN-08).
+    if (previousLogo && previousLogo !== airline.logoUrl) {
+      await this.uploads.deleteImage(previousLogo);
+    }
     return toAirlineDto(airline);
+  }
+
+  /**
+   * FLT-01 + GEN-08: the airline's moderator uploads the logo as a JPG or PNG of at most 5 MB. An
+   * airline has exactly one logo, so a new upload replaces the previous one and its file is removed.
+   */
+  async setLogo(
+    user: AuthUser,
+    id: string,
+    file: UploadedFileLike | undefined,
+  ): Promise<AirlineDto> {
+    const airline = await this.load(id);
+    assertProviderScope(user, ProviderType.Airline, airline._id);
+    if (!file) {
+      throw new ValidationFailedException([
+        {
+          field: 'file',
+          message: 'Attach the logo as a JPG or PNG image in the "file" field',
+        },
+      ]);
+    }
+    const [stored] = await this.uploads.saveImages([file], {
+      entityType: 'AIRLINE_LOGO',
+      entityId: airline.id as string,
+      // PUT replaces: the previous logo does not count against the limit of one.
+      existingCount: 0,
+    });
+    const previousLogo = airline.logoUrl;
+    let updated: AirlineDocument;
+    try {
+      updated = await this.swapLogo(airline, stored.url);
+    } catch (e) {
+      await this.uploads.deleteImage(stored.url);
+      throw e;
+    }
+    if (previousLogo) await this.uploads.deleteImage(previousLogo);
+    return toAirlineDto(updated);
+  }
+
+  /**
+   * Replaces the logo only if it is still the one this request read. Two uploads at the same moment
+   * would otherwise both delete the old file and leave one new file that nothing points to; here the
+   * second one gets a 409 and its file is removed by the caller.
+   */
+  private async swapLogo(
+    airline: AirlineDocument,
+    next: string | null,
+  ): Promise<AirlineDocument> {
+    const updated = await this.airlines
+      .findOneAndUpdate(
+        { _id: airline._id, logoUrl: airline.logoUrl },
+        { $set: { logoUrl: next } },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!updated) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        'The logo was changed by another request at the same time. Please try again.',
+      );
+    }
+    return updated;
+  }
+
+  /** FLT-01 + GEN-08: removes the logo and its stored file. Removing a missing logo is a no-op. */
+  async removeLogo(user: AuthUser, id: string): Promise<AirlineDto> {
+    const airline = await this.load(id);
+    assertProviderScope(user, ProviderType.Airline, airline._id);
+    const previousLogo = airline.logoUrl;
+    if (!previousLogo) return toAirlineDto(airline);
+    const updated = await this.swapLogo(airline, null);
+    await this.uploads.deleteImage(previousLogo);
+    return toAirlineDto(updated);
   }
 
   /** FLT-08: set (or replace) the extra-baggage policy; only the airline's moderator. */

@@ -1,15 +1,21 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   Post,
   Put,
   Query,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -19,9 +25,12 @@ import {
 import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { UPLOAD_LIMITS } from '../../common/contracts';
+import type { UploadedFileLike } from '../../common/contracts';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import { AirlinesService } from './airlines.service';
+import { OwnAirlineGuard } from './own-airline.guard';
 import {
   AirlineDto,
   BaggagePolicyDto,
@@ -123,6 +132,69 @@ export class AirlinesController {
     @Body() dto: UpdateAirlineDto,
   ): Promise<AirlineDto> {
     return this.airlines.update(user, id, dto);
+  }
+
+  @Put(':id/logo')
+  @Roles(Role.AirlineModerator)
+  // Runs before the body is read, so only the airline's own moderator can make the server buffer a file.
+  @UseGuards(OwnAirlineGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // Stops reading at the GEN-08 limit instead of buffering an oversized upload (413), and
+      // accepts nothing but the one file part.
+      limits: {
+        fileSize: UPLOAD_LIMITS.maxBytes,
+        files: 1,
+        fields: 0,
+        parts: 1,
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: "GEN-08 / FLT-01 Airline moderator uploads their airline's logo",
+    description:
+      'Only the moderator assigned to this airline (403 otherwise). Send one image in the multipart field `file`: JPG or PNG, at most 5 MB. The format is checked from the file content, not its name. An airline has one logo: a new upload replaces the previous one. The stored image is served at the returned `logoUrl` (for example /uploads/airlines/{file}.png). 400 with a field error for a missing, empty or non-image file; 413 above 5 MB.',
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'JPG or PNG image, at most 5 MB',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({ type: AirlineDto })
+  @ApiErrorResponses(400, 404, 413)
+  setLogo(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @UploadedFile() file: UploadedFileLike | undefined,
+  ): Promise<AirlineDto> {
+    return this.airlines.setLogo(user, id, file);
+  }
+
+  @Delete(':id/logo')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary: "GEN-08 / FLT-01 Airline moderator removes their airline's logo",
+    description:
+      'Only the moderator assigned to this airline. Sets `logoUrl` to null and deletes the stored file. Removing a logo that is not there succeeds and changes nothing.',
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiOkResponse({ type: AirlineDto })
+  @ApiErrorResponses(400, 404)
+  removeLogo(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<AirlineDto> {
+    return this.airlines.removeLogo(user, id);
   }
 
   @Put(':id/baggage-policy')

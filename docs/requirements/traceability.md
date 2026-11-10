@@ -46,7 +46,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | #9 | Done |
+| FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id; PUT\|DELETE /api/airlines/:id/logo | Joudy | TRVL-28 | #9, #33 | Done |
 | FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | Done |
 | FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10 | Done |
 | FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | #11, #12 | Done |
@@ -154,7 +154,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | Done |
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4 | Partial: AUDIT_SERVICE + schema; endpoint pending |
-| GEN-08 | Mandatory | UPLOADS_SERVICE (image endpoints) | Ahmed | TRVL-103 | - | Not started |
+| GEN-08 | Mandatory | UPLOADS_SERVICE; GET /uploads/:folder/:file; PUT\|DELETE /api/airlines/:id/logo | Ahmed | TRVL-103 | #33 | Done |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS) | Ahmed | TRVL-106 | #4 | Partial: transition table |
