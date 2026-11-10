@@ -391,3 +391,18 @@ Claude moved Omittable and IsWholeNumber to common/validation, added a shared sa
 by the airline and flight schemas, documented all three in conventions.md, and added a guard rule that fails on
 @IsInt( or Number.isInteger( in module code. Behaviour is unchanged: all 159 e2e tests pass, plus 15 new unit tests.
 ================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-135 (README and team documentation), TRVL-134 (traceability upkeep)
+Prompt:
+Four teammates have not started and setup knowledge is spread over four files. Write one onboarding page from
+clone to first merged PR, a review checklist built from the bugs found in earlier reviews, and fix stale docs.
+How the output was used:
+Claude wrote docs/ONBOARDING.md (access, .env, db:check, seed, the Swagger dev-user stub, first PR, a module
+starter copied from flights) and docs/process/review-checklist.md, fixed the README layout, the merge method in
+CONTRIBUTING, the missing FLIGHT_BOOKINGS_LOOKUP row and the stale GEN-02/05/13 matrix rows. I checked each
+command and header value against the code before committing.
+================================================
