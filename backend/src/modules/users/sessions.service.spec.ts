@@ -1,7 +1,11 @@
 import type { ConfigService } from '@nestjs/config';
 import { Types, type Model } from 'mongoose';
 import type { Session } from './schemas/session.schema';
-import { hashRefreshToken, SessionsService } from './sessions.service';
+import {
+  hashRefreshToken,
+  ROTATION_GRACE_MS,
+  SessionsService,
+} from './sessions.service';
 
 const NOW = new Date('2026-11-11T10:00:00Z');
 const THIRTY_MIN_AGO = new Date('2026-11-11T09:30:00Z');
@@ -15,6 +19,7 @@ function setup() {
       .mockImplementation((doc: object) => ({ ...doc, _id: SESSION })),
     updateOne: jest.fn().mockResolvedValue({ matchedCount: 1 }),
     updateMany: jest.fn().mockResolvedValue({}),
+    findOne: jest.fn(),
     findOneAndUpdate: jest.fn().mockResolvedValue({
       _id: SESSION,
       userId: USER,
@@ -90,33 +95,86 @@ describe('SessionsService.touch (ACC-06 idle expiry)', () => {
 });
 
 describe('SessionsService.rotate (ACC-06 refresh)', () => {
-  it('swaps the presented token for a new one in one atomic update', async () => {
+  /** The previous-hash lookup used when the presented token is not the current one. */
+  const previous = (found: unknown) => ({
+    select: () => ({ lean: () => Promise.resolve(found) }),
+  });
+
+  it('swaps the presented token for a new one and remembers the old hash, in one atomic update', async () => {
     const { service, model } = setup();
-    const rotated = await service.rotate('old-token', NOW);
+    const result = await service.rotate('old-token', NOW);
+    if (result.kind !== 'rotated') throw new Error('expected a rotation');
 
     const [filter, update] = model.findOneAndUpdate.mock.calls[0] as [
       Record<string, unknown>,
-      { $set: { refreshTokenHash: string; lastActivityAt: Date } },
+      { $set: Record<string, unknown> },
     ];
     expect(filter).toEqual({
       refreshTokenHash: hashRefreshToken('old-token'),
       ...usable,
     });
-    expect(update.$set.lastActivityAt).toEqual(NOW);
-    expect(update.$set.refreshTokenHash).toBe(
-      hashRefreshToken(rotated!.refreshToken),
-    );
-    expect(rotated).toMatchObject({
+    expect(update.$set).toEqual({
+      refreshTokenHash: hashRefreshToken(result.refreshToken),
+      previousRefreshTokenHash: hashRefreshToken('old-token'),
+      rotatedAt: NOW,
+      lastActivityAt: NOW,
+    });
+    expect(result).toMatchObject({
       sessionId: SESSION.toHexString(),
       userId: USER.toHexString(),
     });
-    expect(rotated!.refreshToken).not.toBe('old-token');
+    expect(result.refreshToken).not.toBe('old-token');
   });
 
-  it('returns null for an unknown, used, revoked, expired or idle token', async () => {
+  it('is invalid for an unknown token, or one whose session is already revoked', async () => {
     const { service, model } = setup();
     model.findOneAndUpdate.mockResolvedValue(null);
-    await expect(service.rotate('old-token', NOW)).resolves.toBeNull();
+    model.findOne.mockReturnValue(previous(null));
+    await expect(service.rotate('old-token', NOW)).resolves.toEqual({
+      kind: 'invalid',
+    });
+
+    model.findOne.mockReturnValue(previous({ _id: SESSION, revokedAt: NOW }));
+    await expect(service.rotate('old-token', NOW)).resolves.toEqual({
+      kind: 'invalid',
+    });
+    expect(model.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('treats the just-rotated token within the grace window as a parallel tab, without ending the session', async () => {
+    const { service, model } = setup();
+    model.findOneAndUpdate.mockResolvedValue(null);
+    model.findOne.mockReturnValue(
+      previous({
+        _id: SESSION,
+        rotatedAt: new Date(NOW.getTime() - ROTATION_GRACE_MS),
+      }),
+    );
+    await expect(service.rotate('old-token', NOW)).resolves.toEqual({
+      kind: 'superseded',
+    });
+    expect(model.findOne).toHaveBeenCalledWith({
+      previousRefreshTokenHash: hashRefreshToken('old-token'),
+    });
+    expect(model.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('ends the whole session when an already-rotated token comes back later (reuse)', async () => {
+    const { service, model } = setup();
+    model.findOneAndUpdate.mockResolvedValue(null);
+    model.findOne.mockReturnValue(
+      previous({
+        _id: SESSION,
+        rotatedAt: new Date(NOW.getTime() - ROTATION_GRACE_MS - 1),
+      }),
+    );
+    await expect(service.rotate('old-token', NOW)).resolves.toEqual({
+      kind: 'reused',
+    });
+    expect(model.updateOne).toHaveBeenCalledWith(
+      { _id: SESSION, revokedAt: { $exists: false } },
+      { $set: { revokedAt: NOW } },
+    );
   });
 });
 

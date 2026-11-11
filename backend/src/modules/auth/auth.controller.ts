@@ -27,6 +27,8 @@ import {
 } from '../../common/auth/auth-cookies';
 import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { UserProfileDto } from '../users';
@@ -159,10 +161,12 @@ export class AuthController {
       'Uses the httpOnly `refresh_token` cookie (sent only to /api/auth) to issue a new `access_token` cookie and a new refresh token; ' +
       'the old refresh token stops working (rotation). No body is needed and no token is returned in the body. ' +
       'Fails with 401 and clears both cookies when the session was logged out, has had no authenticated request for SESSION_IDLE_MINUTES (30), ' +
-      'is past JWT_REFRESH_TTL, or the refresh token was already used. A suspended account gets 403 ACCOUNT_SUSPENDED.',
+      'is past JWT_REFRESH_TTL, or an already-rotated refresh token is replayed (which also ends the session, as a stolen token). ' +
+      'If another tab refreshed with the same token within the last 10 seconds, the answer is 409 REFRESH_SUPERSEDED and the cookies are left alone: ' +
+      'the frontend should simply retry its request with the new cookies. A suspended account gets 403 ACCOUNT_SUSPENDED.',
   })
   @ApiOkResponse({ type: LoginResponseDto, description: 'New cookies set' })
-  @ApiErrorResponses(401, 403)
+  @ApiErrorResponses(401, 403, 409)
   async refresh(
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
@@ -172,7 +176,13 @@ export class AuthController {
       this.setAuthCookies(res, result);
       return { user: result.user, homePath: result.homePath };
     } catch (error) {
-      this.clearAuthCookies(res);
+      // A tab that lost a refresh race must not wipe the cookies the winning request just set.
+      if (!(
+        error instanceof AppException &&
+        error.code === ErrorCode.REFRESH_SUPERSEDED
+      )) {
+        this.clearAuthCookies(res);
+      }
       throw error;
     }
   }

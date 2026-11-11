@@ -176,6 +176,43 @@ describe('Logout, refresh and idle expiry (e2e): ACC-06', () => {
       expect(pick(replay, 'access_token')).toMatch(/^access_token=;/);
     });
 
+    it('ends the whole session when a rotated refresh token is replayed later (stolen token)', async () => {
+      const login = await loggedIn();
+      const first = await refreshWith(login.refresh).expect(200);
+      const r1 = pair(pick(first, 'refresh_token'));
+      const a1 = pair(pick(first, 'access_token'));
+      // Move the rotation outside the 10-second grace window.
+      await sessions.updateOne(
+        { previousRefreshTokenHash: hashRefreshToken(login.rawRefresh) },
+        { $set: { rotatedAt: new Date(Date.now() - 60_000) } },
+      );
+
+      const replay = await refreshWith(login.refresh).expect(401);
+      expect(replay.body.message).toMatch(/old refresh token was used again/);
+      // The legitimate holder of R1 is logged out too: the session is revoked.
+      await refreshWith(r1).expect(401);
+      await me(a1).expect(401);
+    });
+
+    it('two tabs refreshing at once: one wins, the other gets 409 and does not wipe the new cookies', async () => {
+      const login = await loggedIn();
+      const results = await Promise.all([
+        refreshWith(login.refresh),
+        refreshWith(login.refresh),
+      ]);
+      const statuses = results.map((r) => r.status).sort();
+      expect(statuses).toEqual([200, 409]);
+
+      const winner = results.find((r) => r.status === 200)!;
+      const loser = results.find((r) => r.status === 409)!;
+      expect(loser.body.code).toBe('REFRESH_SUPERSEDED');
+      expect(loser.headers['set-cookie']).toBeUndefined();
+
+      // The session survives and the winner's cookies keep working.
+      await me(pair(pick(winner, 'access_token'))).expect(200);
+      await refreshWith(pair(pick(winner, 'refresh_token'))).expect(200);
+    });
+
     it('is 401 without a refresh cookie', async () => {
       await http().post('/api/auth/refresh').expect(401);
     });

@@ -51,6 +51,7 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
       expiresAt: new Date(),
     }),
     rotate: jest.fn().mockResolvedValue({
+      kind: 'rotated',
       sessionId: SESSION_ID,
       userId: USER_ID,
       refreshToken: 'rotated-refresh',
@@ -262,7 +263,7 @@ describe('AuthService.refresh (ACC-06)', () => {
     expect(none.sessions.rotate).not.toHaveBeenCalled();
 
     const used = setup();
-    used.sessions.rotate.mockResolvedValue(null);
+    used.sessions.rotate.mockResolvedValue({ kind: 'invalid' });
     const e = await failure(used.service.refresh('raw-refresh'));
     expect(e.getStatus()).toBe(401);
     expect(e.message).toMatch(/session has expired/);
@@ -333,5 +334,24 @@ describe('AuthService.logout without an access cookie (ACC-06)', () => {
       refreshToken: 'raw-refresh',
       sessionId: undefined,
     });
+  });
+});
+
+describe('AuthService.refresh rotation outcomes (ACC-06)', () => {
+  it('answers a lost race with 409 REFRESH_SUPERSEDED and keeps the session', async () => {
+    const { service, sessions } = setup();
+    sessions.rotate.mockResolvedValue({ kind: 'superseded' });
+    const e = await failure(service.refresh('raw-refresh'));
+    expect(e.getStatus()).toBe(409);
+    expect(e.code).toBe('REFRESH_SUPERSEDED');
+    expect(sessions.revoke).not.toHaveBeenCalled();
+  });
+
+  it('answers a replayed old token with 401 and asks for a new login', async () => {
+    const { service, sessions } = setup();
+    sessions.rotate.mockResolvedValue({ kind: 'reused' });
+    const e = await failure(service.refresh('raw-refresh'));
+    expect(e.getStatus()).toBe(401);
+    expect(e.message).toMatch(/old refresh token was used again/);
   });
 });

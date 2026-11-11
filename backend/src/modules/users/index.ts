@@ -2,7 +2,12 @@ export { UsersModule } from './users.module';
 export { UsersService } from './users.service';
 export type { LoginCandidate, NewTraveller } from './users.service';
 export { hashRefreshToken, SessionsService } from './sessions.service';
-export type { NewSession, RotatedSession } from './sessions.service';
+export { ROTATION_GRACE_MS } from './sessions.service';
+export type {
+  NewSession,
+  RotatedSession,
+  RotationResult,
+} from './sessions.service';
 export {
   AssignedProviderDto,
   toUserProfile,

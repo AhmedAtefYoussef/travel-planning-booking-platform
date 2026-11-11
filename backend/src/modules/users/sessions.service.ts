@@ -14,6 +14,22 @@ export interface NewSession {
   expiresAt: Date;
 }
 
+/**
+ * A second refresh with the token that was just rotated, within this window, is a parallel request from
+ * another tab of the same browser, not a theft: it is refused without ending the session (ACC-06).
+ */
+export const ROTATION_GRACE_MS = 10_000;
+
+/** Outcome of a refresh attempt (ACC-06). */
+export type RotationResult =
+  | ({ kind: 'rotated' } & RotatedSession)
+  /** Another request rotated this token a moment ago; the session is fine. */
+  | { kind: 'superseded' }
+  /** An already-rotated token came back later: treated as stolen, the session was revoked. */
+  | { kind: 'reused' }
+  /** Unknown, revoked, expired or idle. */
+  | { kind: 'invalid' };
+
 export interface RotatedSession {
   sessionId: string;
   userId: string;
@@ -90,25 +106,45 @@ export class SessionsService implements SessionValidator {
   async rotate(
     refreshToken: string,
     now = new Date(),
-  ): Promise<RotatedSession | null> {
+  ): Promise<RotationResult> {
+    const presented = hashRefreshToken(refreshToken);
     const next = newRefreshToken();
     const session = await this.sessions.findOneAndUpdate(
+      { refreshTokenHash: presented, ...this.usableAt(now) },
       {
-        refreshTokenHash: hashRefreshToken(refreshToken),
-        ...this.usableAt(now),
-      },
-      {
-        $set: { refreshTokenHash: hashRefreshToken(next), lastActivityAt: now },
+        $set: {
+          refreshTokenHash: hashRefreshToken(next),
+          previousRefreshTokenHash: presented,
+          rotatedAt: now,
+          lastActivityAt: now,
+        },
       },
       { new: true },
     );
-    if (!session) return null;
-    return {
-      sessionId: session._id.toHexString(),
-      userId: session.userId.toHexString(),
-      refreshToken: next,
-      expiresAt: session.expiresAt,
-    };
+    if (session) {
+      return {
+        kind: 'rotated',
+        sessionId: session._id.toHexString(),
+        userId: session.userId.toHexString(),
+        refreshToken: next,
+        expiresAt: session.expiresAt,
+      };
+    }
+
+    // Not the current token: was it this session's previous one?
+    const earlier = await this.sessions
+      .findOne({ previousRefreshTokenHash: presented })
+      .select('rotatedAt revokedAt')
+      .lean();
+    if (!earlier || earlier.revokedAt) return { kind: 'invalid' };
+    const sinceRotation = now.getTime() - (earlier.rotatedAt?.getTime() ?? 0);
+    if (sinceRotation <= ROTATION_GRACE_MS) return { kind: 'superseded' };
+    // Reuse long after rotation: someone else holds a copy. End the session for everyone.
+    await this.sessions.updateOne(
+      { _id: earlier._id, revokedAt: { $exists: false } },
+      { $set: { revokedAt: now } },
+    );
+    return { kind: 'reused' };
   }
 
   /** ACC-06 logout: ends the session found by its refresh token and/or id. Idempotent. */

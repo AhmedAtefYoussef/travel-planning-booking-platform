@@ -124,10 +124,26 @@ export class AuthService {
    */
   async refresh(refreshToken: string | undefined): Promise<LoginResult> {
     const now = new Date();
-    const session = refreshToken
+    const rotation = refreshToken
       ? await this.sessions.rotate(refreshToken, now)
-      : null;
-    if (!session) throw sessionEnded();
+      : ({ kind: 'invalid' } as const);
+    if (rotation.kind === 'superseded') {
+      // Another tab refreshed with this token a moment ago and already holds the new cookies.
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.REFRESH_SUPERSEDED,
+        'This session was just refreshed by another request; keep using the new cookies',
+      );
+    }
+    if (rotation.kind === 'reused') {
+      throw new AppException(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.UNAUTHENTICATED,
+        'An old refresh token was used again, so this session was ended for safety; please log in again',
+      );
+    }
+    if (rotation.kind !== 'rotated') throw sessionEnded();
+    const session = rotation;
 
     const user = await this.users.findProfile(session.userId);
     if (!user || user.status !== AccountStatus.Active) {

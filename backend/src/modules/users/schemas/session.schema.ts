@@ -26,6 +26,17 @@ export class Session {
   @Prop({ type: Date, required: true })
   expiresAt!: Date;
 
+  /**
+   * The hash this session had before its last rotation, and when that rotation happened. A refresh with
+   * this hash is either a second tab that lost the race (within ROTATION_GRACE_MS) or a stolen,
+   * replayed token, which ends the whole session (ACC-06).
+   */
+  @Prop({ type: String, match: /^[a-f0-9]{64}$/, index: true })
+  previousRefreshTokenHash?: string;
+
+  @Prop({ type: Date })
+  rotatedAt?: Date;
+
   /** Set by logout (ACC-06), a password change (ACC-08) or an admin action; never cleared. */
   @Prop({ type: Date })
   revokedAt?: Date;
