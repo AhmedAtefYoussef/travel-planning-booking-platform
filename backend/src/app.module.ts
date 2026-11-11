@@ -3,6 +3,7 @@ import { CommonModule } from './common/common.module';
 import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AuditModule } from './modules/audit';
+import { AuthModule } from './modules/auth';
 import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
 import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
@@ -21,6 +22,7 @@ import { UsersModule } from './modules/users';
     CommonModule,
     HealthModule,
     UsersModule,
+    AuthModule,
     AuditModule,
     PaymentsModule,
     ReferenceModule,

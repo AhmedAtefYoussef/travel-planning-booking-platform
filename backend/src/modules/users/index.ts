@@ -1,4 +1,11 @@
 export { UsersModule } from './users.module';
+export { UsersService } from './users.service';
+export type { NewTraveller } from './users.service';
+export {
+  AssignedProviderDto,
+  toUserProfile,
+  UserProfileDto,
+} from './dto/user-profile.dto';
 export { AdminSeedService, SEEDED_ADMIN_NAME } from './admin-seed.service';
 export type { AdminSeedInput, AdminSeedResult } from './admin-seed.service';
 export {

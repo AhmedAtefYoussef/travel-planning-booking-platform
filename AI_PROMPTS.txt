@@ -473,3 +473,24 @@ now checked before connecting, and a re-run on an empty database confirmed nothi
 npm run verify passes (300 unit and 180 e2e tests). I reviewed the schemas against TRVL-137, the ERD and
 the brief before committing.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-01 (TRVL-13, guest registration)
+Prompt:
+Implement guest registration (POST /api/auth/register) on top of the users schema: name, unique email,
+a password of at least 8 characters with at least one letter and one digit, and a mandatory
+terms-and-privacy consent. Reject every broken rule with inline field errors, return 409 for an email
+that is already registered, and make sure nobody can register as an admin or moderator. Validate the
+DTO with class-validator, document the endpoint in Swagger with examples and its error responses,
+cover the rules with unit and e2e tests, and verify the behaviour against a running app.
+How the output was used:
+Claude added the auth module (RegisterDto, AuthService, AuthController), UsersService.createTraveller
+and a shared UserProfileDto that never exposes the password hash. The role is set by the service, and
+any role, status or other account field in the request body is rejected with a 400 field error.
+Duplicate emails are decided by the unique index in any letter case (409 EMAIL_ALREADY_REGISTERED,
+new error code), including two simultaneous sign-ups. The consent must be exactly true. Tests: 24 new
+unit and 14 new e2e cases; I checked each rule by calling the endpoint on a running app.
+================================================
