@@ -1,5 +1,10 @@
 import { Types, type Model, type PipelineStage } from 'mongoose';
-import type { Airport, ReferenceService } from '../../common/contracts';
+import {
+  INFANT_FARE_PERCENT,
+  infantFareMinor,
+  type Airport,
+  type ReferenceService,
+} from '../../common/contracts';
 import { ValidationFailedException } from '../../common/errors/app.exception';
 import { FlightSearchService } from './flight-search.service';
 import type { Flight } from './schemas/flight.schema';
@@ -187,6 +192,7 @@ describe('FlightSearchService.searchOneWay (FLT-11)', () => {
       cabinClass: 'ECONOMY',
       seatsLeft: 150,
       pricePerPassengerMinor: 27500,
+      infantPriceMinor: 2750,
       totalPriceMinor: 55000,
       freeBags: 1,
       maxKgPerBag: 23,
@@ -384,5 +390,240 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
     expect(
       (stageOf(pipelines[0], '$sort') as { $sort: object }).$sort,
     ).toMatchObject({ 'cabin.priceMinor': 1 });
+  });
+});
+
+describe('FlightSearchService passenger types, cabin filter and round trips (FLT-12)', () => {
+  const stage = (stages: PipelineStage[], key: string) =>
+    stages.filter((st) => key in st) as unknown as Record<string, unknown>[];
+  const query = {
+    from: 'CAI',
+    to: 'DXB',
+    departureDate: '2026-12-01',
+    page: 1,
+  };
+
+  it('needs a seat for adults and children only, and adds 10% of the fare per infant to the total', async () => {
+    const { service, pipelines } = setup();
+    await service.searchFlights(
+      { ...query, adults: 2, children: 1, infants: 2 },
+      NOW,
+    );
+    expect(pipelines[0]).toEqual(
+      expect.arrayContaining([
+        { $match: { 'cabins.seatsAvailable': { $gte: 3 } } },
+      ]),
+    );
+    const [addFields] = stage(pipelines[0], '$addFields');
+    expect(addFields).toEqual({
+      $addFields: {
+        totalPriceMinor: {
+          $add: [
+            { $multiply: ['$cabins.priceMinor', 3] },
+            {
+              $multiply: [
+                {
+                  $floor: {
+                    $divide: [{ $multiply: ['$cabins.priceMinor', 10] }, 100],
+                  },
+                },
+                2,
+              ],
+            },
+          ],
+        },
+        durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
+      },
+    });
+  });
+
+  it('keeps the plain FLT-11 total when there are no infants, and accepts passengers as the adult count', async () => {
+    const { service, pipelines } = setup();
+    await service.searchFlights({ ...query, passengers: 2 }, NOW);
+    expect(stage(pipelines[0], '$addFields')[0]).toEqual({
+      $addFields: {
+        totalPriceMinor: { $multiply: ['$cabins.priceMinor', 2] },
+        durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
+      },
+    });
+  });
+
+  it('filters by cabin class only when one is asked for', async () => {
+    const withCabin = setup();
+    await withCabin.service.searchFlights(
+      { ...query, adults: 1, cabinClass: 'BUSINESS' },
+      NOW,
+    );
+    expect(withCabin.pipelines[0]).toEqual(
+      expect.arrayContaining([{ $match: { 'cabins.class': 'BUSINESS' } }]),
+    );
+    const without = setup();
+    await without.service.searchFlights({ ...query, adults: 1 }, NOW);
+    expect(JSON.stringify(without.pipelines[0])).not.toContain('cabins.class');
+  });
+
+  it('a one-way search returns a plain page; a round trip adds the return leg with from/to swapped', async () => {
+    const oneWay = setup();
+    const page = await oneWay.service.searchFlights(
+      { ...query, adults: 1 },
+      NOW,
+    );
+    expect(page).not.toHaveProperty('returnFlights');
+    expect(oneWay.pipelines).toHaveLength(1);
+
+    const round = setup();
+    const result = await round.service.searchFlights(
+      {
+        ...query,
+        adults: 1,
+        infants: 1,
+        cabinClass: 'ECONOMY',
+        returnDate: '2026-12-08',
+        returnPage: 2,
+        sort: 'price',
+        maxPriceMinor: 50000,
+      },
+      NOW,
+    );
+    expect(result).toHaveProperty('returnFlights');
+    expect(round.pipelines).toHaveLength(2);
+    const [, back] = round.pipelines;
+    const match = stage(back, '$match')[0].$match as Record<string, unknown>;
+    expect(match).toMatchObject({ from: 'DXB', to: 'CAI' });
+    // The return day is the local calendar day at the arrival airport (Dubai, UTC+4).
+    expect(match.departureUtc).toMatchObject({
+      $gte: new Date('2026-12-07T20:00:00.000Z'),
+      $lt: new Date('2026-12-08T20:00:00.000Z'),
+    });
+    expect(back).toEqual(
+      expect.arrayContaining([
+        { $match: { 'cabins.class': 'ECONOMY' } },
+        { $match: { 'cabins.priceMinor': { $lte: 50000 } } },
+      ]),
+    );
+    const facet = stage(back, '$facet')[0].$facet as {
+      items: Record<string, number>[];
+    };
+    expect(facet.items[0]).toEqual({ $skip: 10 });
+  });
+
+  it.each([
+    [
+      'no adult',
+      { adults: undefined, passengers: undefined, children: 1 },
+      'adults',
+      'Each booking needs at least one adult (12 or older)',
+    ],
+    [
+      'more infants than adults',
+      { adults: 1, infants: 2 },
+      'infants',
+      'No more infants than adults: 2 infant(s) for 1 adult(s)',
+    ],
+    [
+      'a return before the departure',
+      { adults: 1, returnDate: '2026-11-30' },
+      'returnDate',
+      'returnDate (2026-11-30) must be on or after departureDate (2026-12-01)',
+    ],
+    [
+      'an impossible return date',
+      { adults: 1, returnDate: '2026-12-32' },
+      'returnDate',
+      '"2026-12-32" is not a valid YYYY-MM-DD date',
+    ],
+  ])(
+    'rejects %s with a field error and runs no query',
+    async (_n, extra, field, message) => {
+      const { service, pipelines } = setup();
+      const errors = await fieldErrors(
+        service.searchFlights({ ...query, ...extra }, NOW),
+      );
+      expect(errors).toEqual([{ field, message }]);
+      expect(pipelines).toHaveLength(0);
+    },
+  );
+
+  it('reports party errors together with the leg errors in one response (GEN-02)', async () => {
+    const { service, pipelines } = setup();
+    const errors = await fieldErrors(
+      service.searchFlights(
+        { ...query, to: 'XXX', adults: 1, infants: 2, returnPage: 2 },
+        NOW,
+      ),
+    );
+    expect(errors.map((e) => e.field)).toEqual(['infants', 'returnPage', 'to']);
+    expect(pipelines).toHaveLength(0);
+  });
+
+  it('computes the infant fare in the database exactly as infantFareMinor does', () => {
+    // The pipeline expression is floor(price * 10 / 100); compare it with the shared function.
+    for (let price = 1; price <= 20000; price += 1) {
+      expect(Math.floor((price * INFANT_FARE_PERCENT) / 100)).toBe(
+        infantFareMinor(price),
+      );
+    }
+    for (const price of [Number.MAX_SAFE_INTEGER / 10 - 1, 99999999995]) {
+      const p = Math.floor(price);
+      expect(Math.floor((p * INFANT_FARE_PERCENT) / 100)).toBe(
+        infantFareMinor(p),
+      );
+    }
+  });
+
+  it('allows a same-day return', async () => {
+    const { service, pipelines } = setup();
+    await service.searchFlights(
+      { ...query, adults: 1, returnDate: '2026-12-01' },
+      NOW,
+    );
+    expect(pipelines).toHaveLength(2);
+  });
+
+  it('the FLIGHTS_SEARCH contract searches one leg and refuses returnDate instead of ignoring it', async () => {
+    const { service, pipelines } = setup();
+    const errors = await fieldErrors(
+      service.search({ ...query, adults: 1, returnDate: '2026-12-08' }),
+    );
+    expect(errors).toEqual([
+      {
+        field: 'returnDate',
+        message:
+          'FLIGHTS_SEARCH searches one leg; search the return leg separately with from and to swapped',
+      },
+    ]);
+    expect(pipelines).toHaveLength(0);
+  });
+
+  it('the FLIGHTS_SEARCH contract rejects malformed counts', async () => {
+    const { service, pipelines } = setup();
+    const errors = await fieldErrors(
+      service.search({ ...query, adults: 1, children: -1 }),
+    );
+    expect(errors).toEqual([
+      {
+        field: 'children',
+        message: 'children must be a whole number of 0 or more',
+      },
+    ]);
+    expect(pipelines).toHaveLength(0);
+  });
+
+  it('the FLIGHTS_SEARCH contract applies the same party rules and infant pricing', async () => {
+    const { service, pipelines } = setup();
+    await expect(
+      service.search({ ...query, adults: 1, infants: 2 }),
+    ).rejects.toBeInstanceOf(ValidationFailedException);
+    expect(pipelines).toHaveLength(0);
+    await service.search({
+      ...query,
+      adults: 1,
+      infants: 1,
+      cabinClass: 'FIRST',
+    });
+    expect(JSON.stringify(pipelines[0])).toContain('"$floor"');
+    expect(pipelines[0]).toEqual(
+      expect.arrayContaining([{ $match: { 'cabins.class': 'FIRST' } }]),
+    );
   });
 });

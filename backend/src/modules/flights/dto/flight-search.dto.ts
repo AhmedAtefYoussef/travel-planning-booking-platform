@@ -1,6 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, Matches, Min, ValidateBy } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  Matches,
+  Min,
+  ValidateBy,
+  type ValidationArguments,
+} from 'class-validator';
 import { IsWholeNumber } from '../../../common/validation';
 import type { CabinClass, FlightSearchQuery } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
@@ -30,6 +37,48 @@ function IsPassengerCount() {
   });
 }
 
+/** A whole number of at least `min`, with one message (GEN-02). */
+function IsCount(min: number, message: string) {
+  return ValidateBy({
+    name: 'isCount',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value >= min,
+      defaultMessage: () => message,
+    },
+  });
+}
+
+/**
+ * FLT-12 adults: required unless the older `passengers` field carries the same count; never both,
+ * so a request cannot say two different things.
+ */
+function IsAdultCount() {
+  return ValidateBy({
+    name: 'isAdultCount',
+    validator: {
+      validate: (value: unknown, args?: ValidationArguments) => {
+        const passengers = (args?.object as { passengers?: unknown })
+          ?.passengers;
+        if (value === undefined) return passengers !== undefined;
+        return (
+          passengers === undefined &&
+          typeof value === 'number' &&
+          Number.isSafeInteger(value) &&
+          value >= 1
+        );
+      },
+      defaultMessage: (args?: ValidationArguments) =>
+        args?.value !== undefined &&
+        (args.object as { passengers?: unknown }).passengers !== undefined
+          ? 'Send adults or passengers (its older name), not both'
+          : 'adults must be a whole number of at least 1',
+    },
+  });
+}
+
 /** Query strings arrive as text: "25000" becomes 25000, anything else is left for the validator. */
 const toInteger = ({ value }: { value: unknown }) =>
   typeof value === 'string' && /^-?\d+$/.test(value.trim())
@@ -40,9 +89,9 @@ const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
 
 /**
- * FLT-11: one-way search by departure and arrival airport, the local departure date at the departure
- * airport, and the number of passengers. FLT-15 adds an inclusive price range and sorting. Round trips,
- * passenger types and the cabin filter are FLT-12.
+ * FLT-11: search by departure and arrival airport, the local departure date at the departure airport,
+ * and the party. FLT-15 adds an inclusive price range and sorting. FLT-12 adds passenger types
+ * (adults, children, infants), the optional cabin filter and round trips (returnDate).
  */
 export class FlightSearchQueryDto extends PaginationQueryDto {
   @ApiProperty({
@@ -71,17 +120,86 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   })
   departureDate!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 2,
     minimum: 1,
     description:
-      'Number of passengers, whole number >= 1; each needs a seat in the same cabin',
+      'FLT-12: adults (12 or older), whole number >= 1. Each takes a seat and pays the fare. Required unless passengers is sent.',
   })
+  @Transform(toInteger)
+  @IsAdultCount()
+  adults?: number;
+
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 0,
+    default: 0,
+    description:
+      'FLT-12: children (2-11). Each takes a seat and pays the fare.',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsCount(0, 'children must be a whole number of 0 or more')
+  children?: number;
+
+  @ApiPropertyOptional({
+    example: 0,
+    minimum: 0,
+    default: 0,
+    description:
+      'FLT-12: infants (under 2), no more than adults. They take no seat and pay 10% of the fare.',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsCount(0, 'infants must be a whole number of 0 or more')
+  infants?: number;
+
+  @ApiPropertyOptional({
+    example: 2,
+    minimum: 1,
+    deprecated: true,
+    description:
+      'FLT-11 name for the number of adults; kept so existing clients keep working. Send adults instead (not both).',
+  })
+  @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
   )
   @IsPassengerCount()
-  passengers!: number;
+  passengers?: number;
+
+  @ApiPropertyOptional({
+    enum: CABIN_CLASSES,
+    description: 'FLT-12: only show this cabin class',
+  })
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(CABIN_CLASSES, {
+    message: `cabinClass must be one of: ${CABIN_CLASSES.join(', ')}`,
+  })
+  cabinClass?: CabinClass;
+
+  @ApiPropertyOptional({
+    example: '2026-12-08',
+    description:
+      'FLT-12 round trip: return date as the local calendar date at the arrival airport (YYYY-MM-DD), on or after departureDate. Adds returnFlights to the response.',
+  })
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'returnDate must look like 2026-12-08',
+  })
+  returnDate?: string;
+
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 1,
+    default: 1,
+    description: 'FLT-12: page of returnFlights (page size 10, GEN-05)',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsCount(1, 'returnPage must be a whole number of at least 1')
+  returnPage?: number;
 
   @ApiPropertyOptional({
     example: 15000,
@@ -183,8 +301,16 @@ export class FlightSearchResultDto {
   pricePerPassengerMinor!: number;
 
   @ApiProperty({
-    example: 55000,
-    description: 'Fare for all passengers, minor units',
+    example: 2750,
+    description:
+      'FLT-12: what one infant pays, 10% of the fare rounded down, minor units',
+  })
+  infantPriceMinor!: number;
+
+  @ApiProperty({
+    example: 57750,
+    description:
+      'Fare for the whole party, minor units: (adults + children) x fare + infants x infantPriceMinor',
   })
   totalPriceMinor!: number;
 
@@ -193,4 +319,35 @@ export class FlightSearchResultDto {
 
   @ApiProperty({ example: 23 })
   maxKgPerBag!: number;
+}
+
+/** A GEN-05 page of search options. */
+export class FlightSearchPageDto {
+  @ApiProperty({ type: [FlightSearchResultDto] })
+  items!: FlightSearchResultDto[];
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 10, description: 'Always 10 (GEN-05)' })
+  limit!: number;
+
+  @ApiProperty({ example: 3 })
+  total!: number;
+
+  @ApiProperty({ example: 1 })
+  totalPages!: number;
+}
+
+/**
+ * Search response. One-way: the page fields only. Round trip (returnDate given): the same outbound
+ * page plus `returnFlights` (FLT-12).
+ */
+export class RoundTripSearchResultDto extends FlightSearchPageDto {
+  @ApiPropertyOptional({
+    type: FlightSearchPageDto,
+    description:
+      'FLT-12 round trip only: the return options (to -> from on returnDate), paged with returnPage',
+  })
+  returnFlights?: FlightSearchPageDto;
 }

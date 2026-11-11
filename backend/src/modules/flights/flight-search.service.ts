@@ -3,7 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
 import {
   ACTIVE_PROVIDER_FILTER,
+  INFANT_FARE_PERCENT,
+  infantFareMinor,
+  passengerMixErrors,
   REFERENCE_SERVICE,
+  seatsFor,
+  type PassengerCounts,
   type Airport,
   type CabinClass,
   type FlightSearchQuery,
@@ -25,11 +30,14 @@ import {
 import {
   durationMinutes,
   localDayRangeUtc,
+  parseIsoDate,
   utcToLocalIso,
 } from '../../common/utils/dates';
 import type {
+  FlightSearchQueryDto,
   FlightSearchResultDto,
   FlightSort,
+  RoundTripSearchResultDto,
 } from './dto/flight-search.dto';
 import { AIRLINES_COLLECTION } from './schemas/airline.schema';
 import { Flight, FlightStatus } from './schemas/flight.schema';
@@ -48,6 +56,10 @@ export interface SearchCriteria {
   maxPriceMinor?: number;
   /** FLT-15; default 'departure'. */
   sort?: FlightSort;
+  /** FLT-12: infants take no seat but pay INFANT_FARE_PERCENT of the fare each; default 0. */
+  infants?: number;
+  /** FLT-12: only this cabin class. */
+  cabinClass?: CabinClass;
 }
 
 /**
@@ -112,18 +124,41 @@ export class FlightSearchService implements FlightsSearch {
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
   ) {}
 
-  /** FLIGHTS_SEARCH contract. Seats = adults + children (infants sit on a lap, FLT-12). */
+  /**
+   * FLIGHTS_SEARCH contract. Seats = adults + children (infants sit on a lap, FLT-12). Returns the
+   * outbound options only; a round trip searches the return leg with from/to swapped.
+   */
   async search(query: FlightSearchQuery): Promise<Page<FlightSearchResult>> {
-    const page = await this.searchOneWay({
-      from: query.from,
-      to: query.to,
-      departureDate: query.departureDate,
-      seats: query.adults + (query.children ?? 0),
-      page: query.page,
-      minPriceMinor: query.minPriceMinor,
-      maxPriceMinor: query.maxPriceMinor,
-      sort: query.sort,
-    });
+    const counts: PassengerCounts = {
+      adults: query.adults,
+      children: query.children ?? 0,
+      infants: query.infants ?? 0,
+    };
+    const errors = passengerMixErrors(counts);
+    // One leg per call: a round trip searches the return leg with from and to swapped.
+    if (query.returnDate !== undefined) {
+      errors.push({
+        field: 'returnDate',
+        message:
+          'FLIGHTS_SEARCH searches one leg; search the return leg separately with from and to swapped',
+      });
+    }
+    const page = await this.searchOneWay(
+      {
+        from: query.from,
+        to: query.to,
+        departureDate: query.departureDate,
+        seats: seatsFor(counts),
+        infants: counts.infants,
+        cabinClass: query.cabinClass,
+        page: query.page,
+        minPriceMinor: query.minPriceMinor,
+        maxPriceMinor: query.maxPriceMinor,
+        sort: query.sort,
+      },
+      new Date(),
+      errors,
+    );
     return {
       ...page,
       items: page.items.map((r) => ({
@@ -142,13 +177,88 @@ export class FlightSearchService implements FlightsSearch {
     };
   }
 
+  /**
+   * GET /api/flights/search (FLT-11, FLT-12, FLT-15). Resolves the party (adults, or the older
+   * `passengers` name for the same count, plus children and infants), checks the FLT-12 party rules,
+   * and searches the outbound leg. With `returnDate` it also searches the return leg (to -> from on
+   * that local date at the arrival airport) with the same party, cabin, price range and sort, paged
+   * on its own with `returnPage`. Both legs are booked together later (FLT-22).
+   */
+  async searchFlights(
+    query: FlightSearchQueryDto,
+    now: Date = new Date(),
+  ): Promise<Page<FlightSearchResultDto> | RoundTripSearchResultDto> {
+    const counts: PassengerCounts = {
+      adults: query.adults ?? query.passengers ?? 0,
+      children: query.children ?? 0,
+      infants: query.infants ?? 0,
+    };
+    const errors = passengerMixErrors(counts);
+    if (query.returnDate !== undefined) {
+      try {
+        parseIsoDate(query.returnDate);
+        if (query.returnDate < query.departureDate) {
+          errors.push({
+            field: 'returnDate',
+            message: `returnDate (${query.returnDate}) must be on or after departureDate (${query.departureDate})`,
+          });
+        }
+      } catch (e) {
+        if (!(e instanceof InvalidInputError)) throw e;
+        errors.push({ field: 'returnDate', message: e.message });
+      }
+    }
+    if (query.returnPage !== undefined && query.returnDate === undefined) {
+      errors.push({
+        field: 'returnPage',
+        message: 'returnPage needs a returnDate (round trips only)',
+      });
+    }
+
+    const shared = {
+      seats: seatsFor(counts),
+      infants: counts.infants,
+      cabinClass: query.cabinClass,
+      minPriceMinor: query.minPriceMinor,
+      maxPriceMinor: query.maxPriceMinor,
+      sort: query.sort,
+    };
+    // Party and return-date errors are reported together with the outbound leg's own errors
+    // (airports, dates, price range), so one request lists every problem (GEN-02).
+    const outbound = await this.searchOneWay(
+      {
+        ...shared,
+        from: query.from,
+        to: query.to,
+        departureDate: query.departureDate,
+        page: query.page,
+      },
+      now,
+      errors,
+    );
+    if (query.returnDate === undefined) return outbound;
+    const returnFlights = await this.searchOneWay(
+      {
+        ...shared,
+        from: query.to,
+        to: query.from,
+        departureDate: query.returnDate,
+        page: query.returnPage ?? 1,
+      },
+      now,
+    );
+    return { ...outbound, returnFlights };
+  }
+
   async searchOneWay(
     criteria: SearchCriteria,
     now: Date = new Date(),
+    /** Errors the caller already found; thrown together with this method's own (GEN-02). */
+    priorErrors: readonly FieldError[] = [],
   ): Promise<Page<FlightSearchResultDto>> {
     const from = criteria.from.trim().toUpperCase();
     const to = criteria.to.trim().toUpperCase();
-    const errors: FieldError[] = [];
+    const errors: FieldError[] = [...priorErrors];
     const [origin, destination] = await Promise.all([
       this.reference.getAirport(from),
       this.reference.getAirport(to),
@@ -225,11 +335,16 @@ export class FlightSearchService implements FlightsSearch {
       },
       { $unwind: '$cabins' },
       { $match: { 'cabins.seatsAvailable': { $gte: criteria.seats } } },
+      // FLT-12 optional cabin filter.
+      ...(criteria.cabinClass
+        ? [{ $match: { 'cabins.class': criteria.cabinClass } }]
+        : []),
       {
         $addFields: {
-          totalPriceMinor: {
-            $multiply: ['$cabins.priceMinor', criteria.seats],
-          },
+          totalPriceMinor: partyTotalExpression(
+            criteria.seats,
+            criteria.infants ?? 0,
+          ),
           durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
         },
       },
@@ -265,6 +380,34 @@ export class FlightSearchService implements FlightsSearch {
     );
     return toPage(items, total, criteria.page);
   }
+}
+
+/**
+ * FLT-12 party total for one cabin: seats x fare + infants x 10% of the fare (rounded down, exactly as
+ * infantFareMinor computes it, so search shows what booking charges). Without infants the expression
+ * stays the plain FLT-11 product.
+ */
+function partyTotalExpression(seats: number, infants: number): unknown {
+  const seatsTotal = { $multiply: ['$cabins.priceMinor', seats] };
+  if (infants === 0) return seatsTotal;
+  return {
+    $add: [
+      seatsTotal,
+      {
+        $multiply: [
+          {
+            $floor: {
+              $divide: [
+                { $multiply: ['$cabins.priceMinor', INFANT_FARE_PERCENT] },
+                100,
+              ],
+            },
+          },
+          infants,
+        ],
+      },
+    ],
+  };
 }
 
 /**
@@ -314,6 +457,7 @@ function toResult(
     cabinClass: row.cabin.class,
     seatsLeft: row.cabin.seatsAvailable,
     pricePerPassengerMinor: row.cabin.priceMinor,
+    infantPriceMinor: infantFareMinor(row.cabin.priceMinor),
     totalPriceMinor: row.totalPriceMinor,
     freeBags: row.cabin.freeBags,
     maxKgPerBag: row.cabin.maxKgPerBag,

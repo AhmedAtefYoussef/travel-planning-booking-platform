@@ -55,7 +55,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
 | FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13 | Done |
-| FLT-12 | Mandatory | GET /api/flights/search | Ahmed | TRVL-37 | - | Not started |
+| FLT-12 | Mandatory | GET /api/flights/search (adults, children, infants, cabinClass, returnDate, returnPage); booking side in POST /api/flight-bookings/hold | Ahmed | TRVL-37 | #35 | Partial: search done (passenger types, infant 10% fare, cabin filter, round trip); two-segment booking, DOB check and outbound-tier cancellation come with FLT-22 and FLT-26 |
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
 | FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |

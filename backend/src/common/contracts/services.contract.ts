@@ -15,7 +15,10 @@ export interface FlightSearchQuery {
   to: string;
   /** Local departure date at the origin airport, YYYY-MM-DD (FLT-11). */
   departureDate: string;
-  /** Present for round trips (FLT-12). */
+  /**
+   * Round trips (FLT-12) are searched one leg at a time through this contract: FLIGHTS_SEARCH
+   * rejects returnDate with a 400. GET /api/flights/search accepts it and returns both legs.
+   */
   returnDate?: string;
   adults: number;
   children?: number;

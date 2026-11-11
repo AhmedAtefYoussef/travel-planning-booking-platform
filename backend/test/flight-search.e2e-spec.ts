@@ -324,15 +324,16 @@ describe('Flight search (e2e): FLT-11', () => {
     const missing = await http().get('/api/flights/search').expect(400);
     expect(
       missing.body.fieldErrors.map((f: { field: string }) => f.field).sort(),
-    ).toEqual(['departureDate', 'from', 'passengers', 'to']);
-    // One message per field (GEN-02), even when the value is missing altogether.
+    ).toEqual(['adults', 'departureDate', 'from', 'to']);
+    // One message per field (GEN-02), even when the value is missing altogether. FLT-12 made adults
+    // the main name; passengers is still accepted for the same count.
     expect(
       missing.body.fieldErrors.find(
-        (f: { field: string }) => f.field === 'passengers',
+        (f: { field: string }) => f.field === 'adults',
       ),
     ).toEqual({
-      field: 'passengers',
-      message: 'passengers must be a whole number of at least 1',
+      field: 'adults',
+      message: 'adults must be a whole number of at least 1',
     });
     await search({
       departureDate: '2027-12-01',

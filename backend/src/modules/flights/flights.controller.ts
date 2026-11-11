@@ -19,13 +19,10 @@ import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import {
-  ApiErrorResponses,
-  ApiPaginatedResponse,
-} from '../../common/swagger/api-responses.decorator';
+import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import {
   FlightSearchQueryDto,
-  FlightSearchResultDto,
+  RoundTripSearchResultDto,
 } from './dto/flight-search.dto';
 import { FlightSearchService } from './flight-search.service';
 import { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
@@ -55,23 +52,18 @@ export class FlightsController {
   @Public()
   @ApiOperation({
     summary:
-      'FLT-11, FLT-15 Search one-way flights; filter by price range and sort by price, duration or departure',
+      'FLT-11, FLT-12, FLT-15 Search one-way or round-trip flights by passenger types and cabin; filter by price and sort',
     description:
-      'Public (guests may search). Lists Scheduled flights of active airlines that depart on departureDate in the departure airport\'s local calendar day and have not left yet, one row per flight and cabin with at least `passengers` seats available (total - booked - held). Times are returned in UTC and in each airport\'s local time (GEN-06). FLT-15: minPriceMinor/maxPriceMinor keep options whose fare PER PASSENGER (pricePerPassengerMinor) is within the inclusive range, without changing the other criteria; min > max is a 400. sort = departure (default, earliest first), price (cheapest first) or duration (shortest first). An empty page means "no flights found". Page size 10 (GEN-05).',
+      'Public (guests may search). Lists Scheduled flights of active airlines that depart on departureDate in the departure airport\'s local calendar day and have not left yet, one row per flight and cabin with enough seats available (total - booked - held) for the adults and children. Times are returned in UTC and in each airport\'s local time (GEN-06). FLT-15: minPriceMinor/maxPriceMinor keep options whose fare PER PASSENGER (pricePerPassengerMinor) is within the inclusive range, without changing the other criteria; min > max is a 400. sort = departure (default, earliest first), price (cheapest first) or duration (shortest first). An empty page means "no flights found". Page size 10 (GEN-05). FLT-12: give `adults` (12+, at least 1; `passengers` is the older name for the same count), optional `children` (2-11) and `infants` (under 2, no more than adults). Adults and children need a seat and pay the fare; infants take no seat and pay 10% of the fare (`infantPriceMinor`), included in `totalPriceMinor`. Optional `cabinClass` keeps one cabin. With `returnDate` (on or after departureDate) the response also has `returnFlights`: the to -> from options on that local date, with the same party, cabin, price range and sort, paged with `returnPage` (only with returnDate). A same-day return may list flights that leave before the chosen outbound lands; booking checks the order (FLT-22). Pick one outbound and one return option to book them as one booking.',
   })
-  @ApiPaginatedResponse(FlightSearchResultDto)
+  @ApiOkResponse({
+    description:
+      'One-way: a page of options. Round trip: the outbound page plus returnFlights, a page of return options.',
+    type: RoundTripSearchResultDto,
+  })
   @ApiErrorResponses(400)
   searchFlights(@Query() query: FlightSearchQueryDto) {
-    return this.search.searchOneWay({
-      from: query.from,
-      to: query.to,
-      departureDate: query.departureDate,
-      seats: query.passengers,
-      page: query.page,
-      minPriceMinor: query.minPriceMinor,
-      maxPriceMinor: query.maxPriceMinor,
-      sort: query.sort,
-    });
+    return this.search.searchFlights(query);
   }
 
   @Get(':id')

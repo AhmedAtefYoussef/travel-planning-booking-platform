@@ -1,5 +1,6 @@
 export * from './booking.contract';
 export * from './conventions';
+export * from './passengers.contract';
 export * from './policies.contract';
 export * from './refunds.contract';
 export * from './services.contract';

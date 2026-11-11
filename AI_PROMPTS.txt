@@ -498,3 +498,20 @@ the read-only controller, with unit tests for the date-range rules and an e2e su
 401/403 rules and the append-only guarantee. I checked the whole-day date semantics and the role checks in
 Swagger before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-12 (round trip, passenger types, cabin filter)
+Prompt:
+Extend Joudy's flight search for FLT-12 without breaking FLT-11 and FLT-15: adults, children and infants
+(infants pay 10% of the fare and take no seat, at least one adult, no more infants than adults), an optional
+cabin filter, and round-trip search that returns outbound and return options. Keep the per-passenger price
+filter, and share the passenger rules with the booking work that comes next.
+How the output was used:
+Claude added the shared passenger contract (type from date of birth, party rules, infant fare), the new search
+parameters with one message per invalid field, and the returnFlights page, keeping passengers as an alias so
+existing clients still work. I checked the infant rounding, the local-date logic of the return leg and the
+unchanged FLT-11/FLT-15 tests before opening the pull request.
+================================================
