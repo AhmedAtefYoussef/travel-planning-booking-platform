@@ -35,6 +35,19 @@ const invalidCredentials = () =>
     ErrorCode.INVALID_CREDENTIALS,
     'Invalid email or password',
   );
+const accountSuspended = () =>
+  new AppException(
+    HttpStatus.FORBIDDEN,
+    ErrorCode.ACCOUNT_SUSPENDED,
+    'Your account is suspended. Please contact support.',
+  );
+/** ACC-06: logged out, idle for 30 minutes, past its lifetime, or the refresh token was already used. */
+const sessionEnded = () =>
+  new AppException(
+    HttpStatus.UNAUTHORIZED,
+    ErrorCode.UNAUTHENTICATED,
+    'Your session has expired; please log in again',
+  );
 
 /** Registration (ACC-01), login with cookies (ACC-04, ACC-19); logout and refresh (ACC-06) follow. */
 @Injectable()
@@ -87,11 +100,7 @@ export class AuthService {
       throw invalidCredentials();
     }
     if (candidate.status === AccountStatus.Suspended) {
-      throw new AppException(
-        HttpStatus.FORBIDDEN,
-        ErrorCode.ACCOUNT_SUSPENDED,
-        'Your account is suspended. Please contact support.',
-      );
+      throw accountSuspended();
     }
     if (this.passwords.needsRehash(candidate.passwordHash)) {
       await this.users.replacePasswordHash(
@@ -100,8 +109,91 @@ export class AuthService {
       );
     }
 
-    const { user } = candidate;
     const session = await this.sessions.create(candidate.id, this.refreshTtlMs);
+    return this.issue(
+      candidate.user,
+      session.sessionId,
+      session.refreshToken,
+      this.refreshTtlMs,
+    );
+  }
+
+  /**
+   * ACC-06: trades a refresh cookie for a new access cookie and a new refresh token (the old one stops
+   * working). The account is reloaded, so a role change or a suspension takes effect at the next refresh.
+   */
+  async refresh(refreshToken: string | undefined): Promise<LoginResult> {
+    const now = new Date();
+    const rotation = refreshToken
+      ? await this.sessions.rotate(refreshToken, now)
+      : ({ kind: 'invalid' } as const);
+    if (rotation.kind === 'superseded') {
+      // Another tab refreshed with this token a moment ago and already holds the new cookies.
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.REFRESH_SUPERSEDED,
+        'This session was just refreshed by another request; keep using the new cookies',
+      );
+    }
+    if (rotation.kind === 'reused') {
+      throw new AppException(
+        HttpStatus.UNAUTHORIZED,
+        ErrorCode.UNAUTHENTICATED,
+        'An old refresh token was used again, so this session was ended for safety; please log in again',
+      );
+    }
+    if (rotation.kind !== 'rotated') throw sessionEnded();
+    const session = rotation;
+
+    const user = await this.users.findProfile(session.userId);
+    if (!user || user.status !== AccountStatus.Active) {
+      await this.sessions.revoke({ sessionId: session.sessionId });
+      if (user?.status === AccountStatus.Suspended) throw accountSuspended();
+      throw sessionEnded();
+    }
+    return this.issue(
+      user,
+      session.sessionId,
+      session.refreshToken,
+      session.expiresAt.getTime() - now.getTime(),
+    );
+  }
+
+  /**
+   * ACC-06: revokes the session behind either cookie; safe to call twice or without cookies. The access
+   * token may already be expired, but its signature must be valid, so nobody can end another user's
+   * session by forging a session id.
+   */
+  async logout(refreshToken?: string, accessToken?: string): Promise<void> {
+    const sessionId = await this.verifiedSessionId(accessToken);
+    await this.sessions.revoke({ refreshToken, sessionId });
+  }
+
+  /**
+   * The session id of a correctly signed access token, expired or not. The signature check always
+   * runs: a missing, forged or garbled token simply fails it and identifies no session.
+   */
+  private async verifiedSessionId(token?: string): Promise<string | undefined> {
+    try {
+      const claims = await this.jwt.verifyAsync<{ sid?: unknown }>(
+        token ?? '',
+        {
+          algorithms: ['HS256'],
+          ignoreExpiration: true,
+        },
+      );
+      return typeof claims.sid === 'string' ? claims.sid : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async issue(
+    user: UserProfileDto,
+    sessionId: string,
+    refreshToken: string,
+    refreshTtlMs: number,
+  ): Promise<LoginResult> {
     const authUser: AuthUser = {
       id: user.id,
       role: user.role,
@@ -109,16 +201,13 @@ export class AuthService {
         ? { assignedProvider: user.assignedProvider }
         : {}),
     };
-    const accessToken = await this.jwt.signAsync(
-      claimsFor(authUser, session.sessionId),
-    );
     return {
       user,
       homePath: HOME_PATHS[user.role],
-      accessToken,
-      refreshToken: session.refreshToken,
+      accessToken: await this.jwt.signAsync(claimsFor(authUser, sessionId)),
+      refreshToken,
       accessTtlMs: this.accessTtlMs,
-      refreshTtlMs: this.refreshTtlMs,
+      refreshTtlMs,
     };
   }
 

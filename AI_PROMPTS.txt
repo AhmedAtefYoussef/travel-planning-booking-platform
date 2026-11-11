@@ -516,3 +516,24 @@ only after the password matched. One e2e assertion was too broad (it matched the
 field) and was corrected. I checked the Set-Cookie flags, the session document and the role guards with
 a real login on a running app.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-06 (TRVL-16, logout, refresh-token revocation, 30-minute idle expiry)
+Prompt:
+Implement logout so that it clears the authentication cookies and revokes the refresh token on the
+server, add a refresh endpoint, and make a session with no authenticated request for 30 minutes expire
+and require a new login. Keep the common layer independent of feature modules, document the endpoints
+in Swagger, test the rules including the exact idle boundary, and verify them on a running app.
+How the output was used:
+Claude added POST /api/auth/logout and POST /api/auth/refresh, and a SESSION_VALIDATOR contract that the
+users module provides and the global AuthGuard calls on every cookie request. Each check is a single
+atomic MongoDB update that also records the request, so a logged-out or idle session stops working at
+once although its JWT has not expired. Refresh rotates the refresh token (a replayed token fails),
+reloads the account and refuses suspended ones. Logout only trusts a correctly signed access token, so
+a forged session id cannot end someone else's session. Claude also caught a flaw in its own e2e test
+(the token hash changes on rotation) before running it. I checked logout, rotation and the 29 versus
+31 minute boundary against a running app and the database.
+================================================

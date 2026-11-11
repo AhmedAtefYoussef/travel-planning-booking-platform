@@ -268,3 +268,17 @@ export interface UploadsService {
   ): Promise<StoredImage[]>;
   deleteImage(url: string): Promise<void>;
 }
+
+/* ----------------------------------------------------------------------------------------------
+ * Sessions (ACC-06, Abdelrahman). Register under SESSION_VALIDATOR; the users module provides it and
+ * the global AuthGuard (common/auth) calls it on every request authenticated by the access cookie.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface SessionValidator {
+  /**
+   * Atomically checks that the session belongs to the user, is not revoked, has not expired and saw an
+   * authenticated request within SESSION_IDLE_MINUTES, and if so records this request as its latest
+   * activity. Returns false when the session can no longer be used (logged out or idle, ACC-06).
+   */
+  touch(sessionId: string, userId: string): Promise<boolean>;
+}
