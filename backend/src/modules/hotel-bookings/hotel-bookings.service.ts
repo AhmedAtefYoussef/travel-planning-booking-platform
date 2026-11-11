@@ -22,6 +22,7 @@ import {
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
   eachNight,
+  nightsBetween,
   lenientLocalToUtc,
   parseIsoDate,
   utcToLocalIso,
@@ -574,12 +575,14 @@ export class HotelBookingsService implements PayableBooking {
           message: 'checkOut must be after checkIn',
         });
       } else {
-        nights = eachNight(dto.checkIn, dto.checkOut);
-        if (nights.length > MAX_NIGHTS) {
+        // Count first: a far-away check-out (e.g. 9999-12-31) must not build millions of nights.
+        if (nightsBetween(dto.checkIn, dto.checkOut) > MAX_NIGHTS) {
           errors.push({
             field: 'checkOut',
             message: `A reservation can be at most ${MAX_NIGHTS} nights`,
           });
+        } else {
+          nights = eachNight(dto.checkIn, dto.checkOut);
         }
       }
     }

@@ -285,6 +285,9 @@ describe('HotelBookingsService (HTL-16, HTL-17, HTL-18)', () => {
     await expect(
       fieldsOf(service.hold(user, dto({ checkOut: '2030-05-01' }), NOW)),
     ).resolves.toEqual(['checkOut']);
+    await expect(
+      fieldsOf(service.hold(user, dto({ checkOut: '9999-12-31' }), NOW)),
+    ).resolves.toEqual(['checkOut']);
   });
 
   it('404 for an unknown hotel; 409 for an inactive hotel or room, or nights outside the range', async () => {
