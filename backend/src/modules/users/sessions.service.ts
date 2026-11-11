@@ -3,7 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types, type Model } from 'mongoose';
-import type { SessionValidator } from '../../common/contracts';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { Session } from './schemas/session.schema';
 
@@ -52,7 +51,7 @@ const newRefreshToken = () => randomBytes(32).toString('base64url');
  * request racing a logout can never revive the session.
  */
 @Injectable()
-export class SessionsService implements SessionValidator {
+export class SessionsService {
   private readonly idleMs: number;
 
   constructor(

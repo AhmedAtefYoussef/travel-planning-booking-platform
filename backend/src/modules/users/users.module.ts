@@ -4,6 +4,7 @@ import { SESSION_VALIDATOR } from '../../common/contracts';
 import { AdminSeedService } from './admin-seed.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
+import { SessionValidatorService } from './session-validator.service';
 import { SessionsService } from './sessions.service';
 import { UsersService } from './users.service';
 
@@ -25,7 +26,8 @@ import { UsersService } from './users.service';
     AdminSeedService,
     UsersService,
     SessionsService,
-    { provide: SESSION_VALIDATOR, useExisting: SessionsService },
+    SessionValidatorService,
+    { provide: SESSION_VALIDATOR, useExisting: SessionValidatorService },
   ],
   exports: [
     MongooseModule,

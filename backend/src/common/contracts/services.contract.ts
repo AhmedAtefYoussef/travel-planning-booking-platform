@@ -1,5 +1,5 @@
 import type { ClientSession } from 'mongoose';
-import type { Role } from '../auth/auth.types';
+import type { AuthUser, Role } from '../auth/auth.types';
 import type { Page } from '../pagination/pagination';
 
 /* ----------------------------------------------------------------------------------------------
@@ -274,11 +274,23 @@ export interface UploadsService {
  * the global AuthGuard (common/auth) calls it on every request authenticated by the access cookie.
  * -------------------------------------------------------------------------------------------- */
 
+/** Account status values as seen by the guard (the users module owns the AccountStatus enum). */
+export type SessionAccountStatus = 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
+
+/**
+ * Result of a session check. When valid, `user` is rebuilt from the database (ACC-11), so a role or
+ * provider change applies from the next request, not only after the access token expires.
+ */
+export type SessionCheck =
+  | { valid: false }
+  | { valid: true; user: AuthUser; status: SessionAccountStatus };
+
 export interface SessionValidator {
   /**
    * Atomically checks that the session belongs to the user, is not revoked, has not expired and saw an
    * authenticated request within SESSION_IDLE_MINUTES, and if so records this request as its latest
-   * activity. Returns false when the session can no longer be used (logged out or idle, ACC-06).
+   * activity (ACC-06); then loads the account (ACC-11). `valid: false` when the session can no longer
+   * be used (logged out, idle, expired) or the account no longer exists.
    */
-  touch(sessionId: string, userId: string): Promise<boolean>;
+  touch(sessionId: string, userId: string): Promise<SessionCheck>;
 }

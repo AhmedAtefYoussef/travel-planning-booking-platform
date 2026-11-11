@@ -32,7 +32,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-08 | Mandatory | PATCH /api/auth/change-password | Abdelrahman | TRVL-18 | - | Not started |
 | ACC-09 | Mandatory | PATCH /api/users/me | Abdelrahman | TRVL-19 | - | Not started |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
-| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3 | Partial: guards + access helpers; real auth guard pending |
+| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46 | Done |
 | ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | - | Not started |
 | ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | - | Not started |
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | - | Not started |
