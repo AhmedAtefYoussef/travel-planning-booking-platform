@@ -116,7 +116,6 @@ function setup() {
     find: jest.fn(() => q<unknown[]>([])),
   };
   const hotels = {
-    findById: jest.fn(() => q<unknown>(hotel)),
     findOne: jest.fn(() => q<unknown>(hotel)),
   };
   const rooms = {
@@ -292,11 +291,11 @@ describe('HotelBookingsService (HTL-16, HTL-17, HTL-18)', () => {
 
   it('404 for an unknown hotel; 409 for an inactive hotel or room, or nights outside the range', async () => {
     const { service, hotels, rooms, r101, r102, dto } = setup();
-    hotels.findById.mockImplementationOnce(() => q(null));
+    hotels.findOne.mockImplementationOnce(() => q(null));
     await expect(service.hold(user, dto(), NOW)).rejects.toMatchObject({
       status: 404,
     });
-    hotels.findById.mockImplementationOnce(() =>
+    hotels.findOne.mockImplementationOnce(() =>
       q({ ...setup().hotel, isActive: false }),
     );
     await expect(service.hold(user, dto(), NOW)).rejects.toMatchObject({
@@ -324,8 +323,11 @@ describe('HotelBookingsService (HTL-16, HTL-17, HTL-18)', () => {
   });
 
   it('inside the transaction: a deactivated hotel or room, a changed price or a removed range aborts with 409', async () => {
-    const { service, hotels, rooms, r101, dto } = setup();
-    hotels.findOne.mockImplementationOnce(() => q(null));
+    const { service, hotels, rooms, r101, hotel, dto } = setup();
+    // The first lookup is the plan (active), the second the re-check inside the transaction.
+    hotels.findOne
+      .mockImplementationOnce(() => q(hotel))
+      .mockImplementationOnce(() => q(null));
     await expect(service.hold(user, dto(), NOW)).rejects.toMatchObject({
       status: 409,
     });

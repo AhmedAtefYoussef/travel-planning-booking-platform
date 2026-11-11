@@ -535,8 +535,9 @@ export class HotelBookingsService implements PayableBooking {
    * occupancy (HTL-16); then 409 when the hotel or a room cannot be booked for these nights.
    */
   private async plan(dto: CreateHotelHoldDto, now: Date): Promise<StayPlan> {
+    // Ids are matched as ObjectIds (the DTO already allows only 24 hex characters), never as raw input.
     const hotel = await this.hotels
-      .findById(dto.hotelId)
+      .findOne({ _id: { $eq: new Types.ObjectId(dto.hotelId) } })
       .lean<LeanHotel>()
       .exec();
     if (!hotel) throw notFound('Hotel');
@@ -589,7 +590,9 @@ export class HotelBookingsService implements PayableBooking {
 
     const ids = dto.rooms.map((r) => r.roomId);
     const loaded = await this.rooms
-      .find({ _id: { $in: [...new Set(ids)] } })
+      .find({
+        _id: { $in: [...new Set(ids)].map((id) => new Types.ObjectId(id)) },
+      })
       .lean<LeanRoom[]>()
       .exec();
     const byId = new Map(loaded.map((r) => [r._id.toHexString(), r]));
