@@ -494,3 +494,25 @@ Duplicate emails are decided by the unique index in any letter case (409 EMAIL_A
 new error code), including two simultaneous sign-ups. The consent must be exactly true. Tests: 24 new
 unit and 14 new e2e cases; I checked each rule by calling the endpoint on a running app.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-04 (TRVL-14, login), ACC-19 (TRVL-112, httpOnly cookies and /auth/me)
+Prompt:
+Implement login with email and password for users, admins and moderators, returning each role's home
+page, a generic "invalid email or password" message on failure and an "account suspended" message for
+suspended accounts. Issue the access and refresh tokens only as httpOnly, Secure, SameSite cookies,
+never in a response body, and add GET /api/auth/me so the frontend learns the current user from the
+cookie. Follow the agreed auth-migration plan so existing modules and e2e suites keep working, document
+everything in Swagger, test the rules, and verify the cookies and responses on a running app.
+How the output was used:
+Claude added POST /api/auth/login and GET /api/auth/me, a SessionsService that stores only a SHA-256
+hash of a random refresh token, and a global AuthGuard that authenticates from the signed access_token
+cookie (HS256 via @nestjs/jwt) and falls back to the dev stub only when no cookie is sent. Unknown
+emails still run a bcrypt comparison so failures take the same time, and the suspended message appears
+only after the password matched. One e2e assertion was too broad (it matched the mustChangePassword
+field) and was corrected. I checked the Set-Cookie flags, the session document and the role guards with
+a real login on a running app.
+================================================

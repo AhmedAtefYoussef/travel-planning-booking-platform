@@ -1,21 +1,41 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { Public } from '../../common/auth/auth.decorators';
+import type { Response } from 'express';
+import {
+  ACCESS_COOKIE,
+  ACCESS_COOKIE_PATH,
+  authCookieOptions,
+  REFRESH_COOKIE,
+  REFRESH_COOKIE_PATH,
+} from '../../common/auth/auth-cookies';
+import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
+import type { AuthUser } from '../../common/auth/auth.types';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import type { EnvironmentVariables } from '../../config/env.validation';
 import { UserProfileDto } from '../users';
 import { AuthService } from './auth.service';
+import { LoginDto, LoginResponseDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
-/** Authentication and account entry points (ACC-01; ACC-04, ACC-06 and ACC-19 follow). */
+/** Authentication and account entry points (ACC-01, ACC-04, ACC-19; ACC-06 follows). */
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  private readonly secureCookies: boolean;
+
+  constructor(
+    private readonly auth: AuthService,
+    config: ConfigService<EnvironmentVariables, true>,
+  ) {
+    this.secureCookies = config.get('COOKIE_SECURE', { infer: true });
+  }
 
   @Post('register')
   @Public()
@@ -67,5 +87,80 @@ export class AuthController {
   @ApiErrorResponses(400, 409)
   register(@Body() dto: RegisterDto): Promise<UserProfileDto> {
     return this.auth.register(dto);
+  }
+
+  @Post('login')
+  @Public()
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'ACC-04 / ACC-19 Log in with email and password',
+    description:
+      'Works for users, admins and moderators. On success it sets two httpOnly, SameSite=Lax cookies (Secure when COOKIE_SECURE=true): ' +
+      '`access_token` (JWT, JWT_ACCESS_TTL, path /api) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). ' +
+      "No token is ever returned in the body (ACC-19); the body has the profile and `homePath`, the role's home page. " +
+      'Unknown email or wrong password: 401 INVALID_CREDENTIALS "Invalid email or password". ' +
+      'Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ' +
+      'In Swagger, after logging in, every "Try it out" call sends the cookie automatically.',
+  })
+  @ApiBody({
+    type: LoginDto,
+    examples: {
+      admin: {
+        summary:
+          'Seeded admin (values from ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD)',
+        value: { email: 'admin@example.com', password: 'Admin2026x' },
+      },
+      traveller: {
+        summary: 'A registered user',
+        value: { email: 'mona@example.com', password: 'Travel2026' },
+      },
+      wrongPassword: {
+        summary: 'Fails with the generic message',
+        value: { email: 'mona@example.com', password: 'WrongPass1' },
+      },
+    },
+  })
+  @ApiOkResponse({
+    type: LoginResponseDto,
+    description: 'Logged in; cookies set via Set-Cookie',
+  })
+  @ApiErrorResponses(400, 401, 403)
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponseDto> {
+    const result = await this.auth.login(dto);
+    res.cookie(
+      ACCESS_COOKIE,
+      result.accessToken,
+      authCookieOptions(
+        this.secureCookies,
+        ACCESS_COOKIE_PATH,
+        result.accessTtlMs,
+      ),
+    );
+    res.cookie(
+      REFRESH_COOKIE,
+      result.refreshToken,
+      authCookieOptions(
+        this.secureCookies,
+        REFRESH_COOKIE_PATH,
+        result.refreshTtlMs,
+      ),
+    );
+    return { user: result.user, homePath: result.homePath };
+  }
+
+  @Get('me')
+  @Roles()
+  @ApiOperation({
+    summary: 'ACC-04 / ACC-19 Current user',
+    description:
+      'Returns the logged-in account from the `access_token` cookie. The frontend uses this instead of reading any token (ACC-19). ' +
+      '401 when not logged in, when the session expired, or when the account no longer exists.',
+  })
+  @ApiOkResponse({ type: UserProfileDto })
+  me(@CurrentUser() user: AuthUser): Promise<UserProfileDto> {
+    return this.auth.me(user);
   }
 }

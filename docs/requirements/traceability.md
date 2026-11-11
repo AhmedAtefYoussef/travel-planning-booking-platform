@@ -24,7 +24,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | ACC-01 | Mandatory | POST /api/auth/register | Abdelrahman | TRVL-13 | #42 | Done |
-| ACC-04 | Mandatory | POST /api/auth/login; GET /api/auth/me | Abdelrahman | TRVL-14 | - | Not started |
+| ACC-04 | Mandatory | POST /api/auth/login; GET /api/auth/me | Abdelrahman | TRVL-14 | #43 | Done |
 | ACC-05 | Mandatory | POST /api/auth/login | Abdelrahman | TRVL-15 | - | Not started |
 | ACC-06 | Mandatory | POST /api/auth/logout | Abdelrahman | TRVL-16 | - | Not started |
 | ACC-07a | Mandatory | POST /api/admin/users/:id/reset-password | Abdelrahman | TRVL-17 | - | Not started |
@@ -161,7 +161,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS) | Ahmed | TRVL-106 | #4 | Partial: transition table |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | Done |
-| ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | - | Not started |
+| ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | #43 | Done |
 | GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |
 | GEN-15 | Mandatory | (frontend, Milestone 2) | Joudy | TRVL-114 | - | Not started |
 | GEN-16 | Mandatory | (frontend, Milestone 2) | Sandra | TRVL-115 | - | Not started |

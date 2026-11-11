@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import { Types, type Model } from 'mongoose';
 import { Role } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -15,6 +15,14 @@ export interface NewTraveller {
 }
 
 const DUPLICATE_KEY = 11000;
+
+/** What login needs: the account plus its password hash (never selected anywhere else). */
+export interface LoginCandidate {
+  id: string;
+  status: AccountStatus;
+  passwordHash: string;
+  user: UserProfileDto;
+}
 
 /** Account persistence for the auth and admin flows. The only writer of `users` besides the admin seed. */
 @Injectable()
@@ -46,5 +54,31 @@ export class UsersService {
       }
       throw error;
     }
+  }
+
+  /** ACC-04: looks an account up by email (case-insensitive, emails are stored lowercased). */
+  async findForLogin(email: string): Promise<LoginCandidate | null> {
+    const user = await this.users
+      .findOne({ email: email.trim().toLowerCase() })
+      .select('+passwordHash');
+    if (!user) return null;
+    return {
+      id: user._id.toHexString(),
+      status: user.status,
+      passwordHash: user.passwordHash,
+      user: toUserProfile(user),
+    };
+  }
+
+  /** ACC-19: the profile behind /auth/me; null when the account no longer exists. */
+  async findProfile(id: string): Promise<UserProfileDto | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const user = await this.users.findById(id);
+    return user ? toUserProfile(user) : null;
+  }
+
+  /** Upgrades a hash made with an older bcrypt cost after a successful login. */
+  async replacePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.users.updateOne({ _id: id }, { $set: { passwordHash } });
   }
 }
