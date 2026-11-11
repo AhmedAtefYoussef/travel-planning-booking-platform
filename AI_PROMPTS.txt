@@ -761,3 +761,24 @@ global AuthGuard: until the password is changed, login lands on /account/change-
 other protected route answers 403 PASSWORD_CHANGE_REQUIRED. The shared password-rules decorator moved
 to the users module so both modules can use it within the architecture rules.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-13 (TRVL-23, admin creates hotel or airline moderators)
+Prompt:
+Let an admin create a hotel or airline moderator account (name, email, role) linked to exactly one
+existing hotel or airline, with a temporary password set by the admin, and make the moderator change it
+on first login. Keep the users module independent of the flights and hotels modules, audit the action,
+document the endpoint in Swagger, test the whole flow, and verify it on a running app.
+How the output was used:
+Claude added POST /api/admin/moderators with CreateModeratorDto (moderator roles only, a valid provider
+id and the shared password rules) and ModeratorsService. The provider type follows the role and the
+provider must exist, read by id from the airlines or hotels collection named in the ERD, so the users
+module imports neither module. The account is created with mustChangePassword, which the forced-change
+rule from ACC-07a enforces at first login, and it is written together with a CREATE_MODERATOR audit entry
+in one transaction; a registered email returns 409. The e2e suite creates a real airline through the
+flights endpoint and shows the new moderator changing the password and then managing only that
+airline; I repeated the flow on a running app.
+================================================
