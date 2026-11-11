@@ -102,7 +102,7 @@ export class RoomDto {
   availability!: AvailabilityRangeDto[];
 
   @ApiProperty({ example: true })
-  active!: boolean;
+  isActive!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;

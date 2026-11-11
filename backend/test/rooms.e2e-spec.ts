@@ -4,8 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Hotel } from '../src/modules/hotels/hotel.schema';
-import { Room } from '../src/modules/hotels/room.schema';
+import { Hotel, Room } from '../src/modules/hotels';
 import {
   loadReferenceDataset,
   ReferenceSeedService,
@@ -71,13 +70,25 @@ describe('Rooms (e2e): HTL-03', () => {
       maxOccupancy: 3,
       priceMinor: 10000,
       availability: [],
-      active: true,
+      isActive: true,
     });
     expect(res.body.id).toMatch(/^[a-f0-9]{24}$/);
   });
 
   it('rejects a duplicate number in the same hotel with 409', async () => {
     const res = await add(hotelId, moderatorOf(hotelId), room()).expect(409);
+    expect(res.body.code).toBe('DUPLICATE_KEY');
+  });
+
+  it('room numbers ignore case: a101 is the same room as A101 (409)', async () => {
+    await add(hotelId, moderatorOf(hotelId), room({ number: 'A101' })).expect(
+      201,
+    );
+    const res = await add(
+      hotelId,
+      moderatorOf(hotelId),
+      room({ number: 'a101' }),
+    ).expect(409);
     expect(res.body.code).toBe('DUPLICATE_KEY');
   });
 
@@ -106,7 +117,7 @@ describe('Rooms (e2e): HTL-03', () => {
         beds: 0,
         maxOccupancy: 0,
         priceMinor: 0.5,
-        active: false,
+        isActive: false,
       }),
     ).expect(400);
     expect(
@@ -114,8 +125,8 @@ describe('Rooms (e2e): HTL-03', () => {
         ...new Set(res.body.fieldErrors.map((f: { field: string }) => f.field)),
       ].sort(),
     ).toEqual([
-      'active',
       'beds',
+      'isActive',
       'maxOccupancy',
       'number',
       'priceMinor',
@@ -168,13 +179,13 @@ describe('Rooms (e2e): HTL-03', () => {
 
   it('a deactivated hotel cannot get new rooms (ACC-15)', async () => {
     const model = app.get<Model<Hotel>>(getModelToken(Hotel.name));
-    await model.updateOne({ _id: otherHotelId }, { active: false });
+    await model.updateOne({ _id: otherHotelId }, { isActive: false });
     await add(
       otherHotelId,
       moderatorOf(otherHotelId),
       room({ number: 'D1' }),
     ).expect(403);
-    await model.updateOne({ _id: otherHotelId }, { active: true });
+    await model.updateOne({ _id: otherHotelId }, { isActive: true });
     await add(
       otherHotelId,
       moderatorOf(otherHotelId),

@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { assertProviderScope } from '../../common/auth/access';
-import { AuthUser, ProviderType } from '../../common/auth/auth.types';
+import type { AuthUser } from '../../common/auth/auth.types';
 import type { CreateRoomDto, RoomDto } from './dto/room.dto';
 import { HotelsService } from './hotels.service';
-import { Room, RoomDocument } from './room.schema';
+import { Room, RoomDocument } from './schemas/room.schema';
 
 /**
  * Rooms (HTL-03..HTL-06). Rules live here, not in the controller, so they hold for every caller
@@ -25,8 +24,7 @@ export class RoomsService {
     hotelId: string,
     dto: CreateRoomDto,
   ): Promise<RoomDto> {
-    const hotel = await this.hotels.loadActive(hotelId);
-    assertProviderScope(user, ProviderType.Hotel, hotel._id);
+    const hotel = await this.hotels.loadManaged(user, hotelId);
     const room = await this.rooms.create({
       hotelId: hotel._id,
       number: dto.number,
@@ -52,7 +50,7 @@ export function toRoomDto(room: RoomDocument): RoomDto {
       from: range.from,
       to: range.to,
     })),
-    active: room.active,
+    isActive: room.isActive,
     createdAt: room.createdAt,
     updatedAt: room.updatedAt,
   };

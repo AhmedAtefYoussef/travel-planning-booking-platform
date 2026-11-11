@@ -1,9 +1,10 @@
 import { Types, type Model } from 'mongoose';
 import { AuthUser, ProviderType, Role } from '../../common/auth/auth.types';
+import { assertProviderScope } from '../../common/auth/access';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { HotelsService } from './hotels.service';
-import type { Room } from './room.schema';
+import type { Room } from './schemas/room.schema';
 import { RoomsService } from './rooms.service';
 
 const hotelId = new Types.ObjectId();
@@ -22,7 +23,7 @@ function setup(hotel: { _id: Types.ObjectId } | AppException) {
       Promise.resolve({
         id: new Types.ObjectId().toHexString(),
         availability: [],
-        active: true,
+        isActive: true,
         createdAt: now,
         updatedAt: now,
         ...doc,
@@ -30,11 +31,13 @@ function setup(hotel: { _id: Types.ObjectId } | AppException) {
     ),
   };
   const hotels = {
-    loadActive: jest.fn(() =>
-      hotel instanceof AppException
+    // Same order as HotelsService.loadManaged: provider scope first, then the hotel's own state.
+    loadManaged: jest.fn((user: AuthUser, id: string) => {
+      assertProviderScope(user, ProviderType.Hotel, id);
+      return hotel instanceof AppException
         ? Promise.reject(hotel)
-        : Promise.resolve(hotel),
-    ),
+        : Promise.resolve(hotel);
+    }),
   };
   return {
     model,
@@ -66,7 +69,7 @@ describe('RoomsService (HTL-03)', () => {
       number: '101',
       priceMinor: 10000,
       availability: [],
-      active: true,
+      isActive: true,
     });
   });
 
