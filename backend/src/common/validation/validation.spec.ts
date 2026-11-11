@@ -1,7 +1,13 @@
 import { IsString } from 'class-validator';
 import { validateSync } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
-import { IsWholeNumber, Omittable, safeInteger } from '.';
+import {
+  calendarDate,
+  IsWholeNumber,
+  LOCAL_TIME_HH_MM,
+  Omittable,
+  safeInteger,
+} from '.';
 
 class EditDto {
   @Omittable()
@@ -53,6 +59,35 @@ describe('common/validation', () => {
       expect(rule.validator(200)).toBe(true);
       expect(rule.validator(1e20)).toBe(false);
       expect(rule.validator(2.5)).toBe(false);
+    });
+  });
+
+  describe('calendarDate', () => {
+    const rule = calendarDate('date');
+
+    it('names the field in its message', () => {
+      expect(rule.message).toBe('date must be a calendar date YYYY-MM-DD');
+    });
+
+    it('accepts real dates only', () => {
+      expect(rule.validator('2027-02-28')).toBe(true);
+      expect(rule.validator('2028-02-29')).toBe(true);
+      expect(rule.validator('2027-02-30')).toBe(false);
+      expect(rule.validator('2027-2-3')).toBe(false);
+      expect(rule.validator(null)).toBe(false);
+    });
+  });
+
+  describe('LOCAL_TIME_HH_MM', () => {
+    it('matches 00:00 to 23:59 only', () => {
+      expect(
+        ['00:00', '14:30', '23:59'].every((t) => LOCAL_TIME_HH_MM.test(t)),
+      ).toBe(true);
+      expect(
+        ['24:00', '9:30', '12:60', '12:30:00'].some((t) =>
+          LOCAL_TIME_HH_MM.test(t),
+        ),
+      ).toBe(false);
     });
   });
 });
