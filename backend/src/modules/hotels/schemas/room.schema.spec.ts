@@ -57,7 +57,10 @@ describe('RoomSchema', () => {
   it('declares a unique index on {hotelId, number}', () => {
     expect(RoomSchema.indexes()).toContainEqual([
       { hotelId: 1, number: 1 },
-      expect.objectContaining({ unique: true }),
+      expect.objectContaining({
+        unique: true,
+        collation: { locale: 'en', strength: 2 },
+      }),
     ]);
   });
 });

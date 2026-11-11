@@ -57,6 +57,21 @@ describe('Hotels schemas (e2e): TRVL-140', () => {
     );
   });
 
+  it('treats room numbers that differ only in case as the same room (HTL-03)', async () => {
+    const rooms = model<Room>(Room.name);
+    const room = {
+      hotelId: new Types.ObjectId(),
+      type: 'Double',
+      beds: 2,
+      maxOccupancy: 2,
+      priceMinor: 10_000,
+    };
+    await rooms.create({ ...room, number: 'A101' });
+    await expect(
+      rooms.create({ ...room, number: 'a101' }),
+    ).rejects.toMatchObject({ code: 11000 });
+  });
+
   it('rejects a second booking of the same room on the same night', async () => {
     const nights = model<RoomNight>(RoomNight.name);
     const night = {

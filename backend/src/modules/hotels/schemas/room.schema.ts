@@ -66,5 +66,12 @@ export class Room {
 
 export type RoomDocument = HydratedDocument<Room>;
 export const RoomSchema = SchemaFactory.createForClass(Room);
-/** HTL-03: room number is unique per hotel, even under concurrent creates. */
-RoomSchema.index({ hotelId: 1, number: 1 }, { unique: true });
+/**
+ * HTL-03: room number is unique per hotel, even under concurrent creates, ignoring case: "a101" and
+ * "A101" are the same room. The room keeps the spelling the moderator typed.
+ */
+export const ROOM_NUMBER_COLLATION = { locale: 'en', strength: 2 } as const;
+RoomSchema.index(
+  { hotelId: 1, number: 1 },
+  { unique: true, collation: ROOM_NUMBER_COLLATION },
+);
