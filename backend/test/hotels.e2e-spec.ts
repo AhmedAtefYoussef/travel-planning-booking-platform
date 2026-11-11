@@ -4,7 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Hotel } from '../src/modules/hotels/hotel.schema';
+import { Hotel } from '../src/modules/hotels';
 import {
   loadReferenceDataset,
   ReferenceSeedService,
@@ -56,7 +56,7 @@ describe('Hotels (e2e): HTL-01', () => {
         photos: ['https://cdn.example.com/hotels/nile-view-1.jpg'],
         starClass: 4,
         amenities: ['WiFi', 'Pool'],
-        active: true,
+        isActive: true,
       });
       expect(res.body.id).toMatch(/^[a-f0-9]{24}$/);
       hotelId = res.body.id;
@@ -96,15 +96,15 @@ describe('Hotels (e2e): HTL-01', () => {
           starClass: 9,
           photos: ['not-a-url'],
           countryCode: 'EG',
-          active: false,
+          isActive: false,
         })
         .expect(400);
       expect(
         res.body.fieldErrors.map((f: { field: string }) => f.field).sort(),
       ).toEqual([
-        'active',
         'address',
         'countryCode',
+        'isActive',
         'name',
         'photos',
         'starClass',
@@ -235,11 +235,21 @@ describe('Hotels (e2e): HTL-01', () => {
 
     it('a deactivated hotel cannot be edited (ACC-15)', async () => {
       const model = app.get<Model<Hotel>>(getModelToken(Hotel.name));
-      await model.updateOne({ _id: hotelId }, { active: false });
+      await model.updateOne({ _id: hotelId }, { isActive: false });
       await patch(hotelId, moderatorOf(hotelId), { name: 'Closed Inn' }).expect(
         403,
       );
-      await model.updateOne({ _id: hotelId }, { active: true });
+      // Another hotel's moderator gets the scope error, so the deactivated state does not leak.
+      const probe = await patch(
+        hotelId,
+        moderatorOf(new Types.ObjectId().toHexString()),
+        { name: 'Probe' },
+      ).expect(403);
+      expect(probe.body.message).not.toMatch(/deactivated/i);
+      expect((await model.findById(hotelId).lean())?.name).not.toBe(
+        'Closed Inn',
+      );
+      await model.updateOne({ _id: hotelId }, { isActive: true });
       await patch(hotelId, moderatorOf(hotelId), { name: 'Open Again' }).expect(
         200,
       );

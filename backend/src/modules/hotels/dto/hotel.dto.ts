@@ -12,7 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
-import { MAX_HOTEL_PHOTOS } from '../hotel.schema';
+import { MAX_HOTEL_PHOTOS } from '../schemas/hotel.schema';
 import { IsWholeNumber, Omittable } from '../../../common/validation';
 
 const trim = ({ value }: { value: unknown }) =>
@@ -201,7 +201,7 @@ export class HotelDto {
   amenities!: string[];
 
   @ApiProperty({ example: true })
-  active!: boolean;
+  isActive!: boolean;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;

@@ -3,12 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType } from '../../common/auth/auth.types';
+import { ACTIVE_PROVIDER_FILTER } from '../../common/contracts';
 import { REFERENCE_SERVICE } from '../../common/contracts/tokens';
 import type { ReferenceService } from '../../common/contracts/services.contract';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
-import { Hotel, HotelDocument } from './hotel.schema';
+import { Hotel, HotelDocument } from './schemas/hotel.schema';
 
 const EDITABLE_FIELDS = [
   'name',
@@ -47,13 +48,18 @@ export class HotelsService {
     return toHotelDto(hotel);
   }
 
+  /**
+   * HTL-01: the assigned moderator edits the profile. The scope is checked before the hotel is read, so
+   * a moderator of another hotel learns nothing about this one (not even whether it is deactivated).
+   * The write is one atomic update that only matches an active hotel, so an admin deactivating the
+   * hotel at the same moment cannot be overwritten or missed (ACC-15).
+   */
   async update(
     user: AuthUser,
     id: string,
     dto: UpdateHotelDto,
   ): Promise<HotelDto> {
-    const hotel = await this.loadActive(id);
-    assertProviderScope(user, ProviderType.Hotel, hotel._id);
+    assertProviderScope(user, ProviderType.Hotel, id);
     if (EDITABLE_FIELDS.every((field) => dto[field] === undefined)) {
       throw new AppException(
         HttpStatus.BAD_REQUEST,
@@ -61,18 +67,28 @@ export class HotelsService {
         `Send at least one of ${EDITABLE_FIELDS.join(', ')}`,
       );
     }
-    if (dto.cityId !== undefined && dto.cityId !== hotel.cityId) {
-      hotel.countryCode = await this.countryOfCity(dto.cityId);
-      hotel.cityId = dto.cityId;
+    const changes: Partial<Hotel> = {};
+    for (const field of EDITABLE_FIELDS) {
+      if (dto[field] !== undefined)
+        Object.assign(changes, { [field]: dto[field] });
     }
-    if (dto.name !== undefined) hotel.name = dto.name;
-    if (dto.address !== undefined) hotel.address = dto.address;
-    if (dto.description !== undefined) hotel.description = dto.description;
-    if (dto.photos !== undefined) hotel.photos = dto.photos;
-    if (dto.starClass !== undefined) hotel.starClass = dto.starClass;
-    if (dto.amenities !== undefined) hotel.amenities = dto.amenities;
-    await hotel.save();
-    return toHotelDto(hotel);
+    if (dto.cityId !== undefined) {
+      changes.countryCode = await this.countryOfCity(dto.cityId);
+    }
+    const hotel = await this.hotels
+      .findOneAndUpdate(
+        { _id: id, ...ACTIVE_PROVIDER_FILTER },
+        { $set: changes },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (hotel) return toHotelDto(hotel);
+    await this.loadManaged(user, id);
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.CONFLICT,
+      'The hotel changed while it was being edited. Try again',
+    );
   }
 
   /** Loads a hotel or throws 404; other hotel services reuse it. */
@@ -89,16 +105,21 @@ export class HotelsService {
   }
 
   /**
-   * Loads a hotel that may still be managed: 404 if it doesn't exist, 403 if an admin has deactivated
-   * it (ACC-15). Its existing data stays readable; it just can't be changed.
+   * Loads a hotel that `user` may change, checking in this order so nothing leaks to other providers:
+   * 403 if the user doesn't manage it (ACC-11, no database read), 404 if it doesn't exist, then 403 if
+   * an admin has deactivated it (ACC-15). Its existing data stays readable; it just can't be changed.
    */
-  async loadActive(id: string | Types.ObjectId): Promise<HotelDocument> {
+  async loadManaged(
+    user: AuthUser,
+    id: string | Types.ObjectId,
+  ): Promise<HotelDocument> {
+    assertProviderScope(user, ProviderType.Hotel, id);
     const hotel = await this.load(id);
-    if (!hotel.active) {
+    if (!hotel.isActive) {
       throw new AppException(
         HttpStatus.FORBIDDEN,
         ErrorCode.FORBIDDEN,
-        'This hotel is deactivated (ACC-15), so its profile cannot be changed',
+        'This hotel is deactivated (ACC-15), so it cannot be changed',
       );
     }
     return hotel;
@@ -128,7 +149,7 @@ export function toHotelDto(hotel: HotelDocument): HotelDto {
     photos: [...hotel.photos],
     starClass: hotel.starClass ?? null,
     amenities: [...hotel.amenities],
-    active: hotel.active,
+    isActive: hotel.isActive,
     createdAt: hotel.createdAt,
     updatedAt: hotel.updatedAt,
   };
