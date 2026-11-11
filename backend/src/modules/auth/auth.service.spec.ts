@@ -48,6 +48,8 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
     lockAfterLimit: jest.fn(),
     activeLockOf: jest.fn().mockResolvedValue(null),
     releaseLoginAttempts: jest.fn().mockResolvedValue(true),
+    findPasswordHash: jest.fn().mockResolvedValue('stored-hash'),
+    setPassword: jest.fn().mockResolvedValue(undefined),
   };
   const sessions = {
     create: jest.fn().mockResolvedValue({
@@ -63,6 +65,7 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
       expiresAt: new Date(Date.now() + 86_400_000),
     }),
     revoke: jest.fn().mockResolvedValue(undefined),
+    revokeAllForUser: jest.fn().mockResolvedValue(undefined),
   };
   const passwords = {
     hash: jest.fn().mockResolvedValue('new-hash'),
@@ -459,5 +462,51 @@ describe('AuthService.login lockout (ACC-05)', () => {
     const { service, users } = setup(null);
     await failure(service.login(login));
     expect(users.claimLoginAttempt).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.changePassword (ACC-08)', () => {
+  const caller = { id: USER_ID, role: Role.User };
+  const dto = { currentPassword: 'Travel2026', newPassword: 'Journey2027' };
+
+  it('checks the current password, stores the new hash, clears the forced change and ends other sessions', async () => {
+    const { service, users, sessions, passwords } = setup();
+    await service.changePassword(caller, SESSION_ID, dto);
+
+    expect(passwords.verify).toHaveBeenCalledWith('Travel2026', 'stored-hash');
+    expect(passwords.hash).toHaveBeenCalledWith('Journey2027');
+    expect(users.setPassword).toHaveBeenCalledWith(USER_ID, 'new-hash', false);
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith(USER_ID, {
+      exceptSessionId: SESSION_ID,
+    });
+  });
+
+  it('rejects a wrong current password with a currentPassword field error and changes nothing', async () => {
+    const { service, users, sessions } = setup(candidate(), false);
+    const e = await failure(service.changePassword(caller, SESSION_ID, dto));
+    expect(e.getStatus()).toBe(400);
+    expect(e.fieldErrors).toEqual([
+      { field: 'currentPassword', message: 'currentPassword is incorrect' },
+    ]);
+    expect(users.setPassword).not.toHaveBeenCalled();
+    expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('is 401 when the account no longer exists', async () => {
+    const { service, users } = setup();
+    users.findPasswordHash.mockResolvedValue(null);
+    expect(
+      (
+        await failure(service.changePassword(caller, SESSION_ID, dto))
+      ).getStatus(),
+    ).toBe(401);
+  });
+
+  it('ends every session for a stub caller that has no session id', async () => {
+    const { service, sessions } = setup();
+    await service.changePassword(caller, undefined, dto);
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith(USER_ID, {
+      exceptSessionId: undefined,
+    });
   });
 });

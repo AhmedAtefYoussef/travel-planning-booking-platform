@@ -662,3 +662,23 @@ for private resources, and test/support/auth.ts (asUser, loginAs). Claude propos
 sessions of a locked account, so a stranger cannot log a user out by guessing passwords; the
 decision is documented in auth-migration.md and flagged in the PR for review. All new e2e cases use real cookies.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-08 (TRVL-18, change password)
+Prompt:
+Let any logged-in user change their password by entering the current password and a new one that
+meets the password rules. Return inline errors for a wrong current password or a weak new one, keep
+the password rules defined in one place, document the endpoint in Swagger, test it, and verify it on a
+running app.
+How the output was used:
+Claude added PATCH /api/auth/change-password with ChangePasswordDto and a shared NewPasswordRules()
+decorator that RegisterDto now uses too, so registration and password changes share one rule set. A
+wrong current password returns 400 with a currentPassword field error; a weak new password returns a
+newPassword field error. On success the new bcrypt hash is stored, mustChangePassword is cleared, and
+every other session of the account is revoked while the current one stays logged in. Unit and e2e tests
+cover each rule for every role; I re-ran the registration suite to confirm the refactor changed
+nothing there.
+================================================

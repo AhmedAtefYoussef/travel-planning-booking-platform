@@ -14,6 +14,7 @@ import {
   UserProfileDto,
   UsersService,
 } from '../users';
+import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
 import { HOME_PATHS } from './home-paths';
@@ -260,6 +261,36 @@ export class AuthService {
       accessTtlMs: this.accessTtlMs,
       refreshTtlMs,
     };
+  }
+
+  /**
+   * ACC-08: the current password must match; the new one already passed the ACC-01 rules in the DTO.
+   * Every other session of the account is ended, so a stolen session stops working, while the
+   * session that made the change stays logged in. Clears `mustChangePassword` (ACC-07a, ACC-13).
+   */
+  async changePassword(
+    caller: AuthUser,
+    sessionId: string | undefined,
+    dto: ChangePasswordDto,
+  ): Promise<void> {
+    const stored = await this.users.findPasswordHash(caller.id);
+    if (!stored) throw sessionEnded();
+    if (!(await this.passwords.verify(dto.currentPassword, stored))) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_FAILED,
+        'Validation failed',
+        [{ field: 'currentPassword', message: 'currentPassword is incorrect' }],
+      );
+    }
+    await this.users.setPassword(
+      caller.id,
+      await this.passwords.hash(dto.newPassword),
+      false,
+    );
+    await this.sessions.revokeAllForUser(caller.id, {
+      exceptSessionId: sessionId,
+    });
   }
 
   /** ACC-19: the frontend's only way to learn who is logged in. */

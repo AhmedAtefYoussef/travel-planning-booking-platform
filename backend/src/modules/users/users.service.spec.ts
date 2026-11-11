@@ -290,3 +290,34 @@ describe('UsersService login attempts (ACC-05)', () => {
     ).resolves.toBe(false);
   });
 });
+
+describe('UsersService passwords (ACC-08)', () => {
+  const id = new Types.ObjectId();
+
+  it('reads the stored hash, or null for a missing account or malformed id', async () => {
+    const lean = jest.fn().mockResolvedValue({ passwordHash: 'stored-hash' });
+    const select = jest.fn().mockReturnValue({ lean });
+    const model = { findById: jest.fn().mockReturnValue({ select }) };
+    const service = new UsersService(model as unknown as Model<User>);
+
+    await expect(service.findPasswordHash(id.toHexString())).resolves.toBe(
+      'stored-hash',
+    );
+    expect(select).toHaveBeenCalledWith('+passwordHash');
+    lean.mockResolvedValue(null);
+    await expect(
+      service.findPasswordHash(id.toHexString()),
+    ).resolves.toBeNull();
+    await expect(service.findPasswordHash('x')).resolves.toBeNull();
+  });
+
+  it('stores a new hash and the forced-change flag', async () => {
+    const model = { updateOne: jest.fn().mockResolvedValue({}) };
+    const service = new UsersService(model as unknown as Model<User>);
+    await service.setPassword(id.toHexString(), 'new-hash', false);
+    expect(model.updateOne).toHaveBeenCalledWith(
+      { _id: id },
+      { $set: { passwordHash: 'new-hash', mustChangePassword: false } },
+    );
+  });
+});

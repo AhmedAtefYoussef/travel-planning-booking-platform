@@ -166,9 +166,21 @@ export class SessionsService {
   }
 
   /** Ends every session of a user (password change ACC-08, admin reset ACC-07a, suspension). */
-  async revokeAllForUser(userId: string, now = new Date()): Promise<void> {
+  async revokeAllForUser(
+    userId: string,
+    options: { exceptSessionId?: string } = {},
+    now = new Date(),
+  ): Promise<void> {
+    const keep =
+      options.exceptSessionId && Types.ObjectId.isValid(options.exceptSessionId)
+        ? { _id: { $ne: new Types.ObjectId(options.exceptSessionId) } }
+        : {};
     await this.sessions.updateMany(
-      { userId: new Types.ObjectId(userId), revokedAt: { $exists: false } },
+      {
+        userId: new Types.ObjectId(userId),
+        revokedAt: { $exists: false },
+        ...keep,
+      },
       { $set: { revokedAt: now } },
     );
   }

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Patch,
   Post,
   Req,
   Res,
@@ -33,6 +34,7 @@ import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator'
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { UserProfileDto } from '../users';
 import { AuthService, type LoginResult } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto, LoginResponseDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -244,6 +246,39 @@ export class AuthController {
       REFRESH_COOKIE,
       clearCookieOptions(this.secureCookies, REFRESH_COOKIE_PATH),
     );
+  }
+
+  @Patch('change-password')
+  @Roles()
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'ACC-08 Change my password',
+    description:
+      'Any logged-in account. Needs the current password and a new one that meets the ACC-01 rules (8+ characters with a letter and a digit). ' +
+      'A wrong current password returns 400 with a `currentPassword` field error; a weak new password returns 400 with a `newPassword` field error. ' +
+      'On success every other session of the account is logged out, this one stays logged in, and `mustChangePassword` is cleared (ACC-07a, ACC-13).',
+  })
+  @ApiBody({
+    type: ChangePasswordDto,
+    examples: {
+      valid: {
+        summary: 'Valid change',
+        value: { currentPassword: 'Travel2026', newPassword: 'Journey2027' },
+      },
+      weakNew: {
+        summary: 'Rejected: new password without a digit',
+        value: { currentPassword: 'Travel2026', newPassword: 'onlyletters' },
+      },
+    },
+  })
+  @ApiNoContentResponse({ description: 'Password changed' })
+  @ApiErrorResponses(400)
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<void> {
+    return this.auth.changePassword(user, req.sessionId, dto);
   }
 
   @Get('me')
