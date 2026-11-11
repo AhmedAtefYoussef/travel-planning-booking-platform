@@ -191,21 +191,11 @@ export class FlightBookingsService
     now: Date = new Date(),
   ): Promise<BookingPolicies> {
     const booking = await this.loadOwned(bookingId, userId);
-    if (booking.status !== BookingStatus.PendingPayment) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.INVALID_STATE_TRANSITION,
-        `Policies can only be accepted for a booking awaiting payment; this one is ${booking.status}`,
-      );
+    if (booking.policiesAcceptedAt) {
+      assertAcceptable(booking, now);
+      return toFlightPolicies(booking);
     }
-    if (booking.holdExpiresAt.getTime() <= now.getTime()) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.HOLD_EXPIRED,
-        'The 10-minute hold has expired; search and hold the seats again',
-      );
-    }
-    if (booking.policiesAcceptedAt) return toFlightPolicies(booking);
+    assertAcceptable(booking, now);
     const updated = await this.bookings
       .findOneAndUpdate(
         {
@@ -218,8 +208,19 @@ export class FlightBookingsService
         { new: true },
       )
       .exec();
-    // Accepted by a parallel request a moment earlier, or the hold ended in between: re-read.
-    return toFlightPolicies(updated ?? (await this.load(bookingId)));
+    if (updated) return toFlightPolicies(updated);
+    // The conditional update matched nothing: a parallel request accepted first (fine), or the hold
+    // ended or the status changed in between (never answer 200 without a stored acceptance).
+    const current = await this.load(bookingId);
+    if (!current.policiesAcceptedAt) assertAcceptable(current, now);
+    if (!current.policiesAcceptedAt) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        'The policies could not be accepted; please try again',
+      );
+    }
+    return toFlightPolicies(current);
   }
 
   /**
@@ -762,4 +763,22 @@ export function toFlightPolicies(
     checkInOut: null,
     policiesAcceptedAt: booking.policiesAcceptedAt ?? null,
   };
+}
+
+/** PAY-02: policies can be accepted only for an unpaid booking whose hold is still running. */
+function assertAcceptable(booking: FlightBookingDocument, now: Date): void {
+  if (booking.status !== BookingStatus.PendingPayment) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.INVALID_STATE_TRANSITION,
+      `Policies can only be accepted for a booking awaiting payment; this one is ${booking.status}`,
+    );
+  }
+  if (booking.holdExpiresAt.getTime() <= now.getTime()) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.HOLD_EXPIRED,
+      'The 10-minute hold has expired; search and hold the seats again',
+    );
+  }
 }

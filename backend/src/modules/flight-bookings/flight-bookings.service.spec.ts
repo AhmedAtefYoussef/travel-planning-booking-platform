@@ -760,6 +760,30 @@ describe('FlightBookingsService policies (PAY-02)', () => {
     });
   });
 
+  it('answers 409, never 200, when the hold ends between the check and the update', async () => {
+    const { service, bookingModel } = setup();
+    const b = booking();
+    bookingModel.findById
+      .mockImplementationOnce(() => q(b))
+      .mockImplementationOnce(() => q({ ...b, status: 'EXPIRED' }));
+    bookingModel.findOneAndUpdate.mockImplementation(() => q(null));
+    await expect(
+      service.acceptPolicies(b.id, user.id, NOW2),
+    ).rejects.toMatchObject({
+      code: 'INVALID_STATE_TRANSITION',
+    });
+  });
+
+  it('a booking accepted earlier but now expired is refused too', async () => {
+    const { service, bookingModel } = setup();
+    bookingModel.findById.mockImplementation(() =>
+      q(booking({ policiesAcceptedAt: NOW2, status: 'EXPIRED' })),
+    );
+    await expect(
+      service.acceptPolicies(oid().toHexString(), user.id, NOW2),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
+  });
+
   it('refuses an expired hold and a booking that is not awaiting payment', async () => {
     const { service, bookingModel } = setup();
     bookingModel.findById.mockImplementation(() =>

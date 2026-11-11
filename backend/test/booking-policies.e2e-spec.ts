@@ -210,6 +210,8 @@ describe('Booking policies (e2e): PAY-02', () => {
     ['not ticked', { accepted: false }],
     ['missing', {}],
     ['a string', { accepted: 'true' }],
+    ['null', { accepted: null }],
+    ['the number 1', { accepted: 1 }],
   ])('requires the checkbox: %s is a 400', async (_n, body) => {
     const bookingId = await newHold();
     const res = await http()

@@ -17,6 +17,7 @@ import { AcceptPoliciesDto, BookingPoliciesDto } from './dto/policies.dto';
 
 const TYPE_PARAM = {
   name: 'type',
+  type: String,
   enum: ['flight', 'hotel'],
   description: 'flight (flight booking) or hotel (hotel reservation)',
 };
