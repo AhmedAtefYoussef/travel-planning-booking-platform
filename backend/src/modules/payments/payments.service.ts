@@ -112,8 +112,17 @@ export class PaymentsService implements PaymentHoldRelease {
       .getPayable(bookingId, user.id);
     this.assertPayable(booking, now);
 
+    // Query with the values of the booking the server loaded, never the raw request (CodeQL), and
+    // as plain equality so no operator object can reach MongoDB.
+    const type: BookingType =
+      booking.bookingType === BookingType.Hotel
+        ? BookingType.Hotel
+        : BookingType.Flight;
     const existing = await this.payments
-      .findOne({ bookingType, bookingId: new Types.ObjectId(bookingId) })
+      .findOne({
+        bookingType: { $eq: type },
+        bookingId: { $eq: new Types.ObjectId(booking.bookingId) },
+      })
       .sort({ createdAt: -1 })
       .exec();
     if (existing) return this.resume(existing, booking);
