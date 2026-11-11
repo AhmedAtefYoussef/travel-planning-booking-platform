@@ -142,4 +142,26 @@ describe('Change password (e2e): ACC-08', () => {
     expect(saved?.passwordHash).toMatch(/^\$2b\$12\$/);
     expect(JSON.stringify(saved)).not.toContain(NEW);
   });
+
+  it('refuses a new password equal to the current one, so a forced change cannot be skipped', async () => {
+    const me = await loginAs(app, Role.HotelModerator);
+    await users.updateOne(
+      { _id: me.userId },
+      { $set: { mustChangePassword: true } },
+    );
+
+    const res = await change(me.cookie, {
+      currentPassword: CURRENT,
+      newPassword: CURRENT,
+    }).expect(400);
+    expect(res.body.fieldErrors).toEqual([
+      {
+        field: 'newPassword',
+        message: 'newPassword must be different from your current password',
+      },
+    ]);
+    expect((await users.findById(me.userId).lean())?.mustChangePassword).toBe(
+      true,
+    );
+  });
 });

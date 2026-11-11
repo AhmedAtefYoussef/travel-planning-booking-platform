@@ -255,7 +255,7 @@ export class AuthController {
     summary: 'ACC-08 Change my password',
     description:
       'Any logged-in account. Needs the current password and a new one that meets the ACC-01 rules (8+ characters with a letter and a digit). ' +
-      'A wrong current password returns 400 with a `currentPassword` field error; a weak new password returns 400 with a `newPassword` field error. ' +
+      'A wrong current password returns 400 with a `currentPassword` field error; a weak new password, or one equal to the current password, returns 400 with a `newPassword` field error. ' +
       'On success every other session of the account is logged out, this one stays logged in, and `mustChangePassword` is cleared (ACC-07a, ACC-13).',
   })
   @ApiBody({

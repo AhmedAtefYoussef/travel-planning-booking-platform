@@ -510,3 +510,35 @@ describe('AuthService.changePassword (ACC-08)', () => {
     });
   });
 });
+
+describe('AuthService.changePassword same password (ACC-08, ACC-07a)', () => {
+  it('refuses a new password equal to the current one, and changes nothing', async () => {
+    const { service, users, sessions } = setup();
+    const e = await failure(
+      service.changePassword({ id: USER_ID, role: Role.User }, SESSION_ID, {
+        currentPassword: 'Temp2026x',
+        newPassword: 'Temp2026x',
+      }),
+    );
+    expect(e.getStatus()).toBe(400);
+    expect(e.fieldErrors).toEqual([
+      {
+        field: 'newPassword',
+        message: 'newPassword must be different from your current password',
+      },
+    ]);
+    expect(users.setPassword).not.toHaveBeenCalled();
+    expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('reports a wrong current password first, even when both are equal', async () => {
+    const { service } = setup(candidate(), false);
+    const e = await failure(
+      service.changePassword({ id: USER_ID, role: Role.User }, SESSION_ID, {
+        currentPassword: 'WrongPass1',
+        newPassword: 'WrongPass1',
+      }),
+    );
+    expect(e.fieldErrors?.[0].field).toBe('currentPassword');
+  });
+});

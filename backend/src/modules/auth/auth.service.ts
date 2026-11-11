@@ -264,7 +264,8 @@ export class AuthService {
   }
 
   /**
-   * ACC-08: the current password must match; the new one already passed the ACC-01 rules in the DTO.
+   * ACC-08: the current password must match, and the new one must differ from it (it already passed
+   * the ACC-01 rules in the DTO).
    * Every other session of the account is ended, so a stolen session stops working, while the
    * session that made the change stays logged in. Clears `mustChangePassword` (ACC-07a, ACC-13).
    */
@@ -281,6 +282,20 @@ export class AuthService {
         ErrorCode.VALIDATION_FAILED,
         'Validation failed',
         [{ field: 'currentPassword', message: 'currentPassword is incorrect' }],
+      );
+    }
+    // ACC-07a, ACC-13: "changing" a temporary password to itself would skip the forced change.
+    if (dto.newPassword === dto.currentPassword) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_FAILED,
+        'Validation failed',
+        [
+          {
+            field: 'newPassword',
+            message: 'newPassword must be different from your current password',
+          },
+        ],
       );
     }
     await this.users.setPassword(
