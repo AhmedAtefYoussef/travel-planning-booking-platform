@@ -160,6 +160,26 @@ describe('ModeratorsService.create (ACC-13)', () => {
   });
 });
 
+describe('ModeratorsService.create with a deactivated provider (ACC-13, ACC-15)', () => {
+  it('refuses with 409 PROVIDER_INACTIVE and creates nothing', async () => {
+    const { service, users, providers, audit } = setup();
+    providers.find.mockResolvedValue({
+      id: PROVIDER,
+      name: 'Old Air',
+      isActive: false,
+    });
+    const e = await failure(service.create(ADMIN, dto()));
+    expect(e.getStatus()).toBe(409);
+    expect(e.code).toBe('PROVIDER_INACTIVE');
+    expect(e.message).toMatch(/airline is deactivated/);
+    expect(e.fieldErrors).toEqual([
+      { field: 'providerId', message: 'the airline is deactivated' },
+    ]);
+    expect(users.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
 describe('ProviderDirectoryService (ACC-13)', () => {
   function directory(doc: unknown) {
     const findOne = jest.fn().mockResolvedValue(doc);

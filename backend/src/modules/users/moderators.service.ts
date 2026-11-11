@@ -66,6 +66,16 @@ export class ModeratorsService {
             ],
           );
         }
+        // A deactivated provider (ACC-15) is hidden and cannot be booked; nobody should start managing it.
+        if (!provider.isActive) {
+          const label = type === ProviderType.Airline ? 'airline' : 'hotel';
+          throw new AppException(
+            HttpStatus.CONFLICT,
+            ErrorCode.PROVIDER_INACTIVE,
+            `This ${label} is deactivated; reactivate it before assigning a moderator`,
+            [{ field: 'providerId', message: `the ${label} is deactivated` }],
+          );
+        }
         const [moderator] = await this.users.create(
           [
             {

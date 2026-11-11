@@ -782,3 +782,24 @@ in one transaction; a registered email returns 409. The e2e suite creates a real
 flights endpoint and shows the new moderator changing the password and then managing only that
 airline; I repeated the flow on a running app.
 ================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-06, ACC-05, ACC-08, ACC-13 (review fixes on #44, #45, #47 and #53)
+Prompt:
+Address every blocker and should-fix from the team leader's review of the ACC stack: rebase the stack
+so the duplicated logout fix exists once, close the lockout to parallel login attempts, refuse a new
+password equal to the current one, detect refresh-token reuse without logging out two tabs that refresh
+together, and refuse moderators for deactivated providers. Reproduce each reported case as a test, and
+verify every rebuilt branch again before pushing.
+How the output was used:
+Claude rebuilt #45 to #53 on the updated #44 without the duplicate commit, resolving the append-only
+test-file conflicts by keeping both sides. Login now claims an attempt atomically before the password
+check, so 20 parallel wrong passwords get exactly 5 checks, and a success never lifts a lock set by
+parallel failures. Refresh keeps the previous token hash: a replay after 10 seconds revokes the session,
+while a second tab inside that window gets 409 REFRESH_SUPERSEDED without clearing cookies. Changing a
+password to itself is a 400, and a deactivated airline or hotel returns 409 PROVIDER_INACTIVE. Each
+reported scenario is now an e2e test; I ran the full verify on every rebuilt branch.
+================================================

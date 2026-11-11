@@ -222,4 +222,33 @@ describe('Admin creates moderators (e2e): ACC-13', () => {
     await http().post('/api/admin/moderators').send(body).expect(401);
     expect(await users.countDocuments({ email: body.email })).toBe(0);
   });
+
+  it('refuses a deactivated airline or hotel with 409 PROVIDER_INACTIVE', async () => {
+    const airline = await newAirline('M7');
+    await connection
+      .collection('airlines')
+      .updateOne(
+        { _id: new Types.ObjectId(airline) },
+        { $set: { isActive: false } },
+      );
+    const hotel = await connection
+      .collection('hotels')
+      .insertOne({ name: 'Closed Hotel', isActive: false });
+
+    for (const [role, providerId] of [
+      ['AIRLINE_MODERATOR', airline],
+      ['HOTEL_MODERATOR', hotel.insertedId.toHexString()],
+    ]) {
+      const email = uniqueEmail();
+      const res = await create({
+        name: 'X',
+        email,
+        role,
+        providerId,
+        temporaryPassword: TEMP,
+      }).expect(409);
+      expect(res.body.code).toBe('PROVIDER_INACTIVE');
+      expect(await users.countDocuments({ email })).toBe(0);
+    }
+  });
 });

@@ -65,7 +65,7 @@ export class AdminAccountsController {
       'Admins only. Creates an AIRLINE_MODERATOR or HOTEL_MODERATOR (name, email, role) linked to exactly one existing airline or hotel, ' +
       'with a temporary password chosen by the admin (same rules as any password; never returned). ' +
       'The moderator must change it on first login: login lands on /account/change-password and other routes answer 403 PASSWORD_CHANGE_REQUIRED until then. ' +
-      'The provider type follows the role; an unknown provider is 404, a registered email 409. The creation is recorded in the audit log (GEN-07).',
+      'The provider type follows the role; an unknown provider is 404; a deactivated provider is 409 PROVIDER_INACTIVE; a registered email 409. The creation is recorded in the audit log (GEN-07).',
   })
   @ApiBody({
     type: CreateModeratorDto,
