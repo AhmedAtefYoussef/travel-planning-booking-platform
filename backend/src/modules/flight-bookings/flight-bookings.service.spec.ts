@@ -663,3 +663,118 @@ describe('FlightBookingsService reads and contracts', () => {
     expect(refs.size).toBe(200);
   });
 });
+
+describe('FlightBookingsService policies (PAY-02)', () => {
+  const NOW2 = new Date('2028-05-01T12:00:00Z');
+  const segment = (n: string) => ({
+    flightNumber: n,
+    airlineName: 'Booking Test Air',
+    cabinClass: 'ECONOMY',
+    freeBags: 1,
+    maxKgPerBag: 23,
+    extraBaggage: { pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 2 },
+    cancellationTiers: [
+      { daysBefore: 1, refundPercent: 25 },
+      { daysBefore: 7, refundPercent: 50 },
+    ],
+  });
+  const booking = (overrides: Record<string, unknown> = {}) => ({
+    _id: oid(),
+    id: oid().toHexString(),
+    userId: new Types.ObjectId(user.id),
+    status: 'PENDING_PAYMENT',
+    holdExpiresAt: new Date(NOW2.getTime() + 300000),
+    policiesAcceptedAt: null as Date | null,
+    segments: [segment('BK100'), { ...segment('BK200'), extraBaggage: null }],
+    ...overrides,
+  });
+
+  it('shows the outbound tiers, highest first, and baggage per flight', async () => {
+    const { service, bookingModel } = setup();
+    const b = booking();
+    bookingModel.findById.mockImplementation(() => q(b));
+    const policies = await service.getPolicies(b.id, user.id);
+    expect(policies).toMatchObject({
+      bookingType: 'FLIGHT',
+      cancellationPolicyOf: 'Booking Test Air, outbound flight BK100',
+      cancellationTiers: [
+        { daysBefore: 7, refundPercent: 50 },
+        { daysBefore: 1, refundPercent: 25 },
+      ],
+      checkInOut: null,
+      policiesAcceptedAt: null,
+    });
+    expect(policies.baggage?.map((x) => x.extraBag)).toEqual([
+      { pricePerBagMinor: 4000, maxExtraBagsPerPassenger: 2 },
+      null,
+    ]);
+    await expect(
+      service.getPolicies(b.id, oid().toHexString()),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('accepts once, with a conditional update, and keeps the first timestamp', async () => {
+    const { service, bookingModel } = setup();
+    const b = booking();
+    bookingModel.findById.mockImplementation(() => q(b));
+    bookingModel.findOneAndUpdate.mockImplementation(() =>
+      q({ ...b, policiesAcceptedAt: NOW2 }),
+    );
+    const accepted = await service.acceptPolicies(b.id, user.id, NOW2);
+    expect(accepted.policiesAcceptedAt).toEqual(NOW2);
+    expect(bookingModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: b._id,
+        status: 'PENDING_PAYMENT',
+        holdExpiresAt: { $gt: NOW2 },
+        policiesAcceptedAt: null,
+      },
+      { $set: { policiesAcceptedAt: NOW2 } },
+      { new: true },
+    );
+
+    const earlier = new Date('2028-05-01T11:59:00Z');
+    bookingModel.findById.mockImplementation(() =>
+      q(booking({ policiesAcceptedAt: earlier })),
+    );
+    bookingModel.findOneAndUpdate.mockClear();
+    await expect(
+      service.acceptPolicies(b.id, user.id, NOW2),
+    ).resolves.toMatchObject({
+      policiesAcceptedAt: earlier,
+    });
+    expect(bookingModel.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('re-reads when a parallel request accepted first', async () => {
+    const { service, bookingModel } = setup();
+    const b = booking();
+    bookingModel.findById
+      .mockImplementationOnce(() => q(b))
+      .mockImplementationOnce(() => q({ ...b, policiesAcceptedAt: NOW2 }));
+    bookingModel.findOneAndUpdate.mockImplementation(() => q(null));
+    await expect(
+      service.acceptPolicies(b.id, user.id, NOW2),
+    ).resolves.toMatchObject({
+      policiesAcceptedAt: NOW2,
+    });
+  });
+
+  it('refuses an expired hold and a booking that is not awaiting payment', async () => {
+    const { service, bookingModel } = setup();
+    bookingModel.findById.mockImplementation(() =>
+      q(booking({ holdExpiresAt: new Date(NOW2.getTime() - 1) })),
+    );
+    await expect(
+      service.acceptPolicies(oid().toHexString(), user.id, NOW2),
+    ).rejects.toMatchObject({ code: 'HOLD_EXPIRED' });
+    bookingModel.findById.mockImplementation(() =>
+      q(booking({ status: 'CONFIRMED' })),
+    );
+    await expect(
+      service.acceptPolicies(oid().toHexString(), user.id, NOW2),
+    ).rejects.toMatchObject({
+      code: 'INVALID_STATE_TRANSITION',
+    });
+  });
+});

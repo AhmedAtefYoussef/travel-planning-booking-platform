@@ -13,7 +13,7 @@ exports: [AUDIT_SERVICE],
 
 | Token | Interface | Implemented by | Used by |
 |---|---|---|---|
-| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | flight-bookings (**implemented**, FLT-22), hotel-bookings (HTL-18) | payments (Ahmed) |
+| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `getPolicies`, `acceptPolicies`, `markConfirmed`, `markPaymentFailed` | flight-bookings (**implemented**, FLT-22), hotel-bookings (HTL-18) | payments (Ahmed) |
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` | payments (Ahmed) | cancellations (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
@@ -55,3 +55,4 @@ exports: [AUDIT_SERVICE],
 - `flights` search (FLT-12): `GET /api/flights/search` takes `adults` (`passengers` is kept as its older name), `children`, `infants`, `cabinClass`, and `returnDate` with `returnPage` for round trips; the response then adds `returnFlights`. `FLIGHTS_SEARCH.search` applies the same party rules and infant pricing and returns the outbound leg.
 - `modules/flight-bookings` (FLT-22, GEN-11): `POST /api/flight-bookings/hold` validates and prices on the server, then takes the seats of every segment and creates the PENDING_PAYMENT booking in one transaction. Each seat grab is conditional on the seats AND the quoted fare (ADR-0002). The lifecycle job expires unpaid holds (seats back, then `PAYMENT_HOLD_RELEASE.cancelForBooking`) and completes finished trips. Karim's FLT-21/FLT-25/FLT-26/FLT-29 work extends this module: list and cancel endpoints go in `flight-bookings.controller.ts`; a cancellation must give seats back with the same `$inc` on `cabins.$.seatsAvailable` inside a transaction with the status change, and use the booking's `segments[0].cancellationTiers` (FLT-12: outbound tier).
 - `PAYMENT_HOLD_RELEASE` (`booking.contract.ts`): payments implements `cancelForBooking(type, id)` in PAY-01; the hold-expiry jobs call it after the expiry commits.
+- PAY-02 (`payments/booking-policies.*`): `GET /api/bookings/:type/:id/policies` and `POST .../accept-policies` dispatch to the booking module through `PayableBooking.getPolicies` / `acceptPolicies`. Policies come from the booking's snapshot (`BookingPolicies` in `booking.contract.ts`): airline bookings fill `baggage`, hotel reservations fill `checkInOut`. The hotel-bookings module (HTL-18) must implement both methods the same way: owner only, unpaid and unexpired only, first timestamp kept.

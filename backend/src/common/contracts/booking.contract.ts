@@ -54,6 +54,42 @@ export interface PayableSnapshot {
   reference: string | null;
 }
 
+/** One cancellation tier as accepted with the booking (PAY-02 snapshot). */
+export interface PolicyTier {
+  daysBefore: number;
+  refundPercent: number;
+}
+
+/**
+ * The provider policies a user must accept before paying (PAY-02), taken from the booking's own
+ * snapshot, never from the provider's current settings. Airline bookings fill `baggage`; hotel
+ * reservations fill `checkInOut`.
+ */
+export interface BookingPolicies {
+  bookingType: BookingType;
+  bookingId: string;
+  status: BookingStatus;
+  holdExpiresAt: Date;
+  /** Who the cancellation tiers belong to, e.g. "EgyptAir, outbound flight MS777". */
+  cancellationPolicyOf: string;
+  /** Sorted by daysBefore descending; empty means a user cancellation is never refunded. */
+  cancellationTiers: PolicyTier[];
+  baggage:
+    | {
+        flightNumber: string;
+        cabinClass: string;
+        freeBags: number;
+        maxKgPerBag: number;
+        extraBag: {
+          pricePerBagMinor: number;
+          maxExtraBagsPerPassenger: number;
+        } | null;
+      }[]
+    | null;
+  checkInOut: { checkInTime: string; checkOutTime: string } | null;
+  policiesAcceptedAt: Date | null;
+}
+
 /**
  * Implemented by the flight-bookings and hotel-bookings modules (Karim), consumed by Payments (Ahmed).
  * Register implementations under FLIGHT_PAYABLE_BOOKING / HOTEL_PAYABLE_BOOKING.
@@ -61,6 +97,20 @@ export interface PayableSnapshot {
 export interface PayableBooking {
   /** Loads the booking for `userId`; throws 404 when missing and 403 when not the owner (ACC-11). */
   getPayable(bookingId: string, userId: string): Promise<PayableSnapshot>;
+
+  /** PAY-02: the policy snapshot of the owner's booking (404/403 like getPayable). */
+  getPolicies(bookingId: string, userId: string): Promise<BookingPolicies>;
+
+  /**
+   * PAY-02: records the acceptance with a timestamp. Only for an unpaid booking whose hold is still
+   * running (409 HOLD_EXPIRED / INVALID_STATE_TRANSITION otherwise). Accepting again keeps the first
+   * timestamp. Returns the updated policies.
+   */
+  acceptPolicies(
+    bookingId: string,
+    userId: string,
+    now?: Date,
+  ): Promise<BookingPolicies>;
 
   /**
    * PENDING_PAYMENT -> CONFIRMED after Stripe confirmed the PaymentIntent (webhook-verified).

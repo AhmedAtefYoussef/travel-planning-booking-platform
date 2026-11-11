@@ -16,6 +16,7 @@ import {
   passengerTypeFor,
   PassengerType,
   REFERENCE_SERVICE,
+  type BookingPolicies,
   type ConfirmedFlightBooking,
   type FlightBookingsLookup,
   type PassengerCounts,
@@ -158,14 +159,7 @@ export class FlightBookingsService
     bookingId: string,
     userId: string,
   ): Promise<PayableSnapshot> {
-    const booking = await this.load(bookingId);
-    if (booking.userId.toHexString() !== userId) {
-      throw new AppException(
-        HttpStatus.FORBIDDEN,
-        ErrorCode.FORBIDDEN,
-        'You can only pay for your own bookings',
-      );
-    }
+    const booking = await this.loadOwned(bookingId, userId);
     return {
       bookingType: BookingType.Flight,
       bookingId: booking.id as string,
@@ -179,8 +173,57 @@ export class FlightBookingsService
     };
   }
 
+  /** PAY-02: airline cancellation tiers (outbound segment, FLT-12) and baggage per flight. */
+  async getPolicies(
+    bookingId: string,
+    userId: string,
+  ): Promise<BookingPolicies> {
+    return toFlightPolicies(await this.loadOwned(bookingId, userId));
+  }
+
   /**
-   * PENDING_PAYMENT -> CONFIRMED, only while the hold is still running (ADR-0002: a late payment
+   * PAY-02: stores the acceptance timestamp once, only while the booking is unpaid and its hold is
+   * running; a second acceptance keeps the first timestamp.
+   */
+  async acceptPolicies(
+    bookingId: string,
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<BookingPolicies> {
+    const booking = await this.loadOwned(bookingId, userId);
+    if (booking.status !== BookingStatus.PendingPayment) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.INVALID_STATE_TRANSITION,
+        `Policies can only be accepted for a booking awaiting payment; this one is ${booking.status}`,
+      );
+    }
+    if (booking.holdExpiresAt.getTime() <= now.getTime()) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.HOLD_EXPIRED,
+        'The 10-minute hold has expired; search and hold the seats again',
+      );
+    }
+    if (booking.policiesAcceptedAt) return toFlightPolicies(booking);
+    const updated = await this.bookings
+      .findOneAndUpdate(
+        {
+          _id: booking._id,
+          status: BookingStatus.PendingPayment,
+          holdExpiresAt: { $gt: now },
+          policiesAcceptedAt: null,
+        },
+        { $set: { policiesAcceptedAt: now } },
+        { new: true },
+      )
+      .exec();
+    // Accepted by a parallel request a moment earlier, or the hold ended in between: re-read.
+    return toFlightPolicies(updated ?? (await this.load(bookingId)));
+  }
+
+  /**
+   * PENDING_PAYMENT -> CONFIRMED, only while the hold is still running
    * cannot confirm an expired booking). The held seats simply stay taken: they become booked seats.
    * Idempotent for a replayed webhook of the same payment. A new reference is drawn on every
    * attempt; in the very unlikely case it collides, the unique index aborts the caller's
@@ -313,6 +356,22 @@ export class FlightBookingsService
   }
 
   // ------------------------------------------------------------------------------------------------
+
+  /** 404 when missing, 403 when `userId` is not the owner (ACC-11). */
+  private async loadOwned(
+    bookingId: string,
+    userId: string,
+  ): Promise<FlightBookingDocument> {
+    const booking = await this.load(bookingId);
+    if (booking.userId.toHexString() !== userId) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+        'You can only access your own bookings',
+      );
+    }
+    return booking;
+  }
 
   async load(id: string): Promise<FlightBookingDocument> {
     const booking = Types.ObjectId.isValid(id)
@@ -668,5 +727,39 @@ function toSegmentDto(s: BookingSegment): BookingSegmentDto {
       refundPercent: t.refundPercent,
     })),
     subtotalMinor: s.subtotalMinor,
+  };
+}
+
+/** PAY-02 view of a flight booking's snapshot. Cancellations use the outbound segment's tiers (FLT-12). */
+export function toFlightPolicies(
+  booking: FlightBookingDocument,
+): BookingPolicies {
+  const outbound = booking.segments[0];
+  return {
+    bookingType: BookingType.Flight,
+    bookingId: booking.id as string,
+    status: booking.status,
+    holdExpiresAt: booking.holdExpiresAt,
+    cancellationPolicyOf: `${outbound.airlineName}, ${booking.segments.length === 2 ? 'outbound ' : ''}flight ${outbound.flightNumber}`,
+    cancellationTiers: [...outbound.cancellationTiers]
+      .map((t) => ({
+        daysBefore: t.daysBefore,
+        refundPercent: t.refundPercent,
+      }))
+      .sort((a, b) => b.daysBefore - a.daysBefore),
+    baggage: booking.segments.map((s) => ({
+      flightNumber: s.flightNumber,
+      cabinClass: s.cabinClass,
+      freeBags: s.freeBags,
+      maxKgPerBag: s.maxKgPerBag,
+      extraBag: s.extraBaggage
+        ? {
+            pricePerBagMinor: s.extraBaggage.pricePerBagMinor,
+            maxExtraBagsPerPassenger: s.extraBaggage.maxExtraBagsPerPassenger,
+          }
+        : null,
+    })),
+    checkInOut: null,
+    policiesAcceptedAt: booking.policiesAcceptedAt ?? null,
   };
 }

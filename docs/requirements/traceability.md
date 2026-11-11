@@ -100,7 +100,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4 | Partial: schemas |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | - | Not started |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #37 | Partial: policy view and timestamped acceptance for flight bookings; the payment block comes with PAY-01 and hotel reservations with HTL-18 |
 | PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
 | PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #32 | Partial: money utils, env, platform currency checked against the seeded currencies |
 

@@ -533,3 +533,19 @@ expiry and completion job, the payable and lookup contracts, unit tests, an e2e 
 (20 parallel holds on 5 seats, repeated five times: exactly 5 succeed every time). I checked the seat counts
 before and after expiry and the all-or-nothing round-trip behaviour before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-02 (policy acceptance before payment)
+Prompt:
+Before payment, show the provider's policies (airline: cancellation and baggage; hotel: cancellation and
+check-in/check-out times), require an acceptance checkbox, and store the acceptance with a timestamp. Use the
+booking's own snapshot and keep payments independent of the booking modules.
+How the output was used:
+Claude extended the PayableBooking contract with getPolicies and acceptPolicies, implemented them for flight
+bookings (owner only, unpaid and unexpired only, first timestamp kept), and added the payments controller that
+dispatches by booking type, with unit and e2e tests. I checked that later airline policy changes do not change
+what an existing booking shows before opening the pull request.
+================================================
