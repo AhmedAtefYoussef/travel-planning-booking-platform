@@ -1,4 +1,5 @@
 export { HotelsModule } from './hotels.module';
+export { HotelsService } from './hotels.service';
 export {
   CancellationTier,
   Hotel,
