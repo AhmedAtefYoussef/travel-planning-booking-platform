@@ -1,6 +1,15 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  Param,
+  Post,
+  StreamableFile,
+} from '@nestjs/common';
 import {
   ApiBody,
+  ApiProduces,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -112,6 +121,36 @@ export class FlightBookingsController {
     @Body() dto: CreateFlightHoldDto,
   ): Promise<FlightBookingDto> {
     return this.bookings.hold(user, dto);
+  }
+
+  @Get(':id/e-ticket')
+  @Roles(Role.User, Role.Admin)
+  // It carries passport numbers: browsers and proxies must not keep a copy.
+  @Header('Cache-Control', 'no-store')
+  @ApiProduces('application/pdf')
+  @ApiOperation({
+    summary: 'FLT-23 Download the e-ticket (PDF) of a confirmed booking',
+    description:
+      'The booking owner, or an admin. A PDF with the booking reference, every flight in local airport times (GEN-06), cabin and baggage allowance, passengers and the amount paid. Available once the booking is Confirmed (after the Stripe webhook verified the payment) and after the trip; 409 before.',
+  })
+  @ApiParam({ name: 'id', description: 'Booking id' })
+  @ApiOkResponse({
+    description: 'The e-ticket PDF',
+    content: {
+      'application/pdf': { schema: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiErrorResponses(400, 404, 409)
+  async eTicket(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<StreamableFile> {
+    const { fileName, pdf } = await this.bookings.eTicket(user, id);
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${fileName}"`,
+      length: pdf.length,
+    });
   }
 
   @Get(':id')

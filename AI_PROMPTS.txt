@@ -549,3 +549,21 @@ bookings (owner only, unpaid and unexpired only, first timestamp kept), and adde
 dispatches by booking type, with unit and e2e tests. I checked that later airline policy changes do not change
 what an existing booking shows before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (Stripe payments), FLT-23 (confirmation and e-ticket), PAY-02, PAY-04
+Prompt:
+Implement PAY-01 with Stripe PaymentIntents in test mode: pay a Pending Payment booking within its hold, never
+let card data reach the backend, confirm the booking only after the webhook verifies the PaymentIntent
+succeeded, let the user retry after a failure until the hold expires, cancel the intent when the hold expires,
+and store only the Stripe id, amount, currency and status. Add the FLT-23 e-ticket PDF.
+How the output was used:
+Claude wrote the Stripe gateway behind an interface, the payments service (policy and hold checks, one intent
+per booking with an idempotency key, signed webhook applied in one transaction with the event id, replay
+detection, retry, intent cancellation for expired holds), the payments controller, the e-ticket PDF, unit tests
+and an e2e suite with a fake gateway and real webhook signatures. I checked the stored payment fields and the
+late-payment path before opening the pull request; real Stripe test keys were not available for a live run.
+================================================

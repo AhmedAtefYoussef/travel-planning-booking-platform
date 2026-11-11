@@ -61,7 +61,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-19 | Mandatory | POST /api/flight-bookings/hold (passengers, extra bags); POST /api/flight-bookings | Karim | TRVL-40 | #36 | Partial: passenger details, DOB-based types and extra-bag fees validated and priced in the hold (Ahmed, FLT-22); summary endpoint pending |
 | FLT-21 | Mandatory | POST /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-41 | #36 | Partial: the hold and GET /api/flight-bookings/:id return the full priced summary (Ahmed, FLT-22); summary-before-hold endpoint pending |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #36 | Done |
-| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | - | Not started |
+| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #36, #38 | Partial: webhook-verified confirmation, held seats kept as booked, unique reference and e-ticket PDF done; the in-app notification is sent once GEN-01 provides NOTIFICATIONS_SERVICE |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
 | FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |
@@ -99,10 +99,10 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4 | Partial: schemas |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #37 | Partial: policy view and timestamped acceptance for flight bookings; the payment block comes with PAY-01 and hotel reservations with HTL-18 |
+| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #38 | Partial: payments, retry, signed webhook and intent cancellation on hold expiry done for flight bookings; hotel reservations use the same endpoints once HTL-18 lands; not yet run against real Stripe test keys |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #37, #38 | Partial: policy view, timestamped acceptance and the payment block done for flight bookings; hotel reservations come with HTL-18 |
 | PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
-| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #32 | Partial: money utils, env, platform currency checked against the seeded currencies |
+| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #32, #38 | Done |
 
 ## Itineraries
 

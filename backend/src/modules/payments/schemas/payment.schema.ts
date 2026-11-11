@@ -57,6 +57,14 @@ export class Payment {
   @Prop({ type: String, maxlength: 500 })
   lastError?: string;
 
+  /**
+   * Set when a payment that could not confirm its booking (paid after the hold ended, flight
+   * cancelled, amount mismatch) was refunded in full through Stripe. Until then the hold-expiry sweep
+   * keeps retrying the refund, so nobody stays charged without a booking.
+   */
+  @Prop({ type: String, match: /^re_/ })
+  lateRefundId?: string;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

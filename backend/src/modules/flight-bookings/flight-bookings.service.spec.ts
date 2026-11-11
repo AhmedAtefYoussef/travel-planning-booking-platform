@@ -641,6 +641,7 @@ describe('FlightBookingsService reads and contracts', () => {
     expect(bookingModel.updateOne).toHaveBeenCalledWith(
       { _id: 'b1', status: 'PENDING_PAYMENT' },
       { $set: { lastPaymentError: 'x'.repeat(500) } },
+      { session: undefined },
     );
   });
 

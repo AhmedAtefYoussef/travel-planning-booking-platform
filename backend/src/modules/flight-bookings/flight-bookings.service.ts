@@ -35,6 +35,7 @@ import { utcToLocalIso } from '../../common/utils/dates';
 import { multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { Airline, Flight, FlightStatus } from '../flights';
+import { renderETicket } from './e-ticket';
 import type {
   BookingSegmentDto,
   CreateFlightHoldDto,
@@ -149,6 +150,32 @@ export class FlightBookingsService
     const booking = await this.load(id);
     assertOwner(user, booking.userId, { bypassRoles: [Role.Admin] });
     return toFlightBookingDto(booking);
+  }
+
+  /**
+   * GET /api/flight-bookings/:id/e-ticket (FLT-23): the owner (or an admin) downloads the PDF of a
+   * Confirmed or Completed booking. Any other status has no ticket yet (409).
+   */
+  async eTicket(
+    user: AuthUser,
+    id: string,
+  ): Promise<{ fileName: string; pdf: Buffer }> {
+    const booking = await this.load(id);
+    assertOwner(user, booking.userId, { bypassRoles: [Role.Admin] });
+    if (
+      booking.status !== BookingStatus.Confirmed &&
+      booking.status !== BookingStatus.Completed
+    ) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.INVALID_STATE_TRANSITION,
+        `The e-ticket is available once the booking is confirmed; this one is ${booking.status}`,
+      );
+    }
+    return {
+      fileName: `e-ticket-${booking.reference ?? booking.id}.pdf`,
+      pdf: await renderETicket(booking),
+    };
   }
 
   // ------------------------------------------------------------------------------------------------
@@ -325,11 +352,13 @@ export class FlightBookingsService
   async markPaymentFailed(
     bookingId: string,
     input: { paymentId: string; reason: string },
+    session?: ClientSession,
   ): Promise<void> {
     await this.bookings
       .updateOne(
         { _id: bookingId, status: BookingStatus.PendingPayment },
         { $set: { lastPaymentError: input.reason.slice(0, 500) } },
+        { session },
       )
       .exec();
   }

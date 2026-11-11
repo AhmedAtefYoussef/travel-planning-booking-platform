@@ -130,6 +130,7 @@ export interface PayableBooking {
   markPaymentFailed(
     bookingId: string,
     input: { paymentId: string; reason: string },
+    session?: ClientSession,
   ): Promise<void>;
 }
 
