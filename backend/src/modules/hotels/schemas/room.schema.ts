@@ -5,6 +5,9 @@ import { calendarDate, safeInteger } from '../../../common/validation';
 
 export const ROOMS_COLLECTION = 'rooms';
 
+/** Most bookable ranges one room may hold (HTL-04), so repeated requests cannot grow it without limit. */
+export const MAX_RANGES_PER_ROOM = 200;
+
 /**
  * HTL-04: a bookable date range. Ranges of one room must not overlap; that
  * check spans the whole array, so the rooms service enforces it.
@@ -53,7 +56,14 @@ export class Room {
   })
   priceMinor: number;
 
-  @Prop({ type: [AvailabilityRangeSchema], default: [] })
+  @Prop({
+    type: [AvailabilityRangeSchema],
+    default: [],
+    validate: {
+      validator: (ranges: unknown[]) => ranges.length <= MAX_RANGES_PER_ROOM,
+      message: `A room can have at most ${MAX_RANGES_PER_ROOM} bookable ranges`,
+    },
+  })
   availability: AvailabilityRange[];
 
   /** HTL-06: a deactivated room cannot be booked; its existing reservations stay valid. */

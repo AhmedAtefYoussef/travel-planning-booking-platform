@@ -10,6 +10,7 @@ export {
 export type { HotelDocument } from './schemas/hotel.schema';
 export {
   AvailabilityRange,
+  MAX_RANGES_PER_ROOM,
   Room,
   ROOMS_COLLECTION,
   RoomSchema,
