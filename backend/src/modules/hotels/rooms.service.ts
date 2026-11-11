@@ -1,8 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { assertProviderScope } from '../../common/auth/access';
-import { AuthUser, ProviderType } from '../../common/auth/auth.types';
+import type { AuthUser } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type {
@@ -12,7 +11,7 @@ import type {
   RoomDto,
 } from './dto/room.dto';
 import { HotelsService } from './hotels.service';
-import { Room, RoomDocument } from './schemas/room.schema';
+import { MAX_RANGES_PER_ROOM, Room, RoomDocument } from './schemas/room.schema';
 
 /**
  * Rooms (HTL-03..HTL-06). Rules live here, not in the controller, so they hold for every caller
@@ -54,8 +53,7 @@ export class RoomsService {
     roomId: string,
     dto: AddAvailabilityDto,
   ): Promise<RoomDto> {
-    const hotel = await this.hotels.loadActive(hotelId);
-    assertProviderScope(user, ProviderType.Hotel, hotel._id);
+    const hotel = await this.hotels.loadManaged(user, hotelId);
     const ranges = sortedRanges(dto.ranges);
     const clash = firstOverlap(ranges);
     if (clash) {
@@ -68,6 +66,10 @@ export class RoomsService {
     const filter = {
       _id: roomId,
       hotelId: hotel._id,
+      // Room for every new range: no element at index MAX - n means the array has at most MAX - n.
+      [`availability.${MAX_RANGES_PER_ROOM - ranges.length}`]: {
+        $exists: false,
+      },
       $nor: ranges.map((range) => ({
         availability: {
           $elemMatch: { from: { $lt: range.to }, to: { $gt: range.from } },
@@ -78,16 +80,26 @@ export class RoomsService {
       .findOneAndUpdate(
         filter,
         { $push: { availability: { $each: ranges, $sort: { from: 1 } } } },
-        { new: true },
+        { new: true, runValidators: true },
       )
       .exec();
     if (room) return toRoomDto(room);
-    const exists = await this.rooms.exists({ _id: roomId, hotelId: hotel._id });
-    if (!exists) {
+    const current = await this.rooms
+      .findOne({ _id: roomId, hotelId: hotel._id }, { availability: 1 })
+      .lean()
+      .exec();
+    if (!current) {
       throw new AppException(
         HttpStatus.NOT_FOUND,
         ErrorCode.NOT_FOUND,
         'Room not found',
+      );
+    }
+    if (current.availability.length + ranges.length > MAX_RANGES_PER_ROOM) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        `A room can have at most ${MAX_RANGES_PER_ROOM} bookable ranges; it has ${current.availability.length}. Nothing was added`,
       );
     }
     throw new AppException(

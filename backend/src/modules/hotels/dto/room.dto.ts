@@ -12,7 +12,8 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { IsWholeNumber } from '../../../common/validation';
-import { IsCalendarDate, IsRangeEnd } from './validators';
+import { MAX_RANGES_PER_ROOM } from '../schemas/room.schema';
+import { IsAfterToday, IsCalendarDate, IsRangeEnd } from './validators';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -134,10 +135,11 @@ export class AvailabilityRangeInputDto {
 
   @ApiProperty({
     example: '2027-02-10',
-    description: `Exclusive end: after from, at most ${MAX_RANGE_NIGHTS} nights later`,
+    description: `Exclusive end: after from and after today (UTC), at most ${MAX_RANGE_NIGHTS} nights later`,
   })
   @IsCalendarDate()
   @IsRangeEnd('from', MAX_RANGE_NIGHTS)
+  @IsAfterToday()
   to!: string;
 }
 
@@ -147,8 +149,7 @@ export class AddAvailabilityDto {
     type: [AvailabilityRangeInputDto],
     minItems: 1,
     maxItems: MAX_RANGES_PER_REQUEST,
-    description:
-      "Ranges must not overlap each other or the room's existing ranges. Touching ranges (one ends the day the next starts) are allowed.",
+    description: `Ranges must not overlap each other or the room's existing ranges. Touching ranges (one ends the day the next starts) are allowed and stored separately. A room holds at most ${MAX_RANGES_PER_ROOM} ranges.`,
   })
   @IsArray()
   @ArrayMinSize(1)

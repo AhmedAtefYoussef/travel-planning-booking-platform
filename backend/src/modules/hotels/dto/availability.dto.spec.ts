@@ -32,6 +32,16 @@ describe('AddAvailabilityDto (HTL-04)', () => {
     ).toEqual([]);
   });
 
+  it('rejects ranges that end today or earlier (UTC)', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    expect(failed({ ranges: [range('2000-01-01', '2000-01-05')] })).toEqual([
+      'ranges[0].to',
+    ]);
+    expect(failed({ ranges: [range('2000-01-01', today)] })).toEqual([
+      'ranges[0].to',
+    ]);
+  });
+
   it('needs between 1 and 100 ranges', () => {
     expect(failed({})).toEqual(['ranges']);
     expect(failed({ ranges: [] })).toEqual(['ranges']);

@@ -71,7 +71,7 @@ export class RoomsController {
   @ApiOperation({
     summary: 'HTL-04 Hotel moderator adds bookable date ranges to a room',
     description:
-      'Each range is {from, to}: `from` is the first bookable night and `to` the first night no longer included (up to 366 nights). Ranges must not overlap each other (400) or dates the room is already bookable for (409, and nothing is added); ranges that touch are fine. Only the moderator assigned to this hotel may do this (403 otherwise, ACC-11).',
+      'Each range is {from, to}: `from` is the first bookable night and `to` the first night no longer included (up to 366 nights). `to` must be after today (UTC), so past ranges are 400. Ranges must not overlap each other (400) or dates the room is already bookable for (409, and nothing is added); ranges that touch are fine and are stored as separate ranges. A room holds at most 200 ranges (409 beyond that). Only the moderator assigned to this hotel may do this (403 otherwise, ACC-11).',
   })
   @ApiParam({ name: 'id', description: 'Hotel id' })
   @ApiParam({ name: 'roomId', description: 'Room id' })

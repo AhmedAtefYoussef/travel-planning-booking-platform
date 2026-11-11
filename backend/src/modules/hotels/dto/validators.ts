@@ -67,3 +67,30 @@ export function IsRangeEnd(
       },
     });
 }
+
+/** Today's calendar date in UTC, YYYY-MM-DD (hotels have no time zone yet). */
+export function todayUtc(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10);
+}
+
+/**
+ * The (exclusive) end of a date range lies after today in UTC, so a range always has at least one
+ * night that can still be booked. Past ranges are rejected (HTL-04).
+ */
+export function IsAfterToday(options?: ValidationOptions) {
+  return (target: object, propertyName: string) =>
+    registerDecorator({
+      name: 'isAfterToday',
+      target: target.constructor,
+      propertyName,
+      options: {
+        message: `${propertyName} must be after today (UTC): the range must include a night that is still to come`,
+        ...options,
+      },
+      validator: {
+        // A missing or malformed date is reported on its own by IsCalendarDate.
+        validate: (value: unknown) =>
+          typeof value !== 'string' || value > todayUtc(),
+      },
+    });
+}

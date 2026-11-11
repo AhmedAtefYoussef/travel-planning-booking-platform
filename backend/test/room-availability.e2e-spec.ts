@@ -4,8 +4,7 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Hotel } from '../src/modules/hotels/hotel.schema';
-import { Room } from '../src/modules/hotels/room.schema';
+import { Hotel, MAX_RANGES_PER_ROOM, Room } from '../src/modules/hotels';
 import {
   loadReferenceDataset,
   ReferenceSeedService,
@@ -119,6 +118,40 @@ describe('Room availability (e2e): HTL-04', () => {
     await add(hotelId, roomId, mod(), {}).expect(400);
   });
 
+  it('rejects a range in the past with a field error on its end', async () => {
+    const res = await add(hotelId, roomId, mod(), {
+      ranges: [r('2000-01-01', '2000-01-05')],
+    }).expect(400);
+    expect(
+      res.body.fieldErrors.map((f: { field: string }) => f.field),
+    ).toContain('ranges[0].to');
+  });
+
+  it('caps a room at MAX_RANGES_PER_ROOM ranges with 409, adding nothing', async () => {
+    const id = await freshRoom();
+    // One-night ranges two days apart, so none touch or overlap.
+    const nights = (start: number, count: number) =>
+      Array.from({ length: count }, (_, i) => {
+        const day = new Date(Date.UTC(2030, 0, 1 + 2 * (start + i)));
+        const next = new Date(day.getTime() + 86_400_000);
+        return r(
+          day.toISOString().slice(0, 10),
+          next.toISOString().slice(0, 10),
+        );
+      });
+    const half = MAX_RANGES_PER_ROOM / 2;
+    await add(hotelId, id, mod(), { ranges: nights(0, half) }).expect(201);
+    await add(hotelId, id, mod(), { ranges: nights(half, half) }).expect(201);
+    const res = await add(hotelId, id, mod(), {
+      ranges: nights(MAX_RANGES_PER_ROOM, 1),
+    }).expect(409);
+    expect(res.body.message).toContain(`at most ${MAX_RANGES_PER_ROOM}`);
+    const model = app.get<Model<Room>>(getModelToken(Room.name));
+    expect((await model.findById(id))?.availability).toHaveLength(
+      MAX_RANGES_PER_ROOM,
+    );
+  });
+
   it('two simultaneous requests for overlapping ranges: exactly one wins', async () => {
     const id = await freshRoom();
     const results = await Promise.all(
@@ -160,10 +193,10 @@ describe('Room availability (e2e): HTL-04', () => {
 
   it('a deactivated hotel cannot change its room dates (ACC-15)', async () => {
     const model = app.get<Model<Hotel>>(getModelToken(Hotel.name));
-    await model.updateOne({ _id: hotelId }, { active: false });
+    await model.updateOne({ _id: hotelId }, { isActive: false });
     await add(hotelId, roomId, mod(), {
       ranges: [r('2031-01-01', '2031-01-10')],
     }).expect(403);
-    await model.updateOne({ _id: hotelId }, { active: true });
+    await model.updateOne({ _id: hotelId }, { isActive: true });
   });
 });

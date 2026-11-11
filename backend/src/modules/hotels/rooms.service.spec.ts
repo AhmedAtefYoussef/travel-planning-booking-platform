@@ -4,7 +4,7 @@ import { assertProviderScope } from '../../common/auth/access';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { HotelsService } from './hotels.service';
-import type { Room } from './schemas/room.schema';
+import { MAX_RANGES_PER_ROOM, type Room } from './schemas/room.schema';
 import { firstOverlap, RoomsService, sortedRanges } from './rooms.service';
 
 const hotelId = new Types.ObjectId();
@@ -137,17 +137,29 @@ describe('RoomsService.addAvailability (HTL-04)', () => {
     { from: '2027-01-01', to: '2027-01-10' },
   ];
 
-  function setupAvail(opts: { updated: object | null; exists: boolean }) {
+  function setupAvail(opts: {
+    updated: object | null;
+    exists: boolean;
+    rangesStored?: number;
+  }) {
+    const current = {
+      availability: Array.from({ length: opts.rangesStored ?? 1 }, () => ({})),
+    };
     const model = {
       findOneAndUpdate: jest.fn(() => ({
         exec: () => Promise.resolve(opts.updated),
       })),
-      exists: jest.fn(() =>
-        Promise.resolve(opts.exists ? { _id: roomId } : null),
-      ),
+      findOne: jest.fn(() => ({
+        lean: () => ({
+          exec: () => Promise.resolve(opts.exists ? current : null),
+        }),
+      })),
     };
     const hotels = {
-      loadActive: jest.fn(() => Promise.resolve({ _id: hotelId })),
+      loadManaged: jest.fn((user: AuthUser, id: string) => {
+        assertProviderScope(user, ProviderType.Hotel, id);
+        return Promise.resolve({ _id: hotelId });
+      }),
     };
     return {
       model,
@@ -166,7 +178,7 @@ describe('RoomsService.addAvailability (HTL-04)', () => {
     maxOccupancy: 3,
     priceMinor: 10000,
     availability: [{ from: '2027-01-01', to: '2027-01-10' }],
-    active: true,
+    isActive: true,
     createdAt: now,
     updatedAt: now,
   };
@@ -186,6 +198,14 @@ describe('RoomsService.addAvailability (HTL-04)', () => {
       { $push: { availability: { $each: unknown[] } } },
     ];
     expect(filter.$nor).toHaveLength(2);
+    // Room for both new ranges: at most MAX_RANGES_PER_ROOM - 2 stored now.
+    expect(filter).toMatchObject({
+      [`availability.${MAX_RANGES_PER_ROOM - 2}`]: { $exists: false },
+    });
+    expect(model.findOneAndUpdate.mock.calls[0]).toContainEqual({
+      new: true,
+      runValidators: true,
+    });
     expect(update.$push.availability.$each).toEqual([
       { from: '2027-01-01', to: '2027-01-10' },
       { from: '2027-03-01', to: '2027-03-10' },
@@ -232,6 +252,27 @@ describe('RoomsService.addAvailability (HTL-04)', () => {
         { ranges },
       ),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('returns 409 naming the limit when the room already has too many ranges', async () => {
+    const full = setupAvail({
+      updated: null,
+      exists: true,
+      rangesStored: MAX_RANGES_PER_ROOM - 1,
+    });
+    await expect(
+      full.service.addAvailability(
+        moderatorOf(hotelId),
+        hotelId.toHexString(),
+        roomId,
+        { ranges },
+      ),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining(
+        `at most ${MAX_RANGES_PER_ROOM}`,
+      ) as string,
+    });
   });
 
   it("refuses another hotel's moderator with 403 before touching the database", async () => {
