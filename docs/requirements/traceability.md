@@ -23,7 +23,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| ACC-01 | Mandatory | POST /api/auth/register | Abdelrahman | TRVL-13 | - | Not started |
+| ACC-01 | Mandatory | POST /api/auth/register | Abdelrahman | TRVL-13 | #42 | Done |
 | ACC-04 | Mandatory | POST /api/auth/login; GET /api/auth/me | Abdelrahman | TRVL-14 | - | Not started |
 | ACC-05 | Mandatory | POST /api/auth/login | Abdelrahman | TRVL-15 | - | Not started |
 | ACC-06 | Mandatory | POST /api/auth/logout | Abdelrahman | TRVL-16 | - | Not started |

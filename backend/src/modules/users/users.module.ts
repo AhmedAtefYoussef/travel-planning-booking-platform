@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AdminSeedService } from './admin-seed.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
+import { UsersService } from './users.service';
 
 /**
  * Accounts and sessions (TRVL-137, ACC-18). Both schemas are registered here so their indexes (unique
@@ -16,7 +17,7 @@ import { User, UserSchema } from './schemas/user.schema';
       { name: Session.name, schema: SessionSchema },
     ]),
   ],
-  providers: [AdminSeedService],
-  exports: [MongooseModule, AdminSeedService],
+  providers: [AdminSeedService, UsersService],
+  exports: [MongooseModule, AdminSeedService, UsersService],
 })
 export class UsersModule {}
