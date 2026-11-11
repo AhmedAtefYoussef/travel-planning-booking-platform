@@ -1,6 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { integer } from './schema-validators';
+import { safeInteger } from '../../common/validation';
 
 export const MAX_REVIEW_TEXT = 1000;
 
@@ -21,7 +21,8 @@ export class Review {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
-  @Prop({ required: true, min: 1, max: 5, validate: integer }) rating: number;
+  @Prop({ required: true, min: 1, max: 5, validate: safeInteger('rating') })
+  rating: number;
 
   @Prop({ default: '', trim: true, maxlength: MAX_REVIEW_TEXT }) text: string;
 

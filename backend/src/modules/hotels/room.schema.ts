@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { integer, isoDate } from './schema-validators';
+import { safeInteger } from '../../common/validation';
+import { isoDate } from './schema-validators';
 
 /**
  * HTL-04: a bookable date range. Ranges of one room must not overlap; that
@@ -36,11 +37,17 @@ export class Room {
   /** Unique within its hotel (HTL-03). */
   @Prop({ required: true, trim: true }) number: string;
   @Prop({ required: true, trim: true }) type: string;
-  @Prop({ required: true, min: 1, validate: integer }) beds: number;
-  @Prop({ required: true, min: 1, validate: integer }) maxOccupancy: number;
+  @Prop({ required: true, min: 1, validate: safeInteger('beds') }) beds: number;
+  @Prop({ required: true, min: 1, validate: safeInteger('maxOccupancy') })
+  maxOccupancy: number;
 
   /** Price per night in PLATFORM_CURRENCY minor units. */
-  @Prop({ type: Number, required: true, min: 0, validate: integer })
+  @Prop({
+    type: Number,
+    required: true,
+    min: 0,
+    validate: safeInteger('priceMinor'),
+  })
   priceMinor: number;
 
   @Prop({ type: [AvailabilityRangeSchema], default: [] })

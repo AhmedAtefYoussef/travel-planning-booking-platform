@@ -551,3 +551,17 @@ Claude adapted the existing schemas to the shared helpers on develop (Cancellati
 lint, typecheck, architecture, OpenAPI and the unit tests locally, and opened the PR. I reviewed the diff and the
 schema rules before asking for review.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-140, HTL-01, HTL-03, HTL-04 (rebase onto develop, GEN-13 shared validation rules)
+Prompt:
+PRs #21 to #24 conflict with develop. Rebase them onto the latest develop and fix what the new rules require:
+whole numbers use IsWholeNumber and safeInteger, and edit DTOs use the shared Omittable from common/validation.
+How the output was used:
+Claude rebased the four branches in order (the only conflicts were appended AI_PROMPTS.txt entries, kept from both
+sides), replaced the hotels-only integer helper, @IsInt() and the copied Omittable with the shared helpers, and
+ran the local gate on each branch. I reviewed each fix commit before the branches were force-pushed.
+================================================

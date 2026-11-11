@@ -1,17 +1,23 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
 import type { CancellationTier as CancellationTierShape } from '../../common/contracts/policies.contract';
-import { HH_MM, integer } from './schema-validators';
+import { safeInteger } from '../../common/validation';
+import { HH_MM } from './schema-validators';
 
 export const MAX_HOTEL_PHOTOS = 5;
 
 /** HTL-10: refund % when cancelling at least `daysBefore` days before check-in. */
 @Schema({ _id: false })
 export class CancellationTier implements CancellationTierShape {
-  @Prop({ required: true, min: 0, validate: integer })
+  @Prop({ required: true, min: 0, validate: safeInteger('daysBefore') })
   daysBefore: number;
 
-  @Prop({ required: true, min: 0, max: 100, validate: integer })
+  @Prop({
+    required: true,
+    min: 0,
+    max: 100,
+    validate: safeInteger('refundPercent'),
+  })
   refundPercent: number;
 }
 export const CancellationTierSchema =
@@ -37,7 +43,8 @@ export class Hotel {
   })
   photos: string[];
 
-  @Prop({ min: 1, max: 5, validate: integer }) starClass?: number;
+  @Prop({ min: 1, max: 5, validate: safeInteger('starClass') })
+  starClass?: number;
   @Prop({ type: [String], default: [] }) amenities: string[];
 
   /** HTL-09: local time "HH:mm" in the hotel's time zone. */
@@ -51,7 +58,8 @@ export class Hotel {
 
   /** Kept in sync from visible reviews. */
   @Prop({ default: 0, min: 0, max: 5 }) ratingAvg: number;
-  @Prop({ default: 0, min: 0, validate: integer }) ratingCount: number;
+  @Prop({ default: 0, min: 0, validate: safeInteger('ratingCount') })
+  ratingCount: number;
 }
 
 export type HotelDocument = HydratedDocument<Hotel>;

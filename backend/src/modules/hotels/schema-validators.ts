@@ -1,11 +1,6 @@
 import { parseIsoDate } from '../../common/utils/dates';
 
-/** Shared Mongoose validators for the hotels collections. */
-
-export const integer = {
-  validator: (v: number) => v == null || Number.isInteger(v),
-  message: '{PATH} must be an integer',
-};
+/** Shared Mongoose validators for the hotels collections (whole numbers use safeInteger from common/validation). */
 
 /** True for a real calendar date written YYYY-MM-DD. */
 function isIsoDate(value: string): boolean {
