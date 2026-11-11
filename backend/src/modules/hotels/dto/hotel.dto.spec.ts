@@ -35,6 +35,13 @@ describe('CreateHotelDto (HTL-01)', () => {
     expect(createFields({ starClass: 3.5 })).toEqual(['starClass']);
   });
 
+  it('rejects whole numbers too large to count exactly (GEN-13)', () => {
+    for (const starClass of [1e20, 1e300]) {
+      expect(createFields({ starClass })).toEqual(['starClass']);
+      expect(updateFields({ starClass })).toEqual(['starClass']);
+    }
+  });
+
   it('allows at most 5 photos, each an http(s) URL', () => {
     const url = 'https://cdn.example.com/p.jpg';
     expect(createFields({ photos: Array(5).fill(url) })).toEqual([]);

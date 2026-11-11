@@ -4,7 +4,6 @@ import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsInt,
   IsOptional,
   IsString,
   IsUrl,
@@ -14,7 +13,7 @@ import {
   Min,
 } from 'class-validator';
 import { MAX_HOTEL_PHOTOS } from '../hotel.schema';
-import { Omittable } from './omittable';
+import { IsWholeNumber, Omittable } from '../../../common/validation';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -47,7 +46,12 @@ const CityRules = () =>
   applyDecorators(Transform(trim), IsString(), Length(1, 64));
 const DescriptionRules = () =>
   applyDecorators(Transform(trim), IsString(), MaxLength(2000));
-const StarClassRules = () => applyDecorators(IsInt(), Min(1), Max(5));
+const StarClassRules = () =>
+  applyDecorators(
+    IsWholeNumber('starClass must be a whole number'),
+    Min(1),
+    Max(5),
+  );
 const PhotosRules = () =>
   applyDecorators(
     IsArray(),
