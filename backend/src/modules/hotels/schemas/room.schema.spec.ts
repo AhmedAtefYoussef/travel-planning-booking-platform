@@ -19,7 +19,7 @@ describe('RoomSchema', () => {
     const doc = new Room(valid);
     expect(doc.validateSync()).toBeUndefined();
     expect(doc.hotelId).toBeInstanceOf(Types.ObjectId);
-    expect(doc.active).toBe(true);
+    expect(doc.isActive).toBe(true);
     expect(doc.everReserved).toBe(false);
   });
 
@@ -38,6 +38,7 @@ describe('RoomSchema', () => {
     ['beds', 0],
     ['beds', 1.5],
     ['maxOccupancy', 0],
+    ['priceMinor', 0],
     ['priceMinor', -1],
     ['priceMinor', 99.5],
   ])('rejects %s = %p', (field, value) => {

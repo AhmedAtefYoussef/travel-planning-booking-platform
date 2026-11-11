@@ -15,10 +15,10 @@ describe('ReviewSchema', () => {
       new Review({ ...valid, ...patch }).validateSync()?.errors ?? {},
     );
 
-  it('accepts a valid review and defaults hidden to false', () => {
+  it('accepts a valid review and defaults isHidden to false', () => {
     const doc = new Review(valid);
     expect(doc.validateSync()).toBeUndefined();
-    expect(doc.hidden).toBe(false);
+    expect(doc.isHidden).toBe(false);
   });
 
   it.each(['hotelId', 'reservationId', 'userId', 'rating'])(

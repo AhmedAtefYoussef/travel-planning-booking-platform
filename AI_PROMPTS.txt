@@ -565,3 +565,18 @@ Claude rebased the four branches in order (the only conflicts were appended AI_P
 sides), replaced the hotels-only integer helper, @IsInt() and the copied Omittable with the shared helpers, and
 ran the local gate on each branch. I reviewed each fix commit before the branches were force-pushed.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-140, HTL-01, HTL-03, HTL-04 (team leader review of PRs #21 to #24)
+Prompt:
+Apply Ahmed's review of the hotels stack: register RoomNight and Review so their unique indexes exist, use
+isActive/isHidden, SCHEMA_OPTIONS and hotels/schemas/, and fix the HTL-01, HTL-03 and HTL-04 points (scope
+before active state, atomic updates with runValidators, price > 0, past dates, a cap on ranges, matrix status).
+How the output was used:
+Claude made one fix commit per PR, moved the hotel date and time checks into common/validation, and added an
+e2e test that the room_nights and reviews unique indexes are built. I reviewed each change and the test results
+before the branches were pushed.
+================================================

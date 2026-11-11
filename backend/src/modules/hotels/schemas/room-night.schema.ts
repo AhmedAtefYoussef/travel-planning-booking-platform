@@ -1,6 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { isoDate } from './schema-validators';
+import { SCHEMA_OPTIONS } from '../../../common/contracts';
+import { calendarDate } from '../../../common/validation';
+
+export const ROOM_NIGHTS_COLLECTION = 'room_nights';
 
 export enum RoomNightKind {
   /** Owner-blocked date (HTL-06). */
@@ -14,7 +17,7 @@ export enum RoomNightKind {
  * One document per room per night (ADR-002). Bookings insert these inside a
  * transaction; the unique {roomId, date} index rejects any overlap.
  */
-@Schema({ collection: 'room_nights', timestamps: true })
+@Schema({ ...SCHEMA_OPTIONS, collection: ROOM_NIGHTS_COLLECTION })
 export class RoomNight {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Room', required: true })
   roomId: Types.ObjectId;
@@ -28,7 +31,8 @@ export class RoomNight {
   hotelId: Types.ObjectId;
 
   /** The night, as the hotel's local calendar date. */
-  @Prop({ type: String, required: true, validate: isoDate }) date: string;
+  @Prop({ type: String, required: true, validate: calendarDate('date') })
+  date: string;
 
   @Prop({ type: String, required: true, enum: RoomNightKind })
   kind: RoomNightKind;

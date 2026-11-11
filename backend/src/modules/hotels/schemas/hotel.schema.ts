@@ -1,8 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument } from 'mongoose';
-import type { CancellationTier as CancellationTierShape } from '../../common/contracts/policies.contract';
-import { safeInteger } from '../../common/validation';
-import { HH_MM } from './schema-validators';
+import { SCHEMA_OPTIONS } from '../../../common/contracts';
+import type { CancellationTier as CancellationTierShape } from '../../../common/contracts/policies.contract';
+import { LOCAL_TIME_HH_MM, safeInteger } from '../../../common/validation';
+
+export const HOTELS_COLLECTION = 'hotels';
 
 export const MAX_HOTEL_PHOTOS = 5;
 
@@ -23,7 +25,7 @@ export class CancellationTier implements CancellationTierShape {
 export const CancellationTierSchema =
   SchemaFactory.createForClass(CancellationTier);
 
-@Schema({ collection: 'hotels', timestamps: true })
+@Schema({ ...SCHEMA_OPTIONS, collection: HOTELS_COLLECTION })
 export class Hotel {
   @Prop({ required: true, trim: true }) name: string;
   @Prop({ required: true, trim: true }) address: string;
@@ -48,13 +50,15 @@ export class Hotel {
   @Prop({ type: [String], default: [] }) amenities: string[];
 
   /** HTL-09: local time "HH:mm" in the hotel's time zone. */
-  @Prop({ match: HH_MM }) checkInTime?: string;
-  @Prop({ match: HH_MM }) checkOutTime?: string;
+  @Prop({ match: LOCAL_TIME_HH_MM }) checkInTime?: string;
+  @Prop({ match: LOCAL_TIME_HH_MM }) checkOutTime?: string;
 
   @Prop({ type: [CancellationTierSchema], default: [] })
   cancellationTiers: CancellationTier[];
 
-  @Prop({ default: true }) active: boolean;
+  /** ACC-15: a deactivated hotel is hidden from search and cannot be booked (ProviderFlags). */
+  @Prop({ type: Boolean, default: true, index: true })
+  isActive: boolean;
 
   /** Kept in sync from visible reviews. */
   @Prop({ default: 0, min: 0, max: 5 }) ratingAvg: number;
@@ -65,5 +69,5 @@ export class Hotel {
 export type HotelDocument = HydratedDocument<Hotel>;
 export const HotelSchema = SchemaFactory.createForClass(Hotel);
 /** HTL-11: search by city or by country, active hotels only. */
-HotelSchema.index({ cityId: 1, active: 1 });
-HotelSchema.index({ countryCode: 1, active: 1 });
+HotelSchema.index({ cityId: 1, isActive: 1 });
+HotelSchema.index({ countryCode: 1, isActive: 1 });

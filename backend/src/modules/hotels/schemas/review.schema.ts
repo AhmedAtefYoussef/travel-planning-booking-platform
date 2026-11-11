@@ -1,10 +1,13 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { safeInteger } from '../../common/validation';
+import { SCHEMA_OPTIONS } from '../../../common/contracts';
+import { safeInteger } from '../../../common/validation';
+
+export const REVIEWS_COLLECTION = 'reviews';
 
 export const MAX_REVIEW_TEXT = 1000;
 
-@Schema({ collection: 'reviews', timestamps: true })
+@Schema({ ...SCHEMA_OPTIONS, collection: REVIEWS_COLLECTION })
 export class Review {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Hotel', required: true })
   hotelId: Types.ObjectId;
@@ -26,8 +29,9 @@ export class Review {
 
   @Prop({ default: '', trim: true, maxlength: MAX_REVIEW_TEXT }) text: string;
 
-  /** Hidden by a moderator; excluded from listings and the hotel rating. */
-  @Prop({ default: false }) hidden: boolean;
+  /** Hidden by a moderator; excluded from listings and the hotel rating (ContentFlags, GEN-10). */
+  @Prop({ type: Boolean, default: false, index: true })
+  isHidden: boolean;
 
   createdAt: Date;
   updatedAt: Date;

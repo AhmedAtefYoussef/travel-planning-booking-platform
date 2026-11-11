@@ -22,7 +22,7 @@ describe('HotelSchema', () => {
     const doc = new Hotel(valid);
     expect(doc.validateSync()).toBeUndefined();
     expect(doc.countryCode).toBe('EG');
-    expect(doc.active).toBe(true);
+    expect(doc.isActive).toBe(true);
     expect(doc.ratingAvg).toBe(0);
     expect(doc.ratingCount).toBe(0);
     expect(doc.amenities).toEqual([]);
@@ -69,7 +69,7 @@ describe('HotelSchema', () => {
 
   it('indexes city and country search on active hotels', () => {
     const keys = HotelSchema.indexes().map(([fields]) => fields);
-    expect(keys).toContainEqual({ cityId: 1, active: 1 });
-    expect(keys).toContainEqual({ countryCode: 1, active: 1 });
+    expect(keys).toContainEqual({ cityId: 1, isActive: 1 });
+    expect(keys).toContainEqual({ countryCode: 1, isActive: 1 });
   });
 });

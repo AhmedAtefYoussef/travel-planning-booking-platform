@@ -1,7 +1,9 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { safeInteger } from '../../common/validation';
-import { isoDate } from './schema-validators';
+import { SCHEMA_OPTIONS } from '../../../common/contracts';
+import { calendarDate, safeInteger } from '../../../common/validation';
+
+export const ROOMS_COLLECTION = 'rooms';
 
 /**
  * HTL-04: a bookable date range. Ranges of one room must not overlap; that
@@ -9,13 +11,14 @@ import { isoDate } from './schema-validators';
  */
 @Schema({ _id: false })
 export class AvailabilityRange {
-  @Prop({ type: String, required: true, validate: isoDate }) from: string;
+  @Prop({ type: String, required: true, validate: calendarDate('from') })
+  from: string;
 
   @Prop({
     type: String,
     required: true,
     validate: [
-      isoDate,
+      calendarDate('to'),
       {
         validator(this: AvailabilityRange, to: string) {
           return typeof this.from !== 'string' || this.from < to;
@@ -29,7 +32,7 @@ export class AvailabilityRange {
 export const AvailabilityRangeSchema =
   SchemaFactory.createForClass(AvailabilityRange);
 
-@Schema({ collection: 'rooms', timestamps: true })
+@Schema({ ...SCHEMA_OPTIONS, collection: ROOMS_COLLECTION })
 export class Room {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Hotel', required: true })
   hotelId: Types.ObjectId;
@@ -41,11 +44,11 @@ export class Room {
   @Prop({ required: true, min: 1, validate: safeInteger('maxOccupancy') })
   maxOccupancy: number;
 
-  /** Price per night in PLATFORM_CURRENCY minor units. */
+  /** Price per night in PLATFORM_CURRENCY minor units, greater than 0 (HTL-03). */
   @Prop({
     type: Number,
     required: true,
-    min: 0,
+    min: 1,
     validate: safeInteger('priceMinor'),
   })
   priceMinor: number;
@@ -53,7 +56,9 @@ export class Room {
   @Prop({ type: [AvailabilityRangeSchema], default: [] })
   availability: AvailabilityRange[];
 
-  @Prop({ default: true }) active: boolean;
+  /** HTL-06: a deactivated room cannot be booked; its existing reservations stay valid. */
+  @Prop({ type: Boolean, default: true })
+  isActive: boolean;
 
   /** Set on first reservation; such rooms can be deactivated, not deleted. */
   @Prop({ default: false }) everReserved: boolean;
