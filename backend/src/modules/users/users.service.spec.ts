@@ -146,3 +146,69 @@ describe('UsersService lookups (ACC-04, ACC-19)', () => {
     );
   });
 });
+
+describe('UsersService login failures (ACC-05)', () => {
+  const id = new Types.ObjectId();
+  const NOW = new Date('2026-11-11T10:00:00Z');
+  const LOCK_END = new Date('2026-11-11T10:15:00Z');
+
+  function withResult(after: unknown) {
+    const lean = jest.fn().mockResolvedValue(after);
+    const model = {
+      findOneAndUpdate: jest.fn().mockReturnValue({ lean }),
+      updateOne: jest.fn().mockResolvedValue({}),
+    };
+    return {
+      service: new UsersService(model as unknown as Model<User>),
+      model,
+    };
+  }
+
+  it('counts and locks in one atomic pipeline update', async () => {
+    const { service, model } = withResult({ lockedUntil: LOCK_END });
+    await expect(
+      service.recordFailedLogin(id.toHexString(), 5, 15 * 60_000, NOW),
+    ).resolves.toEqual(LOCK_END);
+
+    const [filter, pipeline, options] = model.findOneAndUpdate.mock
+      .calls[0] as [unknown, unknown[], unknown];
+    expect(filter).toEqual({ _id: id });
+    expect(Array.isArray(pipeline)).toBe(true);
+    expect(JSON.stringify(pipeline)).toContain(LOCK_END.toISOString());
+    expect(options).toEqual({ new: true });
+  });
+
+  it('returns null when this failure did not lock the account', async () => {
+    await expect(
+      withResult({ failedLoginCount: 2 }).service.recordFailedLogin(
+        id.toHexString(),
+        5,
+        15 * 60_000,
+        NOW,
+      ),
+    ).resolves.toBeNull();
+    // An older lock that this call did not set is not reported as a new one.
+    await expect(
+      withResult({
+        lockedUntil: new Date('2026-11-11T09:00:00Z'),
+      }).service.recordFailedLogin(id.toHexString(), 5, 15 * 60_000, NOW),
+    ).resolves.toBeNull();
+    await expect(
+      withResult(null).service.recordFailedLogin(
+        id.toHexString(),
+        5,
+        15 * 60_000,
+        NOW,
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it('resets the counter and removes the lock', async () => {
+    const { service, model } = withResult(null);
+    await service.resetLoginFailures(id.toHexString());
+    expect(model.updateOne).toHaveBeenCalledWith(
+      { _id: id },
+      { $set: { failedLoginCount: 0 }, $unset: { lockedUntil: 1 } },
+    );
+  });
+});

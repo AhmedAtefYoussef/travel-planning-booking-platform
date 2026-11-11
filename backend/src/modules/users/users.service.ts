@@ -21,6 +21,9 @@ export interface LoginCandidate {
   id: string;
   status: AccountStatus;
   passwordHash: string;
+  /** ACC-05 consecutive failures so far, and the end of an active or past lock. */
+  failedLoginCount: number;
+  lockedUntil?: Date;
   user: UserProfileDto;
 }
 
@@ -66,8 +69,59 @@ export class UsersService {
       id: user._id.toHexString(),
       status: user.status,
       passwordHash: user.passwordHash,
+      failedLoginCount: user.failedLoginCount ?? 0,
+      ...(user.lockedUntil ? { lockedUntil: user.lockedUntil } : {}),
       user: toUserProfile(user),
     };
+  }
+
+  /**
+   * ACC-05: counts one failed login. When this failure is number `maxFailures`, the same atomic update
+   * locks the account until `now + lockMs` and resets the counter, so concurrent wrong passwords can
+   * never skip the lock. Returns the lock end when this call locked the account, otherwise null.
+   */
+  async recordFailedLogin(
+    id: string,
+    maxFailures: number,
+    lockMs: number,
+    now = new Date(),
+  ): Promise<Date | null> {
+    const lockUntil = new Date(now.getTime() + lockMs);
+    const reachedLimit = { $gte: ['$failedLoginCount', maxFailures] };
+    const user = await this.users
+      .findOneAndUpdate(
+        { _id: new Types.ObjectId(id) },
+        [
+          {
+            $set: {
+              failedLoginCount: {
+                $add: [{ $ifNull: ['$failedLoginCount', 0] }, 1],
+              },
+            },
+          },
+          {
+            $set: {
+              lockedUntil: { $cond: [reachedLimit, lockUntil, '$lockedUntil'] },
+              failedLoginCount: {
+                $cond: [reachedLimit, 0, '$failedLoginCount'],
+              },
+            },
+          },
+        ],
+        { new: true },
+      )
+      .lean();
+    return user?.lockedUntil?.getTime() === lockUntil.getTime()
+      ? lockUntil
+      : null;
+  }
+
+  /** ACC-05: a successful login resets the counter and lifts an expired lock. */
+  async resetLoginFailures(id: string): Promise<void> {
+    await this.users.updateOne(
+      { _id: new Types.ObjectId(id) },
+      { $set: { failedLoginCount: 0 }, $unset: { lockedUntil: 1 } },
+    );
   }
 
   /** ACC-19: the profile behind /auth/me; null when the account no longer exists. */

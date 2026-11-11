@@ -111,13 +111,15 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @ApiOperation({
-    summary: 'ACC-04 / ACC-19 Log in with email and password',
+    summary: 'ACC-04 / ACC-05 / ACC-19 Log in with email and password',
     description:
       'Works for users, admins and moderators. On success it sets two httpOnly, SameSite=Lax cookies (Secure when COOKIE_SECURE=true): ' +
       '`access_token` (JWT, JWT_ACCESS_TTL, path /api) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). ' +
       "No token is ever returned in the body (ACC-19); the body has the profile and `homePath`, the role's home page. " +
       'Unknown email or wrong password: 401 INVALID_CREDENTIALS "Invalid email or password". ' +
       'Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ' +
+      'ACC-05: the 5th consecutive wrong password locks the account for 15 minutes and returns 403 ACCOUNT_LOCKED with the minutes left; ' +
+      'during the lock even the right password is refused. A successful login resets the counter. ' +
       'In Swagger, after logging in, every "Try it out" call sends the cookie automatically.',
   })
   @ApiBody({

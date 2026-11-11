@@ -33,6 +33,7 @@ const candidate = (
   id: USER_ID,
   status: AccountStatus.Active,
   passwordHash: 'stored-hash',
+  failedLoginCount: 0,
   user: profile(),
   ...overrides,
 });
@@ -43,6 +44,8 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
     findForLogin: jest.fn().mockResolvedValue(found),
     findProfile: jest.fn().mockResolvedValue(profile()),
     replacePasswordHash: jest.fn().mockResolvedValue(undefined),
+    recordFailedLogin: jest.fn().mockResolvedValue(null),
+    resetLoginFailures: jest.fn().mockResolvedValue(undefined),
   };
   const sessions = {
     create: jest.fn().mockResolvedValue({
@@ -353,5 +356,79 @@ describe('AuthService.refresh rotation outcomes (ACC-06)', () => {
     const e = await failure(service.refresh('raw-refresh'));
     expect(e.getStatus()).toBe(401);
     expect(e.message).toMatch(/old refresh token was used again/);
+  });
+});
+
+describe('AuthService.login lockout (ACC-05)', () => {
+  it('counts a wrong password against the account with the workbook limits', async () => {
+    const { service, users } = setup(candidate(), false);
+    const e = await failure(service.login(login));
+    expect(e.code).toBe('INVALID_CREDENTIALS');
+    expect(users.recordFailedLogin).toHaveBeenCalledWith(
+      USER_ID,
+      5,
+      15 * 60_000,
+      expect.any(Date),
+    );
+  });
+
+  it('answers the failure that locks the account with the lockout message', async () => {
+    const { service, users } = setup(candidate(), false);
+    users.recordFailedLogin.mockImplementation(
+      (_id: string, _max: number, lockMs: number, now: Date) =>
+        Promise.resolve(new Date(now.getTime() + lockMs)),
+    );
+    const e = await failure(service.login(login));
+    expect(e.getStatus()).toBe(403);
+    expect(e.code).toBe('ACCOUNT_LOCKED');
+    expect(e.message).toMatch(/locked for 15 minutes; try again in 15 minutes/);
+  });
+
+  it('refuses even the right password while locked, without checking it or counting', async () => {
+    const lockedUntil = new Date(Date.now() + 60_000 + 500);
+    const { service, users, passwords, sessions } = setup(
+      candidate({ failedLoginCount: 0, lockedUntil }),
+    );
+    const e = await failure(service.login(login));
+    expect(e.code).toBe('ACCOUNT_LOCKED');
+    expect(e.message).toMatch(/try again in 2 minutes/);
+    expect(passwords.verify).not.toHaveBeenCalled();
+    expect(users.recordFailedLogin).not.toHaveBeenCalled();
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('says "1 minute" when less than a minute is left', async () => {
+    const { service } = setup(
+      candidate({ lockedUntil: new Date(Date.now() + 10_000) }),
+    );
+    expect((await failure(service.login(login))).message).toMatch(
+      /try again in 1 minute\./,
+    );
+  });
+
+  it('lets the right password in after the lock ends and resets the counter', async () => {
+    const { service, users } = setup(
+      candidate({ failedLoginCount: 0, lockedUntil: new Date(Date.now() - 1) }),
+    );
+    await expect(service.login(login)).resolves.toMatchObject({
+      homePath: '/',
+    });
+    expect(users.resetLoginFailures).toHaveBeenCalledWith(USER_ID);
+  });
+
+  it('a successful login resets earlier failures; a clean account skips the write', async () => {
+    const dirty = setup(candidate({ failedLoginCount: 3 }));
+    await dirty.service.login(login);
+    expect(dirty.users.resetLoginFailures).toHaveBeenCalledWith(USER_ID);
+
+    const clean = setup(candidate({ failedLoginCount: 0 }));
+    await clean.service.login(login);
+    expect(clean.users.resetLoginFailures).not.toHaveBeenCalled();
+  });
+
+  it('never counts attempts for an unknown email', async () => {
+    const { service, users } = setup(null);
+    await failure(service.login(login));
+    expect(users.recordFailedLogin).not.toHaveBeenCalled();
   });
 });

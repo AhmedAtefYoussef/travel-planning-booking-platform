@@ -17,6 +17,7 @@ import {
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
 import { HOME_PATHS } from './home-paths';
+import { LOCKOUT_MINUTES, LOCKOUT_MS, MAX_FAILED_LOGINS } from './lockout';
 
 export interface LoginResult {
   user: UserProfileDto;
@@ -35,6 +36,19 @@ const invalidCredentials = () =>
     ErrorCode.INVALID_CREDENTIALS,
     'Invalid email or password',
   );
+/** ACC-05 lockout message, with the minutes left so the user knows when to retry. */
+const accountLocked = (until: Date, now: Date) => {
+  const minutes = Math.max(
+    1,
+    Math.ceil((until.getTime() - now.getTime()) / 60_000),
+  );
+  return new AppException(
+    HttpStatus.FORBIDDEN,
+    ErrorCode.ACCOUNT_LOCKED,
+    `Too many failed login attempts. Your account is locked for ${LOCKOUT_MINUTES} minutes; ` +
+      `try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+  );
+};
 const accountSuspended = () =>
   new AppException(
     HttpStatus.FORBIDDEN,
@@ -88,13 +102,28 @@ export class AuthService {
    * message never reveals that an account exists to someone who does not know its password.
    */
   async login(dto: LoginDto): Promise<LoginResult> {
+    const now = new Date();
     const candidate = await this.users.findForLogin(dto.email);
     if (!candidate) {
       await this.passwords.verify(dto.password, await this.getDummyHash());
       throw invalidCredentials();
     }
+    // ACC-05: while locked, even the right password is refused (and not checked).
+    if (candidate.lockedUntil && candidate.lockedUntil > now) {
+      throw accountLocked(candidate.lockedUntil, now);
+    }
     if (!(await this.passwords.verify(dto.password, candidate.passwordHash))) {
+      const lockedUntil = await this.users.recordFailedLogin(
+        candidate.id,
+        MAX_FAILED_LOGINS,
+        LOCKOUT_MS,
+        now,
+      );
+      if (lockedUntil) throw accountLocked(lockedUntil, now);
       throw invalidCredentials();
+    }
+    if (candidate.failedLoginCount > 0 || candidate.lockedUntil) {
+      await this.users.resetLoginFailures(candidate.id);
     }
     if (candidate.status === AccountStatus.Deactivated) {
       throw invalidCredentials();
