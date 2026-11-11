@@ -67,10 +67,82 @@ describe('UsersService.createTraveller (ACC-01)', () => {
     ]);
   });
 
-  it('rethrows other database errors unchanged', async () => {
+  it('rethrows other database errors unchanged (createTraveller)', async () => {
     const create = jest.fn().mockRejectedValue(new Error('connection lost'));
     await expect(setup(create).createTraveller(input)).rejects.toThrow(
       'connection lost',
+    );
+  });
+});
+
+describe('UsersService lookups (ACC-04, ACC-19)', () => {
+  const id = new Types.ObjectId();
+  const doc = {
+    _id: id,
+    name: 'Mona Hassan',
+    email: 'mona@example.com',
+    passwordHash: 'stored-hash',
+    role: Role.User,
+    status: AccountStatus.Suspended,
+    mustChangePassword: false,
+    createdAt: new Date('2026-11-11T10:00:00Z'),
+  };
+
+  function withModel(found: unknown) {
+    const select = jest.fn().mockResolvedValue(found);
+    const model = {
+      findOne: jest.fn().mockReturnValue({ select }),
+      findById: jest.fn().mockResolvedValue(found),
+      updateOne: jest.fn().mockResolvedValue({}),
+    };
+    return {
+      service: new UsersService(model as unknown as Model<User>),
+      model,
+      select,
+    };
+  }
+
+  it('finds a login candidate by normalised email, with the hash and status', async () => {
+    const { service, model, select } = withModel(doc);
+    const found = await service.findForLogin('  Mona@Example.com ');
+
+    expect(model.findOne).toHaveBeenCalledWith({ email: 'mona@example.com' });
+    expect(select).toHaveBeenCalledWith('+passwordHash');
+    expect(found).toMatchObject({
+      id: id.toHexString(),
+      status: AccountStatus.Suspended,
+      passwordHash: 'stored-hash',
+      user: { email: 'mona@example.com', role: Role.User },
+    });
+    expect(found?.user).not.toHaveProperty('passwordHash');
+  });
+
+  it('returns null for an unknown email', async () => {
+    await expect(
+      withModel(null).service.findForLogin('x@y.z'),
+    ).resolves.toBeNull();
+  });
+
+  it('returns the profile for an id, null for a missing account or malformed id', async () => {
+    await expect(
+      withModel(doc).service.findProfile(id.toHexString()),
+    ).resolves.toMatchObject({
+      id: id.toHexString(),
+    });
+    await expect(
+      withModel(null).service.findProfile(id.toHexString()),
+    ).resolves.toBeNull();
+    const { service, model } = withModel(doc);
+    await expect(service.findProfile('not-an-id')).resolves.toBeNull();
+    expect(model.findById).not.toHaveBeenCalled();
+  });
+
+  it('replaces a password hash', async () => {
+    const { service, model } = withModel(doc);
+    await service.replacePasswordHash(id.toHexString(), 'new-hash');
+    expect(model.updateOne).toHaveBeenCalledWith(
+      { _id: id.toHexString() },
+      { $set: { passwordHash: 'new-hash' } },
     );
   });
 });

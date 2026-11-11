@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AdminSeedService } from './admin-seed.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
+import { SessionsService } from './sessions.service';
 import { UsersService } from './users.service';
 
 /**
@@ -17,7 +18,7 @@ import { UsersService } from './users.service';
       { name: Session.name, schema: SessionSchema },
     ]),
   ],
-  providers: [AdminSeedService, UsersService],
-  exports: [MongooseModule, AdminSeedService, UsersService],
+  providers: [AdminSeedService, UsersService, SessionsService],
+  exports: [MongooseModule, AdminSeedService, UsersService, SessionsService],
 })
 export class UsersModule {}
