@@ -584,3 +584,19 @@ commit with an idempotency key, a sweep retries unsent refunds), the webhook han
 GET /api/refunds/:id and refundId on the booking details, with unit and e2e tests. I checked the outbox
 behaviour and the tier and 100% amounts before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-140 (hotels, rooms, room_nights, reviews schemas); HTL-01, HTL-03, HTL-04, HTL-09, HTL-10
+Prompt:
+Replace the hotel schemas of PR #21 with versions that match docs/architecture/erd.md and the repository
+conventions (SCHEMA_OPTIONS, isActive, policy{cancellationTiers, checkInTime, checkOutTime}, safeInteger,
+schemas/ folder), register all four in a HotelsModule so MongoDB builds their indexes, and prove the unique
+{roomId, date}, {hotelId, number} and reservationId indexes refuse duplicates.
+How the output was used:
+Claude wrote the four schemas, the module, unit tests for every field rule and an e2e test that checks the
+indexes exist and that parallel holds of one room night let exactly one through. I compared the fields with
+the ERD and the HTL requirements before opening the pull request.
+================================================

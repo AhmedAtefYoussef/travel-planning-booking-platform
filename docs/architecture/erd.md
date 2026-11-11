@@ -23,8 +23,7 @@ erDiagram
   FLIGHTS ||--o{ FLIGHT_BOOKINGS : "segments"
 
   HOTELS ||--o{ ROOMS : "has"
-  ROOMS ||--o{ ROOM_AVAILABILITY : "bookable ranges / blocks"
-  ROOMS ||--o{ ROOM_NIGHTS : "one doc per held/booked night"
+  ROOMS ||--o{ ROOM_NIGHTS : "one doc per held, booked or blocked night"
   HOTEL_RESERVATIONS ||--o{ ROOM_NIGHTS : "holds"
   HOTEL_RESERVATIONS ||--o| REVIEWS : "reviewed once"
 
@@ -52,11 +51,11 @@ erDiagram
 | `airlines` | Joudy (TRVL-138), **implemented** | name, code, logoUrl, isActive, policy{cancellationTiers[{daysBefore, refundPercent}], extraBaggage{pricePerBagMinor, maxExtraBagsPerPassenger}} | unique `code` |
 | `flights` | Joudy (TRVL-138), **implemented** | airlineId, flightNumber, from/to IATA, departureUtc, arrivalUtc, departureLocalDate (origin-local YYYY-MM-DD), status (SCHEDULED, CANCELLED, DEPARTED), cabins[{_id, class, totalSeats, seatsAvailable, priceMinor, freeBags, maxKgPerBag}] | unique {airlineId, flightNumber, departureLocalDate} (FLT-03); {from, to, status, departureUtc} (FLT-11 search); {status, departureUtc} (FLT-30); seats decremented with a conditional `$inc` (ADR-0002); booked + held = totalSeats - seatsAvailable |
 | `flight_bookings` | Karim (TRVL-139) | userId, segments[], passengers[], totalMinor, status, holdExpiresAt, policySnapshot, policiesAcceptedAt, paymentId, refundId, reference | unique `reference` (sparse); {status, holdExpiresAt}; {userId, createdAt} |
-| `hotels` | Sandra (TRVL-140) | name, cityId, countryCode, images, isActive, policy{cancellationTiers, checkInTime, checkOutTime}, averageRating | {cityId, isActive} |
-| `rooms` | Sandra (TRVL-140) | hotelId, number, type, beds, maxOccupancy, priceMinor, isActive | unique {hotelId, number} |
-| `room_nights` | Sandra (TRVL-140) | roomId, date (YYYY-MM-DD), reservationId, state HELD/BOOKED, holdExpiresAt | **unique {roomId, date}**: the database refuses double booking (ADR-0002) |
+| `hotels` | Sandra (TRVL-140), **implemented** | name, address, cityId (GEN-12 dataset id), countryCode, timeZone (IANA; stay dates are hotel-local), description, images (<= 5), starClass, amenities, isActive, policy{cancellationTiers[{daysBefore, refundPercent}], checkInTime, checkOutTime ("HH:mm")}, averageRating (null while unrated), ratingCount | {cityId, isActive}; {countryCode, isActive} (HTL-11) |
+| `rooms` | Sandra (TRVL-140), **implemented** | hotelId, number, type, beds, maxOccupancy, priceMinor (> 0), availability[{from, to}] (bookable nights, `to` exclusive; HTL-04), isActive, everReserved | unique {hotelId, number} |
+| `room_nights` | Sandra (TRVL-140), **implemented** | roomId, hotelId, date (hotel-local YYYY-MM-DD of the night), state BLOCKED/HELD/BOOKED, reservationId (null exactly when BLOCKED), reference; the hold expiry lives on the reservation | **unique {roomId, date}**: the database refuses double booking, also against blocks (ADR-0002); {reservationId}; {hotelId, date} |
 | `hotel_reservations` | Karim (TRVL-139) | userId, hotelId, checkIn, checkOut, rooms[{roomId, adults, childrenAges, nightlyPriceMinor}], lifecycle fields like flight_bookings | as flight_bookings |
-| `reviews` | Karim / Sandra (TRVL-140) | reservationId, hotelId, userId, rating, text, isHidden | unique `reservationId` |
+| `reviews` | Karim / Sandra (TRVL-140), **implemented** | reservationId, hotelId, userId, rating (1-5), text (<= 1000), isHidden | unique `reservationId`; {hotelId, isHidden, createdAt} |
 | `payments` | Ahmed (TRVL-161), **implemented** | bookingType, bookingId, userId, stripePaymentIntentId, amountMinor, currency, status, attempts | unique `stripePaymentIntentId`; unique {bookingType, bookingId} where SUCCEEDED |
 | `refunds` | Ahmed (TRVL-161), **implemented** | paymentId, booking ref, amountMinor, refundPercent, tierApplied, reason, status, stripeRefundId | unique {bookingType, bookingId}; unique `stripeRefundId` when present |
 | `stripe_events` | Ahmed (TRVL-161), **implemented** | stripeEventId, type, processedAt | unique `stripeEventId`; TTL 30 days |

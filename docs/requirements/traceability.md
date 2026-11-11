@@ -73,9 +73,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| HTL-01 | Mandatory | POST /api/hotels; PATCH /api/hotels/:id | Sandra | TRVL-47 | - | Not started |
+| HTL-01 | Mandatory | POST /api/hotels; PATCH /api/hotels/:id | Sandra | TRVL-47 | #40 | Partial: hotels schema (TRVL-140) |
 | HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | - | Not started |
-| HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | - | Not started |
+| HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | #40 | Partial: rooms schema, room number unique per hotel (TRVL-140) |
 | HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | - | Not started |
 | HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | - | Not started |
 | HTL-06 | Mandatory | DELETE /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-52 | - | Not started |
