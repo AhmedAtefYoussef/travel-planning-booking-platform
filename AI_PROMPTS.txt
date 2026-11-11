@@ -515,3 +515,21 @@ parameters with one message per invalid field, and the returnFlights page, keepi
 existing clients still work. I checked the infant rounding, the local-date logic of the return leg and the
 unchanged FLT-11/FLT-15 tests before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-22 (seat hold), GEN-11 (lifecycle), TRVL-144 (concurrency tests), FLT-12, FLT-19
+Prompt:
+Build the flight seat hold: when a user proceeds to payment, reserve the seats atomically only if enough
+remain, as a Pending Payment booking held for 10 minutes; expire unpaid holds and release the seats; never
+oversell under concurrent requests. Support round trips as one booking with two segments, passenger types from
+the date of birth and extra-bag fees, and provide the payable-booking contract that payments will use.
+How the output was used:
+Claude wrote the flight_bookings schema with a full price and policy snapshot, the hold (validation, server
+pricing, a conditional seat grab per segment that also checks the fare, all in one transaction), the GEN-11
+expiry and completion job, the payable and lookup contracts, unit tests, an e2e suite and the TRVL-144 test
+(20 parallel holds on 5 seats, repeated five times: exactly 5 succeed every time). I checked the seat counts
+before and after expiry and the all-or-nothing round-trip behaviour before opening the pull request.
+================================================

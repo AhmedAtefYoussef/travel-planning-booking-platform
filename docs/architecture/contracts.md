@@ -13,7 +13,7 @@ exports: [AUDIT_SERVICE],
 
 | Token | Interface | Implemented by | Used by |
 |---|---|---|---|
-| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | flight-bookings, hotel-bookings (Karim) | payments (Ahmed) |
+| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | flight-bookings (**implemented**, FLT-22), hotel-bookings (HTL-18) | payments (Ahmed) |
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` | payments (Ahmed) | cancellations (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
@@ -21,7 +21,7 @@ exports: [AUDIT_SERVICE],
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
-| `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | flight-bookings (Karim) | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
+| `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | flight-bookings (**implemented**, FLT-22) | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
 | `UPLOADS_SERVICE` | `UploadsService`: `saveImages(files, {entityType, entityId, existingCount})`, `deleteImage(url)` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (Ahmed, **implemented**) | blog, itineraries, hotels, airlines |
 
 ## Shared rules that live in the contracts
@@ -53,3 +53,5 @@ exports: [AUDIT_SERVICE],
 - `modules/audit` (GEN-07): `GET /api/admin/audit-logs` (admins only) reads the log newest first with optional `action`, `targetType`, `targetId`, `actorId` and `from`/`to` filters. Admin and moderation modules (ACC-13, ACC-07a, ACC-15, ACC-16, GEN-10) must call `AUDIT_SERVICE.record` with their transaction's session, so an action and its audit entry commit or roll back together.
 - `common/contracts/passengers.contract.ts` (FLT-12): `PassengerType`, `passengerTypeFor(dateOfBirth, travelDate)` (adult 12+, child 2-11, infant under 2, by whole years on the travel date), `passengerMixErrors` (at least one adult, no more infants than adults), `seatsFor`, `infantFareMinor` (10%, rounded down) and `partyFareMinor`. Flight search uses them now and booking (FLT-19, FLT-22) must use the same functions, so the price shown in search is the price charged.
 - `flights` search (FLT-12): `GET /api/flights/search` takes `adults` (`passengers` is kept as its older name), `children`, `infants`, `cabinClass`, and `returnDate` with `returnPage` for round trips; the response then adds `returnFlights`. `FLIGHTS_SEARCH.search` applies the same party rules and infant pricing and returns the outbound leg.
+- `modules/flight-bookings` (FLT-22, GEN-11): `POST /api/flight-bookings/hold` validates and prices on the server, then takes the seats of every segment and creates the PENDING_PAYMENT booking in one transaction. Each seat grab is conditional on the seats AND the quoted fare (ADR-0002). The lifecycle job expires unpaid holds (seats back, then `PAYMENT_HOLD_RELEASE.cancelForBooking`) and completes finished trips. Karim's FLT-21/FLT-25/FLT-26/FLT-29 work extends this module: list and cancel endpoints go in `flight-bookings.controller.ts`; a cancellation must give seats back with the same `$inc` on `cabins.$.seatsAvailable` inside a transaction with the status change, and use the booking's `segments[0].cancellationTiers` (FLT-12: outbound tier).
+- `PAYMENT_HOLD_RELEASE` (`booking.contract.ts`): payments implements `cancelForBooking(type, id)` in PAY-01; the hold-expiry jobs call it after the expiry commits.

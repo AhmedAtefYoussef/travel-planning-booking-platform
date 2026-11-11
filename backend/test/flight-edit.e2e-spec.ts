@@ -21,7 +21,11 @@ import { createTestApp } from './support/create-test-app';
 
 const DATA_DIR = join(__dirname, '..', 'seed', 'data');
 
-/** Stand-ins for Karim's flight-bookings (FLIGHT_BOOKINGS_LOOKUP) and notifications (GEN-01). */
+/**
+ * Stand-ins for the bookings lookup and notifications (GEN-01). The real FLIGHT_BOOKINGS_LOOKUP exists
+ * since FLT-22, so it is replaced with overrideProvider; NOTIFICATIONS_SERVICE is still added by a
+ * test module until GEN-01 lands.
+ */
 const confirmed = new Map<string, ConfirmedFlightBooking[]>();
 const sent: NotificationInput[] = [];
 const lookup: FlightBookingsLookup = {
@@ -41,11 +45,8 @@ const notifications: NotificationsService = {
 
 @Global()
 @Module({
-  providers: [
-    { provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup },
-    { provide: NOTIFICATIONS_SERVICE, useValue: notifications },
-  ],
-  exports: [FLIGHT_BOOKINGS_LOOKUP, NOTIFICATIONS_SERVICE],
+  providers: [{ provide: NOTIFICATIONS_SERVICE, useValue: notifications }],
+  exports: [NOTIFICATIONS_SERVICE],
 })
 class FakeBookingsAndNotificationsModule {}
 
@@ -87,7 +88,10 @@ describe('Edit flights (e2e): FLT-05', () => {
     http().patch(`/api/flights/${id}`).set('x-dev-user', as).send(body);
 
   beforeAll(async () => {
-    app = await createTestApp([FakeBookingsAndNotificationsModule]);
+    app = await createTestApp(
+      [FakeBookingsAndNotificationsModule],
+      [{ provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup }],
+    );
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
     flights = app.get<Model<Flight>>(getModelToken(Flight.name));
     const airline = await http()

@@ -55,12 +55,12 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
 | FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13 | Done |
-| FLT-12 | Mandatory | GET /api/flights/search (adults, children, infants, cabinClass, returnDate, returnPage); booking side in POST /api/flight-bookings/hold | Ahmed | TRVL-37 | #35 | Partial: search done (passenger types, infant 10% fare, cabin filter, round trip); two-segment booking, DOB check and outbound-tier cancellation come with FLT-22 and FLT-26 |
+| FLT-12 | Mandatory | GET /api/flights/search (adults, children, infants, cabinClass, returnDate, returnPage); booking side in POST /api/flight-bookings/hold | Ahmed | TRVL-37 | #35, #36 | Partial: search, passenger types from the date of birth, infant 10% fare, cabin filter and two-segment round-trip booking done; cancelling on the outbound tier comes with FLT-26 |
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
-| FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |
-| FLT-21 | Mandatory | POST /api/flight-bookings | Karim | TRVL-41 | - | Not started |
-| FLT-22 | Mandatory | POST /api/flight-bookings/hold | Ahmed | TRVL-42 | - | Not started |
+| FLT-19 | Mandatory | POST /api/flight-bookings/hold (passengers, extra bags); POST /api/flight-bookings | Karim | TRVL-40 | #36 | Partial: passenger details, DOB-based types and extra-bag fees validated and priced in the hold (Ahmed, FLT-22); summary endpoint pending |
+| FLT-21 | Mandatory | POST /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-41 | #36 | Partial: the hold and GET /api/flight-bookings/:id return the full priced summary (Ahmed, FLT-22); summary-before-hold endpoint pending |
+| FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #36 | Done |
 | FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | - | Not started |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
@@ -157,7 +157,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-08 | Mandatory | UPLOADS_SERVICE; GET /uploads/:folder/:file; PUT\|DELETE /api/airlines/:id/logo | Ahmed | TRVL-103 | #33 | Done |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
-| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS) | Ahmed | TRVL-106 | #4 | Partial: transition table |
+| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS); lifecycle jobs | Ahmed | TRVL-106 | #4, #36 | Partial: transition table; flight bookings expire, confirm and complete; hotel reservations come with HTL-18 |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | Done |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | - | Not started |

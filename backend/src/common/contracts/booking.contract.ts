@@ -82,3 +82,13 @@ export interface PayableBooking {
     input: { paymentId: string; reason: string },
   ): Promise<void>;
 }
+
+/**
+ * Implemented by Payments (PAY-01), consumed by the flight and hotel hold-expiry jobs (FLT-22,
+ * HTL-18): when a hold expires, any open PaymentIntent for the booking is cancelled so the user can
+ * no longer be charged for it. Register under PAYMENT_HOLD_RELEASE. Injected as optional until the
+ * payments service exists; must be safe to call for a booking that never had a payment.
+ */
+export interface PaymentHoldRelease {
+  cancelForBooking(bookingType: BookingType, bookingId: string): Promise<void>;
+}
