@@ -17,6 +17,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 - `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
 - Brief section 5.1 seeds attractions while GEN-12 lists currencies: both are seeded.
 - The `airlines` and `flights` schemas (TRVL-138, Jira setup task, not a workbook ID) back FLT-01, FLT-03, FLT-04, FLT-08, FLT-09, FLT-22 and FLT-30. Each of those rows changes status when its own endpoints land.
+- The `users` and `sessions` schemas (TRVL-137, Jira setup task, not a workbook ID) back ACC-01, ACC-04 to ACC-09, ACC-11 to ACC-14 and ACC-19. Each of those rows changes status when its own endpoints land.
 
 ## Accounts & Admin
 
@@ -37,7 +38,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-15 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate; provider deactivate/reactivate | Karim | TRVL-25 | - | Not started |
 | ACC-16 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate | Karim | TRVL-26 | - | Not started |
 | ACC-17 | Mandatory | GET /api/admin/bookings | Karim | TRVL-27 | - | Not started |
-| ACC-18 | Mandatory | admin seed script | Abdelrahman | TRVL-108 | - | Not started |
+| ACC-18 | Mandatory | admin seed script (npm run seed) | Abdelrahman | TRVL-108 | #41 | Done |
 | ACC-02 | Bonus | GET /api/auth/verify-email | Team | TRVL-117 | - | Not started |
 | ACC-07 | Bonus | POST /api/auth/forgot-password; POST /api/auth/reset-password | Team | TRVL-118 | - | Not started |
 | BON-01 | Bonus | admin analytics (bonus) | Team | TRVL-126 | - | Not started |

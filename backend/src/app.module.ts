@@ -8,6 +8,7 @@ import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
+import { UsersModule } from './modules/users';
 
 /**
  * Root module. Feature modules (auth, flights, hotels, payments, itineraries, blog, admin, ...)
@@ -19,6 +20,7 @@ import { ReferenceModule } from './modules/reference';
     DatabaseModule,
     CommonModule,
     HealthModule,
+    UsersModule,
     AuditModule,
     PaymentsModule,
     ReferenceModule,
