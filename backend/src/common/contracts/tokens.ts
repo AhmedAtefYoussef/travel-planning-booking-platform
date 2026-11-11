@@ -15,6 +15,7 @@
  *   FLIGHT_BOOKINGS_LOOKUP (Karim)  ->  flights (FLT-05 schedule-change notifications)
  *   UPLOADS_SERVICE (Ahmed)         ->  blog, itineraries, hotels, airlines
  *   SESSION_VALIDATOR (Abdelrahman) ->  common/auth AuthGuard (ACC-06 idle expiry, logout)
+ *   UPCOMING_BOOKINGS (Karim)       ->  users (ACC-12 self-deactivation)
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
  * The providing module exports `{ provide: AUDIT_SERVICE, useExisting: AuditLogService }`.
@@ -31,3 +32,4 @@ export const NOTIFICATIONS_SERVICE = Symbol('NOTIFICATIONS_SERVICE');
 export const UPLOADS_SERVICE = Symbol('UPLOADS_SERVICE');
 export const FLIGHT_BOOKINGS_LOOKUP = Symbol('FLIGHT_BOOKINGS_LOOKUP');
 export const SESSION_VALIDATOR = Symbol('SESSION_VALIDATOR');
+export const UPCOMING_BOOKINGS = Symbol('UPCOMING_BOOKINGS');

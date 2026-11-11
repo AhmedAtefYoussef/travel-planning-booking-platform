@@ -702,3 +702,23 @@ is saved; email, password, role and status cannot be changed here. The e2e suite
 reference data so the currency rule runs against the real dataset; I checked the endpoints on a running
 app.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-12 (TRVL-22, self-deactivation)
+Prompt:
+Let a registered user deactivate their own account after confirmation, block it while they have
+upcoming Confirmed bookings, and make sure a deactivated user can no longer log in. The bookings modules
+do not exist yet, so connect to them through a contract instead of guessing their code, document what
+the other modules still need to do, test the rules, and verify them on a running app.
+How the output was used:
+Claude added DELETE /api/users/me for the USER role: the current password is the confirmation, the
+account becomes DEACTIVATED in a single conditional update, every session is revoked and the cookies
+are cleared; login already treats a deactivated account as invalid credentials. The booking rule goes
+through a new UPCOMING_BOOKINGS contract for Karim's bookings modules, injected as optional like the
+existing FLT-05 lookup, and returns 409 UPCOMING_BOOKINGS_EXIST. The e2e suite proves the block with a
+test provider behind the real token. The traceability row is marked Partial, naming the bookings
+provider and the content-hiding work that belong to other modules.
+================================================

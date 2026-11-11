@@ -294,3 +294,17 @@ export interface SessionValidator {
    */
   touch(sessionId: string, userId: string): Promise<SessionCheck>;
 }
+
+/* ----------------------------------------------------------------------------------------------
+ * Upcoming bookings (ACC-12 needs it; Karim's flight-bookings and hotel-reservations modules provide
+ * it as one provider covering both). Register under UPCOMING_BOOKINGS. Until it is provided, nobody
+ * can hold a booking, so self-deactivation is allowed and the users module logs a warning at startup.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface UpcomingBookings {
+  /**
+   * How many of the user's bookings are Confirmed (GEN-11) and not yet started: a flight whose first
+   * segment departs after `now`, or a hotel reservation whose check-in is after `now`.
+   */
+  countUpcomingConfirmed(userId: string, now: Date): Promise<number>;
+}
