@@ -62,6 +62,10 @@ export class Room {
 
   /** Set on first reservation; such rooms can be deactivated, not deleted. */
   @Prop({ default: false }) everReserved: boolean;
+
+  /** Set by Mongoose `timestamps`. */
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export type RoomDocument = HydratedDocument<Room>;

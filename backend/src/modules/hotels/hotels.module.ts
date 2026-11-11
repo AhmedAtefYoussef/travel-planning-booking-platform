@@ -7,6 +7,8 @@ import { Hotel, HotelSchema } from './schemas/hotel.schema';
 import { Review, ReviewSchema } from './schemas/review.schema';
 import { RoomNight, RoomNightSchema } from './schemas/room-night.schema';
 import { Room, RoomSchema } from './schemas/room.schema';
+import { RoomsController } from './rooms.controller';
+import { RoomsService } from './rooms.service';
 
 /**
  * Hotels (brief section 6.3): hotel profiles, rooms, availability, policies, search and reviews.
@@ -24,8 +26,8 @@ import { Room, RoomSchema } from './schemas/room.schema';
     ]),
     ReferenceModule,
   ],
-  controllers: [HotelsController],
-  providers: [HotelsService],
+  controllers: [HotelsController, RoomsController],
+  providers: [HotelsService, RoomsService],
   exports: [MongooseModule, HotelsService],
 })
 export class HotelsModule {}
