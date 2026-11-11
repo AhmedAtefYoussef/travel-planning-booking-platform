@@ -52,6 +52,14 @@ describe('CreateRoomDto (HTL-03)', () => {
     expect(fields({ priceMinor: 1 })).toEqual([]);
   });
 
+  it('rejects whole numbers too large to count exactly (GEN-13)', () => {
+    for (const value of [1e20, 1e300]) {
+      expect(fields({ beds: value })).toEqual(['beds']);
+      expect(fields({ maxOccupancy: value })).toEqual(['maxOccupancy']);
+      expect(fields({ priceMinor: value })).toEqual(['priceMinor']);
+    }
+  });
+
   it('requires every field', () => {
     expect(
       validateSync(plainToInstance(CreateRoomDto, {}))

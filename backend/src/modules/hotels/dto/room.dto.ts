@@ -1,7 +1,8 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsString, Length, Max, Min } from 'class-validator';
+import { IsString, Length, Max, Min } from 'class-validator';
+import { IsWholeNumber } from '../../../common/validation';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -11,10 +12,23 @@ export const RoomNumberRules = () =>
   applyDecorators(Transform(trim), IsString(), Length(1, 30));
 export const RoomTypeRules = () =>
   applyDecorators(Transform(trim), IsString(), Length(2, 50));
-export const BedsRules = () => applyDecorators(IsInt(), Min(1), Max(20));
-export const OccupancyRules = () => applyDecorators(IsInt(), Min(1), Max(50));
+export const BedsRules = () =>
+  applyDecorators(
+    IsWholeNumber('beds must be a whole number'),
+    Min(1),
+    Max(20),
+  );
+export const OccupancyRules = () =>
+  applyDecorators(
+    IsWholeNumber('maxOccupancy must be a whole number'),
+    Min(1),
+    Max(50),
+  );
 export const PriceRules = () =>
-  applyDecorators(IsInt(), Min(1), Max(Number.MAX_SAFE_INTEGER));
+  applyDecorators(
+    IsWholeNumber('priceMinor must be a whole number of minor units'),
+    Min(1),
+  );
 
 export const PRICE_DESCRIPTION =
   'Price per night in minor units of the platform currency (PAY-04), an integer greater than 0, e.g. 10000 = 100.00';
