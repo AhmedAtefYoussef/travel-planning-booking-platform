@@ -722,3 +722,22 @@ existing FLT-05 lookup, and returns 409 UPCOMING_BOOKINGS_EXIST. The e2e suite p
 test provider behind the real token. The traceability row is marked Partial, naming the bookings
 provider and the content-hiding work that belong to other modules.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-14 (TRVL-24, admin account list)
+Prompt:
+Give admins a paginated list of all accounts showing name, email, role, status and registration date,
+with search by name or email and filters by role and status. Use the team's fixed page size of 10 and
+its pagination helpers, document the endpoint in Swagger, test the search, filters and pagination, and
+verify the list on a running app.
+How the output was used:
+Claude added GET /api/admin/accounts (admins only) with AccountListQueryDto, which extends the shared
+PaginationQueryDto, and AdminAccountsService built on paginate(), newest registrations first. The q
+search matches the name or the email ignoring case, with regex characters escaped so input is always
+plain text; role and status filter exactly and combine. Rows never include credentials or lockout
+fields. The e2e suite tags its own accounts so counts and pages stay exact in the shared test database;
+I checked the list, filters and pages on a running app.
+================================================
