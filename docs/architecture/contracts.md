@@ -13,7 +13,7 @@ exports: [AUDIT_SERVICE],
 
 | Token | Interface | Implemented by | Used by |
 |---|---|---|---|
-| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `getPolicies`, `acceptPolicies`, `markConfirmed`, `markPaymentFailed` | flight-bookings (**implemented**, FLT-22), hotel-bookings (HTL-18) | payments (Ahmed) |
+| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `getPolicies`, `acceptPolicies`, `markConfirmed`, `markPaymentFailed` | flight-bookings (**implemented**, FLT-22), hotel-bookings (**implemented**, HTL-18) | payments (Ahmed) |
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` (returns null for a 0 refund) | payments (Ahmed, **implemented**, PAY-03) | cancellations (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
@@ -61,3 +61,4 @@ exports: [AUDIT_SERVICE],
   1. `const quote = refunds.quote({ paidMinor: booking.totalMinor, currency, eventStartUtc: segments[0].departureUtc, tiers: segments[0].cancellationTiers, reason })` (snapshot tiers; provider cancellations pass `RefundReason.ProviderCancellation` for 100%).
   2. `const record = await refunds.refundFor({ bookingType, bookingId, userId, paymentId: booking.paymentId, quote, reason }, session)`, then `$set: { refundId: record?.refundId }` on the booking in the same session.
   The refund is sent to Stripe after the commit (within a minute, retried until accepted); `GET /api/refunds/:id` shows Pending, Refunded or Failed.
+- `modules/hotel-bookings` (HTL-16/17/18, GEN-11): `POST /api/hotel-bookings` validates and prices on the server, then in one transaction marks each room `everReserved` (re-checking it is active, at the same price and bookable on every night), inserts one HELD `room_nights` document per room per night and creates the PENDING_PAYMENT reservation; the unique {roomId, date} index refuses any overlap (ADR-0002). `markConfirmed` flips the reservation and all its nights to CONFIRMED/BOOKED with the reference in one transaction. The lifecycle job expires unpaid holds (deletes the HELD nights, then `PAYMENT_HOLD_RELEASE.cancelForBooking`) and completes stays after `checkOutUtc`. Karim's HTL-20/HTL-21 work extends this module; a cancellation deletes the reservation's BOOKED nights in a transaction with the status change and uses `cancellationTiers` and `checkInUtc` for `REFUNDS_SERVICE.quote`. Sandra's HTL-06 room delete must refuse a room that has any `room_nights` and use the filter `{ everReserved: false }`.

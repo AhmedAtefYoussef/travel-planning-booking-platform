@@ -85,9 +85,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | - | Not started |
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
 | HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | - | Not started |
-| HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | - | Not started |
-| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | - | Not started |
-| HTL-18 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-61 | - | Not started |
+| HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #51 | Done |
+| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #51 | Partial: the signed webhook confirms the reservation and all its rooms (nights BOOKED) with a unique reference; GET /api/hotel-bookings/:id shows it; the notification is sent once GEN-01 exists |
+| HTL-18 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-61 | #51 | Done |
 | HTL-20 | Mandatory | GET /api/hotel-bookings; GET /api/hotel-bookings/:id | Karim | TRVL-62 | - | Not started |
 | HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Karim | TRVL-63 | - | Not started |
 | HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | - | Not started |
@@ -99,8 +99,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #38 | Partial: payments, retry, signed webhook and intent cancellation on hold expiry done for flight bookings; hotel reservations use the same endpoints once HTL-18 lands; not yet run against real Stripe test keys |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #37, #38 | Partial: policy view, timestamped acceptance and the payment block done for flight bookings; hotel reservations come with HTL-18 |
+| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #38, #51 | Partial: payments, retry, signed webhook and intent cancellation on hold expiry done for flight bookings and hotel reservations; not yet run against real Stripe test keys |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #37, #38, #51 | Done |
 | PAY-03 | Mandatory | GET /api/refunds/:id; REFUNDS_SERVICE; refundId on booking details | Ahmed | TRVL-69 | #4, #39 | Partial: refunds recorded, sent through the Stripe Refunds API, Pending/Refunded/Failed from the webhook, refundId on flight booking details; the cancellations that create them (FLT-26, HTL-21, FLT-06) and the notification delivery (GEN-01) are pending |
 | PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #32, #38 | Done |
 
@@ -157,7 +157,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-08 | Mandatory | UPLOADS_SERVICE; GET /uploads/:folder/:file; PUT\|DELETE /api/airlines/:id/logo | Ahmed | TRVL-103 | #33 | Done |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
-| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS); lifecycle jobs | Ahmed | TRVL-106 | #4, #36 | Partial: transition table; flight bookings expire, confirm and complete; hotel reservations come with HTL-18 |
+| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS); lifecycle jobs | Ahmed | TRVL-106 | #4, #36, #51 | Partial: transition table; flight bookings and hotel reservations expire, confirm and complete; the cancellations (FLT-26, HTL-21) are Karim's |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3 | Done |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | - | Not started |

@@ -4,6 +4,7 @@ import {
   durationMinutes,
   eachNight,
   isValidTimeZone,
+  lenientLocalToUtc,
   localDayRangeUtc,
   localToUtc,
   nightsBetween,
@@ -89,5 +90,25 @@ describe('dates (UTC storage, airport-local display: FLT-03, GEN-06)', () => {
     expect(daysBefore(new Date('2026-11-08T12:00:00Z'), now)).toBe(7);
     expect(daysBefore(new Date('2026-11-08T11:59:59Z'), now)).toBe(6);
     expect(daysBefore(new Date('2026-11-01T11:00:00Z'), now)).toBe(-1);
+  });
+
+  it('lenientLocalToUtc moves a skipped time forward and takes the first of a repeated time (HTL-09)', () => {
+    // Cuba skips 00:00-01:00 on 2030-03-10: the first time that exists is 01:00 (UTC-4).
+    expect(
+      lenientLocalToUtc('2030-03-10T00:00', 'America/Havana').toISOString(),
+    ).toBe('2030-03-10T05:00:00.000Z');
+    // London repeats 01:00-02:00 on 2030-10-27: the first 01:30 is still summer time (UTC+1).
+    expect(
+      lenientLocalToUtc('2030-10-27T01:30', 'Europe/London').toISOString(),
+    ).toBe('2030-10-27T00:30:00.000Z');
+    expect(
+      lenientLocalToUtc('2030-03-01T15:00', 'Africa/Cairo').toISOString(),
+    ).toBe('2030-03-01T13:00:00.000Z');
+    expect(() => lenientLocalToUtc('2030-03-01 15:00', 'Africa/Cairo')).toThrow(
+      RangeError,
+    );
+    expect(() => lenientLocalToUtc('2030-03-01T15:00', 'Mars/Olympus')).toThrow(
+      RangeError,
+    );
   });
 });

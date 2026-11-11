@@ -600,3 +600,20 @@ Claude wrote the four schemas, the module, unit tests for every field rule and a
 indexes exist and that parallel holds of one room night let exactly one through. I compared the fields with
 the ERD and the HTL requirements before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-16, HTL-18, HTL-17, GEN-11, PAY-02, TRVL-144 (hotel concurrency)
+Prompt:
+Implement hotel bookings like the flight hold: several rooms of one hotel for the same dates with adults and
+children 0-17 per room, at least one adult, occupancy per room, server-side total. Hold all rooms and nights for
+10 minutes in ONE transaction using the unique {roomId, date} room_nights index so any overlap with a held,
+booked or blocked night rejects the whole request. Expire unpaid holds, confirm from the Stripe webhook with a
+unique reference, complete stays after check-out, and implement HOTEL_PAYABLE_BOOKING for payments and PAY-02.
+How the output was used:
+Claude wrote the hotel-bookings module, unit tests and an e2e suite that includes five rounds of parallel
+overlapping multi-room requests (exactly one wins, no partial rows) and a full policies -> payment -> signed
+webhook confirmation. I checked the pricing, the date rules and the transaction boundaries before opening the PR.
+================================================

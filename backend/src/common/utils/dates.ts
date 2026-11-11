@@ -58,6 +58,26 @@ export function localToUtc(localDateTime: string, zone: string): Date {
   return dt.toUTC().toJSDate();
 }
 
+/**
+ * Like localToUtc, but never refuses a DST edge: a skipped time moves forward to the first time that
+ * exists, and a repeated time takes its first occurrence. For times the user did not type (a hotel's
+ * standard check-in/out time on a DST-change day, HTL-09), where refusing the booking would be wrong.
+ */
+export function lenientLocalToUtc(localDateTime: string, zone: string): Date {
+  try {
+    return localToUtc(localDateTime, zone);
+  } catch (e) {
+    if (!(e instanceof InvalidInputError)) throw e;
+    const dt = DateTime.fromISO(localDateTime, { zone });
+    if (!dt.isValid) throw e;
+    // The earliest instant among the possible offsets is the first occurrence of a repeated time.
+    const first = dt
+      .getPossibleOffsets()
+      .reduce((a, b) => (b.toMillis() < a.toMillis() ? b : a), dt);
+    return first.toUTC().toJSDate();
+  }
+}
+
 /** UTC instant -> ISO string in the airport's zone with offset, e.g. 2026-12-01T14:30:00.000+02:00. */
 export function utcToLocalIso(instant: Date, zone: string): string {
   assertZone(zone);
