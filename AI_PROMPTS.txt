@@ -449,3 +449,27 @@ Claude added each rule with unit tests (33 script tests pass) and docs for teamm
 check against real PRs: it warns on the stacked hotels PRs, flags the AI-log repair in #26 (now labelled
 ai-log-fix), and the stale-status rule finds exactly the three GEN rows that were left In review on develop.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-137 (users and sessions schemas), ACC-18 (TRVL-108, admin seed)
+Prompt:
+Working from the latest develop and reusing the existing common layer (auth contract, error filter,
+schema conventions, PasswordService), implement the users and sessions schemas for the Accounts epic,
+including a TTL index on sessions, and seed the admin account from ADMIN_SEED_EMAIL and
+ADMIN_SEED_PASSWORD so that admins can never self-register. Cover the business rules with unit and e2e
+tests, run lint, tests and the build until everything passes, verify the behaviour against a running
+app and a real seed run, and verify every result three times before opening the pull request.
+How the output was used:
+Claude wrote the users module (users and sessions schemas, shared password rules, AdminSeedService) and
+added the admin step to npm run seed. The schemas enforce a unique lowercased email, keep the password
+hash out of queries and JSON, require a moderator to be linked to exactly one provider of the matching
+type, store only SHA-256 refresh-token hashes and expire sessions through a TTL index. The seed is safe
+to re-run, never resets an existing admin's password and never promotes an existing account. Verification
+found that a weak seed password failed only after the reference data had been written; the password is
+now checked before connecting, and a re-run on an empty database confirmed nothing is written.
+npm run verify passes (300 unit and 180 e2e tests). I reviewed the schemas against TRVL-137, the ERD and
+the brief before committing.
+================================================
