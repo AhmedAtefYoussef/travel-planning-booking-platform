@@ -108,22 +108,25 @@ export class AuthService {
       await this.passwords.verify(dto.password, await this.getDummyHash());
       throw invalidCredentials();
     }
-    // ACC-05: while locked, even the right password is refused (and not checked).
-    if (candidate.lockedUntil && candidate.lockedUntil > now) {
-      throw accountLocked(candidate.lockedUntil, now);
+    // ACC-05: the atomic gate runs before the password is checked, so a burst of parallel requests
+    // gets at most MAX_FAILED_LOGINS checks. While locked even the right password is refused unchecked.
+    const attempt = await this.users.claimLoginAttempt(
+      candidate.id,
+      MAX_FAILED_LOGINS,
+      now,
+    );
+    if (attempt === null) {
+      throw accountLocked(await this.lockNow(candidate.id, now), now);
     }
     if (!(await this.passwords.verify(dto.password, candidate.passwordHash))) {
-      const lockedUntil = await this.users.recordFailedLogin(
-        candidate.id,
-        MAX_FAILED_LOGINS,
-        LOCKOUT_MS,
-        now,
-      );
-      if (lockedUntil) throw accountLocked(lockedUntil, now);
+      if (attempt >= MAX_FAILED_LOGINS) {
+        throw accountLocked(await this.lockNow(candidate.id, now), now);
+      }
       throw invalidCredentials();
     }
-    if (candidate.failedLoginCount > 0 || candidate.lockedUntil) {
-      await this.users.resetLoginFailures(candidate.id);
+    // A lock set by parallel failures while this password was checked still applies.
+    if (!(await this.users.releaseLoginAttempts(candidate.id, now))) {
+      throw accountLocked(await this.lockNow(candidate.id, now), now);
     }
     if (candidate.status === AccountStatus.Deactivated) {
       throw invalidCredentials();
@@ -251,6 +254,15 @@ export class AuthService {
       );
     }
     return profile;
+  }
+
+  private lockNow(userId: string, now: Date): Promise<Date> {
+    return this.users.lockAfterLimit(
+      userId,
+      MAX_FAILED_LOGINS,
+      LOCKOUT_MS,
+      now,
+    );
   }
 
   private getDummyHash(): Promise<string> {

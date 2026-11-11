@@ -147,16 +147,37 @@ describe('UsersService lookups (ACC-04, ACC-19)', () => {
   });
 });
 
-describe('UsersService login failures (ACC-05)', () => {
+describe('UsersService login attempts (ACC-05)', () => {
   const id = new Types.ObjectId();
   const NOW = new Date('2026-11-11T10:00:00Z');
   const LOCK_END = new Date('2026-11-11T10:15:00Z');
+  const notLocked = {
+    $or: [
+      { lockedUntil: { $exists: false } },
+      { lockedUntil: null },
+      { lockedUntil: { $lte: NOW } },
+    ],
+  };
 
-  function withResult(after: unknown) {
-    const lean = jest.fn().mockResolvedValue(after);
+  function withModel(
+    results: {
+      findOneAndUpdate?: unknown;
+      findById?: unknown;
+      matched?: number;
+    } = {},
+  ) {
     const model = {
-      findOneAndUpdate: jest.fn().mockReturnValue({ lean }),
-      updateOne: jest.fn().mockResolvedValue({}),
+      findOneAndUpdate: jest.fn().mockReturnValue({
+        lean: () => Promise.resolve(results.findOneAndUpdate ?? null),
+      }),
+      findById: jest.fn().mockReturnValue({
+        select: () => ({
+          lean: () => Promise.resolve(results.findById ?? null),
+        }),
+      }),
+      updateOne: jest
+        .fn()
+        .mockResolvedValue({ matchedCount: results.matched ?? 1 }),
     };
     return {
       service: new UsersService(model as unknown as Model<User>),
@@ -164,51 +185,85 @@ describe('UsersService login failures (ACC-05)', () => {
     };
   }
 
-  it('counts and locks in one atomic pipeline update', async () => {
-    const { service, model } = withResult({ lockedUntil: LOCK_END });
+  it('claims an attempt atomically only while unlocked and under the limit', async () => {
+    const { service, model } = withModel({
+      findOneAndUpdate: { failedLoginCount: 3 },
+    });
     await expect(
-      service.recordFailedLogin(id.toHexString(), 5, 15 * 60_000, NOW),
+      service.claimLoginAttempt(id.toHexString(), 5, NOW),
+    ).resolves.toBe(3);
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: id,
+        $and: [
+          notLocked,
+          {
+            $or: [
+              { failedLoginCount: { $lt: 5 } },
+              { failedLoginCount: { $exists: false } },
+            ],
+          },
+        ],
+      },
+      { $inc: { failedLoginCount: 1 } },
+      { new: true, projection: { failedLoginCount: 1 } },
+    );
+  });
+
+  it('returns null when the gate is closed (locked, or 5 attempts already counted)', async () => {
+    await expect(
+      withModel().service.claimLoginAttempt(id.toHexString(), 5, NOW),
+    ).resolves.toBeNull();
+  });
+
+  it('locks for 15 minutes once the limit is reached, resetting the counter', async () => {
+    const { service, model } = withModel({
+      findOneAndUpdate: { lockedUntil: LOCK_END },
+    });
+    await expect(
+      service.lockAfterLimit(id.toHexString(), 5, 15 * 60_000, NOW),
     ).resolves.toEqual(LOCK_END);
-
-    const [filter, pipeline, options] = model.findOneAndUpdate.mock
-      .calls[0] as [unknown, unknown[], unknown];
-    expect(filter).toEqual({ _id: id });
-    expect(Array.isArray(pipeline)).toBe(true);
-    expect(JSON.stringify(pipeline)).toContain(LOCK_END.toISOString());
-    expect(options).toEqual({ new: true });
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: id, failedLoginCount: { $gte: 5 }, ...notLocked },
+      { $set: { lockedUntil: LOCK_END, failedLoginCount: 0 } },
+      { new: true, projection: { lockedUntil: 1 } },
+    );
   });
 
-  it('returns null when this failure did not lock the account', async () => {
+  it('keeps an existing lock instead of extending it, and falls back to a full period', async () => {
+    const earlier = new Date('2026-11-11T10:05:00Z');
     await expect(
-      withResult({ failedLoginCount: 2 }).service.recordFailedLogin(
+      withModel({ findById: { lockedUntil: earlier } }).service.lockAfterLimit(
         id.toHexString(),
         5,
         15 * 60_000,
         NOW,
       ),
-    ).resolves.toBeNull();
-    // An older lock that this call did not set is not reported as a new one.
+    ).resolves.toEqual(earlier);
     await expect(
-      withResult({
-        lockedUntil: new Date('2026-11-11T09:00:00Z'),
-      }).service.recordFailedLogin(id.toHexString(), 5, 15 * 60_000, NOW),
-    ).resolves.toBeNull();
-    await expect(
-      withResult(null).service.recordFailedLogin(
+      withModel({ findById: {} }).service.lockAfterLimit(
         id.toHexString(),
         5,
         15 * 60_000,
         NOW,
       ),
-    ).resolves.toBeNull();
+    ).resolves.toEqual(LOCK_END);
   });
 
-  it('resets the counter and removes the lock', async () => {
-    const { service, model } = withResult(null);
-    await service.resetLoginFailures(id.toHexString());
+  it('resets the counter on success only if no lock is active', async () => {
+    const { service, model } = withModel();
+    await expect(
+      service.releaseLoginAttempts(id.toHexString(), NOW),
+    ).resolves.toBe(true);
     expect(model.updateOne).toHaveBeenCalledWith(
-      { _id: id },
+      { _id: id, ...notLocked },
       { $set: { failedLoginCount: 0 }, $unset: { lockedUntil: 1 } },
     );
+    await expect(
+      withModel({ matched: 0 }).service.releaseLoginAttempts(
+        id.toHexString(),
+        NOW,
+      ),
+    ).resolves.toBe(false);
   });
 });

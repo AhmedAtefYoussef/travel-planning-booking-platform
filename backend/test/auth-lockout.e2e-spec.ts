@@ -138,4 +138,45 @@ describe('Login lockout (e2e): ACC-05', () => {
     }
     expect(await users.countDocuments({ email: ghost })).toBe(0);
   });
+
+  it('20 simultaneous wrong passwords: only 5 are checked (4 get 401, the 5th locks), the other 15 are refused', async () => {
+    const email = await registered();
+    const results = await Promise.all(
+      Array.from({ length: 20 }, () => login(email, WRONG)),
+    );
+    const statuses = results.map((r) => r.status);
+    expect(statuses.filter((s) => s === 401)).toHaveLength(4);
+    expect(statuses.filter((s) => s === 403)).toHaveLength(16);
+    expect(
+      results
+        .filter((r) => r.status === 403)
+        .every((r) => r.body.code === 'ACCOUNT_LOCKED'),
+    ).toBe(true);
+    const saved = await stateOf(email);
+    expect(saved!.lockedUntil!.getTime()).toBeGreaterThan(
+      Date.now() + 14 * 60_000,
+    );
+    await login(email, PASSWORD).expect(403);
+  });
+
+  it('19 wrong and 1 right at the same time: at most 5 passwords are checked, and the lock is not lifted by the success', async () => {
+    const email = await registered();
+    const attempts = Array.from({ length: 20 }, (_, i) =>
+      i === 13 ? PASSWORD : WRONG,
+    );
+    const results = await Promise.all(attempts.map((p) => login(email, p)));
+    const statuses = results.map((r) => r.status);
+    const generic = statuses.filter((s) => s === 401).length;
+    const succeeded = statuses.filter((s) => s === 200).length;
+    // Checked passwords: the 401s, the possible 200, and the failure that set the lock.
+    expect(generic).toBeLessThanOrEqual(4);
+    expect(generic + succeeded).toBeLessThanOrEqual(5);
+    if (succeeded === 0) {
+      // The correct password was refused unchecked or arrived after the lock: the account stays locked.
+      expect((await stateOf(email))!.lockedUntil!.getTime()).toBeGreaterThan(
+        Date.now(),
+      );
+      await login(email, PASSWORD).expect(403);
+    }
+  });
 });

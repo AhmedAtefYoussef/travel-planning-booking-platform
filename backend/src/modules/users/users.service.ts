@@ -76,52 +76,86 @@ export class UsersService {
   }
 
   /**
-   * ACC-05: counts one failed login. When this failure is number `maxFailures`, the same atomic update
-   * locks the account until `now + lockMs` and resets the counter, so concurrent wrong passwords can
-   * never skip the lock. Returns the lock end when this call locked the account, otherwise null.
+   * ACC-05 gate, the first step of every login of an existing account: atomically counts this attempt
+   * before the password is checked, but only while the account is not locked and fewer than
+   * `maxAttempts` attempts are counted. Parallel requests therefore get at most `maxAttempts`
+   * password checks per lock period. Returns the attempt number, or null when the gate is closed.
    */
-  async recordFailedLogin(
+  async claimLoginAttempt(
     id: string,
-    maxFailures: number,
-    lockMs: number,
+    maxAttempts: number,
     now = new Date(),
-  ): Promise<Date | null> {
-    const lockUntil = new Date(now.getTime() + lockMs);
-    const reachedLimit = { $gte: ['$failedLoginCount', maxFailures] };
+  ): Promise<number | null> {
     const user = await this.users
       .findOneAndUpdate(
-        { _id: new Types.ObjectId(id) },
-        [
-          {
-            $set: {
-              failedLoginCount: {
-                $add: [{ $ifNull: ['$failedLoginCount', 0] }, 1],
-              },
+        {
+          _id: new Types.ObjectId(id),
+          $and: [
+            this.notLockedAt(now),
+            {
+              $or: [
+                { failedLoginCount: { $lt: maxAttempts } },
+                { failedLoginCount: { $exists: false } },
+              ],
             },
-          },
-          {
-            $set: {
-              lockedUntil: { $cond: [reachedLimit, lockUntil, '$lockedUntil'] },
-              failedLoginCount: {
-                $cond: [reachedLimit, 0, '$failedLoginCount'],
-              },
-            },
-          },
-        ],
-        { new: true },
+          ],
+        },
+        { $inc: { failedLoginCount: 1 } },
+        { new: true, projection: { failedLoginCount: 1 } },
       )
       .lean();
-    return user?.lockedUntil?.getTime() === lockUntil.getTime()
-      ? lockUntil
-      : null;
+    return user ? user.failedLoginCount : null;
   }
 
-  /** ACC-05: a successful login resets the counter and lifts an expired lock. */
-  async resetLoginFailures(id: string): Promise<void> {
-    await this.users.updateOne(
-      { _id: new Types.ObjectId(id) },
+  /**
+   * ACC-05: locks the account for `lockMs` once `maxAttempts` attempts are counted (resetting the
+   * counter), unless a lock is already active. Returns the end of the lock that now applies.
+   */
+  async lockAfterLimit(
+    id: string,
+    maxAttempts: number,
+    lockMs: number,
+    now = new Date(),
+  ): Promise<Date> {
+    const lockUntil = new Date(now.getTime() + lockMs);
+    const locked = await this.users
+      .findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(id),
+          failedLoginCount: { $gte: maxAttempts },
+          ...this.notLockedAt(now),
+        },
+        { $set: { lockedUntil: lockUntil, failedLoginCount: 0 } },
+        { new: true, projection: { lockedUntil: 1 } },
+      )
+      .lean();
+    if (locked?.lockedUntil) return locked.lockedUntil;
+    const current = await this.users.findById(id).select('lockedUntil').lean();
+    return current?.lockedUntil && current.lockedUntil > now
+      ? current.lockedUntil
+      : lockUntil;
+  }
+
+  /**
+   * ACC-05: a successful login resets the counter, but only if no lock is active. A lock set by parallel
+   * failures after this attempt started is never cleared. Returns false when such a lock applies.
+   */
+  async releaseLoginAttempts(id: string, now = new Date()): Promise<boolean> {
+    const res = await this.users.updateOne(
+      { _id: new Types.ObjectId(id), ...this.notLockedAt(now) },
       { $set: { failedLoginCount: 0 }, $unset: { lockedUntil: 1 } },
     );
+    return res.matchedCount === 1;
+  }
+
+  private notLockedAt(now: Date) {
+    return {
+      $or: [
+        { lockedUntil: { $exists: false } },
+        { lockedUntil: null },
+        { lockedUntil: { $lte: now } },
+      ],
+    };
   }
 
   /** ACC-19: the profile behind /auth/me; null when the account no longer exists. */
