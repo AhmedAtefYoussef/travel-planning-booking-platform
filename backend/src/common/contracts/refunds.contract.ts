@@ -67,13 +67,16 @@ export interface RefundsService {
   quote(input: RefundQuoteInput): RefundQuote;
 
   /**
-   * Records the refund and issues it through the Stripe Refunds API when amountMinor > 0 (PAY-03).
-   * Status starts PENDING and is updated by the webhook; the user is notified.
+   * Records the refund of a cancellation (PAY-03) and returns it, or null when quote.amountMinor is 0
+   * (nothing to refund). Pass the cancellation's session: the refund is recorded in the same
+   * transaction and sent to the Stripe Refunds API only after it commits (within a minute, retried
+   * until Stripe accepts it). Status starts PENDING and the webhook sets REFUNDED or FAILED; the user
+   * is notified. One refund per booking: calling it again returns the existing one.
    */
   refundFor(
     request: RefundRequest,
     session?: ClientSession,
-  ): Promise<RefundRecord>;
+  ): Promise<RefundRecord | null>;
 }
 
 /**

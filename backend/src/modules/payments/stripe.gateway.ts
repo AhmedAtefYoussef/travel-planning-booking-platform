@@ -8,9 +8,16 @@ import type { EnvironmentVariables } from '../../config/env.validation';
  * error type only, never the request or the key.
  */
 export class PaymentProviderError extends Error {
-  constructor(message: string) {
+  /**
+   * False when Stripe rejected the request itself (invalid request, e.g. a charge already refunded):
+   * sending the same request again can never succeed.
+   */
+  readonly retryable: boolean;
+
+  constructor(message: string, retryable = true) {
     super(message);
     this.name = 'PaymentProviderError';
+    this.retryable = retryable;
   }
 }
 
@@ -20,8 +27,10 @@ async function call<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     return await fn();
   } catch (e) {
     const type = (e as { type?: unknown }).type;
+    const code = (e as { code?: unknown }).code;
     throw new PaymentProviderError(
-      `Stripe ${operation} failed${typeof type === 'string' ? ` (${type})` : ''}`,
+      `Stripe ${operation} failed${typeof type === 'string' ? ` (${type}${typeof code === 'string' ? `: ${code}` : ''})` : ''}`,
+      type !== 'StripeInvalidRequestError',
     );
   }
 }
@@ -34,6 +43,13 @@ export interface GatewayIntent {
   id: string;
   clientSecret: string | null;
   status: string;
+}
+
+/** What the backend keeps from a Stripe refund. */
+export interface GatewayRefund {
+  id: string;
+  status: string;
+  failureReason?: string | null;
 }
 
 /** The fields of a verified webhook event this module uses. */
@@ -50,6 +66,8 @@ export interface GatewayEvent {
     lastPaymentErrorMessage?: string | null;
     paymentIntentId?: string | null;
     failureReason?: string | null;
+    /** Refund events: our refund record id, from the metadata we sent with the refund request. */
+    refundRecordId?: string | null;
   };
 }
 
@@ -73,7 +91,7 @@ export interface StripeGateway {
     amountMinor: number;
     metadata: Record<string, string>;
     idempotencyKey: string;
-  }): Promise<{ id: string; status: string }>;
+  }): Promise<GatewayRefund>;
   /** Verifies the Stripe-Signature header against the raw body; throws when it does not match. */
   constructEvent(rawBody: Buffer, signature: string): GatewayEvent;
 }
@@ -144,7 +162,7 @@ export class StripeSdkGateway implements StripeGateway {
     amountMinor: number;
     metadata: Record<string, string>;
     idempotencyKey: string;
-  }): Promise<{ id: string; status: string }> {
+  }): Promise<GatewayRefund> {
     const refund = await call('create refund', () =>
       this.stripe.refunds.create(
         {
@@ -155,7 +173,11 @@ export class StripeSdkGateway implements StripeGateway {
         { idempotencyKey: input.idempotencyKey },
       ),
     );
-    return { id: refund.id, status: refund.status ?? 'pending' };
+    return {
+      id: refund.id,
+      status: refund.status ?? 'pending',
+      failureReason: refund.failure_reason ?? null,
+    };
   }
 
   constructEvent(rawBody: Buffer, signature: string): GatewayEvent {
@@ -190,6 +212,7 @@ export function toGatewayEvent(event: {
   const lastError = object.last_payment_error as
     { message?: string } | null | undefined;
   const paymentIntent = object.payment_intent;
+  const metadata = (object.metadata ?? {}) as Record<string, unknown>;
   return {
     id: event.id,
     type: event.type,
@@ -215,6 +238,8 @@ export function toGatewayEvent(event: {
         typeof object.failure_reason === 'string'
           ? object.failure_reason
           : null,
+      refundRecordId:
+        typeof metadata.refundId === 'string' ? metadata.refundId : null,
     },
   };
 }

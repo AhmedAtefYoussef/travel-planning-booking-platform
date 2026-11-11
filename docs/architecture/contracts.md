@@ -14,7 +14,7 @@ exports: [AUDIT_SERVICE],
 | Token | Interface | Implemented by | Used by |
 |---|---|---|---|
 | `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `getPolicies`, `acceptPolicies`, `markConfirmed`, `markPaymentFailed` | flight-bookings (**implemented**, FLT-22), hotel-bookings (HTL-18) | payments (Ahmed) |
-| `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` | payments (Ahmed) | cancellations (Karim), FLT-06 |
+| `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` (returns null for a 0 refund) | payments (Ahmed, **implemented**, PAY-03) | cancellations (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
 | `CURRENCY_SERVICE` | `CurrencyService`: `convert(amountMinor, from, to)` returns `{amountMinor, rate, rateDate}`; `supportedCurrencies()` | currency (Ahmed, TRVL-133, **implemented**) | budgets ITN-18 (Malak) |
@@ -57,3 +57,7 @@ exports: [AUDIT_SERVICE],
 - `PAYMENT_HOLD_RELEASE` (`booking.contract.ts`): payments implements `cancelForBooking(type, id)` in PAY-01; the hold-expiry jobs call it after the expiry commits.
 - PAY-02 (`payments/booking-policies.*`): `GET /api/bookings/:type/:id/policies` and `POST .../accept-policies` dispatch to the booking module through `PayableBooking.getPolicies` / `acceptPolicies`. Policies come from the booking's snapshot (`BookingPolicies` in `booking.contract.ts`): airline bookings fill `baggage`, hotel reservations fill `checkInOut`. The hotel-bookings module (HTL-18) must implement both methods the same way: owner only, unpaid and unexpired only, first timestamp kept.
 - `modules/payments` (PAY-01, ADR-0003): `POST /api/payments`, `POST /api/payments/:id/retry`, `GET /api/payments/:id`, `POST /api/payments/webhook`. Stripe is reached only through `StripeGateway` (`STRIPE_GATEWAY` token, real SDK in `StripeSdkGateway`); e2e tests override it with a fake and sign webhook events with Stripe's own helper. Only the webhook confirms a booking, through `PayableBooking.markConfirmed` in the same transaction as the event id. `PaymentsService` also provides `PAYMENT_HOLD_RELEASE`. Local webhooks: `stripe listen --forward-to localhost:3000/api/payments/webhook`, then put the printed `whsec_...` in `STRIPE_WEBHOOK_SECRET`.
+- `modules/payments` refunds (PAY-03): how a cancellation (FLT-26, HTL-21, FLT-06) uses `REFUNDS_SERVICE`, inside one transaction with the status change and the seat or room release:
+  1. `const quote = refunds.quote({ paidMinor: booking.totalMinor, currency, eventStartUtc: segments[0].departureUtc, tiers: segments[0].cancellationTiers, reason })` (snapshot tiers; provider cancellations pass `RefundReason.ProviderCancellation` for 100%).
+  2. `const record = await refunds.refundFor({ bookingType, bookingId, userId, paymentId: booking.paymentId, quote, reason }, session)`, then `$set: { refundId: record?.refundId }` on the booking in the same session.
+  The refund is sent to Stripe after the commit (within a minute, retried until accepted); `GET /api/refunds/:id` shows Pending, Refunded or Failed.

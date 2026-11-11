@@ -24,6 +24,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import { formatMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { PayableBookings } from './booking-policies.service';
+import { StripeRefundsService } from './refunds.service';
 import type { CheckoutDto, PaymentDto } from './dto/payment.dto';
 import {
   Payment,
@@ -94,6 +95,7 @@ export class PaymentsService implements PaymentHoldRelease {
     @InjectConnection() private readonly connection: Connection,
     @Inject(STRIPE_GATEWAY) private readonly stripe: StripeGateway,
     private readonly payables: PayableBookings,
+    private readonly refunds: StripeRefundsService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
     @Optional()
     @Inject(NOTIFICATIONS_SERVICE)
@@ -214,6 +216,12 @@ export class PaymentsService implements PaymentHoldRelease {
           break;
         case 'payment_intent.canceled':
           await this.applyCanceled(event);
+          break;
+        case 'refund.created':
+        case 'refund.updated':
+        case 'refund.failed':
+        case 'charge.refund.updated':
+          await this.applyRefundEvent(event);
           break;
         default:
           await this.recordEvent(event);
@@ -417,6 +425,18 @@ export class PaymentsService implements PaymentHoldRelease {
         )
         .exec();
     });
+  }
+
+  /** PAY-03: a refund's final status, in one transaction with the event id; then notify the user. */
+  private async applyRefundEvent(event: GatewayEvent): Promise<void> {
+    const changed = await this.connection.transaction(async (session) => {
+      await this.events.create(
+        [{ stripeEventId: event.id, type: event.type }],
+        { session },
+      );
+      return this.refunds.applyStripeStatus(event, session);
+    });
+    if (changed) await this.refunds.notifyStatus(changed);
   }
 
   /**

@@ -713,6 +713,7 @@ export function toFlightBookingDto(
     currency: booking.currency,
     policiesAcceptedAt: booking.policiesAcceptedAt ?? null,
     lastPaymentError: booking.lastPaymentError ?? null,
+    refundId: booking.refundId ? booking.refundId.toHexString() : null,
     confirmedAt: booking.confirmedAt ?? null,
     expiredAt: booking.expiredAt ?? null,
     completedAt: booking.completedAt ?? null,

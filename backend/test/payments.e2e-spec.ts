@@ -8,7 +8,10 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import {
   NOTIFICATIONS_SERVICE,
+  REFUNDS_SERVICE,
+  RefundReason,
   type NotificationInput,
+  type RefundsService,
 } from '../src/common/contracts';
 import type { EnvironmentVariables } from '../src/config/env.validation';
 import { FlightBooking } from '../src/modules/flight-bookings';
@@ -18,6 +21,8 @@ import {
   ReferenceSeedService,
 } from '../src/modules/reference';
 import { Payment } from '../src/modules/payments/schemas/payment.schema';
+import { Refund } from '../src/modules/payments/schemas/refund.schema';
+import { StripeRefundsService } from '../src/modules/payments/refunds.service';
 import {
   STRIPE_GATEWAY,
   StripeSdkGateway,
@@ -93,8 +98,18 @@ class FakeStripe implements StripeGateway {
     idempotencyKey: string;
   }): Promise<{ id: string; status: string }> {
     this.refunds.push(input);
-    return Promise.resolve({ id: `re_${id()}`, status: 'pending' });
+    const refund = { id: `re_${id()}`, status: 'pending' };
+    // Lets a test deliver Stripe's webhook before this call returns (webhook-first race).
+    const hook = this.onRefund;
+    this.onRefund = undefined;
+    return hook
+      ? hook(input, refund.id).then(() => refund)
+      : Promise.resolve(refund);
   }
+  onRefund?: (
+    input: { metadata: Record<string, string> },
+    stripeRefundId: string,
+  ) => Promise<void>;
   constructEvent(rawBody: Buffer, signature: string) {
     return this.verifier.constructEvent(rawBody, signature);
   }
@@ -522,6 +537,211 @@ describe('Payments (e2e): PAY-01, FLT-23', () => {
         id: 'pi_unknown',
         status: 'succeeded',
       }).expect(200);
+    });
+  });
+
+  describe('refunds (PAY-03)', () => {
+    /** A confirmed, paid booking, as a cancellation would find it. */
+    async function paidBooking() {
+      const bookingId = await heldBooking();
+      const started = await pay(bookingId).expect(201);
+      await deliver('payment_intent.succeeded', {
+        id: started.body.stripePaymentIntentId,
+        status: 'succeeded',
+      }).expect(200);
+      return { bookingId, paymentId: started.body.id as string };
+    }
+    const refundsService = () => app.get<RefundsService>(REFUNDS_SERVICE);
+    const userQuote = (paidMinor: number) =>
+      refundsService().quote({
+        paidMinor,
+        currency: 'USD',
+        eventStartUtc: new Date('2028-10-05T05:00:00Z'),
+        tiers: [{ daysBefore: 7, refundPercent: 50 }],
+        reason: RefundReason.UserCancellation,
+      });
+
+    it('a cancellation refund is recorded, sent to Stripe, visible to its owner, and completed by the webhook', async () => {
+      const { bookingId, paymentId } = await paidBooking();
+      const quote = userQuote(45000);
+      expect(quote).toMatchObject({ amountMinor: 22500, refundPercent: 50 });
+      const record = await refundsService().refundFor({
+        bookingType: 'FLIGHT' as never,
+        bookingId,
+        userId: owner,
+        paymentId,
+        quote,
+        reason: RefundReason.UserCancellation,
+      });
+      expect(record).toMatchObject({ status: 'PENDING', amountMinor: 22500 });
+      expect(stripe.refunds.at(-1)).toMatchObject({
+        amountMinor: 22500,
+        idempotencyKey: `refund-${record?.refundId as string}`,
+      });
+      expect(sent.at(-1)).toMatchObject({
+        type: 'REFUND_ISSUED',
+        userId: owner,
+      });
+
+      const url = `/api/refunds/${record?.refundId as string}`;
+      const pending = await http()
+        .get(url)
+        .set('x-dev-user', asOwner)
+        .expect(200);
+      expect(pending.body).toMatchObject({
+        bookingType: 'FLIGHT',
+        bookingId,
+        paymentId,
+        amountMinor: 22500,
+        currency: 'USD',
+        refundPercent: 50,
+        tierApplied: { daysBefore: 7, refundPercent: 50 },
+        reason: 'USER_CANCELLATION',
+        status: 'PENDING',
+      });
+      expect(pending.body.stripeRefundId).toMatch(/^re_/);
+      await http().get(url).set('x-dev-user', 'ADMIN').expect(200);
+      await http().get(url).set('x-dev-user', `USER:${id()}`).expect(403);
+      await http()
+        .get(`/api/refunds/${id()}`)
+        .set('x-dev-user', asOwner)
+        .expect(404);
+
+      // Stripe reports the outcome: REFUNDED, and the user is told.
+      await deliver('refund.updated', {
+        id: pending.body.stripeRefundId,
+        status: 'succeeded',
+      }).expect(200);
+      const done = await http().get(url).set('x-dev-user', asOwner).expect(200);
+      expect(done.body.status).toBe('REFUNDED');
+      expect(sent.at(-1)).toMatchObject({
+        type: 'REFUND_UPDATED',
+        title: 'Your refund was completed',
+      });
+
+      // One refund per booking: asking again returns the same one.
+      const again = await refundsService().refundFor({
+        bookingType: 'FLIGHT' as never,
+        bookingId,
+        userId: owner,
+        paymentId,
+        quote,
+        reason: RefundReason.UserCancellation,
+      });
+      expect(again?.refundId).toBe(record?.refundId);
+    });
+
+    it('inside a cancellation transaction the refund is only recorded; the sweep sends it after the commit', async () => {
+      const { bookingId, paymentId } = await paidBooking();
+      const sentBefore = stripe.refunds.length;
+      const connection = app.get<Model<Refund>>(getModelToken(Refund.name)).db;
+      const record = await connection.transaction((session) =>
+        refundsService().refundFor(
+          {
+            bookingType: 'FLIGHT' as never,
+            bookingId,
+            userId: owner,
+            paymentId,
+            quote: refundsService().quote({
+              paidMinor: 45000,
+              currency: 'USD',
+              eventStartUtc: new Date('2028-10-05T05:00:00Z'),
+              tiers: [],
+              reason: RefundReason.ProviderCancellation,
+            }),
+            reason: RefundReason.ProviderCancellation,
+          },
+          session,
+        ),
+      );
+      expect(record).toMatchObject({ status: 'PENDING', amountMinor: 45000 });
+      expect(stripe.refunds).toHaveLength(sentBefore);
+      await expect(
+        app.get(StripeRefundsService).issuePending(),
+      ).resolves.toBeGreaterThanOrEqual(1);
+      expect(stripe.refunds.at(-1)).toMatchObject({ amountMinor: 45000 });
+      const failed = await http()
+        .get(`/api/refunds/${record?.refundId as string}`)
+        .set('x-dev-user', asOwner)
+        .expect(200);
+      await deliver('refund.failed', {
+        id: failed.body.stripeRefundId,
+        status: 'failed',
+        failure_reason: 'expired_or_canceled_card',
+      }).expect(200);
+      const after = await http()
+        .get(`/api/refunds/${record?.refundId as string}`)
+        .set('x-dev-user', asOwner)
+        .expect(200);
+      expect(after.body).toMatchObject({
+        status: 'FAILED',
+        failureReason: 'expired_or_canceled_card',
+        tierApplied: null,
+        refundPercent: 100,
+      });
+    });
+
+    it("Stripe's webhook arriving before the refund call returns still completes the refund", async () => {
+      const { bookingId, paymentId } = await paidBooking();
+      stripe.onRefund = async (input, stripeRefundId) => {
+        await deliver('refund.updated', {
+          id: stripeRefundId,
+          status: 'succeeded',
+          metadata: input.metadata,
+        }).expect(200);
+      };
+      const record = await refundsService().refundFor({
+        bookingType: 'FLIGHT' as never,
+        bookingId,
+        userId: owner,
+        paymentId,
+        quote: userQuote(45000),
+        reason: RefundReason.UserCancellation,
+      });
+      const got = await http()
+        .get(`/api/refunds/${record?.refundId as string}`)
+        .set('x-dev-user', asOwner)
+        .expect(200);
+      expect(got.body.status).toBe('REFUNDED');
+      expect(got.body.stripeRefundId).toMatch(/^re_/);
+      // Only the completion was announced; the late "on its way" notice was not sent after it.
+      expect(sent.at(-1)).toMatchObject({ title: 'Your refund was completed' });
+      await http()
+        .get('/api/refunds/not-an-id')
+        .set('x-dev-user', asOwner)
+        .expect(400);
+    });
+
+    it('a zero refund records nothing; a booking without a payment cannot be refunded', async () => {
+      const { bookingId, paymentId } = await paidBooking();
+      const zero = refundsService().quote({
+        paidMinor: 45000,
+        currency: 'USD',
+        eventStartUtc: new Date('2028-10-05T05:00:00Z'),
+        tiers: [],
+        reason: RefundReason.UserCancellation,
+      });
+      expect(zero.amountMinor).toBe(0);
+      await expect(
+        refundsService().refundFor({
+          bookingType: 'FLIGHT' as never,
+          bookingId,
+          userId: owner,
+          paymentId,
+          quote: zero,
+          reason: RefundReason.UserCancellation,
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        refundsService().refundFor({
+          bookingType: 'FLIGHT' as never,
+          bookingId: id(),
+          userId: owner,
+          paymentId,
+          quote: userQuote(45000),
+          reason: RefundReason.UserCancellation,
+        }),
+      ).rejects.toMatchObject({ status: 409 });
     });
   });
 

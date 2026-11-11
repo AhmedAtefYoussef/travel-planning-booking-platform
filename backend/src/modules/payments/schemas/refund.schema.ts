@@ -16,7 +16,8 @@ const TierAppliedSchema = SchemaFactory.createForClass(TierApplied);
 
 /**
  * refunds (TRVL-161, PAY-03): one per cancellation with a positive amount. Status moves
- * PENDING -> REFUNDED | FAILED from Stripe webhook events and is shown on the booking details.
+ * PENDING -> REFUNDED | FAILED (and REFUNDED -> FAILED if Stripe later fails it) from the Stripe
+ * response and webhook events, and is shown on the booking details.
  */
 @Schema({ ...SCHEMA_OPTIONS, collection: 'refunds' })
 export class Refund {
@@ -70,6 +71,14 @@ export class Refund {
   @Prop({ type: String, maxlength: 500 })
   failureReason?: string;
 
+  /** Failed attempts to send the refund to Stripe (retryable errors only). */
+  @Prop({ type: Number, default: 0, min: 0 })
+  sendAttempts!: number;
+
+  /** Last failed send; the sweep takes the least recently tried first, so one bad row cannot block others. */
+  @Prop({ type: Date })
+  lastSendAttemptAt?: Date;
+
   createdAt!: Date;
   updatedAt!: Date;
 }
@@ -77,6 +86,8 @@ export class Refund {
 export type RefundDocument = HydratedDocument<Refund>;
 export const RefundSchema = SchemaFactory.createForClass(Refund);
 RefundSchema.index({ userId: 1, createdAt: -1 });
+// The send sweep: unsent PENDING refunds, least recently tried first.
+RefundSchema.index({ status: 1, lastSendAttemptAt: 1, createdAt: 1 });
 RefundSchema.index(
   { stripeRefundId: 1 },
   {

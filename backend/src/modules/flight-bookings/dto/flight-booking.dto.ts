@@ -238,6 +238,15 @@ export class FlightBookingDto {
   @ApiProperty({ nullable: true, type: String, example: null })
   lastPaymentError!: string | null;
 
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    example: null,
+    description:
+      'Set when a cancellation created a refund; GET /api/refunds/{refundId} shows its status (PAY-03)',
+  })
+  refundId!: string | null;
+
   @ApiProperty({ nullable: true, type: Date, example: null })
   confirmedAt!: Date | null;
   @ApiProperty({ nullable: true, type: Date, example: null })

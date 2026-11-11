@@ -101,7 +101,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 |---|---|---|---|---|---|---|
 | PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #38 | Partial: payments, retry, signed webhook and intent cancellation on hold expiry done for flight bookings; hotel reservations use the same endpoints once HTL-18 lands; not yet run against real Stripe test keys |
 | PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #37, #38 | Partial: policy view, timestamped acceptance and the payment block done for flight bookings; hotel reservations come with HTL-18 |
-| PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
+| PAY-03 | Mandatory | GET /api/refunds/:id; REFUNDS_SERVICE; refundId on booking details | Ahmed | TRVL-69 | #4, #39 | Partial: refunds recorded, sent through the Stripe Refunds API, Pending/Refunded/Failed from the webhook, refundId on flight booking details; the cancellations that create them (FLT-26, HTL-21, FLT-06) and the notification delivery (GEN-01) are pending |
 | PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #32, #38 | Done |
 
 ## Itineraries

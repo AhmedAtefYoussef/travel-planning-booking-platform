@@ -567,3 +567,20 @@ detection, retry, intent cancellation for expired holds), the payments controlle
 and an e2e suite with a fake gateway and real webhook signatures. I checked the stored payment fields and the
 late-payment path before opening the pull request; real Stripe test keys were not available for a live run.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-03 (refunds)
+Prompt:
+Implement PAY-03: for every cancellation with a positive refund (provider tiers for users, 100% for provider
+cancellations) issue a refund through the Stripe Refunds API, record it, show Pending, Refunded or Failed on the
+booking, and notify the user. The cancellation endpoints are a teammate's, so expose it as REFUNDS_SERVICE and
+make sure a cancellation that rolls back never sends money.
+How the output was used:
+Claude wrote the refunds service (records the refund in the caller's transaction, sends it to Stripe after the
+commit with an idempotency key, a sweep retries unsent refunds), the webhook handling for refund events,
+GET /api/refunds/:id and refundId on the booking details, with unit and e2e tests. I checked the outbox
+behaviour and the tier and 100% amounts before opening the pull request.
+================================================

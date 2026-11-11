@@ -12,6 +12,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { PayableBookings } from './booking-policies.service';
 import { PaymentsService } from './payments.service';
+import type { StripeRefundsService } from './refunds.service';
 import type { Payment } from './schemas/payment.schema';
 import type { StripeEvent } from './schemas/stripe-event.schema';
 import {
@@ -93,6 +94,10 @@ function setup(
     updateOne: jest.fn(() => q({ modifiedCount: 1 })),
   };
   const events = { create: jest.fn(() => Promise.resolve({})) };
+  const refunds = {
+    applyStripeStatus: jest.fn(() => Promise.resolve(null as unknown)),
+    notifyStatus: jest.fn(() => Promise.resolve()),
+  };
   const connection = {
     transaction: jest.fn((fn: (s: unknown) => Promise<unknown>) =>
       fn('session'),
@@ -129,13 +134,23 @@ function setup(
     connection as unknown as Connection,
     stripe,
     new PayableBookings(payable),
+    refunds as unknown as StripeRefundsService,
     { get: () => 'usd' } as unknown as ConfigService<
       EnvironmentVariables,
       true
     >,
     notifications,
   );
-  return { service, payable, payments, events, stripe, booking, notifications };
+  return {
+    service,
+    payable,
+    payments,
+    events,
+    stripe,
+    booking,
+    notifications,
+    refunds,
+  };
 }
 
 const event = (type: string, object: GatewayEvent['object']): GatewayEvent => ({
@@ -607,5 +622,32 @@ describe('PaymentsService late payments (PAY-01)', () => {
       expect(p.lastError).toContain('instead of 45000 USD');
       expect(stripe.createRefund).toHaveBeenCalled();
     }
+  });
+});
+
+describe('PaymentsService refund events (PAY-03)', () => {
+  it('records the event and the refund status in one transaction, then notifies when it changed', async () => {
+    const { service, stripe, events, refunds } = setup();
+    const changed = { id: 'r1' };
+    refunds.applyStripeStatus.mockResolvedValueOnce(changed);
+    stripe.constructEvent.mockReturnValue(
+      event('refund.updated', { id: 're_1', status: 'succeeded' }),
+    );
+    await service.handleWebhook(Buffer.from('{}'), 'sig');
+    expect(events.create).toHaveBeenCalledWith(
+      [expect.objectContaining({ type: 'refund.updated' })],
+      { session: 'session' },
+    );
+    expect(refunds.applyStripeStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'refund.updated' }),
+      'session',
+    );
+    expect(refunds.notifyStatus).toHaveBeenCalledWith(changed);
+
+    stripe.constructEvent.mockReturnValue(
+      event('refund.failed', { id: 're_1', status: 'failed' }),
+    );
+    await service.handleWebhook(Buffer.from('{}'), 'sig');
+    expect(refunds.notifyStatus).toHaveBeenCalledTimes(1);
   });
 });
