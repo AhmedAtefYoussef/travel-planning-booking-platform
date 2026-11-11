@@ -482,3 +482,19 @@ file names, all-or-nothing batches), read-only serving at /uploads, and the airl
 endpoints as the first consumer, with unit and e2e tests. I checked the limits, the 403 and 413 cases and that
 a disguised HTML file is refused before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-07 (audit log of admin actions)
+Prompt:
+Continue my Milestone 1 tasks with GEN-07: an admin-only GET /api/admin/audit-logs over the existing
+append-only audit_logs collection, newest first with page size 10, filterable by action, target, actor and
+date range, with no way to change or delete an entry.
+How the output was used:
+Claude wrote the query DTO (one message per invalid field, real calendar dates only), the service query and
+the read-only controller, with unit tests for the date-range rules and an e2e suite for the filters, the
+401/403 rules and the append-only guarantee. I checked the whole-day date semantics and the role checks in
+Swagger before opening the pull request.
+================================================

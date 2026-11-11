@@ -42,6 +42,8 @@ export const AuditLogSchema = SchemaFactory.createForClass(AuditLog);
 AuditLogSchema.index({ createdAt: -1 });
 AuditLogSchema.index({ actorId: 1, createdAt: -1 });
 AuditLogSchema.index({ targetType: 1, targetId: 1 });
+// GET /api/admin/audit-logs?targetId=... (without targetType) and its newest-first sort (GEN-07).
+AuditLogSchema.index({ targetId: 1, createdAt: -1 });
 AuditLogSchema.index({ action: 1, createdAt: -1 });
 
 // Append-only: refuse every update path at the model level, not just in controllers.
