@@ -1,6 +1,9 @@
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
-import { Types, type Model } from 'mongoose';
+import { Types, type Connection, type Model } from 'mongoose';
+import type { AuditService } from '../../common/contracts';
+import type { PasswordService } from '../../common/security/password.service';
+import type { SessionsService } from './sessions.service';
 import { ProviderType, Role } from '../../common/auth/auth.types';
 import { AdminAccountsService } from './admin-accounts.service';
 import { AccountListQueryDto } from './dto/admin-accounts.dto';
@@ -19,7 +22,13 @@ function setup(rows: unknown[] = [], total = rows.length) {
     countDocuments: jest.fn().mockReturnValue(exec(total)),
   };
   return {
-    service: new AdminAccountsService(users as unknown as Model<User>),
+    service: new AdminAccountsService(
+      users as unknown as Model<User>,
+      {} as Connection,
+      {} as PasswordService,
+      {} as SessionsService,
+      {} as AuditService,
+    ),
     users,
     chain,
   };

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { NewPasswordRules } from './password.rules';
+import { NewPasswordRules } from '../../users';
 
 /** ACC-08: the current password, and a new one that meets the ACC-01 rules. */
 export class ChangePasswordDto {

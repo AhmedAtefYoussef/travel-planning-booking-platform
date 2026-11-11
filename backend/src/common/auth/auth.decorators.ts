@@ -84,3 +84,14 @@ export function isPublicRoute(
     true
   );
 }
+
+export const ALLOW_PENDING_PASSWORD_CHANGE_KEY =
+  'auth:allowPendingPasswordChange';
+
+/**
+ * ACC-07a, ACC-13: routes an account may still call while it must replace a temporary password
+ * (changing the password itself, and reading who is logged in). Every other protected route answers
+ * 403 PASSWORD_CHANGE_REQUIRED until the password is changed.
+ */
+export const AllowPendingPasswordChange = () =>
+  SetMetadata(ALLOW_PENDING_PASSWORD_CHANGE_KEY, true);

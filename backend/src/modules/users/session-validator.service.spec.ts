@@ -31,21 +31,26 @@ describe('SessionValidatorService (ACC-06, ACC-11)', () => {
     await expect(service.touch(SESSION, USER)).resolves.toEqual({
       valid: true,
       status: 'ACTIVE',
+      mustChangePassword: false,
       user: { id: USER, role: Role.User },
     });
     expect(sessions.touch).toHaveBeenCalledWith(SESSION, USER);
-    expect(select).toHaveBeenCalledWith('role status assignedProvider');
+    expect(select).toHaveBeenCalledWith(
+      'role status assignedProvider mustChangePassword',
+    );
   });
 
   it('includes a moderator provider as a string id, and reports the status as stored', async () => {
     const { service } = setup(true, {
       role: Role.HotelModerator,
       status: AccountStatus.Suspended,
+      mustChangePassword: true,
       assignedProvider: { type: ProviderType.Hotel, providerId: HOTEL },
     });
     await expect(service.touch(SESSION, USER)).resolves.toEqual({
       valid: true,
       status: 'SUSPENDED',
+      mustChangePassword: true,
       user: {
         id: USER,
         role: Role.HotelModerator,

@@ -23,7 +23,7 @@ export class SessionValidatorService implements SessionValidator {
       return { valid: false };
     const user = await this.users
       .findById(userId)
-      .select('role status assignedProvider')
+      .select('role status assignedProvider mustChangePassword')
       .lean();
     if (!user) return { valid: false };
     const authUser: AuthUser = {
@@ -38,6 +38,11 @@ export class SessionValidatorService implements SessionValidator {
           }
         : {}),
     };
-    return { valid: true, user: authUser, status: user.status };
+    return {
+      valid: true,
+      user: authUser,
+      status: user.status,
+      mustChangePassword: user.mustChangePassword === true,
+    };
   }
 }
