@@ -38,6 +38,12 @@ function contextWith(
   return { ctx, req };
 }
 
+/** SESSION_VALIDATOR stand-in: sessions are usable unless a test says otherwise. */
+const sessions = { touch: jest.fn().mockResolvedValue(true) };
+beforeEach(() => {
+  sessions.touch.mockReset().mockResolvedValue(true);
+});
+
 function guard(isPublic = false, stubEnabled = true) {
   const reflector = {
     get: (key: string, target: unknown) =>
@@ -52,7 +58,7 @@ function guard(isPublic = false, stubEnabled = true) {
   const stub = new AuthStubGuard(reflector, {
     get: (k: string) => env[k],
   } as never);
-  return new AuthGuard(reflector, jwt, stub);
+  return new AuthGuard(reflector, jwt, stub, sessions);
 }
 
 const token = (
@@ -143,5 +149,32 @@ describe('AuthGuard (ACC-19 cookie auth, stub fallback)', () => {
   it('lets public routes through without looking at cookies', async () => {
     const { ctx } = contextWith({ access_token: 'garbage' });
     await expect(guard(true).canActivate(ctx)).resolves.toBe(true);
+  });
+});
+
+describe('AuthGuard session checks (ACC-06)', () => {
+  it('asks SESSION_VALIDATOR about the exact session and user in the token', async () => {
+    const { ctx } = contextWith({
+      access_token: token({ sub: USER, sid: SESSION, role: Role.User }),
+    });
+    await guard().canActivate(ctx);
+    expect(sessions.touch).toHaveBeenCalledWith(SESSION, USER);
+  });
+
+  it('rejects a valid token whose session was logged out or went idle', async () => {
+    sessions.touch.mockResolvedValue(false);
+    const { ctx, req } = contextWith({
+      access_token: token({ sub: USER, sid: SESSION, role: Role.User }),
+    });
+    await expect(guard().canActivate(ctx)).rejects.toThrow(/log in again/);
+    expect(req.user).toBeUndefined();
+  });
+
+  it('never consults sessions for stub callers or a token that fails verification', async () => {
+    await guard().canActivate(contextWith({}, { 'x-dev-user': 'ADMIN' }).ctx);
+    await guard()
+      .canActivate(contextWith({ access_token: 'garbage' }).ctx)
+      .catch(() => undefined);
+    expect(sessions.touch).not.toHaveBeenCalled();
   });
 });

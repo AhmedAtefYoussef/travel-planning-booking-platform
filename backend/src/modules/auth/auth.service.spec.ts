@@ -50,13 +50,23 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
       refreshToken: 'raw-refresh',
       expiresAt: new Date(),
     }),
+    rotate: jest.fn().mockResolvedValue({
+      sessionId: SESSION_ID,
+      userId: USER_ID,
+      refreshToken: 'rotated-refresh',
+      expiresAt: new Date(Date.now() + 86_400_000),
+    }),
+    revoke: jest.fn().mockResolvedValue(undefined),
   };
   const passwords = {
     hash: jest.fn().mockResolvedValue('new-hash'),
     verify: jest.fn().mockResolvedValue(passwordOk),
     needsRehash: jest.fn().mockReturnValue(false),
   };
-  const jwt = { signAsync: jest.fn().mockResolvedValue('signed.jwt') };
+  const jwt = {
+    signAsync: jest.fn().mockResolvedValue('signed.jwt'),
+    verifyAsync: jest.fn().mockResolvedValue({ sid: SESSION_ID }),
+  };
   const env: Record<string, string> = {
     JWT_ACCESS_TTL: '15m',
     JWT_REFRESH_TTL: '7d',
@@ -220,5 +230,92 @@ describe('AuthService.me (ACC-19)', () => {
     users.findProfile.mockResolvedValue(null);
     const e = await failure(service.me({ id: USER_ID, role: Role.User }));
     expect(e.getStatus()).toBe(401);
+  });
+});
+
+describe('AuthService.refresh (ACC-06)', () => {
+  it('rotates the refresh token and issues a new access token for the same session', async () => {
+    const { service, sessions, jwt } = setup();
+    const result = await service.refresh('raw-refresh');
+
+    expect(sessions.rotate).toHaveBeenCalledWith(
+      'raw-refresh',
+      expect.any(Date),
+    );
+    expect(jwt.signAsync).toHaveBeenCalledWith({
+      sub: USER_ID,
+      sid: SESSION_ID,
+      role: Role.User,
+    });
+    expect(result.refreshToken).toBe('rotated-refresh');
+    expect(result.accessToken).toBe('signed.jwt');
+    // The refresh cookie keeps the session's remaining lifetime; it is never extended.
+    expect(result.refreshTtlMs).toBeGreaterThan(86_000_000);
+    expect(result.refreshTtlMs).toBeLessThanOrEqual(86_400_000);
+  });
+
+  it('is 401 without a cookie or for a token that can no longer be used', async () => {
+    const none = setup();
+    expect((await failure(none.service.refresh(undefined))).getStatus()).toBe(
+      401,
+    );
+    expect(none.sessions.rotate).not.toHaveBeenCalled();
+
+    const used = setup();
+    used.sessions.rotate.mockResolvedValue(null);
+    const e = await failure(used.service.refresh('raw-refresh'));
+    expect(e.getStatus()).toBe(401);
+    expect(e.message).toMatch(/session has expired/);
+  });
+
+  it('ends the session of a suspended (403) or deactivated or deleted (401) account', async () => {
+    for (const [found, status] of [
+      [profile({ status: AccountStatus.Suspended }), 403],
+      [profile({ status: AccountStatus.Deactivated }), 401],
+      [null, 401],
+    ] as const) {
+      const { service, users, sessions } = setup();
+      users.findProfile.mockResolvedValue(found);
+      expect((await failure(service.refresh('raw-refresh'))).getStatus()).toBe(
+        status,
+      );
+      expect(sessions.revoke).toHaveBeenCalledWith({ sessionId: SESSION_ID });
+    }
+  });
+});
+
+describe('AuthService.logout (ACC-06)', () => {
+  it('revokes by refresh token and by the session id of a signed (possibly expired) access token', async () => {
+    const { service, sessions, jwt } = setup();
+    await service.logout('raw-refresh', 'signed.jwt');
+
+    expect(jwt.verifyAsync).toHaveBeenCalledWith('signed.jwt', {
+      algorithms: ['HS256'],
+      ignoreExpiration: true,
+    });
+    expect(sessions.revoke).toHaveBeenCalledWith({
+      refreshToken: 'raw-refresh',
+      sessionId: SESSION_ID,
+    });
+  });
+
+  it('ignores a forged access token instead of trusting its session id', async () => {
+    const { service, sessions, jwt } = setup();
+    jwt.verifyAsync.mockRejectedValue(new Error('invalid signature'));
+    await service.logout(undefined, 'forged.jwt');
+    expect(sessions.revoke).toHaveBeenCalledWith({
+      refreshToken: undefined,
+      sessionId: undefined,
+    });
+  });
+
+  it('ignores a verified token without a session id', async () => {
+    const { service, sessions, jwt } = setup();
+    jwt.verifyAsync.mockResolvedValue({});
+    await service.logout('raw-refresh', 'signed.jwt');
+    expect(sessions.revoke).toHaveBeenCalledWith({
+      refreshToken: 'raw-refresh',
+      sessionId: undefined,
+    });
   });
 });

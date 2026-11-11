@@ -1,7 +1,7 @@
 # Replacing the auth stub with real login (ACC-19, ACC-11)
 
 - **Status:** proposed, 2026-11-10. Owner: Abdelrahman (ACC-04/05/06/11/19, TRVL-137). Reviewer: Ahmed.
-- **Progress (2026-11-11):** step 1 in #41. Step 2 in #43, which also brings the cookie half of step 3 forward: `AuthGuard` (common/auth/auth.guard.ts) is now the global guard, authenticates from the `access_token` cookie and falls back to the stub only when no cookie is sent. Loading the user and rejecting suspended accounts on every request stays in the ACC-11 PR; `/auth/refresh` and logout land with ACC-06.
+- **Progress (2026-11-11):** step 1 in #41. Step 2 in #43, which also brings the cookie half of step 3 forward: `AuthGuard` (common/auth/auth.guard.ts) is now the global guard, authenticates from the `access_token` cookie and falls back to the stub only when no cookie is sent. Loading the user and rejecting suspended accounts on every request stays in the ACC-11 PR. Step 4's ACC-06 half is in #44: `POST /api/auth/refresh` (rotating refresh token), `POST /api/auth/logout`, and a `SESSION_VALIDATOR` check in `AuthGuard` that ends a logged-out or 30-minute-idle session on the next request.
 - **Goal:** cookie login lands **by 2026-11-14** without breaking any module or e2e test. It must not turn into a big-bang switch in the last week before Milestone 1 (2026-11-20).
 
 ## Where we are

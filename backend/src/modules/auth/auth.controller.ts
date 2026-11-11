@@ -1,17 +1,27 @@
-import { Body, Controller, Get, HttpCode, Post, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import {
   ACCESS_COOKIE,
   ACCESS_COOKIE_PATH,
   authCookieOptions,
+  clearCookieOptions,
   REFRESH_COOKIE,
   REFRESH_COOKIE_PATH,
 } from '../../common/auth/auth-cookies';
@@ -20,9 +30,15 @@ import type { AuthUser } from '../../common/auth/auth.types';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { UserProfileDto } from '../users';
-import { AuthService } from './auth.service';
+import { AuthService, type LoginResult } from './auth.service';
 import { LoginDto, LoginResponseDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+
+/** A cookie value as a non-empty string, or undefined. */
+function cookie(req: Request, name: string): string | undefined {
+  const value = (req.cookies as Record<string, unknown> | undefined)?.[name];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
 
 /** Authentication and account entry points (ACC-01, ACC-04, ACC-19; ACC-06 follows). */
 @ApiTags('Auth')
@@ -130,6 +146,61 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<LoginResponseDto> {
     const result = await this.auth.login(dto);
+    this.setAuthCookies(res, result);
+    return { user: result.user, homePath: result.homePath };
+  }
+
+  @Post('refresh')
+  @Public()
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'ACC-06 / ACC-19 Refresh the access cookie',
+    description:
+      'Uses the httpOnly `refresh_token` cookie (sent only to /api/auth) to issue a new `access_token` cookie and a new refresh token; ' +
+      'the old refresh token stops working (rotation). No body is needed and no token is returned in the body. ' +
+      'Fails with 401 and clears both cookies when the session was logged out, has had no authenticated request for SESSION_IDLE_MINUTES (30), ' +
+      'is past JWT_REFRESH_TTL, or the refresh token was already used. A suspended account gets 403 ACCOUNT_SUSPENDED.',
+  })
+  @ApiOkResponse({ type: LoginResponseDto, description: 'New cookies set' })
+  @ApiErrorResponses(401, 403)
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<LoginResponseDto> {
+    try {
+      const result = await this.auth.refresh(cookie(req, REFRESH_COOKIE));
+      this.setAuthCookies(res, result);
+      return { user: result.user, homePath: result.homePath };
+    } catch (error) {
+      this.clearAuthCookies(res);
+      throw error;
+    }
+  }
+
+  @Post('logout')
+  @Public()
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'ACC-06 Log out',
+    description:
+      'Revokes the session on the server (its refresh token and access token stop working at once) and clears both auth cookies. ' +
+      'Public on purpose, so a user whose access token already expired can still log out; it always answers 204, even when called twice.',
+  })
+  @ApiNoContentResponse({
+    description: 'Logged out; cookies cleared via Set-Cookie',
+  })
+  async logout(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    await this.auth.logout(
+      cookie(req, REFRESH_COOKIE),
+      cookie(req, ACCESS_COOKIE),
+    );
+    this.clearAuthCookies(res);
+  }
+
+  private setAuthCookies(res: Response, result: LoginResult): void {
     res.cookie(
       ACCESS_COOKIE,
       result.accessToken,
@@ -148,7 +219,18 @@ export class AuthController {
         result.refreshTtlMs,
       ),
     );
-    return { user: result.user, homePath: result.homePath };
+  }
+
+  /** ACC-06: the cookies must be cleared with the same path and flags they were set with. */
+  private clearAuthCookies(res: Response): void {
+    res.clearCookie(
+      ACCESS_COOKIE,
+      clearCookieOptions(this.secureCookies, ACCESS_COOKIE_PATH),
+    );
+    res.clearCookie(
+      REFRESH_COOKIE,
+      clearCookieOptions(this.secureCookies, REFRESH_COOKIE_PATH),
+    );
   }
 
   @Get('me')

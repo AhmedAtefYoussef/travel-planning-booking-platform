@@ -2,11 +2,13 @@ import {
   CanActivate,
   ExecutionContext,
   HttpStatus,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { SESSION_VALIDATOR, type SessionValidator } from '../contracts';
 import { AppException } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
 import { ACCESS_COOKIE, authUserFromClaims } from './auth-cookies';
@@ -25,7 +27,8 @@ declare module 'express' {
  *
  * - @Public() routes pass without a user.
  * - A request with an `access_token` cookie is authenticated from that signed token only; a bad or
- *   expired token is a 401, never a fall-through to the stub.
+ *   expired token is a 401, never a fall-through to the stub. Its session must also still be usable
+ *   (not logged out, not idle for SESSION_IDLE_MINUTES), checked through SESSION_VALIDATOR (ACC-06).
  * - Without the cookie, the TRVL-131 stub (x-dev-user, AUTH_STUB=true, non-production, localhost)
  *   still works, so existing e2e suites and Swagger demos keep running until the stub is retired.
  *
@@ -37,6 +40,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly jwt: JwtService,
     private readonly stub: AuthStubGuard,
+    @Inject(SESSION_VALIDATOR) private readonly sessions: SessionValidator,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -58,8 +62,13 @@ export class AuthGuard implements CanActivate {
     }
     const user = authUserFromClaims(claims);
     if (!user) throw sessionExpired();
+    const sessionId = (claims as { sid: string }).sid;
+    // ACC-06: a logged-out or 30-minute-idle session ends now, even though the JWT is still valid.
+    if (!(await this.sessions.touch(sessionId, user.id))) {
+      throw sessionExpired();
+    }
     req.user = user;
-    req.sessionId = (claims as { sid: string }).sid;
+    req.sessionId = sessionId;
     return true;
   }
 }
