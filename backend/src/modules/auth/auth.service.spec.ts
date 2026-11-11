@@ -319,3 +319,19 @@ describe('AuthService.logout (ACC-06)', () => {
     });
   });
 });
+
+describe('AuthService.logout without an access cookie (ACC-06)', () => {
+  it('still runs the signature check, which fails, and revokes by refresh token only', async () => {
+    const { service, sessions, jwt } = setup();
+    jwt.verifyAsync.mockRejectedValue(new Error('jwt must be provided'));
+    await service.logout('raw-refresh', undefined);
+    expect(jwt.verifyAsync).toHaveBeenCalledWith('', {
+      algorithms: ['HS256'],
+      ignoreExpiration: true,
+    });
+    expect(sessions.revoke).toHaveBeenCalledWith({
+      refreshToken: 'raw-refresh',
+      sessionId: undefined,
+    });
+  });
+});

@@ -149,19 +149,27 @@ export class AuthService {
    * session by forging a session id.
    */
   async logout(refreshToken?: string, accessToken?: string): Promise<void> {
-    let sessionId: string | undefined;
-    if (accessToken) {
-      try {
-        const claims = await this.jwt.verifyAsync<{ sid?: unknown }>(
-          accessToken,
-          { algorithms: ['HS256'], ignoreExpiration: true },
-        );
-        if (typeof claims.sid === 'string') sessionId = claims.sid;
-      } catch {
-        // A forged or garbled access cookie identifies nothing; the cookies are cleared anyway.
-      }
-    }
+    const sessionId = await this.verifiedSessionId(accessToken);
     await this.sessions.revoke({ refreshToken, sessionId });
+  }
+
+  /**
+   * The session id of a correctly signed access token, expired or not. The signature check always
+   * runs: a missing, forged or garbled token simply fails it and identifies no session.
+   */
+  private async verifiedSessionId(token?: string): Promise<string | undefined> {
+    try {
+      const claims = await this.jwt.verifyAsync<{ sid?: unknown }>(
+        token ?? '',
+        {
+          algorithms: ['HS256'],
+          ignoreExpiration: true,
+        },
+      );
+      return typeof claims.sid === 'string' ? claims.sid : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private async issue(
