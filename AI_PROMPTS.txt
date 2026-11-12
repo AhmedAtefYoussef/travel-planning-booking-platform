@@ -761,3 +761,63 @@ global AuthGuard: until the password is changed, login lands on /account/change-
 other protected route answers 403 PASSWORD_CHANGE_REQUIRED. The shared password-rules decorator moved
 to the users module so both modules can use it within the architecture rules.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-13 (TRVL-23, admin creates hotel or airline moderators)
+Prompt:
+Let an admin create a hotel or airline moderator account (name, email, role) linked to exactly one
+existing hotel or airline, with a temporary password set by the admin, and make the moderator change it
+on first login. Keep the users module independent of the flights and hotels modules, audit the action,
+document the endpoint in Swagger, test the whole flow, and verify it on a running app.
+How the output was used:
+Claude added POST /api/admin/moderators with CreateModeratorDto (moderator roles only, a valid provider
+id and the shared password rules) and ModeratorsService. The provider type follows the role and the
+provider must exist, read by id from the airlines or hotels collection named in the ERD, so the users
+module imports neither module. The account is created with mustChangePassword, which the forced-change
+rule from ACC-07a enforces at first login, and it is written together with a CREATE_MODERATOR audit entry
+in one transaction; a registered email returns 409. The e2e suite creates a real airline through the
+flights endpoint and shows the new moderator changing the password and then managing only that
+airline; I repeated the flow on a running app.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-06, ACC-05, ACC-08, ACC-13 (review fixes on #44, #45, #47 and #53)
+Prompt:
+Address every blocker and should-fix from the team leader's review of the ACC stack: rebase the stack
+so the duplicated logout fix exists once, close the lockout to parallel login attempts, refuse a new
+password equal to the current one, detect refresh-token reuse without logging out two tabs that refresh
+together, and refuse moderators for deactivated providers. Reproduce each reported case as a test, and
+verify every rebuilt branch again before pushing.
+How the output was used:
+Claude rebuilt #45 to #53 on the updated #44 without the duplicate commit, resolving the append-only
+test-file conflicts by keeping both sides. Login now claims an attempt atomically before the password
+check, so 20 parallel wrong passwords get exactly 5 checks, and a success never lifts a lock set by
+parallel failures. Refresh keeps the previous token hash: a replay after 10 seconds revokes the session,
+while a second tab inside that window gets 409 REFRESH_SUPERSEDED without clearing cookies. Changing a
+password to itself is a 400, and a deactivated airline or hotel returns 409 PROVIDER_INACTIVE. Each
+reported scenario is now an e2e test; I ran the full verify on every rebuilt branch.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (re-review on #45), stack rebase onto develop
+Prompt:
+Fix the defect found in the re-review of the lockout: parallel correct logins, or a double click after
+four real failures, locked the account. Lock only on real failed attempts, add the two reported scenarios
+as tests, rebase the stack onto develop after the hotel PRs were merged, and verify every branch again.
+How the output was used:
+Claude changed the login gate so a lock is set only when a password check really fails as the fifth
+attempt and no success reset the count meanwhile; a closed gate without an active lock now returns 429
+and writes nothing, and attempts older than 30 seconds are treated as stale. Both reported scenarios and
+the stale case are e2e tests that passed in repeated runs. The stack was rebuilt on develop; the only
+conflict was AI_PROMPTS.txt, resolved by keeping every entry. A first resolution attempt was malformed
+and was caught by the repository hygiene check before anything was committed.
+================================================

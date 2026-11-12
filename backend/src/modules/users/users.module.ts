@@ -5,7 +5,9 @@ import { AdminAccountsController } from './admin-accounts.controller';
 import { AdminAccountsService } from './admin-accounts.service';
 import { AdminSeedService } from './admin-seed.service';
 import { DeactivationService } from './deactivation.service';
+import { ModeratorsService } from './moderators.service';
 import { ProfileService } from './profile.service';
+import { ProviderDirectoryService } from './provider-directory.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
 import { SessionValidatorService } from './session-validator.service';
@@ -32,6 +34,8 @@ import { UsersService } from './users.service';
     AdminSeedService,
     ProfileService,
     AdminAccountsService,
+    ModeratorsService,
+    ProviderDirectoryService,
     DeactivationService,
     UsersService,
     SessionsService,
