@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SESSION_VALIDATOR } from '../../common/contracts';
 import { AdminSeedService } from './admin-seed.service';
+import { DeactivationService } from './deactivation.service';
 import { ProfileService } from './profile.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
@@ -28,6 +29,7 @@ import { UsersService } from './users.service';
   providers: [
     AdminSeedService,
     ProfileService,
+    DeactivationService,
     UsersService,
     SessionsService,
     SessionValidatorService,

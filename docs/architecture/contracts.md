@@ -23,6 +23,7 @@ exports: [AUDIT_SERVICE],
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
 | `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | flight-bookings (Karim) | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
 | `UPLOADS_SERVICE` | `UploadsService.saveImages` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (Ahmed) | blog, itineraries, hotels, airlines |
+| `UPCOMING_BOOKINGS` | `UpcomingBookings.countUpcomingConfirmed(userId, now)`: Confirmed flight bookings not yet departed plus Confirmed hotel reservations not yet checked in (one provider for both) | flight-bookings / hotel-reservations (Karim) | users ACC-12 self-deactivation (`DeactivationService`, injected `@Optional()`; until it is provided nobody can hold a booking) |
 | `SESSION_VALIDATOR` | `SessionValidator.touch(sessionId, userId)` returns `SessionCheck`: atomically checks the session is not revoked, expired or idle and records the request (ACC-06), then returns the account's current `AuthUser` and status (ACC-11) | users (Abdelrahman, **implemented**) | the global `AuthGuard` in common/auth, on every cookie-authenticated request |
 
 ## Shared rules that live in the contracts
