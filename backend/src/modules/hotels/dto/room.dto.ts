@@ -1,5 +1,5 @@
 import { applyDecorators } from '@nestjs/common';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
@@ -11,7 +11,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { IsWholeNumber } from '../../../common/validation';
+import { IsWholeNumber, Omittable } from '../../../common/validation';
 import { MAX_RANGES_PER_ROOM } from '../schemas/room.schema';
 import { IsAfterToday, IsCalendarDate, IsRangeEnd } from './validators';
 
@@ -70,6 +70,39 @@ export class CreateRoomDto {
   @ApiProperty({ example: 10000, minimum: 1, description: PRICE_DESCRIPTION })
   @PriceRules()
   priceMinor!: number;
+}
+
+/** The room fields a moderator may edit (HTL-05). */
+export const EDITABLE_ROOM_FIELDS = [
+  'beds',
+  'maxOccupancy',
+  'priceMinor',
+] as const;
+
+/**
+ * HTL-05: the assigned hotel moderator edits a room (any subset). A field that is left out stays as it
+ * is; `null` is rejected. A new price applies to future bookings only: reservations keep the price
+ * they were made at.
+ */
+export class UpdateRoomDto {
+  @ApiPropertyOptional({ example: 3, minimum: 1, maximum: 20 })
+  @Omittable()
+  @BedsRules()
+  beds?: number;
+
+  @ApiPropertyOptional({ example: 4, minimum: 1, maximum: 50 })
+  @Omittable()
+  @OccupancyRules()
+  maxOccupancy?: number;
+
+  @ApiPropertyOptional({
+    example: 12500,
+    minimum: 1,
+    description: `${PRICE_DESCRIPTION}. Existing reservations keep the price they were booked at.`,
+  })
+  @Omittable()
+  @PriceRules()
+  priceMinor?: number;
 }
 
 export class AvailabilityRangeDto {
@@ -153,6 +186,25 @@ export class AddAvailabilityDto {
   })
   @IsArray()
   @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_RANGES_PER_REQUEST)
+  @ValidateNested({ each: true })
+  @Type(() => AvailabilityRangeInputDto)
+  ranges!: AvailabilityRangeInputDto[];
+}
+
+/**
+ * HTL-05: replace all of a room's bookable date ranges. An empty list removes every range, which is
+ * only allowed when no night is booked or held.
+ */
+export class ReplaceAvailabilityDto {
+  @ApiProperty({
+    type: [AvailabilityRangeInputDto],
+    minItems: 0,
+    maxItems: MAX_RANGES_PER_REQUEST,
+    description:
+      'The complete new list. Ranges must not overlap each other (touching is fine), and every night that is booked or held must stay inside a range.',
+  })
+  @IsArray()
   @ArrayMaxSize(MAX_RANGES_PER_REQUEST)
   @ValidateNested({ each: true })
   @Type(() => AvailabilityRangeInputDto)

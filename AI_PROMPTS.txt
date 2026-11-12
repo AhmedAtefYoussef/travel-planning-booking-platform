@@ -622,3 +622,19 @@ Claude wrote AddAvailabilityDto, the date validators, RoomsService.addAvailabili
 insert are a single atomic update. The tests caught a bug in the range-end validator (end before start was accepted),
 which was fixed before the PR. I reviewed the diff and will verify each endpoint by hand in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-12
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-05 (TRVL-51)
+Prompt:
+Implement HTL-05: the hotel moderator edits a room's beds, occupancy and price, and replaces its bookable date
+ranges. Price changes must not affect existing reservations, and availability cannot be removed for dates with
+confirmed reservations. Follow the review rules from #21 to #24 (scope first, atomic updates, HTL-04 range rules).
+How the output was used:
+Claude added PATCH /rooms/:roomId (atomic, validated) and PATCH .../availability (replaces the ranges inside a
+transaction that refuses to strand booked or unexpired held nights from today on), documented the price-snapshot
+and hold-transaction rules for HTL-17/18 in contracts.md, and wrote unit and e2e tests. I reviewed the 409 rule
+and the tests before committing.
+================================================
