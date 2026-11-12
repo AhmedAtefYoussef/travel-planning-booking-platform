@@ -185,7 +185,7 @@ describe('UsersService login attempts (ACC-05)', () => {
     };
   }
 
-  it('claims an attempt atomically only while unlocked and under the limit', async () => {
+  it('claims an attempt atomically while unlocked and under the limit, ignoring stale in-flight attempts', async () => {
     const { service, model } = withModel({
       findOneAndUpdate: { failedLoginCount: 3 },
     });
@@ -201,22 +201,28 @@ describe('UsersService login attempts (ACC-05)', () => {
             $or: [
               { failedLoginCount: { $lt: 5 } },
               { failedLoginCount: { $exists: false } },
+              {
+                lastLoginAttemptAt: {
+                  $lt: new Date(NOW.getTime() - 30_000),
+                },
+              },
+              { lastLoginAttemptAt: { $exists: false } },
             ],
           },
         ],
       },
-      { $inc: { failedLoginCount: 1 } },
+      { $inc: { failedLoginCount: 1 }, $set: { lastLoginAttemptAt: NOW } },
       { new: true, projection: { failedLoginCount: 1 } },
     );
   });
 
-  it('returns null when the gate is closed (locked, or 5 attempts already counted)', async () => {
+  it('returns null when the gate is closed', async () => {
     await expect(
       withModel().service.claimLoginAttempt(id.toHexString(), 5, NOW),
     ).resolves.toBeNull();
   });
 
-  it('locks for 15 minutes once the limit is reached, resetting the counter', async () => {
+  it('locks for 15 minutes when the count still reaches the limit, resetting the counter', async () => {
     const { service, model } = withModel({
       findOneAndUpdate: { lockedUntil: LOCK_END },
     });
@@ -230,7 +236,7 @@ describe('UsersService login attempts (ACC-05)', () => {
     );
   });
 
-  it('keeps an existing lock instead of extending it, and falls back to a full period', async () => {
+  it('does not invent a lock: returns an existing one, or null when a success reset the count', async () => {
     const earlier = new Date('2026-11-11T10:05:00Z');
     await expect(
       withModel({ findById: { lockedUntil: earlier } }).service.lockAfterLimit(
@@ -247,7 +253,24 @@ describe('UsersService login attempts (ACC-05)', () => {
         15 * 60_000,
         NOW,
       ),
-    ).resolves.toEqual(LOCK_END);
+    ).resolves.toBeNull();
+  });
+
+  it('reports only an active lock, and never writes', async () => {
+    const { service, model } = withModel({
+      findById: { lockedUntil: LOCK_END },
+    });
+    await expect(service.activeLockOf(id.toHexString(), NOW)).resolves.toEqual(
+      LOCK_END,
+    );
+    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+    const expired = withModel({
+      findById: { lockedUntil: new Date('2026-11-11T09:00:00Z') },
+    });
+    await expect(
+      expired.service.activeLockOf(id.toHexString(), NOW),
+    ).resolves.toBeNull();
   });
 
   it('resets the counter on success only if no lock is active', async () => {

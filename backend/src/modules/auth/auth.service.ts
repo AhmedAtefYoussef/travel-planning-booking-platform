@@ -49,6 +49,13 @@ const accountLocked = (until: Date, now: Date) => {
       `try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
   );
 };
+/** ACC-05: more logins of one account are being checked at this instant than the lockout allows. */
+const tooManyAttempts = () =>
+  new AppException(
+    HttpStatus.TOO_MANY_REQUESTS,
+    ErrorCode.TOO_MANY_REQUESTS,
+    'Too many login attempts are in progress for this account; please try again in a few seconds',
+  );
 const accountSuspended = () =>
   new AppException(
     HttpStatus.FORBIDDEN,
@@ -116,17 +123,29 @@ export class AuthService {
       now,
     );
     if (attempt === null) {
-      throw accountLocked(await this.lockNow(candidate.id, now), now);
+      // Closed gate: either a real lock, or other attempts still in flight (maybe all correct, e.g. a
+      // double click). Only a real lock gets the lockout message; nothing is written here.
+      const lock = await this.users.activeLockOf(candidate.id, now);
+      if (lock) throw accountLocked(lock, now);
+      throw tooManyAttempts();
     }
     if (!(await this.passwords.verify(dto.password, candidate.passwordHash))) {
+      // Only a real failure as the 5th attempt can lock, and only if no success reset the count meanwhile.
       if (attempt >= MAX_FAILED_LOGINS) {
-        throw accountLocked(await this.lockNow(candidate.id, now), now);
+        const lock = await this.users.lockAfterLimit(
+          candidate.id,
+          MAX_FAILED_LOGINS,
+          LOCKOUT_MS,
+          now,
+        );
+        if (lock) throw accountLocked(lock, now);
       }
       throw invalidCredentials();
     }
     // A lock set by parallel failures while this password was checked still applies.
     if (!(await this.users.releaseLoginAttempts(candidate.id, now))) {
-      throw accountLocked(await this.lockNow(candidate.id, now), now);
+      const lock = await this.users.activeLockOf(candidate.id, now);
+      throw accountLocked(lock ?? new Date(now.getTime() + LOCKOUT_MS), now);
     }
     if (candidate.status === AccountStatus.Deactivated) {
       throw invalidCredentials();
@@ -254,15 +273,6 @@ export class AuthService {
       );
     }
     return profile;
-  }
-
-  private lockNow(userId: string, now: Date): Promise<Date> {
-    return this.users.lockAfterLimit(
-      userId,
-      MAX_FAILED_LOGINS,
-      LOCKOUT_MS,
-      now,
-    );
   }
 
   private getDummyHash(): Promise<string> {

@@ -146,7 +146,10 @@ describe('Login lockout (e2e): ACC-05', () => {
     );
     const statuses = results.map((r) => r.status);
     expect(statuses.filter((s) => s === 401)).toHaveLength(4);
-    expect(statuses.filter((s) => s === 403)).toHaveLength(16);
+    // The 5th failure locks (403). The other 15 never reach a password check: 429 while the 5th is
+    // still being checked, 403 once its lock exists.
+    expect(statuses.filter((s) => s === 403).length).toBeGreaterThanOrEqual(1);
+    expect(statuses.filter((s) => s === 403 || s === 429)).toHaveLength(16);
     expect(
       results
         .filter((r) => r.status === 403)
@@ -178,5 +181,52 @@ describe('Login lockout (e2e): ACC-05', () => {
       );
       await login(email, PASSWORD).expect(403);
     }
+  });
+
+  it('6 simultaneous logins with the correct password never lock the account (review on #45)', async () => {
+    const email = await registered();
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => login(email, PASSWORD)),
+    );
+    const statuses = results.map((r) => r.status);
+    expect(statuses).not.toContain(403);
+    expect(statuses.every((s) => s === 200 || s === 429)).toBe(true);
+    expect(statuses.filter((s) => s === 200).length).toBeGreaterThanOrEqual(1);
+    const saved = await stateOf(email);
+    expect(saved!.lockedUntil).toBeUndefined();
+    expect(saved!.failedLoginCount).toBe(0);
+    await login(email, PASSWORD).expect(200);
+  });
+
+  it('4 real failures, then the correct password double-clicked: logs in, no lock (review on #45)', async () => {
+    const email = await registered();
+    await fail(email, 4);
+    const results = await Promise.all([
+      login(email, PASSWORD),
+      login(email, PASSWORD),
+    ]);
+    const statuses = results.map((r) => r.status);
+    expect(statuses).not.toContain(403);
+    expect(statuses).toContain(200);
+    expect(statuses.every((s) => s === 200 || s === 429)).toBe(true);
+    const saved = await stateOf(email);
+    expect(saved!.lockedUntil).toBeUndefined();
+    expect(saved!.failedLoginCount).toBe(0);
+  });
+
+  it('an attempt counted but never finished (for example a crash) does not keep the account blocked', async () => {
+    const email = await registered();
+    // Five attempts counted 40 seconds ago and never released or locked.
+    await users.updateOne(
+      { email },
+      {
+        $set: {
+          failedLoginCount: 5,
+          lastLoginAttemptAt: new Date(Date.now() - 40_000),
+        },
+      },
+    );
+    await login(email, PASSWORD).expect(200);
+    expect((await stateOf(email))!.failedLoginCount).toBe(0);
   });
 });

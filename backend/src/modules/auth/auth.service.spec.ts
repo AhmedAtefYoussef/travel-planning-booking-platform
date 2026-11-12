@@ -46,6 +46,7 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
     replacePasswordHash: jest.fn().mockResolvedValue(undefined),
     claimLoginAttempt: jest.fn().mockResolvedValue(1),
     lockAfterLimit: jest.fn(),
+    activeLockOf: jest.fn().mockResolvedValue(null),
     releaseLoginAttempts: jest.fn().mockResolvedValue(true),
   };
   const sessions = {
@@ -361,6 +362,9 @@ describe('AuthService.refresh rotation outcomes (ACC-06)', () => {
 });
 
 describe('AuthService.login lockout (ACC-05)', () => {
+  const inMinutes = (m: number, extraMs = 0) =>
+    new Date(Date.now() + m * 60_000 + extraMs);
+
   it('claims the attempt before checking the password, then releases it on success', async () => {
     const { service, users, passwords } = setup();
     users.claimLoginAttempt.mockImplementation(() => {
@@ -379,16 +383,27 @@ describe('AuthService.login lockout (ACC-05)', () => {
     );
   });
 
-  it('refuses even the right password, unchecked, when the gate is closed', async () => {
+  it('refuses even the right password, unchecked, while a real lock is active', async () => {
     const { service, users, passwords, sessions } = setup();
     users.claimLoginAttempt.mockResolvedValue(null);
-    users.lockAfterLimit.mockResolvedValue(new Date(Date.now() + 60_000 + 500));
+    users.activeLockOf.mockResolvedValue(inMinutes(1, 500));
     const e = await failure(service.login(login));
     expect(e.getStatus()).toBe(403);
     expect(e.code).toBe('ACCOUNT_LOCKED');
     expect(e.message).toMatch(/try again in 2 minutes/);
     expect(passwords.verify).not.toHaveBeenCalled();
     expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('answers a closed gate without a lock with 429 and never locks (for example a double click)', async () => {
+    const { service, users, passwords } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(null);
+    const e = await failure(service.login(login));
+    expect(e.getStatus()).toBe(429);
+    expect(e.code).toBe('TOO_MANY_REQUESTS');
+    expect(users.lockAfterLimit).not.toHaveBeenCalled();
+    expect(passwords.verify).not.toHaveBeenCalled();
   });
 
   it('answers wrong passwords 1-4 with the generic 401 and the 5th with the lockout message', async () => {
@@ -399,10 +414,7 @@ describe('AuthService.login lockout (ACC-05)', () => {
     ] as const) {
       const { service, users } = setup(candidate(), false);
       users.claimLoginAttempt.mockResolvedValue(attempt);
-      users.lockAfterLimit.mockImplementation(
-        (_id: string, _max: number, lockMs: number, now: Date) =>
-          Promise.resolve(new Date(now.getTime() + lockMs)),
-      );
+      users.lockAfterLimit.mockResolvedValue(inMinutes(15));
       const e = await failure(service.login(login));
       expect(e.code).toBe(code);
       if (code === 'ACCOUNT_LOCKED') {
@@ -416,10 +428,19 @@ describe('AuthService.login lockout (ACC-05)', () => {
     }
   });
 
+  it('does not lock on a 5th failure when a parallel success already reset the count', async () => {
+    const { service, users } = setup(candidate(), false);
+    users.claimLoginAttempt.mockResolvedValue(5);
+    users.lockAfterLimit.mockResolvedValue(null);
+    expect((await failure(service.login(login))).code).toBe(
+      'INVALID_CREDENTIALS',
+    );
+  });
+
   it('refuses the right password when parallel failures locked the account meanwhile', async () => {
     const { service, users, sessions } = setup();
     users.releaseLoginAttempts.mockResolvedValue(false);
-    users.lockAfterLimit.mockResolvedValue(new Date(Date.now() + 15 * 60_000));
+    users.activeLockOf.mockResolvedValue(inMinutes(15));
     const e = await failure(service.login(login));
     expect(e.code).toBe('ACCOUNT_LOCKED');
     expect(sessions.create).not.toHaveBeenCalled();
@@ -428,9 +449,9 @@ describe('AuthService.login lockout (ACC-05)', () => {
   it('says "1 minute" when less than a minute is left', async () => {
     const { service, users } = setup();
     users.claimLoginAttempt.mockResolvedValue(null);
-    users.lockAfterLimit.mockResolvedValue(new Date(Date.now() + 10_000));
+    users.activeLockOf.mockResolvedValue(new Date(Date.now() + 10_000));
     expect((await failure(service.login(login))).message).toMatch(
-      /try again in 1 minute./,
+      /try again in 1 minute\./,
     );
   });
 

@@ -79,12 +79,15 @@ export class UsersService {
    * ACC-05 gate, the first step of every login of an existing account: atomically counts this attempt
    * before the password is checked, but only while the account is not locked and fewer than
    * `maxAttempts` attempts are counted. Parallel requests therefore get at most `maxAttempts`
-   * password checks per lock period. Returns the attempt number, or null when the gate is closed.
+   * password checks per lock period. Attempts last counted more than `staleMs` ago cannot be in flight
+   * any more (a login takes well under a second), so they never keep the gate closed. Returns the
+   * attempt number, or null when the gate is closed.
    */
   async claimLoginAttempt(
     id: string,
     maxAttempts: number,
     now = new Date(),
+    staleMs = 30_000,
   ): Promise<number | null> {
     const user = await this.users
       .findOneAndUpdate(
@@ -96,11 +99,17 @@ export class UsersService {
               $or: [
                 { failedLoginCount: { $lt: maxAttempts } },
                 { failedLoginCount: { $exists: false } },
+                {
+                  lastLoginAttemptAt: {
+                    $lt: new Date(now.getTime() - staleMs),
+                  },
+                },
+                { lastLoginAttemptAt: { $exists: false } },
               ],
             },
           ],
         },
-        { $inc: { failedLoginCount: 1 } },
+        { $inc: { failedLoginCount: 1 }, $set: { lastLoginAttemptAt: now } },
         { new: true, projection: { failedLoginCount: 1 } },
       )
       .lean();
@@ -108,15 +117,16 @@ export class UsersService {
   }
 
   /**
-   * ACC-05: locks the account for `lockMs` once `maxAttempts` attempts are counted (resetting the
-   * counter), unless a lock is already active. Returns the end of the lock that now applies.
+   * ACC-05: called only after a password check really failed as attempt number `maxAttempts`. Locks the
+   * account for `lockMs` (resetting the counter) if the count still reaches the limit, i.e. no success
+   * reset it meanwhile. Returns the lock that applies now, or null when there is none.
    */
   async lockAfterLimit(
     id: string,
     maxAttempts: number,
     lockMs: number,
     now = new Date(),
-  ): Promise<Date> {
+  ): Promise<Date | null> {
     const lockUntil = new Date(now.getTime() + lockMs);
     const locked = await this.users
       .findOneAndUpdate(
@@ -130,10 +140,15 @@ export class UsersService {
       )
       .lean();
     if (locked?.lockedUntil) return locked.lockedUntil;
-    const current = await this.users.findById(id).select('lockedUntil').lean();
-    return current?.lockedUntil && current.lockedUntil > now
-      ? current.lockedUntil
-      : lockUntil;
+    return this.activeLockOf(id, now);
+  }
+
+  /** ACC-05: the end of the lock in force, or null when the account is not locked. Never writes. */
+  async activeLockOf(id: string, now = new Date()): Promise<Date | null> {
+    const user = await this.users.findById(id).select('lockedUntil').lean();
+    return user?.lockedUntil && user.lockedUntil > now
+      ? user.lockedUntil
+      : null;
   }
 
   /**

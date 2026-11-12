@@ -120,6 +120,7 @@ export class AuthController {
       'Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ' +
       'ACC-05: the 5th consecutive wrong password locks the account for 15 minutes and returns 403 ACCOUNT_LOCKED with the minutes left; ' +
       'during the lock even the right password is refused. A successful login resets the counter. ' +
+      'At most 5 logins of one account are checked at the same instant; extra simultaneous requests get 429 TOO_MANY_REQUESTS (no lock). ' +
       'In Swagger, after logging in, every "Try it out" call sends the cookie automatically.',
   })
   @ApiBody({
