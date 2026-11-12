@@ -5,7 +5,7 @@ import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_PATTERN,
   PASSWORD_RULE_MESSAGE,
-} from '../../users';
+} from '../password-rules';
 
 /** bcrypt ignores input beyond 72 bytes (common/security/password.service.ts), so longer is rejected. */
 export const PASSWORD_MAX_BYTES = 72;

@@ -13,7 +13,10 @@ import { AppException } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
 import { ACCESS_COOKIE, authUserFromClaims } from './auth-cookies';
 import { AuthStubGuard } from './auth-stub.guard';
-import { isPublicRoute } from './auth.decorators';
+import {
+  ALLOW_PENDING_PASSWORD_CHANGE_KEY,
+  isPublicRoute,
+} from './auth.decorators';
 
 declare module 'express' {
   interface Request {
@@ -78,10 +81,30 @@ export class AuthGuard implements CanActivate {
       );
     }
     if (check.status !== 'ACTIVE') throw sessionExpired();
+    // ACC-07a, ACC-13: a temporary password must be replaced before the account can do anything else.
+    if (
+      check.mustChangePassword &&
+      !this.allowsPendingPasswordChange(context)
+    ) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.PASSWORD_CHANGE_REQUIRED,
+        'You must replace your temporary password first (PATCH /api/auth/change-password)',
+      );
+    }
     // Role and provider come from the database, not the token, so changes apply immediately.
     req.user = check.user;
     req.sessionId = sessionId;
     return true;
+  }
+
+  private allowsPendingPasswordChange(context: ExecutionContext): boolean {
+    return (
+      this.reflector.getAllAndOverride<boolean | undefined>(
+        ALLOW_PENDING_PASSWORD_CHANGE_KEY,
+        [context.getHandler(), context.getClass()],
+      ) === true
+    );
   }
 }
 

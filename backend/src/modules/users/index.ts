@@ -15,6 +15,7 @@ export {
 } from './dto/user-profile.dto';
 export { AdminSeedService, SEEDED_ADMIN_NAME } from './admin-seed.service';
 export type { AdminSeedInput, AdminSeedResult } from './admin-seed.service';
+export { NewPasswordRules, PASSWORD_MAX_BYTES } from './dto/new-password.rules';
 export {
   meetsPasswordRules,
   PASSWORD_MIN_LENGTH,

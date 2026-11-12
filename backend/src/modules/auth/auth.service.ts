@@ -17,7 +17,7 @@ import {
 import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
-import { HOME_PATHS } from './home-paths';
+import { CHANGE_PASSWORD_PATH, HOME_PATHS } from './home-paths';
 import { LOCKOUT_MINUTES, LOCKOUT_MS, MAX_FAILED_LOGINS } from './lockout';
 
 export interface LoginResult {
@@ -255,7 +255,10 @@ export class AuthService {
     };
     return {
       user,
-      homePath: HOME_PATHS[user.role],
+      // ACC-07a, ACC-13: a temporary password must be replaced before going anywhere else.
+      homePath: user.mustChangePassword
+        ? CHANGE_PASSWORD_PATH
+        : HOME_PATHS[user.role],
       accessToken: await this.jwt.signAsync(claimsFor(authUser, sessionId)),
       refreshToken,
       accessTtlMs: this.accessTtlMs,

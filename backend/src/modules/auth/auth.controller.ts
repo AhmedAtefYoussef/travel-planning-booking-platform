@@ -26,7 +26,12 @@ import {
   REFRESH_COOKIE,
   REFRESH_COOKIE_PATH,
 } from '../../common/auth/auth-cookies';
-import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
+import {
+  AllowPendingPasswordChange,
+  CurrentUser,
+  Public,
+  Roles,
+} from '../../common/auth/auth.decorators';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -250,6 +255,7 @@ export class AuthController {
 
   @Patch('change-password')
   @Roles()
+  @AllowPendingPasswordChange()
   @HttpCode(204)
   @ApiOperation({
     summary: 'ACC-08 Change my password',
@@ -283,6 +289,7 @@ export class AuthController {
 
   @Get('me')
   @Roles()
+  @AllowPendingPasswordChange()
   @ApiOperation({
     summary: 'ACC-04 / ACC-19 Current user',
     description:

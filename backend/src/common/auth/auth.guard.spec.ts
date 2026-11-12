@@ -4,7 +4,10 @@ import { JwtService } from '@nestjs/jwt';
 import { AppException } from '../errors/app.exception';
 import { AuthGuard } from './auth.guard';
 import { AuthStubGuard } from './auth-stub.guard';
-import { IS_PUBLIC_KEY } from './auth.decorators';
+import {
+  ALLOW_PENDING_PASSWORD_CHANGE_KEY,
+  IS_PUBLIC_KEY,
+} from './auth.decorators';
 import { AuthUser, ProviderType, Role } from './auth.types';
 
 /** Test-only signing keys, built at runtime so the secrets scanner never mistakes them for real ones. */
@@ -50,10 +53,14 @@ beforeEach(() => {
   sessions.touch.mockReset().mockImplementation(activeAs);
 });
 
-function guard(isPublic = false, stubEnabled = true) {
+function guard(isPublic = false, stubEnabled = true, allowPending = false) {
   const reflector = {
     get: (key: string, target: unknown) =>
       key === IS_PUBLIC_KEY && target === HANDLER && isPublic
+        ? true
+        : undefined,
+    getAllAndOverride: (key: string) =>
+      key === ALLOW_PENDING_PASSWORD_CHANGE_KEY && allowPending
         ? true
         : undefined,
   } as unknown as Reflector;
@@ -232,5 +239,35 @@ describe('AuthGuard account checks (ACC-11)', () => {
     const { ctx, req } = cookieFor(Role.User);
     await guard().canActivate(ctx);
     expect(req.user).toEqual(fresh);
+  });
+});
+
+describe('AuthGuard forced password change (ACC-07a, ACC-13)', () => {
+  const pending = () => {
+    sessions.touch.mockResolvedValue({
+      valid: true,
+      status: 'ACTIVE',
+      mustChangePassword: true,
+      user: { id: USER, role: Role.User },
+    });
+    return contextWith({
+      access_token: token({ sub: USER, sid: SESSION, role: Role.User }),
+    });
+  };
+
+  it('blocks every route not marked @AllowPendingPasswordChange with 403 PASSWORD_CHANGE_REQUIRED', async () => {
+    const { ctx, req } = pending();
+    const error = await guard()
+      .canActivate(ctx)
+      .catch((e: unknown) => e);
+    expect((error as AppException).getStatus()).toBe(403);
+    expect((error as AppException).code).toBe('PASSWORD_CHANGE_REQUIRED');
+    expect(req.user).toBeUndefined();
+  });
+
+  it('lets the change-password and /auth/me routes through', async () => {
+    const { ctx, req } = pending();
+    await expect(guard(false, true, true).canActivate(ctx)).resolves.toBe(true);
+    expect(req.user?.id).toBe(USER);
   });
 });

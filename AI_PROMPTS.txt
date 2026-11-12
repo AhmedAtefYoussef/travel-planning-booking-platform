@@ -741,3 +741,23 @@ plain text; role and status filter exactly and combine. Rows never include crede
 fields. The e2e suite tags its own accounts so counts and pages stay exact in the shared test database;
 I checked the list, filters and pages on a running app.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-07a (TRVL-17, admin password reset with forced change)
+Prompt:
+Let an admin reset a user's or moderator's password to a temporary password, and make the account set
+a new password that meets the rules at its next login. Record the action in the audit log, document the
+endpoint in Swagger, test the whole journey from reset to the forced change, and verify it on a running
+app.
+How the output was used:
+Claude added POST /api/admin/users/:id/reset-password (admins only). The admin chooses the temporary
+password, which follows the shared rules and is never returned; the account gets mustChangePassword,
+its lockout is lifted and every session ends. The update and the RESET_PASSWORD audit entry run in one
+MongoDB transaction, and admin accounts cannot be reset this way. The forced change is enforced by the
+global AuthGuard: until the password is changed, login lands on /account/change-password and every
+other protected route answers 403 PASSWORD_CHANGE_REQUIRED. The shared password-rules decorator moved
+to the users module so both modules can use it within the architecture rules.
+================================================

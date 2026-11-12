@@ -283,7 +283,13 @@ export type SessionAccountStatus = 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
  */
 export type SessionCheck =
   | { valid: false }
-  | { valid: true; user: AuthUser; status: SessionAccountStatus };
+  | {
+      valid: true;
+      user: AuthUser;
+      status: SessionAccountStatus;
+      /** ACC-07a, ACC-13: a temporary password must be replaced before anything else. */
+      mustChangePassword: boolean;
+    };
 
 export interface SessionValidator {
   /**

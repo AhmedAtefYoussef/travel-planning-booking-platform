@@ -542,3 +542,16 @@ describe('AuthService.changePassword same password (ACC-08, ACC-07a)', () => {
     expect(e.fieldErrors?.[0].field).toBe('currentPassword');
   });
 });
+
+describe('AuthService.login with a temporary password (ACC-07a, ACC-13)', () => {
+  it('lands the account on the change-password page instead of its home page', async () => {
+    const { service } = setup(
+      candidate({
+        user: profile({ role: Role.HotelModerator, mustChangePassword: true }),
+      }),
+    );
+    expect((await service.login(login)).homePath).toBe(
+      '/account/change-password',
+    );
+  });
+});

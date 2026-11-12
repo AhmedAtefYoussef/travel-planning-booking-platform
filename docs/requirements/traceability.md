@@ -28,7 +28,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-04 | Mandatory | POST /api/auth/login; GET /api/auth/me | Abdelrahman | TRVL-14 | #43 | Done |
 | ACC-05 | Mandatory | POST /api/auth/login | Abdelrahman | TRVL-15 | #45 | Done |
 | ACC-06 | Mandatory | POST /api/auth/logout; POST /api/auth/refresh; idle check in the global AuthGuard | Abdelrahman | TRVL-16 | #44 | Done |
-| ACC-07a | Mandatory | POST /api/admin/users/:id/reset-password | Abdelrahman | TRVL-17 | - | Not started |
+| ACC-07a | Mandatory | POST /api/admin/users/:id/reset-password; forced change in the global AuthGuard | Abdelrahman | TRVL-17 | #52 | Done |
 | ACC-08 | Mandatory | PATCH /api/auth/change-password | Abdelrahman | TRVL-18 | #47 | Done |
 | ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
