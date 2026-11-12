@@ -184,4 +184,26 @@ export class UsersService {
   async replacePasswordHash(id: string, passwordHash: string): Promise<void> {
     await this.users.updateOne({ _id: id }, { $set: { passwordHash } });
   }
+
+  /** ACC-08: the stored hash of an account, for checking the current password; null when gone. */
+  async findPasswordHash(id: string): Promise<string | null> {
+    if (!Types.ObjectId.isValid(id)) return null;
+    const user = await this.users.findById(id).select('+passwordHash').lean();
+    return user?.passwordHash ?? null;
+  }
+
+  /**
+   * ACC-08 (and ACC-07a/ACC-13 later): stores a new password hash. `mustChangePassword` is cleared when
+   * the owner chose the password, and set when an admin issued a temporary one.
+   */
+  async setPassword(
+    id: string,
+    passwordHash: string,
+    mustChangePassword: boolean,
+  ): Promise<void> {
+    await this.users.updateOne(
+      { _id: new Types.ObjectId(id) },
+      { $set: { passwordHash, mustChangePassword } },
+    );
+  }
 }

@@ -203,10 +203,31 @@ describe('SessionsService.revoke (ACC-06 logout)', () => {
 
   it('revokes every open session of a user', async () => {
     const { service, model } = setup();
-    await service.revokeAllForUser(USER.toHexString(), NOW);
+    await service.revokeAllForUser(USER.toHexString(), {}, NOW);
     expect(model.updateMany).toHaveBeenCalledWith(
       { userId: USER, revokedAt: { $exists: false } },
       { $set: { revokedAt: NOW } },
+    );
+  });
+
+  it('can keep one session open (the one that changed the password, ACC-08)', async () => {
+    const { service, model } = setup();
+    await service.revokeAllForUser(
+      USER.toHexString(),
+      { exceptSessionId: SESSION.toHexString() },
+      NOW,
+    );
+    expect(model.updateMany).toHaveBeenCalledWith(
+      { userId: USER, revokedAt: { $exists: false }, _id: { $ne: SESSION } },
+      { $set: { revokedAt: NOW } },
+    );
+    // A malformed id keeps nothing open rather than failing.
+    await service.revokeAllForUser(USER.toHexString(), {
+      exceptSessionId: 'x',
+    });
+    expect(model.updateMany).toHaveBeenLastCalledWith(
+      { userId: USER, revokedAt: { $exists: false } },
+      { $set: { revokedAt: expect.any(Date) } },
     );
   });
 });
