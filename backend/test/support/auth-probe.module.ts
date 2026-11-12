@@ -7,6 +7,7 @@ import {
   Roles,
 } from '../../src/common/auth/auth.decorators';
 import { ProviderType, Role } from '../../src/common/auth/auth.types';
+import { ProviderScoped } from '../../src/common/auth/provider-scope.guard';
 import type { AuthUser } from '../../src/common/auth/auth.types';
 
 @Controller('__auth')
@@ -46,6 +47,25 @@ class AuthProbeController {
   @Roles(Role.HotelModerator)
   rooms(@CurrentUser() user: AuthUser, @Param('hotelId') hotelId: string) {
     assertProviderScope(user, ProviderType.Hotel, hotelId);
+    return { ok: true };
+  }
+
+  /** Route-level provider scope (ACC-11): the assigned airline moderator, or any admin. */
+  @Get('airlines/:id/manage')
+  @Roles(Role.AirlineModerator, Role.Admin)
+  @ProviderScoped(ProviderType.Airline, 'id', { allowAdmin: true })
+  manageAirline() {
+    return { ok: true };
+  }
+
+  /** A private resource hidden as 404 from everyone but its owner (ACC-11). */
+  @Get('itineraries/:ownerId')
+  @Roles()
+  privateItinerary(
+    @CurrentUser() user: AuthUser,
+    @Param('ownerId') ownerId: string,
+  ) {
+    assertOwner(user, ownerId, { notFound: true });
     return { ok: true };
   }
 }

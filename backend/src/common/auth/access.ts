@@ -1,4 +1,5 @@
 import { HttpStatus } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { AppException } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
 import { AuthUser, MODERATOR_PROVIDER, ProviderType, Role } from './auth.types';
@@ -23,6 +24,11 @@ function forbidden(message: string): AppException {
 export interface OwnershipOptions {
   /** Roles that may access any owner's resource, e.g. [Role.Admin] for read-only admin views (ACC-17). */
   bypassRoles?: Role[];
+  /**
+   * Answer 404 instead of 403, so a stranger cannot even learn that a private resource exists
+   * (ACC-11 allows 403 or 404). Use it for private itineraries and bookings looked up by id.
+   */
+  notFound?: boolean;
 }
 
 /** True when `user` owns the resource or holds a bypass role. */
@@ -45,8 +51,29 @@ export function assertOwner(
   ownerId: IdLike,
   options: OwnershipOptions = {},
 ): void {
-  if (!isOwner(user, ownerId, options))
-    throw forbidden('You can only access your own resources');
+  if (isOwner(user, ownerId, options)) return;
+  if (options.notFound) {
+    throw new AppException(
+      HttpStatus.NOT_FOUND,
+      ErrorCode.NOT_FOUND,
+      'Resource not found',
+    );
+  }
+  throw forbidden('You can only access your own resources');
+}
+
+/**
+ * Owner-scoped query filter for lists (ACC-11): the caller's own documents, or every document for a
+ * bypass role. Spread it into the find filter so another user's records are never even read:
+ *   this.bookings.find({ ...ownerFilter(user, 'userId', { bypassRoles: [Role.Admin] }), status })
+ */
+export function ownerFilter(
+  user: AuthUser,
+  field = 'userId',
+  options: Pick<OwnershipOptions, 'bypassRoles'> = {},
+): Record<string, Types.ObjectId> {
+  if (options.bypassRoles?.includes(user.role)) return {};
+  return { [field]: new Types.ObjectId(user.id) };
 }
 
 /** True when `user` moderates exactly this provider (brief section 4: one assigned provider). */

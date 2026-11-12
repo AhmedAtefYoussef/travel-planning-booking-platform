@@ -641,3 +641,24 @@ the lock is not extended. Unknown emails are never counted. Tests cover 4 versus
 the end of the lock, separate accounts and 8 simultaneous wrong passwords; I repeated the lockout on a
 running app.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-11 (TRVL-21, real guards: roles, ownership, provider scope, account status)
+Prompt:
+Complete the real authorization layer that replaces the stub: role checks, ownership of private
+resources with the admin and moderator exceptions, moderator provider scope, and account status, so
+that unauthorised requests are rejected with 403 or 404. Keep the existing module contract unchanged,
+add the test helper from the auth-migration plan, test every rule with real cookie sessions, and
+verify it on a running app.
+How the output was used:
+Claude extended the SESSION_VALIDATOR contract so the global AuthGuard reloads the account on every
+cookie request: a suspended account gets 403 on its next request, a deactivated or deleted one 401, and
+role and provider come from the database so changes apply at once. It added a @ProviderScoped()
+route guard, an ownerFilter() helper for owner-scoped list queries, a notFound option on assertOwner
+for private resources, and test/support/auth.ts (asUser, loginAs). Claude proposed not ending open
+sessions of a locked account, so a stranger cannot log a user out by guessing passwords; the
+decision is documented in auth-migration.md and flagged in the PR for review. All new e2e cases use real cookies.
+================================================

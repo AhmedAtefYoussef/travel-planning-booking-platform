@@ -28,7 +28,10 @@ declare module 'express' {
  * - @Public() routes pass without a user.
  * - A request with an `access_token` cookie is authenticated from that signed token only; a bad or
  *   expired token is a 401, never a fall-through to the stub. Its session must also still be usable
- *   (not logged out, not idle for SESSION_IDLE_MINUTES), checked through SESSION_VALIDATOR (ACC-06).
+ *   (not logged out, not idle for SESSION_IDLE_MINUTES), checked through SESSION_VALIDATOR (ACC-06),
+ *   and its account must be ACTIVE: a suspended account gets 403, a deactivated or deleted one 401
+ *   (ACC-11). A locked account (ACC-05) keeps its open sessions: the lock only stops new logins, so a
+ *   stranger typing wrong passwords cannot log the real owner out.
  * - Without the cookie, the TRVL-131 stub (x-dev-user, AUTH_STUB=true, non-production, localhost)
  *   still works, so existing e2e suites and Swagger demos keep running until the stub is retired.
  *
@@ -60,14 +63,23 @@ export class AuthGuard implements CanActivate {
     } catch {
       throw sessionExpired();
     }
-    const user = authUserFromClaims(claims);
-    if (!user) throw sessionExpired();
+    const fromToken = authUserFromClaims(claims);
+    if (!fromToken) throw sessionExpired();
     const sessionId = (claims as { sid: string }).sid;
     // ACC-06: a logged-out or 30-minute-idle session ends now, even though the JWT is still valid.
-    if (!(await this.sessions.touch(sessionId, user.id))) {
-      throw sessionExpired();
+    const check = await this.sessions.touch(sessionId, fromToken.id);
+    if (!check.valid) throw sessionExpired();
+    // ACC-11, ACC-15/16: a suspension or deactivation applies from the next request.
+    if (check.status === 'SUSPENDED') {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.ACCOUNT_SUSPENDED,
+        'Your account is suspended. Please contact support.',
+      );
     }
-    req.user = user;
+    if (check.status !== 'ACTIVE') throw sessionExpired();
+    // Role and provider come from the database, not the token, so changes apply immediately.
+    req.user = check.user;
     req.sessionId = sessionId;
     return true;
   }
