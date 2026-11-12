@@ -682,3 +682,23 @@ every other session of the account is revoked while the current one stays logged
 cover each rule for every role; I re-ran the registration suite to confirm the refactor changed
 nothing there.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-09 (TRVL-19, edit profile)
+Prompt:
+Let any logged-in user view and edit their own name, phone number and preferred currency, saving only
+when every field passes validation. Follow the team's PATCH conventions, validate the currency against
+the supported reference currencies, document the endpoints in Swagger, test them, and verify them on a
+running app.
+How the output was used:
+Claude added GET and PATCH /api/users/me (UsersController, ProfileService, UpdateProfileDto). Fields use
+@Omittable(), so a missing field is kept and null is rejected; the phone must be an E.164 international
+number (spaces, dashes and brackets are stripped first); the currency must be one of the codes in
+Countries.csv, read through REFERENCE_SERVICE. Any invalid field returns a 400 field error and nothing
+is saved; email, password, role and status cannot be changed here. The e2e suite seeds the official
+reference data so the currency rule runs against the real dataset; I checked the endpoints on a running
+app.
+================================================

@@ -2,10 +2,12 @@ import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SESSION_VALIDATOR } from '../../common/contracts';
 import { AdminSeedService } from './admin-seed.service';
+import { ProfileService } from './profile.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
 import { SessionValidatorService } from './session-validator.service';
 import { SessionsService } from './sessions.service';
+import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
 /**
@@ -22,8 +24,10 @@ import { UsersService } from './users.service';
       { name: Session.name, schema: SessionSchema },
     ]),
   ],
+  controllers: [UsersController],
   providers: [
     AdminSeedService,
+    ProfileService,
     UsersService,
     SessionsService,
     SessionValidatorService,
