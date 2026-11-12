@@ -622,3 +622,22 @@ Claude wrote AddAvailabilityDto, the date validators, RoomsService.addAvailabili
 insert are a single atomic update. The tests caught a bug in the range-end validator (end before start was accepted),
 which was fixed before the PR. I reviewed the diff and will verify each endpoint by hand in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (TRVL-15, lockout after 5 failed logins)
+Prompt:
+Lock an account for 15 minutes after 5 consecutive failed login attempts and show a lockout message,
+and reset the counter on a successful login. Make the counting safe under concurrent requests, test
+the exact limits and the reset, and verify the lockout on a running app.
+How the output was used:
+Claude added UsersService.recordFailedLogin, a single MongoDB update pipeline that increments
+failedLoginCount and, on the 5th failure, sets lockedUntil to 15 minutes later and resets the counter in
+the same atomic step, plus resetLoginFailures for a successful login. The 5th wrong password already
+returns 403 ACCOUNT_LOCKED with the minutes left; while locked even the right password is refused and
+the lock is not extended. Unknown emails are never counted. Tests cover 4 versus 5 failures, the reset,
+the end of the lock, separate accounts and 8 simultaneous wrong passwords; I repeated the lockout on a
+running app.
+================================================

@@ -33,6 +33,7 @@ const candidate = (
   id: USER_ID,
   status: AccountStatus.Active,
   passwordHash: 'stored-hash',
+  failedLoginCount: 0,
   user: profile(),
   ...overrides,
 });
@@ -43,6 +44,10 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
     findForLogin: jest.fn().mockResolvedValue(found),
     findProfile: jest.fn().mockResolvedValue(profile()),
     replacePasswordHash: jest.fn().mockResolvedValue(undefined),
+    claimLoginAttempt: jest.fn().mockResolvedValue(1),
+    lockAfterLimit: jest.fn(),
+    activeLockOf: jest.fn().mockResolvedValue(null),
+    releaseLoginAttempts: jest.fn().mockResolvedValue(true),
   };
   const sessions = {
     create: jest.fn().mockResolvedValue({
@@ -353,5 +358,106 @@ describe('AuthService.refresh rotation outcomes (ACC-06)', () => {
     const e = await failure(service.refresh('raw-refresh'));
     expect(e.getStatus()).toBe(401);
     expect(e.message).toMatch(/old refresh token was used again/);
+  });
+});
+
+describe('AuthService.login lockout (ACC-05)', () => {
+  const inMinutes = (m: number, extraMs = 0) =>
+    new Date(Date.now() + m * 60_000 + extraMs);
+
+  it('claims the attempt before checking the password, then releases it on success', async () => {
+    const { service, users, passwords } = setup();
+    users.claimLoginAttempt.mockImplementation(() => {
+      expect(passwords.verify).not.toHaveBeenCalled();
+      return Promise.resolve(1);
+    });
+    await service.login(login);
+    expect(users.claimLoginAttempt).toHaveBeenCalledWith(
+      USER_ID,
+      5,
+      expect.any(Date),
+    );
+    expect(users.releaseLoginAttempts).toHaveBeenCalledWith(
+      USER_ID,
+      expect.any(Date),
+    );
+  });
+
+  it('refuses even the right password, unchecked, while a real lock is active', async () => {
+    const { service, users, passwords, sessions } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(inMinutes(1, 500));
+    const e = await failure(service.login(login));
+    expect(e.getStatus()).toBe(403);
+    expect(e.code).toBe('ACCOUNT_LOCKED');
+    expect(e.message).toMatch(/try again in 2 minutes/);
+    expect(passwords.verify).not.toHaveBeenCalled();
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('answers a closed gate without a lock with 429 and never locks (for example a double click)', async () => {
+    const { service, users, passwords } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(null);
+    const e = await failure(service.login(login));
+    expect(e.getStatus()).toBe(429);
+    expect(e.code).toBe('TOO_MANY_REQUESTS');
+    expect(users.lockAfterLimit).not.toHaveBeenCalled();
+    expect(passwords.verify).not.toHaveBeenCalled();
+  });
+
+  it('answers wrong passwords 1-4 with the generic 401 and the 5th with the lockout message', async () => {
+    for (const [attempt, code] of [
+      [1, 'INVALID_CREDENTIALS'],
+      [4, 'INVALID_CREDENTIALS'],
+      [5, 'ACCOUNT_LOCKED'],
+    ] as const) {
+      const { service, users } = setup(candidate(), false);
+      users.claimLoginAttempt.mockResolvedValue(attempt);
+      users.lockAfterLimit.mockResolvedValue(inMinutes(15));
+      const e = await failure(service.login(login));
+      expect(e.code).toBe(code);
+      if (code === 'ACCOUNT_LOCKED') {
+        expect(e.message).toMatch(
+          /locked for 15 minutes; try again in 15 minutes/,
+        );
+      } else {
+        expect(users.lockAfterLimit).not.toHaveBeenCalled();
+      }
+      expect(users.releaseLoginAttempts).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not lock on a 5th failure when a parallel success already reset the count', async () => {
+    const { service, users } = setup(candidate(), false);
+    users.claimLoginAttempt.mockResolvedValue(5);
+    users.lockAfterLimit.mockResolvedValue(null);
+    expect((await failure(service.login(login))).code).toBe(
+      'INVALID_CREDENTIALS',
+    );
+  });
+
+  it('refuses the right password when parallel failures locked the account meanwhile', async () => {
+    const { service, users, sessions } = setup();
+    users.releaseLoginAttempts.mockResolvedValue(false);
+    users.activeLockOf.mockResolvedValue(inMinutes(15));
+    const e = await failure(service.login(login));
+    expect(e.code).toBe('ACCOUNT_LOCKED');
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('says "1 minute" when less than a minute is left', async () => {
+    const { service, users } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(new Date(Date.now() + 10_000));
+    expect((await failure(service.login(login))).message).toMatch(
+      /try again in 1 minute\./,
+    );
+  });
+
+  it('never counts attempts for an unknown email', async () => {
+    const { service, users } = setup(null);
+    await failure(service.login(login));
+    expect(users.claimLoginAttempt).not.toHaveBeenCalled();
   });
 });

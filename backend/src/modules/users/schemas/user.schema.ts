@@ -109,6 +109,10 @@ export class User {
   })
   failedLoginCount!: number;
 
+  /** When the last login attempt was counted; attempts older than this window are stale (ACC-05). */
+  @Prop({ type: Date })
+  lastLoginAttemptAt?: Date;
+
   /** Login is refused until this instant (ACC-05). */
   @Prop({ type: Date })
   lockedUntil?: Date;

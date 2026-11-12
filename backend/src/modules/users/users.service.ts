@@ -21,6 +21,9 @@ export interface LoginCandidate {
   id: string;
   status: AccountStatus;
   passwordHash: string;
+  /** ACC-05 consecutive failures so far, and the end of an active or past lock. */
+  failedLoginCount: number;
+  lockedUntil?: Date;
   user: UserProfileDto;
 }
 
@@ -66,7 +69,107 @@ export class UsersService {
       id: user._id.toHexString(),
       status: user.status,
       passwordHash: user.passwordHash,
+      failedLoginCount: user.failedLoginCount ?? 0,
+      ...(user.lockedUntil ? { lockedUntil: user.lockedUntil } : {}),
       user: toUserProfile(user),
+    };
+  }
+
+  /**
+   * ACC-05 gate, the first step of every login of an existing account: atomically counts this attempt
+   * before the password is checked, but only while the account is not locked and fewer than
+   * `maxAttempts` attempts are counted. Parallel requests therefore get at most `maxAttempts`
+   * password checks per lock period. Attempts last counted more than `staleMs` ago cannot be in flight
+   * any more (a login takes well under a second), so they never keep the gate closed. Returns the
+   * attempt number, or null when the gate is closed.
+   */
+  async claimLoginAttempt(
+    id: string,
+    maxAttempts: number,
+    now = new Date(),
+    staleMs = 30_000,
+  ): Promise<number | null> {
+    const user = await this.users
+      .findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(id),
+          $and: [
+            this.notLockedAt(now),
+            {
+              $or: [
+                { failedLoginCount: { $lt: maxAttempts } },
+                { failedLoginCount: { $exists: false } },
+                {
+                  lastLoginAttemptAt: {
+                    $lt: new Date(now.getTime() - staleMs),
+                  },
+                },
+                { lastLoginAttemptAt: { $exists: false } },
+              ],
+            },
+          ],
+        },
+        { $inc: { failedLoginCount: 1 }, $set: { lastLoginAttemptAt: now } },
+        { new: true, projection: { failedLoginCount: 1 } },
+      )
+      .lean();
+    return user ? user.failedLoginCount : null;
+  }
+
+  /**
+   * ACC-05: called only after a password check really failed as attempt number `maxAttempts`. Locks the
+   * account for `lockMs` (resetting the counter) if the count still reaches the limit, i.e. no success
+   * reset it meanwhile. Returns the lock that applies now, or null when there is none.
+   */
+  async lockAfterLimit(
+    id: string,
+    maxAttempts: number,
+    lockMs: number,
+    now = new Date(),
+  ): Promise<Date | null> {
+    const lockUntil = new Date(now.getTime() + lockMs);
+    const locked = await this.users
+      .findOneAndUpdate(
+        {
+          _id: new Types.ObjectId(id),
+          failedLoginCount: { $gte: maxAttempts },
+          ...this.notLockedAt(now),
+        },
+        { $set: { lockedUntil: lockUntil, failedLoginCount: 0 } },
+        { new: true, projection: { lockedUntil: 1 } },
+      )
+      .lean();
+    if (locked?.lockedUntil) return locked.lockedUntil;
+    return this.activeLockOf(id, now);
+  }
+
+  /** ACC-05: the end of the lock in force, or null when the account is not locked. Never writes. */
+  async activeLockOf(id: string, now = new Date()): Promise<Date | null> {
+    const user = await this.users.findById(id).select('lockedUntil').lean();
+    return user?.lockedUntil && user.lockedUntil > now
+      ? user.lockedUntil
+      : null;
+  }
+
+  /**
+   * ACC-05: a successful login resets the counter, but only if no lock is active. A lock set by parallel
+   * failures after this attempt started is never cleared. Returns false when such a lock applies.
+   */
+  async releaseLoginAttempts(id: string, now = new Date()): Promise<boolean> {
+    const res = await this.users.updateOne(
+      { _id: new Types.ObjectId(id), ...this.notLockedAt(now) },
+      { $set: { failedLoginCount: 0 }, $unset: { lockedUntil: 1 } },
+    );
+    return res.matchedCount === 1;
+  }
+
+  private notLockedAt(now: Date) {
+    return {
+      $or: [
+        { lockedUntil: { $exists: false } },
+        { lockedUntil: null },
+        { lockedUntil: { $lte: now } },
+      ],
     };
   }
 
