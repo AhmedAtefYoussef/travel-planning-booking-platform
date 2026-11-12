@@ -803,3 +803,21 @@ while a second tab inside that window gets 409 REFRESH_SUPERSEDED without cleari
 password to itself is a 400, and a deactivated airline or hotel returns 409 PROVIDER_INACTIVE. Each
 reported scenario is now an e2e test; I ran the full verify on every rebuilt branch.
 ================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (re-review on #45), stack rebase onto develop
+Prompt:
+Fix the defect found in the re-review of the lockout: parallel correct logins, or a double click after
+four real failures, locked the account. Lock only on real failed attempts, add the two reported scenarios
+as tests, rebase the stack onto develop after the hotel PRs were merged, and verify every branch again.
+How the output was used:
+Claude changed the login gate so a lock is set only when a password check really fails as the fifth
+attempt and no success reset the count meanwhile; a closed gate without an active lock now returns 429
+and writes nothing, and attempts older than 30 seconds are treated as stale. Both reported scenarios and
+the stale case are e2e tests that passed in repeated runs. The stack was rebuilt on develop; the only
+conflict was AI_PROMPTS.txt, resolved by keeping every entry. A first resolution attempt was malformed
+and was caught by the repository hygiene check before anything was committed.
+================================================
