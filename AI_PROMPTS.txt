@@ -907,3 +907,19 @@ import conflicts. It then wrote a failing e2e test showing that HTL-05's availab
 answered overlapping ranges without field errors, switched replaceAvailability to overlapFieldErrors
 so it matches HTL-04, and removed the now unused firstOverlap helper. npm run verify passes.
 ================================================
+
+================================================
+Date: 2026-11-13
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-09 (TRVL-54)
+Prompt:
+Implement HTL-09: the hotel moderator sets the standard check-in and check-out times through PUT
+/api/hotels/:id/policies, shown on the hotel page and the booking summary, following the team's hotel rules
+(scope first, atomic validated update, deactivated hotels read-only) and leaving room for HTL-10's tiers.
+How the output was used:
+Claude added SetHotelPoliciesDto (both times required, 24-hour HH:mm using the shared LOCAL_TIME_HH_MM rule),
+HotelsService.setPolicies, the Swagger route, checkInTime/checkOutTime on every hotel response, and unit and
+e2e tests. I agreed the design (check-out may be earlier than check-in; tiers are never touched) before it
+was written and reviewed the tests.
+================================================

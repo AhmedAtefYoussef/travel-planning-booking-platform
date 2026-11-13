@@ -12,6 +12,7 @@ import {
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
+import type { SetHotelPoliciesDto } from './dto/hotel-policy.dto';
 import { Hotel, HotelDocument } from './schemas/hotel.schema';
 
 const EDITABLE_FIELDS = [
@@ -94,6 +95,39 @@ export class HotelsService {
     );
   }
 
+  /**
+   * HTL-09: the assigned moderator sets the standard check-in and check-out times (hotel local time).
+   * Same order and atomicity as `update`: scope first, then one validated write that only matches an
+   * active hotel. Only the two times are set, so the HTL-10 cancellation tiers are never touched.
+   */
+  async setPolicies(
+    user: AuthUser,
+    id: string,
+    dto: SetHotelPoliciesDto,
+  ): Promise<HotelDto> {
+    assertProviderScope(user, ProviderType.Hotel, id);
+    const hotel = await this.hotels
+      .findOneAndUpdate(
+        { _id: id, ...ACTIVE_PROVIDER_FILTER },
+        {
+          $set: {
+            checkInTime: dto.checkInTime,
+            checkOutTime: dto.checkOutTime,
+          },
+        },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (hotel) return toHotelDto(hotel);
+    // Not matched: 404 for an unknown hotel, 403 for a deactivated one, else a concurrent change.
+    await this.loadManaged(user, id);
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.CONFLICT,
+      'The hotel changed while its policies were being set. Try again',
+    );
+  }
+
   /** Loads a hotel or throws 404; other hotel services reuse it. */
   async load(id: string | Types.ObjectId): Promise<HotelDocument> {
     const hotel = await this.hotels.findById(id).exec();
@@ -163,6 +197,8 @@ export function toHotelDto(hotel: HotelDocument): HotelDto {
     photos: [...hotel.photos],
     starClass: hotel.starClass ?? null,
     amenities: [...hotel.amenities],
+    checkInTime: hotel.checkInTime ?? null,
+    checkOutTime: hotel.checkOutTime ?? null,
     isActive: hotel.isActive,
     createdAt: hotel.createdAt,
     updatedAt: hotel.updatedAt,

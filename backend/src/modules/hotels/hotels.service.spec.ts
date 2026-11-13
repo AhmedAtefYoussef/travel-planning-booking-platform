@@ -199,3 +199,57 @@ describe('HotelsService (HTL-01)', () => {
     expect(hotel.name).toBe('Nile View Hotel');
   });
 });
+
+describe('HotelsService.setPolicies (HTL-09)', () => {
+  const times = { checkInTime: '14:00', checkOutTime: '12:00' };
+
+  it('sets only the two times, in one validated atomic update of an active hotel', async () => {
+    const tiers = [{ daysBefore: 7, refundPercent: 50 }];
+    const hotel = fakeHotel({ cancellationTiers: tiers });
+    const { service, model } = setup(hotel);
+    const dto = await service.setPolicies(own(), id, times);
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: id, isActive: true },
+      { $set: times },
+      { new: true, runValidators: true },
+    );
+    expect(dto).toMatchObject(times);
+    expect(hotel).toMatchObject({ cancellationTiers: tiers });
+  });
+
+  it('returns null times on a hotel that has none yet', async () => {
+    const { service } = setup(fakeHotel());
+    const dto = await service.update(own(), id, { name: 'Renamed Hotel' });
+    expect(dto).toMatchObject({ checkInTime: null, checkOutTime: null });
+  });
+
+  it("refuses another hotel's moderator, an admin and a traveller with 403 before reading", async () => {
+    const { service, model } = setup(fakeHotel({ isActive: false }));
+    for (const user of [
+      moderatorOf(new Types.ObjectId().toHexString()),
+      { id: new Types.ObjectId().toHexString(), role: Role.Admin },
+      { id: new Types.ObjectId().toHexString(), role: Role.User },
+    ] as AuthUser[]) {
+      await expect(service.setPolicies(user, id, times)).rejects.toMatchObject({
+        status: 403,
+        message: expect.stringContaining('assigned') as string,
+      });
+    }
+    expect(model.findById).not.toHaveBeenCalled();
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('gives 404 for an unknown hotel and 403 for a deactivated one, changing nothing', async () => {
+    await expect(
+      setup(null).service.setPolicies(own(), id, times),
+    ).rejects.toMatchObject({ status: 404 });
+    const closed = fakeHotel({ isActive: false });
+    await expect(
+      setup(closed).service.setPolicies(own(), id, times),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining('deactivated') as string,
+    });
+    expect(closed).not.toHaveProperty('checkInTime');
+  });
+});
