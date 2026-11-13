@@ -134,7 +134,8 @@ export function validateEnv(
   return env;
 }
 
-const PLACEHOLDER = /change-me|replace_me|placeholder/i;
+// Matches every placeholder in .env.example, including ADMIN_SEED_PASSWORD=ChangeMe!2026 (no hyphen).
+const PLACEHOLDER = /change-?me|replace_?me|placeholder/i;
 const SECRET_KEYS = [
   'JWT_SECRET',
   'STRIPE_SECRET_KEY',
