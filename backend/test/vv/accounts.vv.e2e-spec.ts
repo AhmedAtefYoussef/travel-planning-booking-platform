@@ -222,29 +222,26 @@ describe('Lockout boundaries (vv): ACC-05', () => {
     );
   });
 
-  // F-A-01: a deactivated account is counted and locked, so it answers ACCOUNT_LOCKED where an unknown email answers 401 (enumeration).
-  it.failing(
-    'a deactivated account behaves exactly like an unknown email: never locked, never ACCOUNT_LOCKED',
-    async () => {
-      const email = await registered();
-      await users.updateOne(
-        { email },
-        { $set: { status: AccountStatus.Deactivated } },
-      );
-      const ghost = uniqueEmail('ghost');
-      for (let i = 1; i <= 6; i++) {
-        const deactivated = await login(email, WRONG);
-        const unknown = await login(ghost, WRONG);
-        expect(errorShape(deactivated)).toEqual(errorShape(unknown));
-      }
-      const right = await login(email, PASSWORD);
-      expect(right.status).toBe(401);
-      expect(right.body.code).toBe('INVALID_CREDENTIALS');
-      expect((await users.findOne({ email }).lean())?.lockedUntil).toBe(
-        undefined,
-      );
-    },
-  );
+  // F-A-01 (fixed): a deactivated account is never counted or locked, exactly like an unknown email.
+  it('a deactivated account behaves exactly like an unknown email: never locked, never ACCOUNT_LOCKED', async () => {
+    const email = await registered();
+    await users.updateOne(
+      { email },
+      { $set: { status: AccountStatus.Deactivated } },
+    );
+    const ghost = uniqueEmail('ghost');
+    for (let i = 1; i <= 6; i++) {
+      const deactivated = await login(email, WRONG);
+      const unknown = await login(ghost, WRONG);
+      expect(errorShape(deactivated)).toEqual(errorShape(unknown));
+    }
+    const right = await login(email, PASSWORD);
+    expect(right.status).toBe(401);
+    expect(right.body.code).toBe('INVALID_CREDENTIALS');
+    expect((await users.findOne({ email }).lean())?.lockedUntil).toBe(
+      undefined,
+    );
+  });
 });
 
 describe('Cookie-only tokens (vv): ACC-19', () => {
