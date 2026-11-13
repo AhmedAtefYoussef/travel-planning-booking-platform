@@ -117,7 +117,7 @@ export class HotelsController {
         value: { checkInTime: '14:00', checkOutTime: '12:00' },
       },
       invalid: {
-        summary: 'Invalid: 12-hour time, hour 24, and a missing check-out',
+        summary: 'Invalid: a 12-hour time and hour 24',
         value: { checkInTime: '2pm', checkOutTime: '24:00' },
       },
     },
