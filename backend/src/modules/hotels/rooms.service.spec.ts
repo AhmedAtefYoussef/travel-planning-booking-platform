@@ -441,4 +441,10 @@ describe('nightsOutside (HTL-05)', () => {
       '2027-01-05',
     );
   });
+
+  it('an invalid zone fails closed to the earliest zone, never to the later UTC date', () => {
+    const at = new Date('2027-01-06T05:00:00Z');
+    expect(todayIn('Not/AZone', at)).toBe(todayIn(EARLIEST_ZONE, at));
+    expect(todayIn('Not/AZone', at)).toBe('2027-01-05');
+  });
 });
