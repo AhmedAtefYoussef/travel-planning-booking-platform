@@ -467,30 +467,27 @@ describe('Admin-only routes and the dev stub (vv): ACC-11', () => {
     );
   });
 
-  // F-A-02: without a cookie the AUTH_STUB fallback skips the session, status and mustChangePassword checks for real account ids.
-  it.failing(
-    'the x-dev-user stub cannot act as a real deactivated or suspended account',
-    async () => {
-      const deactivated = await loginAs(app, Role.User);
-      const suspended = await loginAs(app, Role.User);
-      await users.updateOne(
-        { _id: deactivated.userId },
-        { $set: { status: AccountStatus.Deactivated } },
-      );
-      await users.updateOne(
-        { _id: suspended.userId },
-        { $set: { status: AccountStatus.Suspended } },
-      );
-      const asDeactivated = await http()
-        .get('/api/users/me')
-        .set(asUser(Role.User, { userId: deactivated.userId }));
-      const asSuspended = await http()
-        .get('/api/users/me')
-        .set(asUser(Role.User, { userId: suspended.userId }));
-      expect(asDeactivated.status).toBe(401);
-      expect(asSuspended.status).toBe(403);
-    },
-  );
+  // F-A-02 (fixed): a stub caller naming a real account gets the same status checks as a cookie request.
+  it('the x-dev-user stub cannot act as a real deactivated or suspended account', async () => {
+    const deactivated = await loginAs(app, Role.User);
+    const suspended = await loginAs(app, Role.User);
+    await users.updateOne(
+      { _id: deactivated.userId },
+      { $set: { status: AccountStatus.Deactivated } },
+    );
+    await users.updateOne(
+      { _id: suspended.userId },
+      { $set: { status: AccountStatus.Suspended } },
+    );
+    const asDeactivated = await http()
+      .get('/api/users/me')
+      .set(asUser(Role.User, { userId: deactivated.userId }));
+    const asSuspended = await http()
+      .get('/api/users/me')
+      .set(asUser(Role.User, { userId: suspended.userId }));
+    expect(asDeactivated.status).toBe(401);
+    expect(asSuspended.status).toBe(403);
+  });
 });
 
 describe('Self-deactivation (vv): ACC-12', () => {
