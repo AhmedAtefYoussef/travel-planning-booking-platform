@@ -821,3 +821,23 @@ the stale case are e2e tests that passed in repeated runs. The stack was rebuilt
 conflict was AI_PROMPTS.txt, resolved by keeping every entry. A first resolution attempt was malformed
 and was caught by the repository hygiene check before anything was committed.
 ================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-136 (Milestone 1 V&V of every Done/Partial requirement), TRVL-129 (CI gate)
+Prompt:
+Analyse the project description, the requirements workbook, the mock data and every Jira task, then
+verify and validate each implemented feature against the workbook and the Jira acceptance criteria.
+Test every endpoint through Swagger so that all scenarios are handled and results are accurate and
+consistent, research best practices first, and apply the most useful skills and agentic workflows.
+How the output was used:
+Claude planned a requirements-based V&V campaign (atomic rules per requirement, boundary values,
+decision tables, an OWASP API Top 10 authorisation matrix, database oracles, concurrency checks) and
+ran four parallel module tracks plus independent verifiers. I started the backend on a separate Atlas
+database with stub auth off; Claude drove Swagger UI with real cookie sessions and captured evidence.
+The result is docs/qa/vv-m1 (report and four traceability matrices), new e2e specs under
+backend/test/vv that pin each confirmed defect with it.failing, and a non-blocking CI step that lists
+implemented requirements no test cites. I reviewed the findings before any Jira bug was filed.
+================================================
