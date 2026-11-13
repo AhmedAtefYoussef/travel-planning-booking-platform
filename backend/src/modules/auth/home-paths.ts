@@ -10,3 +10,6 @@ export const HOME_PATHS: Readonly<Record<Role, string>> = {
   [Role.AirlineModerator]: '/moderator/airline',
   [Role.HotelModerator]: '/moderator/hotel',
 };
+
+/** Where an account with a temporary password lands until it sets its own (ACC-07a, ACC-13). */
+export const CHANGE_PASSWORD_PATH = '/account/change-password';

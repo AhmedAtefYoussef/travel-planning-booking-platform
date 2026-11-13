@@ -146,3 +146,178 @@ describe('UsersService lookups (ACC-04, ACC-19)', () => {
     );
   });
 });
+
+describe('UsersService login attempts (ACC-05)', () => {
+  const id = new Types.ObjectId();
+  const NOW = new Date('2026-11-11T10:00:00Z');
+  const LOCK_END = new Date('2026-11-11T10:15:00Z');
+  const notLocked = {
+    $or: [
+      { lockedUntil: { $exists: false } },
+      { lockedUntil: null },
+      { lockedUntil: { $lte: NOW } },
+    ],
+  };
+
+  function withModel(
+    results: {
+      findOneAndUpdate?: unknown;
+      findById?: unknown;
+      matched?: number;
+    } = {},
+  ) {
+    const model = {
+      findOneAndUpdate: jest.fn().mockReturnValue({
+        lean: () => Promise.resolve(results.findOneAndUpdate ?? null),
+      }),
+      findById: jest.fn().mockReturnValue({
+        select: () => ({
+          lean: () => Promise.resolve(results.findById ?? null),
+        }),
+      }),
+      updateOne: jest
+        .fn()
+        .mockResolvedValue({ matchedCount: results.matched ?? 1 }),
+    };
+    return {
+      service: new UsersService(model as unknown as Model<User>),
+      model,
+    };
+  }
+
+  it('claims an attempt atomically while unlocked and under the limit, ignoring stale in-flight attempts', async () => {
+    const { service, model } = withModel({
+      findOneAndUpdate: { failedLoginCount: 3 },
+    });
+    await expect(
+      service.claimLoginAttempt(id.toHexString(), 5, NOW),
+    ).resolves.toBe(3);
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: id,
+        $and: [
+          notLocked,
+          {
+            $or: [
+              { failedLoginCount: { $lt: 5 } },
+              { failedLoginCount: { $exists: false } },
+              {
+                lastLoginAttemptAt: {
+                  $lt: new Date(NOW.getTime() - 30_000),
+                },
+              },
+              { lastLoginAttemptAt: { $exists: false } },
+            ],
+          },
+        ],
+      },
+      { $inc: { failedLoginCount: 1 }, $set: { lastLoginAttemptAt: NOW } },
+      { new: true, projection: { failedLoginCount: 1 } },
+    );
+  });
+
+  it('returns null when the gate is closed', async () => {
+    await expect(
+      withModel().service.claimLoginAttempt(id.toHexString(), 5, NOW),
+    ).resolves.toBeNull();
+  });
+
+  it('locks for 15 minutes when the count still reaches the limit, resetting the counter', async () => {
+    const { service, model } = withModel({
+      findOneAndUpdate: { lockedUntil: LOCK_END },
+    });
+    await expect(
+      service.lockAfterLimit(id.toHexString(), 5, 15 * 60_000, NOW),
+    ).resolves.toEqual(LOCK_END);
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: id, failedLoginCount: { $gte: 5 }, ...notLocked },
+      { $set: { lockedUntil: LOCK_END, failedLoginCount: 0 } },
+      { new: true, projection: { lockedUntil: 1 } },
+    );
+  });
+
+  it('does not invent a lock: returns an existing one, or null when a success reset the count', async () => {
+    const earlier = new Date('2026-11-11T10:05:00Z');
+    await expect(
+      withModel({ findById: { lockedUntil: earlier } }).service.lockAfterLimit(
+        id.toHexString(),
+        5,
+        15 * 60_000,
+        NOW,
+      ),
+    ).resolves.toEqual(earlier);
+    await expect(
+      withModel({ findById: {} }).service.lockAfterLimit(
+        id.toHexString(),
+        5,
+        15 * 60_000,
+        NOW,
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it('reports only an active lock, and never writes', async () => {
+    const { service, model } = withModel({
+      findById: { lockedUntil: LOCK_END },
+    });
+    await expect(service.activeLockOf(id.toHexString(), NOW)).resolves.toEqual(
+      LOCK_END,
+    );
+    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+    const expired = withModel({
+      findById: { lockedUntil: new Date('2026-11-11T09:00:00Z') },
+    });
+    await expect(
+      expired.service.activeLockOf(id.toHexString(), NOW),
+    ).resolves.toBeNull();
+  });
+
+  it('resets the counter on success only if no lock is active', async () => {
+    const { service, model } = withModel();
+    await expect(
+      service.releaseLoginAttempts(id.toHexString(), NOW),
+    ).resolves.toBe(true);
+    expect(model.updateOne).toHaveBeenCalledWith(
+      { _id: id, ...notLocked },
+      { $set: { failedLoginCount: 0 }, $unset: { lockedUntil: 1 } },
+    );
+    await expect(
+      withModel({ matched: 0 }).service.releaseLoginAttempts(
+        id.toHexString(),
+        NOW,
+      ),
+    ).resolves.toBe(false);
+  });
+});
+
+describe('UsersService passwords (ACC-08)', () => {
+  const id = new Types.ObjectId();
+
+  it('reads the stored hash, or null for a missing account or malformed id', async () => {
+    const lean = jest.fn().mockResolvedValue({ passwordHash: 'stored-hash' });
+    const select = jest.fn().mockReturnValue({ lean });
+    const model = { findById: jest.fn().mockReturnValue({ select }) };
+    const service = new UsersService(model as unknown as Model<User>);
+
+    await expect(service.findPasswordHash(id.toHexString())).resolves.toBe(
+      'stored-hash',
+    );
+    expect(select).toHaveBeenCalledWith('+passwordHash');
+    lean.mockResolvedValue(null);
+    await expect(
+      service.findPasswordHash(id.toHexString()),
+    ).resolves.toBeNull();
+    await expect(service.findPasswordHash('x')).resolves.toBeNull();
+  });
+
+  it('stores a new hash and the forced-change flag', async () => {
+    const model = { updateOne: jest.fn().mockResolvedValue({}) };
+    const service = new UsersService(model as unknown as Model<User>);
+    await service.setPassword(id.toHexString(), 'new-hash', false);
+    expect(model.updateOne).toHaveBeenCalledWith(
+      { _id: id },
+      { $set: { passwordHash: 'new-hash', mustChangePassword: false } },
+    );
+  });
+});

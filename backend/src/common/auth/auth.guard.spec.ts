@@ -4,8 +4,11 @@ import { JwtService } from '@nestjs/jwt';
 import { AppException } from '../errors/app.exception';
 import { AuthGuard } from './auth.guard';
 import { AuthStubGuard } from './auth-stub.guard';
-import { IS_PUBLIC_KEY } from './auth.decorators';
-import { AuthUser, Role } from './auth.types';
+import {
+  ALLOW_PENDING_PASSWORD_CHANGE_KEY,
+  IS_PUBLIC_KEY,
+} from './auth.decorators';
+import { AuthUser, ProviderType, Role } from './auth.types';
 
 /** Test-only signing keys, built at runtime so the secrets scanner never mistakes them for real ones. */
 const SECRET = 's'.repeat(48);
@@ -39,15 +42,25 @@ function contextWith(
 }
 
 /** SESSION_VALIDATOR stand-in: sessions are usable unless a test says otherwise. */
-const sessions = { touch: jest.fn().mockResolvedValue(true) };
+const activeAs = (_sid: string, userId: string) =>
+  Promise.resolve({
+    valid: true as const,
+    status: 'ACTIVE' as const,
+    user: { id: userId, role: Role.User },
+  });
+const sessions = { touch: jest.fn().mockImplementation(activeAs) };
 beforeEach(() => {
-  sessions.touch.mockReset().mockResolvedValue(true);
+  sessions.touch.mockReset().mockImplementation(activeAs);
 });
 
-function guard(isPublic = false, stubEnabled = true) {
+function guard(isPublic = false, stubEnabled = true, allowPending = false) {
   const reflector = {
     get: (key: string, target: unknown) =>
       key === IS_PUBLIC_KEY && target === HANDLER && isPublic
+        ? true
+        : undefined,
+    getAllAndOverride: (key: string) =>
+      key === ALLOW_PENDING_PASSWORD_CHANGE_KEY && allowPending
         ? true
         : undefined,
   } as unknown as Reflector;
@@ -162,7 +175,7 @@ describe('AuthGuard session checks (ACC-06)', () => {
   });
 
   it('rejects a valid token whose session was logged out or went idle', async () => {
-    sessions.touch.mockResolvedValue(false);
+    sessions.touch.mockResolvedValue({ valid: false });
     const { ctx, req } = contextWith({
       access_token: token({ sub: USER, sid: SESSION, role: Role.User }),
     });
@@ -176,5 +189,85 @@ describe('AuthGuard session checks (ACC-06)', () => {
       .canActivate(contextWith({ access_token: 'garbage' }).ctx)
       .catch(() => undefined);
     expect(sessions.touch).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthGuard account checks (ACC-11)', () => {
+  const cookieFor = (role: Role) =>
+    contextWith({ access_token: token({ sub: USER, sid: SESSION, role }) });
+
+  it('rejects a suspended account with 403 ACCOUNT_SUSPENDED on its next request', async () => {
+    sessions.touch.mockResolvedValue({
+      valid: true,
+      status: 'SUSPENDED',
+      user: { id: USER, role: Role.User },
+    });
+    const { ctx, req } = cookieFor(Role.User);
+    const error = await guard()
+      .canActivate(ctx)
+      .catch((e: unknown) => e);
+    expect((error as AppException).getStatus()).toBe(403);
+    expect((error as AppException).code).toBe('ACCOUNT_SUSPENDED');
+    expect(req.user).toBeUndefined();
+  });
+
+  it('rejects a deactivated account with 401', async () => {
+    sessions.touch.mockResolvedValue({
+      valid: true,
+      status: 'DEACTIVATED',
+      user: { id: USER, role: Role.User },
+    });
+    await expect(guard().canActivate(cookieFor(Role.User).ctx)).rejects.toThrow(
+      /log in again/,
+    );
+  });
+
+  it('uses the role and provider from the database, not from the token', async () => {
+    const fresh = {
+      id: USER,
+      role: Role.HotelModerator,
+      assignedProvider: {
+        type: ProviderType.Hotel,
+        providerId: '6730c5f1e4b0a1b2c3d4e5aa',
+      },
+    };
+    sessions.touch.mockResolvedValue({
+      valid: true,
+      status: 'ACTIVE',
+      user: fresh,
+    });
+    const { ctx, req } = cookieFor(Role.User);
+    await guard().canActivate(ctx);
+    expect(req.user).toEqual(fresh);
+  });
+});
+
+describe('AuthGuard forced password change (ACC-07a, ACC-13)', () => {
+  const pending = () => {
+    sessions.touch.mockResolvedValue({
+      valid: true,
+      status: 'ACTIVE',
+      mustChangePassword: true,
+      user: { id: USER, role: Role.User },
+    });
+    return contextWith({
+      access_token: token({ sub: USER, sid: SESSION, role: Role.User }),
+    });
+  };
+
+  it('blocks every route not marked @AllowPendingPasswordChange with 403 PASSWORD_CHANGE_REQUIRED', async () => {
+    const { ctx, req } = pending();
+    const error = await guard()
+      .canActivate(ctx)
+      .catch((e: unknown) => e);
+    expect((error as AppException).getStatus()).toBe(403);
+    expect((error as AppException).code).toBe('PASSWORD_CHANGE_REQUIRED');
+    expect(req.user).toBeUndefined();
+  });
+
+  it('lets the change-password and /auth/me routes through', async () => {
+    const { ctx, req } = pending();
+    await expect(guard(false, true, true).canActivate(ctx)).resolves.toBe(true);
+    expect(req.user?.id).toBe(USER);
   });
 });

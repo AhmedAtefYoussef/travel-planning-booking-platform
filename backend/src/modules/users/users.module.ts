@@ -1,10 +1,18 @@
 import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SESSION_VALIDATOR } from '../../common/contracts';
+import { AdminAccountsController } from './admin-accounts.controller';
+import { AdminAccountsService } from './admin-accounts.service';
 import { AdminSeedService } from './admin-seed.service';
+import { DeactivationService } from './deactivation.service';
+import { ModeratorsService } from './moderators.service';
+import { ProfileService } from './profile.service';
+import { ProviderDirectoryService } from './provider-directory.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
+import { SessionValidatorService } from './session-validator.service';
 import { SessionsService } from './sessions.service';
+import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 
 /**
@@ -21,11 +29,18 @@ import { UsersService } from './users.service';
       { name: Session.name, schema: SessionSchema },
     ]),
   ],
+  controllers: [UsersController, AdminAccountsController],
   providers: [
     AdminSeedService,
+    ProfileService,
+    AdminAccountsService,
+    ModeratorsService,
+    ProviderDirectoryService,
+    DeactivationService,
     UsersService,
     SessionsService,
-    { provide: SESSION_VALIDATOR, useExisting: SessionsService },
+    SessionValidatorService,
+    { provide: SESSION_VALIDATOR, useExisting: SessionValidatorService },
   ],
   exports: [
     MongooseModule,

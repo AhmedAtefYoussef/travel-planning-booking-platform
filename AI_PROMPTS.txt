@@ -624,6 +624,205 @@ which was fixed before the PR. I reviewed the diff and will verify each endpoint
 ================================================
 
 ================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (TRVL-15, lockout after 5 failed logins)
+Prompt:
+Lock an account for 15 minutes after 5 consecutive failed login attempts and show a lockout message,
+and reset the counter on a successful login. Make the counting safe under concurrent requests, test
+the exact limits and the reset, and verify the lockout on a running app.
+How the output was used:
+Claude added UsersService.recordFailedLogin, a single MongoDB update pipeline that increments
+failedLoginCount and, on the 5th failure, sets lockedUntil to 15 minutes later and resets the counter in
+the same atomic step, plus resetLoginFailures for a successful login. The 5th wrong password already
+returns 403 ACCOUNT_LOCKED with the minutes left; while locked even the right password is refused and
+the lock is not extended. Unknown emails are never counted. Tests cover 4 versus 5 failures, the reset,
+the end of the lock, separate accounts and 8 simultaneous wrong passwords; I repeated the lockout on a
+running app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-11 (TRVL-21, real guards: roles, ownership, provider scope, account status)
+Prompt:
+Complete the real authorization layer that replaces the stub: role checks, ownership of private
+resources with the admin and moderator exceptions, moderator provider scope, and account status, so
+that unauthorised requests are rejected with 403 or 404. Keep the existing module contract unchanged,
+add the test helper from the auth-migration plan, test every rule with real cookie sessions, and
+verify it on a running app.
+How the output was used:
+Claude extended the SESSION_VALIDATOR contract so the global AuthGuard reloads the account on every
+cookie request: a suspended account gets 403 on its next request, a deactivated or deleted one 401, and
+role and provider come from the database so changes apply at once. It added a @ProviderScoped()
+route guard, an ownerFilter() helper for owner-scoped list queries, a notFound option on assertOwner
+for private resources, and test/support/auth.ts (asUser, loginAs). Claude proposed not ending open
+sessions of a locked account, so a stranger cannot log a user out by guessing passwords; the
+decision is documented in auth-migration.md and flagged in the PR for review. All new e2e cases use real cookies.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-08 (TRVL-18, change password)
+Prompt:
+Let any logged-in user change their password by entering the current password and a new one that
+meets the password rules. Return inline errors for a wrong current password or a weak new one, keep
+the password rules defined in one place, document the endpoint in Swagger, test it, and verify it on a
+running app.
+How the output was used:
+Claude added PATCH /api/auth/change-password with ChangePasswordDto and a shared NewPasswordRules()
+decorator that RegisterDto now uses too, so registration and password changes share one rule set. A
+wrong current password returns 400 with a currentPassword field error; a weak new password returns a
+newPassword field error. On success the new bcrypt hash is stored, mustChangePassword is cleared, and
+every other session of the account is revoked while the current one stays logged in. Unit and e2e tests
+cover each rule for every role; I re-ran the registration suite to confirm the refactor changed
+nothing there.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-09 (TRVL-19, edit profile)
+Prompt:
+Let any logged-in user view and edit their own name, phone number and preferred currency, saving only
+when every field passes validation. Follow the team's PATCH conventions, validate the currency against
+the supported reference currencies, document the endpoints in Swagger, test them, and verify them on a
+running app.
+How the output was used:
+Claude added GET and PATCH /api/users/me (UsersController, ProfileService, UpdateProfileDto). Fields use
+@Omittable(), so a missing field is kept and null is rejected; the phone must be an E.164 international
+number (spaces, dashes and brackets are stripped first); the currency must be one of the codes in
+Countries.csv, read through REFERENCE_SERVICE. Any invalid field returns a 400 field error and nothing
+is saved; email, password, role and status cannot be changed here. The e2e suite seeds the official
+reference data so the currency rule runs against the real dataset; I checked the endpoints on a running
+app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-12 (TRVL-22, self-deactivation)
+Prompt:
+Let a registered user deactivate their own account after confirmation, block it while they have
+upcoming Confirmed bookings, and make sure a deactivated user can no longer log in. The bookings modules
+do not exist yet, so connect to them through a contract instead of guessing their code, document what
+the other modules still need to do, test the rules, and verify them on a running app.
+How the output was used:
+Claude added DELETE /api/users/me for the USER role: the current password is the confirmation, the
+account becomes DEACTIVATED in a single conditional update, every session is revoked and the cookies
+are cleared; login already treats a deactivated account as invalid credentials. The booking rule goes
+through a new UPCOMING_BOOKINGS contract for Karim's bookings modules, injected as optional like the
+existing FLT-05 lookup, and returns 409 UPCOMING_BOOKINGS_EXIST. The e2e suite proves the block with a
+test provider behind the real token. The traceability row is marked Partial, naming the bookings
+provider and the content-hiding work that belong to other modules.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-14 (TRVL-24, admin account list)
+Prompt:
+Give admins a paginated list of all accounts showing name, email, role, status and registration date,
+with search by name or email and filters by role and status. Use the team's fixed page size of 10 and
+its pagination helpers, document the endpoint in Swagger, test the search, filters and pagination, and
+verify the list on a running app.
+How the output was used:
+Claude added GET /api/admin/accounts (admins only) with AccountListQueryDto, which extends the shared
+PaginationQueryDto, and AdminAccountsService built on paginate(), newest registrations first. The q
+search matches the name or the email ignoring case, with regex characters escaped so input is always
+plain text; role and status filter exactly and combine. Rows never include credentials or lockout
+fields. The e2e suite tags its own accounts so counts and pages stay exact in the shared test database;
+I checked the list, filters and pages on a running app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-07a (TRVL-17, admin password reset with forced change)
+Prompt:
+Let an admin reset a user's or moderator's password to a temporary password, and make the account set
+a new password that meets the rules at its next login. Record the action in the audit log, document the
+endpoint in Swagger, test the whole journey from reset to the forced change, and verify it on a running
+app.
+How the output was used:
+Claude added POST /api/admin/users/:id/reset-password (admins only). The admin chooses the temporary
+password, which follows the shared rules and is never returned; the account gets mustChangePassword,
+its lockout is lifted and every session ends. The update and the RESET_PASSWORD audit entry run in one
+MongoDB transaction, and admin accounts cannot be reset this way. The forced change is enforced by the
+global AuthGuard: until the password is changed, login lands on /account/change-password and every
+other protected route answers 403 PASSWORD_CHANGE_REQUIRED. The shared password-rules decorator moved
+to the users module so both modules can use it within the architecture rules.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-13 (TRVL-23, admin creates hotel or airline moderators)
+Prompt:
+Let an admin create a hotel or airline moderator account (name, email, role) linked to exactly one
+existing hotel or airline, with a temporary password set by the admin, and make the moderator change it
+on first login. Keep the users module independent of the flights and hotels modules, audit the action,
+document the endpoint in Swagger, test the whole flow, and verify it on a running app.
+How the output was used:
+Claude added POST /api/admin/moderators with CreateModeratorDto (moderator roles only, a valid provider
+id and the shared password rules) and ModeratorsService. The provider type follows the role and the
+provider must exist, read by id from the airlines or hotels collection named in the ERD, so the users
+module imports neither module. The account is created with mustChangePassword, which the forced-change
+rule from ACC-07a enforces at first login, and it is written together with a CREATE_MODERATOR audit entry
+in one transaction; a registered email returns 409. The e2e suite creates a real airline through the
+flights endpoint and shows the new moderator changing the password and then managing only that
+airline; I repeated the flow on a running app.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-06, ACC-05, ACC-08, ACC-13 (review fixes on #44, #45, #47 and #53)
+Prompt:
+Address every blocker and should-fix from the team leader's review of the ACC stack: rebase the stack
+so the duplicated logout fix exists once, close the lockout to parallel login attempts, refuse a new
+password equal to the current one, detect refresh-token reuse without logging out two tabs that refresh
+together, and refuse moderators for deactivated providers. Reproduce each reported case as a test, and
+verify every rebuilt branch again before pushing.
+How the output was used:
+Claude rebuilt #45 to #53 on the updated #44 without the duplicate commit, resolving the append-only
+test-file conflicts by keeping both sides. Login now claims an attempt atomically before the password
+check, so 20 parallel wrong passwords get exactly 5 checks, and a success never lifts a lock set by
+parallel failures. Refresh keeps the previous token hash: a replay after 10 seconds revokes the session,
+while a second tab inside that window gets 409 REFRESH_SUPERSEDED without clearing cookies. Changing a
+password to itself is a 400, and a deactivated airline or hotel returns 409 PROVIDER_INACTIVE. Each
+reported scenario is now an e2e test; I ran the full verify on every rebuilt branch.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (re-review on #45), stack rebase onto develop
+Prompt:
+Fix the defect found in the re-review of the lockout: parallel correct logins, or a double click after
+four real failures, locked the account. Lock only on real failed attempts, add the two reported scenarios
+as tests, rebase the stack onto develop after the hotel PRs were merged, and verify every branch again.
+How the output was used:
+Claude changed the login gate so a lock is set only when a password check really fails as the fifth
+attempt and no success reset the count meanwhile; a closed gate without an active lock now returns 429
+and writes nothing, and attempts older than 30 seconds are treated as stale. Both reported scenarios and
+the stale case are e2e tests that passed in repeated runs. The stack was rebuilt on develop; the only
+conflict was AI_PROMPTS.txt, resolved by keeping every entry. A first resolution attempt was malformed
+and was caught by the repository hygiene check before anything was committed.
+================================================
+
+================================================
 Date: 2026-11-12
 Student: Sandra George
 Tool: Claude Code (Claude Opus 5.5)

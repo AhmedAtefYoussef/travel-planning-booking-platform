@@ -33,6 +33,7 @@ const candidate = (
   id: USER_ID,
   status: AccountStatus.Active,
   passwordHash: 'stored-hash',
+  failedLoginCount: 0,
   user: profile(),
   ...overrides,
 });
@@ -43,6 +44,12 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
     findForLogin: jest.fn().mockResolvedValue(found),
     findProfile: jest.fn().mockResolvedValue(profile()),
     replacePasswordHash: jest.fn().mockResolvedValue(undefined),
+    claimLoginAttempt: jest.fn().mockResolvedValue(1),
+    lockAfterLimit: jest.fn(),
+    activeLockOf: jest.fn().mockResolvedValue(null),
+    releaseLoginAttempts: jest.fn().mockResolvedValue(true),
+    findPasswordHash: jest.fn().mockResolvedValue('stored-hash'),
+    setPassword: jest.fn().mockResolvedValue(undefined),
   };
   const sessions = {
     create: jest.fn().mockResolvedValue({
@@ -58,6 +65,7 @@ function setup(found: LoginCandidate | null = candidate(), passwordOk = true) {
       expiresAt: new Date(Date.now() + 86_400_000),
     }),
     revoke: jest.fn().mockResolvedValue(undefined),
+    revokeAllForUser: jest.fn().mockResolvedValue(undefined),
   };
   const passwords = {
     hash: jest.fn().mockResolvedValue('new-hash'),
@@ -353,5 +361,197 @@ describe('AuthService.refresh rotation outcomes (ACC-06)', () => {
     const e = await failure(service.refresh('raw-refresh'));
     expect(e.getStatus()).toBe(401);
     expect(e.message).toMatch(/old refresh token was used again/);
+  });
+});
+
+describe('AuthService.login lockout (ACC-05)', () => {
+  const inMinutes = (m: number, extraMs = 0) =>
+    new Date(Date.now() + m * 60_000 + extraMs);
+
+  it('claims the attempt before checking the password, then releases it on success', async () => {
+    const { service, users, passwords } = setup();
+    users.claimLoginAttempt.mockImplementation(() => {
+      expect(passwords.verify).not.toHaveBeenCalled();
+      return Promise.resolve(1);
+    });
+    await service.login(login);
+    expect(users.claimLoginAttempt).toHaveBeenCalledWith(
+      USER_ID,
+      5,
+      expect.any(Date),
+    );
+    expect(users.releaseLoginAttempts).toHaveBeenCalledWith(
+      USER_ID,
+      expect.any(Date),
+    );
+  });
+
+  it('refuses even the right password, unchecked, while a real lock is active', async () => {
+    const { service, users, passwords, sessions } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(inMinutes(1, 500));
+    const e = await failure(service.login(login));
+    expect(e.getStatus()).toBe(403);
+    expect(e.code).toBe('ACCOUNT_LOCKED');
+    expect(e.message).toMatch(/try again in 2 minutes/);
+    expect(passwords.verify).not.toHaveBeenCalled();
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('answers a closed gate without a lock with 429 and never locks (for example a double click)', async () => {
+    const { service, users, passwords } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(null);
+    const e = await failure(service.login(login));
+    expect(e.getStatus()).toBe(429);
+    expect(e.code).toBe('TOO_MANY_REQUESTS');
+    expect(users.lockAfterLimit).not.toHaveBeenCalled();
+    expect(passwords.verify).not.toHaveBeenCalled();
+  });
+
+  it('answers wrong passwords 1-4 with the generic 401 and the 5th with the lockout message', async () => {
+    for (const [attempt, code] of [
+      [1, 'INVALID_CREDENTIALS'],
+      [4, 'INVALID_CREDENTIALS'],
+      [5, 'ACCOUNT_LOCKED'],
+    ] as const) {
+      const { service, users } = setup(candidate(), false);
+      users.claimLoginAttempt.mockResolvedValue(attempt);
+      users.lockAfterLimit.mockResolvedValue(inMinutes(15));
+      const e = await failure(service.login(login));
+      expect(e.code).toBe(code);
+      if (code === 'ACCOUNT_LOCKED') {
+        expect(e.message).toMatch(
+          /locked for 15 minutes; try again in 15 minutes/,
+        );
+      } else {
+        expect(users.lockAfterLimit).not.toHaveBeenCalled();
+      }
+      expect(users.releaseLoginAttempts).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not lock on a 5th failure when a parallel success already reset the count', async () => {
+    const { service, users } = setup(candidate(), false);
+    users.claimLoginAttempt.mockResolvedValue(5);
+    users.lockAfterLimit.mockResolvedValue(null);
+    expect((await failure(service.login(login))).code).toBe(
+      'INVALID_CREDENTIALS',
+    );
+  });
+
+  it('refuses the right password when parallel failures locked the account meanwhile', async () => {
+    const { service, users, sessions } = setup();
+    users.releaseLoginAttempts.mockResolvedValue(false);
+    users.activeLockOf.mockResolvedValue(inMinutes(15));
+    const e = await failure(service.login(login));
+    expect(e.code).toBe('ACCOUNT_LOCKED');
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('says "1 minute" when less than a minute is left', async () => {
+    const { service, users } = setup();
+    users.claimLoginAttempt.mockResolvedValue(null);
+    users.activeLockOf.mockResolvedValue(new Date(Date.now() + 10_000));
+    expect((await failure(service.login(login))).message).toMatch(
+      /try again in 1 minute\./,
+    );
+  });
+
+  it('never counts attempts for an unknown email', async () => {
+    const { service, users } = setup(null);
+    await failure(service.login(login));
+    expect(users.claimLoginAttempt).not.toHaveBeenCalled();
+  });
+});
+
+describe('AuthService.changePassword (ACC-08)', () => {
+  const caller = { id: USER_ID, role: Role.User };
+  const dto = { currentPassword: 'Travel2026', newPassword: 'Journey2027' };
+
+  it('checks the current password, stores the new hash, clears the forced change and ends other sessions', async () => {
+    const { service, users, sessions, passwords } = setup();
+    await service.changePassword(caller, SESSION_ID, dto);
+
+    expect(passwords.verify).toHaveBeenCalledWith('Travel2026', 'stored-hash');
+    expect(passwords.hash).toHaveBeenCalledWith('Journey2027');
+    expect(users.setPassword).toHaveBeenCalledWith(USER_ID, 'new-hash', false);
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith(USER_ID, {
+      exceptSessionId: SESSION_ID,
+    });
+  });
+
+  it('rejects a wrong current password with a currentPassword field error and changes nothing', async () => {
+    const { service, users, sessions } = setup(candidate(), false);
+    const e = await failure(service.changePassword(caller, SESSION_ID, dto));
+    expect(e.getStatus()).toBe(400);
+    expect(e.fieldErrors).toEqual([
+      { field: 'currentPassword', message: 'currentPassword is incorrect' },
+    ]);
+    expect(users.setPassword).not.toHaveBeenCalled();
+    expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('is 401 when the account no longer exists', async () => {
+    const { service, users } = setup();
+    users.findPasswordHash.mockResolvedValue(null);
+    expect(
+      (
+        await failure(service.changePassword(caller, SESSION_ID, dto))
+      ).getStatus(),
+    ).toBe(401);
+  });
+
+  it('ends every session for a stub caller that has no session id', async () => {
+    const { service, sessions } = setup();
+    await service.changePassword(caller, undefined, dto);
+    expect(sessions.revokeAllForUser).toHaveBeenCalledWith(USER_ID, {
+      exceptSessionId: undefined,
+    });
+  });
+});
+
+describe('AuthService.changePassword same password (ACC-08, ACC-07a)', () => {
+  it('refuses a new password equal to the current one, and changes nothing', async () => {
+    const { service, users, sessions } = setup();
+    const e = await failure(
+      service.changePassword({ id: USER_ID, role: Role.User }, SESSION_ID, {
+        currentPassword: 'Temp2026x',
+        newPassword: 'Temp2026x',
+      }),
+    );
+    expect(e.getStatus()).toBe(400);
+    expect(e.fieldErrors).toEqual([
+      {
+        field: 'newPassword',
+        message: 'newPassword must be different from your current password',
+      },
+    ]);
+    expect(users.setPassword).not.toHaveBeenCalled();
+    expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
+  });
+
+  it('reports a wrong current password first, even when both are equal', async () => {
+    const { service } = setup(candidate(), false);
+    const e = await failure(
+      service.changePassword({ id: USER_ID, role: Role.User }, SESSION_ID, {
+        currentPassword: 'WrongPass1',
+        newPassword: 'WrongPass1',
+      }),
+    );
+    expect(e.fieldErrors?.[0].field).toBe('currentPassword');
+  });
+});
+
+describe('AuthService.login with a temporary password (ACC-07a, ACC-13)', () => {
+  it('lands the account on the change-password page instead of its home page', async () => {
+    const { service } = setup(
+      candidate({
+        user: profile({ role: Role.HotelModerator, mustChangePassword: true }),
+      }),
+    );
+    expect((await service.login(login)).homePath).toBe(
+      '/account/change-password',
+    );
   });
 });

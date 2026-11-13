@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Patch,
   Post,
   Req,
   Res,
@@ -25,7 +26,12 @@ import {
   REFRESH_COOKIE,
   REFRESH_COOKIE_PATH,
 } from '../../common/auth/auth-cookies';
-import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
+import {
+  AllowPendingPasswordChange,
+  CurrentUser,
+  Public,
+  Roles,
+} from '../../common/auth/auth.decorators';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -33,6 +39,7 @@ import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator'
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { UserProfileDto } from '../users';
 import { AuthService, type LoginResult } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto, LoginResponseDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 
@@ -111,13 +118,16 @@ export class AuthController {
   @Public()
   @HttpCode(200)
   @ApiOperation({
-    summary: 'ACC-04 / ACC-19 Log in with email and password',
+    summary: 'ACC-04 / ACC-05 / ACC-19 Log in with email and password',
     description:
       'Works for users, admins and moderators. On success it sets two httpOnly, SameSite=Lax cookies (Secure when COOKIE_SECURE=true): ' +
       '`access_token` (JWT, JWT_ACCESS_TTL, path /api) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). ' +
       "No token is ever returned in the body (ACC-19); the body has the profile and `homePath`, the role's home page. " +
       'Unknown email or wrong password: 401 INVALID_CREDENTIALS "Invalid email or password". ' +
       'Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ' +
+      'ACC-05: the 5th consecutive wrong password locks the account for 15 minutes and returns 403 ACCOUNT_LOCKED with the minutes left; ' +
+      'during the lock even the right password is refused. A successful login resets the counter. ' +
+      'At most 5 logins of one account are checked at the same instant; extra simultaneous requests get 429 TOO_MANY_REQUESTS (no lock). ' +
       'In Swagger, after logging in, every "Try it out" call sends the cookie automatically.',
   })
   @ApiBody({
@@ -243,8 +253,43 @@ export class AuthController {
     );
   }
 
+  @Patch('change-password')
+  @Roles()
+  @AllowPendingPasswordChange()
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'ACC-08 Change my password',
+    description:
+      'Any logged-in account. Needs the current password and a new one that meets the ACC-01 rules (8+ characters with a letter and a digit). ' +
+      'A wrong current password returns 400 with a `currentPassword` field error; a weak new password, or one equal to the current password, returns 400 with a `newPassword` field error. ' +
+      'On success every other session of the account is logged out, this one stays logged in, and `mustChangePassword` is cleared (ACC-07a, ACC-13).',
+  })
+  @ApiBody({
+    type: ChangePasswordDto,
+    examples: {
+      valid: {
+        summary: 'Valid change',
+        value: { currentPassword: 'Travel2026', newPassword: 'Journey2027' },
+      },
+      weakNew: {
+        summary: 'Rejected: new password without a digit',
+        value: { currentPassword: 'Travel2026', newPassword: 'onlyletters' },
+      },
+    },
+  })
+  @ApiNoContentResponse({ description: 'Password changed' })
+  @ApiErrorResponses(400)
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Req() req: Request,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<void> {
+    return this.auth.changePassword(user, req.sessionId, dto);
+  }
+
   @Get('me')
   @Roles()
+  @AllowPendingPasswordChange()
   @ApiOperation({
     summary: 'ACC-04 / ACC-19 Current user',
     description:

@@ -14,9 +14,11 @@ import {
   UserProfileDto,
   UsersService,
 } from '../users';
+import type { ChangePasswordDto } from './dto/change-password.dto';
 import type { LoginDto } from './dto/login.dto';
 import type { RegisterDto } from './dto/register.dto';
-import { HOME_PATHS } from './home-paths';
+import { CHANGE_PASSWORD_PATH, HOME_PATHS } from './home-paths';
+import { LOCKOUT_MINUTES, LOCKOUT_MS, MAX_FAILED_LOGINS } from './lockout';
 
 export interface LoginResult {
   user: UserProfileDto;
@@ -34,6 +36,26 @@ const invalidCredentials = () =>
     HttpStatus.UNAUTHORIZED,
     ErrorCode.INVALID_CREDENTIALS,
     'Invalid email or password',
+  );
+/** ACC-05 lockout message, with the minutes left so the user knows when to retry. */
+const accountLocked = (until: Date, now: Date) => {
+  const minutes = Math.max(
+    1,
+    Math.ceil((until.getTime() - now.getTime()) / 60_000),
+  );
+  return new AppException(
+    HttpStatus.FORBIDDEN,
+    ErrorCode.ACCOUNT_LOCKED,
+    `Too many failed login attempts. Your account is locked for ${LOCKOUT_MINUTES} minutes; ` +
+      `try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+  );
+};
+/** ACC-05: more logins of one account are being checked at this instant than the lockout allows. */
+const tooManyAttempts = () =>
+  new AppException(
+    HttpStatus.TOO_MANY_REQUESTS,
+    ErrorCode.TOO_MANY_REQUESTS,
+    'Too many login attempts are in progress for this account; please try again in a few seconds',
   );
 const accountSuspended = () =>
   new AppException(
@@ -88,13 +110,43 @@ export class AuthService {
    * message never reveals that an account exists to someone who does not know its password.
    */
   async login(dto: LoginDto): Promise<LoginResult> {
+    const now = new Date();
     const candidate = await this.users.findForLogin(dto.email);
     if (!candidate) {
       await this.passwords.verify(dto.password, await this.getDummyHash());
       throw invalidCredentials();
     }
+    // ACC-05: the atomic gate runs before the password is checked, so a burst of parallel requests
+    // gets at most MAX_FAILED_LOGINS checks. While locked even the right password is refused unchecked.
+    const attempt = await this.users.claimLoginAttempt(
+      candidate.id,
+      MAX_FAILED_LOGINS,
+      now,
+    );
+    if (attempt === null) {
+      // Closed gate: either a real lock, or other attempts still in flight (maybe all correct, e.g. a
+      // double click). Only a real lock gets the lockout message; nothing is written here.
+      const lock = await this.users.activeLockOf(candidate.id, now);
+      if (lock) throw accountLocked(lock, now);
+      throw tooManyAttempts();
+    }
     if (!(await this.passwords.verify(dto.password, candidate.passwordHash))) {
+      // Only a real failure as the 5th attempt can lock, and only if no success reset the count meanwhile.
+      if (attempt >= MAX_FAILED_LOGINS) {
+        const lock = await this.users.lockAfterLimit(
+          candidate.id,
+          MAX_FAILED_LOGINS,
+          LOCKOUT_MS,
+          now,
+        );
+        if (lock) throw accountLocked(lock, now);
+      }
       throw invalidCredentials();
+    }
+    // A lock set by parallel failures while this password was checked still applies.
+    if (!(await this.users.releaseLoginAttempts(candidate.id, now))) {
+      const lock = await this.users.activeLockOf(candidate.id, now);
+      throw accountLocked(lock ?? new Date(now.getTime() + LOCKOUT_MS), now);
     }
     if (candidate.status === AccountStatus.Deactivated) {
       throw invalidCredentials();
@@ -203,12 +255,60 @@ export class AuthService {
     };
     return {
       user,
-      homePath: HOME_PATHS[user.role],
+      // ACC-07a, ACC-13: a temporary password must be replaced before going anywhere else.
+      homePath: user.mustChangePassword
+        ? CHANGE_PASSWORD_PATH
+        : HOME_PATHS[user.role],
       accessToken: await this.jwt.signAsync(claimsFor(authUser, sessionId)),
       refreshToken,
       accessTtlMs: this.accessTtlMs,
       refreshTtlMs,
     };
+  }
+
+  /**
+   * ACC-08: the current password must match, and the new one must differ from it (it already passed
+   * the ACC-01 rules in the DTO).
+   * Every other session of the account is ended, so a stolen session stops working, while the
+   * session that made the change stays logged in. Clears `mustChangePassword` (ACC-07a, ACC-13).
+   */
+  async changePassword(
+    caller: AuthUser,
+    sessionId: string | undefined,
+    dto: ChangePasswordDto,
+  ): Promise<void> {
+    const stored = await this.users.findPasswordHash(caller.id);
+    if (!stored) throw sessionEnded();
+    if (!(await this.passwords.verify(dto.currentPassword, stored))) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_FAILED,
+        'Validation failed',
+        [{ field: 'currentPassword', message: 'currentPassword is incorrect' }],
+      );
+    }
+    // ACC-07a, ACC-13: "changing" a temporary password to itself would skip the forced change.
+    if (dto.newPassword === dto.currentPassword) {
+      throw new AppException(
+        HttpStatus.BAD_REQUEST,
+        ErrorCode.VALIDATION_FAILED,
+        'Validation failed',
+        [
+          {
+            field: 'newPassword',
+            message: 'newPassword must be different from your current password',
+          },
+        ],
+      );
+    }
+    await this.users.setPassword(
+      caller.id,
+      await this.passwords.hash(dto.newPassword),
+      false,
+    );
+    await this.sessions.revokeAllForUser(caller.id, {
+      exceptSessionId: sessionId,
+    });
   }
 
   /** ACC-19: the frontend's only way to learn who is logged in. */

@@ -2,27 +2,17 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   Equals,
-  IsByteLength,
   IsEmail,
   IsNotEmpty,
   IsString,
-  Matches,
   MaxLength,
-  MinLength,
 } from 'class-validator';
-import {
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_PATTERN,
-  PASSWORD_RULE_MESSAGE,
-} from '../../users';
+import { NewPasswordRules } from '../../users';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 const normaliseEmail = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toLowerCase() : value;
-
-/** bcrypt ignores input beyond 72 bytes (common/security/password.service.ts), so longer is rejected. */
-const PASSWORD_MAX_BYTES = 72;
 
 /**
  * ACC-01: a guest registers with name, email, password and the terms-and-privacy consent.
@@ -49,19 +39,7 @@ export class RegisterDto {
   @MaxLength(254)
   email!: string;
 
-  @ApiProperty({
-    example: 'Travel2026',
-    description:
-      'At least 8 characters with at least one letter and one digit (at most 72 bytes)',
-    minLength: PASSWORD_MIN_LENGTH,
-    format: 'password',
-  })
-  @IsString()
-  @MinLength(PASSWORD_MIN_LENGTH, { message: PASSWORD_RULE_MESSAGE })
-  @Matches(PASSWORD_PATTERN, { message: PASSWORD_RULE_MESSAGE })
-  @IsByteLength(0, PASSWORD_MAX_BYTES, {
-    message: `password must be at most ${PASSWORD_MAX_BYTES} bytes`,
-  })
+  @NewPasswordRules()
   password!: string;
 
   @ApiProperty({
