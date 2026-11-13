@@ -395,21 +395,18 @@ describe('Single error envelope on every status (vv): GEN-02', () => {
     expectEnvelope(res, 400, 'BAD_REQUEST', '/api/auth/login');
   });
 
-  // F-D-01: a malformed JSON body returns the raw JSON.parse text (and echoes a non-object body).
-  it.failing(
-    'malformed JSON gets the generic message, never parser text or the request body',
-    async () => {
-      for (const raw of ['"Travel2026x"', '{"password": "Travel2026x" x}']) {
-        const res = await http()
-          .post('/api/auth/login')
-          .set('Content-Type', 'application/json')
-          .send(raw);
-        expectEnvelope(res, 400, 'BAD_REQUEST', '/api/auth/login');
-        expect(res.body.message).toBe('Malformed JSON request body');
-        expect(res.body.message).not.toContain('Travel2026x');
-      }
-    },
-  );
+  // F-D-01 (fixed): a malformed JSON body gets the generic message, never parser text or the body.
+  it('malformed JSON gets the generic message, never parser text or the request body', async () => {
+    for (const raw of ['"Travel2026x"', '{"password": "Travel2026x" x}']) {
+      const res = await http()
+        .post('/api/auth/login')
+        .set('Content-Type', 'application/json')
+        .send(raw);
+      expectEnvelope(res, 400, 'BAD_REQUEST', '/api/auth/login');
+      expect(res.body.message).toBe('Malformed JSON request body');
+      expect(res.body.message).not.toContain('Travel2026x');
+    }
+  });
 
   it('400 INVALID_ID for a malformed path id on a real route', async () => {
     const res = await http().get('/api/airlines/not-an-id');
