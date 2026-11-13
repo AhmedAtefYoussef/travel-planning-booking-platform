@@ -44,3 +44,21 @@ embed (same convention as `evidence/sprint-0-swagger` and `evidence/joudy-swagge
 | `htl-04/04-htl04-ranges-overlap-each-other-400.png` | Two ranges in one request that overlap each other: 400 `BAD_REQUEST` |
 | `htl-04/05-htl04-invalid-dates-400.png` | Invalid dates: 400 with errors on `ranges[0].from` and `ranges[1].to` |
 | `htl-04/06-htl04-other-moderator-403.png` | Another hotel's moderator: 403 `FORBIDDEN` |
+
+## HTL-05 (TRVL-51, PR #54) edit a room and replace its availability
+
+Captured on 13 Nov 2026 on `feature/HTL-05-edit-room`, against `sandra_demo`. Hotel `6af7596315dd5acc6878d0ea`,
+room 101 `6af75a6515dd5acc6878d0f1`. There is no booking endpoint yet, so for runs 6 and 7 one BOOKED night
+(2027-01-10) was inserted into `room_nights` by hand. Two screenshots of one run are stacked (grey divider).
+
+| File | What it shows |
+|---|---|
+| `htl-05/00-htl05-routes-listed.png` | The Hotels section lists both HTL-05 routes |
+| `htl-05/01-htl05-edit-room-200.png` | `PATCH /api/hotels/{id}/rooms/{roomId}` with beds 3, maxOccupancy 4, priceMinor 12500: 200, number and type unchanged |
+| `htl-05/02-htl05-empty-edit-400.png` | `{}`: 400 "Send at least one of beds, maxOccupancy, priceMinor" |
+| `htl-05/03-htl05-null-beds-400.png` | `{"beds": null}`: 400 `VALIDATION_FAILED` with `beds` field errors (null is rejected, not ignored) |
+| `htl-05/04-htl05-replace-ranges-200.png` | `PATCH .../availability` with two ranges: 200, replaced and sorted earliest first |
+| `htl-05/05-htl05-past-range-400.png` | A range ending in 2000: 400 on `ranges[0].to` |
+| `htl-05/06-htl05-booked-night-409.png` | Replacing with 2027-01-15 to 2027-01-20 while 2027-01-10 is booked: 409 naming that night, nothing changed |
+| `htl-05/07-htl05-keep-booked-night-200.png` | 2027-01-10 to 2027-01-12 keeps the booked night inside a range: 200 (run at 19:10:34) |
+| `htl-05/08-htl05-other-moderator-403.png` | Another hotel's moderator: 403 "You can only manage your assigned hotel" |
