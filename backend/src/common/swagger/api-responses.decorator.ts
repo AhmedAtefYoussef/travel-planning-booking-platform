@@ -15,10 +15,11 @@ const DESCRIPTIONS: Record<number, string> = {
   404: 'Resource not found',
   409: 'Conflict with current state (duplicate, inventory or lifecycle rule)',
   413: 'Payload too large',
+  429: 'Too many simultaneous requests for the same resource; retry shortly',
   503: 'Dependency unavailable',
 };
 
-export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 503;
+export type ErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 429 | 503;
 
 /**
  * Documents the standard error body for the given statuses:

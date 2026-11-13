@@ -136,7 +136,7 @@ export class AuthController {
       admin: {
         summary:
           'Seeded admin (values from ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD)',
-        value: { email: 'admin@example.com', password: 'Admin2026x' },
+        value: { email: 'admin@example.com', password: 'ChangeMe!2026' },
       },
       traveller: {
         summary: 'A registered user',
@@ -152,7 +152,7 @@ export class AuthController {
     type: LoginResponseDto,
     description: 'Logged in; cookies set via Set-Cookie',
   })
-  @ApiErrorResponses(400, 401, 403)
+  @ApiErrorResponses(400, 401, 403, 429)
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,

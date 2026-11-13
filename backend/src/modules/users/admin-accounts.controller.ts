@@ -91,7 +91,8 @@ export class AdminAccountsController {
         },
       },
       invalid: {
-        summary: 'Rejected: a traveller role and a weak password',
+        summary:
+          'Rejected: role ADMIN (only moderator roles), invalid providerId and a weak password',
         value: {
           name: 'Eve',
           email: 'eve@example.com',
