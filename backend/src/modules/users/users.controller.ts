@@ -55,7 +55,7 @@ export class UsersController {
     summary: 'ACC-12 Deactivate my account',
     description:
       'Registered users only (admins and moderators get 403). The current `password` is the confirmation (400 field error when wrong). ' +
-      'Refused with 409 UPCOMING_BOOKINGS_EXIST while the user has upcoming Confirmed bookings. ' +
+      'Refused with 409 UPCOMING_BOOKINGS_EXIST while the user has upcoming Confirmed bookings (active once the bookings module provides UPCOMING_BOOKINGS, FLT-22/HTL-18; until then no booking can exist). ' +
       'On success the account becomes DEACTIVATED, every session is revoked and the auth cookies are cleared; ' +
       'a deactivated account can no longer log in (generic 401 "Invalid email or password").',
   })
