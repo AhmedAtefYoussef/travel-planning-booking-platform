@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import type { Model } from 'mongoose';
+import { isValidObjectId, type Model } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
-import type { SessionCheck, SessionValidator } from '../../common/contracts';
+import type {
+  SessionAccountStatus,
+  SessionCheck,
+  SessionValidator,
+} from '../../common/contracts';
 import { User } from './schemas/user.schema';
 import { SessionsService } from './sessions.service';
 
@@ -44,5 +48,22 @@ export class SessionValidatorService implements SessionValidator {
       status: user.status,
       mustChangePassword: user.mustChangePassword === true,
     };
+  }
+
+  async accountOf(userId: string): Promise<{
+    status: SessionAccountStatus;
+    mustChangePassword: boolean;
+  } | null> {
+    if (!isValidObjectId(userId)) return null;
+    const user = await this.users
+      .findById(userId)
+      .select('status mustChangePassword')
+      .lean();
+    return user
+      ? {
+          status: user.status,
+          mustChangePassword: user.mustChangePassword === true,
+        }
+      : null;
   }
 }

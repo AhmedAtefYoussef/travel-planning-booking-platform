@@ -8,7 +8,11 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { SESSION_VALIDATOR, type SessionValidator } from '../contracts';
+import {
+  SESSION_VALIDATOR,
+  type SessionAccountStatus,
+  type SessionValidator,
+} from '../contracts';
 import { AppException } from '../errors/app.exception';
 import { ErrorCode } from '../errors/error-codes';
 import { ACCESS_COOKIE, authUserFromClaims } from './auth-cookies';
@@ -57,7 +61,16 @@ export class AuthGuard implements CanActivate {
       ACCESS_COOKIE
     ];
     if (typeof token !== 'string' || token.length === 0) {
-      return this.stub.canActivate(context);
+      const allowed = this.stub.canActivate(context);
+      // A stub caller naming a real account gets the same status and forced-change checks as a cookie
+      // request (ACC-11, ACC-07a); stub ids that match no account (test doubles) are unaffected.
+      const account = req.user
+        ? await this.sessions.accountOf(req.user.id)
+        : null;
+      if (account) {
+        this.assertUsable(account.status, account.mustChangePassword, context);
+      }
+      return allowed;
     }
 
     let claims: unknown;
@@ -72,30 +85,35 @@ export class AuthGuard implements CanActivate {
     // ACC-06: a logged-out or 30-minute-idle session ends now, even though the JWT is still valid.
     const check = await this.sessions.touch(sessionId, fromToken.id);
     if (!check.valid) throw sessionExpired();
+    this.assertUsable(check.status, check.mustChangePassword, context);
+    // Role and provider come from the database, not the token, so changes apply immediately.
+    req.user = check.user;
+    req.sessionId = sessionId;
+    return true;
+  }
+
+  private assertUsable(
+    status: SessionAccountStatus,
+    mustChangePassword: boolean,
+    context: ExecutionContext,
+  ): void {
     // ACC-11, ACC-15/16: a suspension or deactivation applies from the next request.
-    if (check.status === 'SUSPENDED') {
+    if (status === 'SUSPENDED') {
       throw new AppException(
         HttpStatus.FORBIDDEN,
         ErrorCode.ACCOUNT_SUSPENDED,
         'Your account is suspended. Please contact support.',
       );
     }
-    if (check.status !== 'ACTIVE') throw sessionExpired();
+    if (status !== 'ACTIVE') throw sessionExpired();
     // ACC-07a, ACC-13: a temporary password must be replaced before the account can do anything else.
-    if (
-      check.mustChangePassword &&
-      !this.allowsPendingPasswordChange(context)
-    ) {
+    if (mustChangePassword && !this.allowsPendingPasswordChange(context)) {
       throw new AppException(
         HttpStatus.FORBIDDEN,
         ErrorCode.PASSWORD_CHANGE_REQUIRED,
         'You must replace your temporary password first (PATCH /api/auth/change-password)',
       );
     }
-    // Role and provider come from the database, not the token, so changes apply immediately.
-    req.user = check.user;
-    req.sessionId = sessionId;
-    return true;
   }
 
   private allowsPendingPasswordChange(context: ExecutionContext): boolean {

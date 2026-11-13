@@ -2,7 +2,11 @@ import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { AppException } from '../../common/errors/app.exception';
+import {
+  AppException,
+  FieldError,
+  ValidationFailedException,
+} from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { EDITABLE_ROOM_FIELDS } from './dto/room.dto';
 import type {
@@ -64,15 +68,9 @@ export class RoomsService {
     dto: AddAvailabilityDto,
   ): Promise<RoomDto> {
     const hotel = await this.hotels.loadManaged(user, hotelId);
+    const overlaps = overlapFieldErrors(dto.ranges);
+    if (overlaps.length) throw new ValidationFailedException(overlaps);
     const ranges = sortedRanges(dto.ranges);
-    const clash = firstOverlap(ranges);
-    if (clash) {
-      throw new AppException(
-        HttpStatus.BAD_REQUEST,
-        ErrorCode.BAD_REQUEST,
-        `The ranges ${clash[0].from} to ${clash[0].to} and ${clash[1].from} to ${clash[1].to} overlap each other`,
-      );
-    }
     const filter = {
       _id: roomId,
       hotelId: hotel._id,
@@ -170,15 +168,10 @@ export class RoomsService {
     dto: ReplaceAvailabilityDto,
   ): Promise<RoomDto> {
     const hotel = await this.hotels.loadManaged(user, hotelId);
+    // GEN-02: same answer as HTL-04, a field error naming each overlapping range.
+    const overlaps = overlapFieldErrors(dto.ranges);
+    if (overlaps.length) throw new ValidationFailedException(overlaps);
     const ranges = sortedRanges(dto.ranges);
-    const clash = firstOverlap(ranges);
-    if (clash) {
-      throw new AppException(
-        HttpStatus.BAD_REQUEST,
-        ErrorCode.BAD_REQUEST,
-        `The ranges ${clash[0].from} to ${clash[0].to} and ${clash[1].from} to ${clash[1].to} overlap each other`,
-      );
-    }
     const zone = (await this.hotels.timeZoneOf(hotel.cityId)) ?? EARLIEST_ZONE;
     const session = await this.connection.startSession();
     try {
@@ -257,14 +250,28 @@ export function sortedRanges(ranges: RangeLike[]): RangeLike[] {
     .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
 }
 
-/** The first two neighbours that overlap in a list sorted by `from`, or null. */
-export function firstOverlap(
-  sorted: RangeLike[],
-): [RangeLike, RangeLike] | null {
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].from < sorted[i - 1].to) return [sorted[i - 1], sorted[i]];
+/**
+ * GEN-02: one field error per range of the request that overlaps an earlier-starting range of the same
+ * request, named by its position as sent (e.g. `ranges[1].from`), so a form can mark the exact row.
+ */
+export function overlapFieldErrors(ranges: RangeLike[]): FieldError[] {
+  const order = ranges
+    .map((range, index) => ({ ...range, index }))
+    .sort((a, b) =>
+      a.from < b.from ? -1 : a.from > b.from ? 1 : a.index - b.index,
+    );
+  const errors: FieldError[] = [];
+  let latest = order[0];
+  for (const current of order.slice(1)) {
+    if (current.from < latest.to) {
+      errors.push({
+        field: `ranges[${current.index}].from`,
+        message: `ranges[${current.index}] (${current.from} to ${current.to}) overlaps ranges[${latest.index}] (${latest.from} to ${latest.to})`,
+      });
+    }
+    if (current.to > latest.to) latest = current;
   }
-  return null;
+  return errors;
 }
 
 export function toRoomDto(room: RoomDocument): RoomDto {

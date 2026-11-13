@@ -6,7 +6,10 @@ import { AuthUser, ProviderType } from '../../common/auth/auth.types';
 import { ACTIVE_PROVIDER_FILTER } from '../../common/contracts';
 import { REFERENCE_SERVICE } from '../../common/contracts/tokens';
 import type { ReferenceService } from '../../common/contracts/services.contract';
-import { AppException } from '../../common/errors/app.exception';
+import {
+  AppException,
+  ValidationFailedException,
+} from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
 import { Hotel, HotelDocument } from './schemas/hotel.schema';
@@ -137,11 +140,13 @@ export class HotelsService {
   private async countryOfCity(cityId: string): Promise<string> {
     const city = await this.reference.getCity(cityId);
     if (!city) {
-      throw new AppException(
-        HttpStatus.BAD_REQUEST,
-        ErrorCode.BAD_REQUEST,
-        `Unknown city "${cityId}". Use a city id from GET /api/cities`,
-      );
+      // GEN-02: a field error, like unknown airports in flights, so a form can mark the city field.
+      throw new ValidationFailedException([
+        {
+          field: 'cityId',
+          message: `Unknown city "${cityId}". Use a city id from GET /api/cities`,
+        },
+      ]);
     }
     return city.countryCode;
   }

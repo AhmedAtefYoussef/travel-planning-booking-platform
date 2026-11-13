@@ -299,6 +299,16 @@ export interface SessionValidator {
    * be used (logged out, idle, expired) or the account no longer exists.
    */
   touch(sessionId: string, userId: string): Promise<SessionCheck>;
+
+  /**
+   * Status of an existing account, or null when no account has this id. Used for x-dev-user stub
+   * callers (TRVL-131), so a stub request naming a real account gets the same ACC-11 status and
+   * ACC-07a forced-change checks as a cookie request. Never touches a session.
+   */
+  accountOf(userId: string): Promise<{
+    status: SessionAccountStatus;
+    mustChangePassword: boolean;
+  } | null>;
 }
 
 /* ----------------------------------------------------------------------------------------------

@@ -112,7 +112,9 @@ export class AuthService {
   async login(dto: LoginDto): Promise<LoginResult> {
     const now = new Date();
     const candidate = await this.users.findForLogin(dto.email);
-    if (!candidate) {
+    // A deactivated account (ACC-12) is handled exactly like an unknown email, before the ACC-05 gate:
+    // it is never counted or locked, so ACCOUNT_LOCKED cannot reveal that it exists.
+    if (!candidate || candidate.status === AccountStatus.Deactivated) {
       await this.passwords.verify(dto.password, await this.getDummyHash());
       throw invalidCredentials();
     }
@@ -147,9 +149,6 @@ export class AuthService {
     if (!(await this.users.releaseLoginAttempts(candidate.id, now))) {
       const lock = await this.users.activeLockOf(candidate.id, now);
       throw accountLocked(lock ?? new Date(now.getTime() + LOCKOUT_MS), now);
-    }
-    if (candidate.status === AccountStatus.Deactivated) {
-      throw invalidCredentials();
     }
     if (candidate.status === AccountStatus.Suspended) {
       throw accountSuspended();

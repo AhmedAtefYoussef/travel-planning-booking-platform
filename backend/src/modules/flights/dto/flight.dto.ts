@@ -37,12 +37,12 @@ const TO = {
   description: 'Arrival airport IATA code from GET /api/airports (FLT-02)',
 };
 const DEPARTURE = {
-  example: '2026-12-01T14:30',
+  example: '2027-12-01T14:30',
   description:
     'Departure, local time at the departure airport (YYYY-MM-DDTHH:mm)',
 };
 const ARRIVAL = {
-  example: '2026-12-01T18:45',
+  example: '2027-12-01T18:45',
   description: 'Arrival, local time at the arrival airport (YYYY-MM-DDTHH:mm)',
 };
 
@@ -115,13 +115,13 @@ export class FlightEndpointDto {
   timeZone!: string;
 
   @ApiProperty({
-    example: '2026-12-01T12:30:00.000Z',
+    example: '2027-12-01T12:30:00.000Z',
     description: 'UTC instant',
   })
   utc!: Date;
 
   @ApiProperty({
-    example: '2026-12-01T14:30:00.000+02:00',
+    example: '2027-12-01T14:30:00.000+02:00',
     description:
       "The same instant in the airport's local time, with its offset",
   })
@@ -174,7 +174,7 @@ export class FlightDto {
   arrival!: FlightEndpointDto;
 
   @ApiProperty({
-    example: '2026-12-01',
+    example: '2027-12-01',
     description: 'Calendar date of departure at the departure airport',
   })
   departureLocalDate!: string;

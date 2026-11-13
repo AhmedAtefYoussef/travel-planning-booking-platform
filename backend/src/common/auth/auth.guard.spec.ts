@@ -48,9 +48,14 @@ const activeAs = (_sid: string, userId: string) =>
     status: 'ACTIVE' as const,
     user: { id: userId, role: Role.User },
   });
-const sessions = { touch: jest.fn().mockImplementation(activeAs) };
+const sessions = {
+  touch: jest.fn().mockImplementation(activeAs),
+  // No real account behind a stub id unless a test says otherwise.
+  accountOf: jest.fn().mockResolvedValue(null),
+};
 beforeEach(() => {
   sessions.touch.mockReset().mockImplementation(activeAs);
+  sessions.accountOf.mockReset().mockResolvedValue(null);
 });
 
 function guard(isPublic = false, stubEnabled = true, allowPending = false) {
@@ -162,6 +167,35 @@ describe('AuthGuard (ACC-19 cookie auth, stub fallback)', () => {
   it('lets public routes through without looking at cookies', async () => {
     const { ctx } = contextWith({ access_token: 'garbage' });
     await expect(guard(true).canActivate(ctx)).resolves.toBe(true);
+  });
+
+  it.each([
+    ['SUSPENDED', false, 403, /suspended/],
+    ['DEACTIVATED', false, 401, /log in again/],
+    ['ACTIVE', true, 403, /temporary password/],
+  ] as const)(
+    'a stub caller naming a real %s account (mustChange=%s) gets the cookie-path status checks',
+    async (status, mustChangePassword, code, message) => {
+      sessions.accountOf.mockResolvedValue({ status, mustChangePassword });
+      const { ctx } = contextWith({}, { 'x-dev-user': `USER:${USER}` });
+      const error = await guard()
+        .canActivate(ctx)
+        .catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(AppException);
+      expect((error as AppException).getStatus()).toBe(code);
+      expect((error as AppException).message).toMatch(message);
+      expect(sessions.accountOf).toHaveBeenCalledWith(USER);
+    },
+  );
+
+  it('a stub caller naming an active real account passes', async () => {
+    sessions.accountOf.mockResolvedValue({
+      status: 'ACTIVE',
+      mustChangePassword: false,
+    });
+    const { ctx, req } = contextWith({}, { 'x-dev-user': `USER:${USER}` });
+    await expect(guard().canActivate(ctx)).resolves.toBe(true);
+    expect(req.user?.id).toBe(USER);
   });
 });
 

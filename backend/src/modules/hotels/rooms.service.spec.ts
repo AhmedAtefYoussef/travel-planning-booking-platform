@@ -8,8 +8,8 @@ import { RoomNightKind, type RoomNight } from './schemas/room-night.schema';
 import { MAX_RANGES_PER_ROOM, type Room } from './schemas/room.schema';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import {
-  firstOverlap,
   nightsOutside,
+  overlapFieldErrors,
   RoomsService,
   sortedRanges,
 } from './rooms.service';
@@ -122,20 +122,23 @@ describe('range helpers (HTL-04)', () => {
     ).toEqual([r('2027-01-01', '2027-01-05'), r('2027-03-01', '2027-03-05')]);
   });
 
-  it('finds overlapping neighbours, but not ranges that only touch', () => {
+  it('names each overlapping range by its position in the request (GEN-02)', () => {
     expect(
-      firstOverlap([
+      overlapFieldErrors([
         r('2027-01-01', '2027-01-10'),
         r('2027-01-10', '2027-01-20'),
       ]),
-    ).toBeNull();
-    expect(
-      firstOverlap([
-        r('2027-01-01', '2027-01-10'),
-        r('2027-01-09', '2027-01-20'),
-      ]),
-    ).toEqual([r('2027-01-01', '2027-01-10'), r('2027-01-09', '2027-01-20')]);
-    expect(firstOverlap([])).toBeNull();
+    ).toEqual([]);
+    const errors = overlapFieldErrors([
+      r('2027-02-05', '2027-02-08'),
+      r('2027-01-01', '2027-03-01'),
+      r('2027-02-20', '2027-02-25'),
+    ]);
+    expect(errors.map((e) => e.field)).toEqual([
+      'ranges[0].from',
+      'ranges[2].from',
+    ]);
+    expect(errors[0].message).toContain('overlaps ranges[1]');
   });
 });
 

@@ -47,7 +47,8 @@ export class HotelsController {
         },
       },
       invalid: {
-        summary: 'Invalid: short name, star class 9, too many photos',
+        summary:
+          'Invalid: short name and address, star class 9, a photo that is not a URL',
         value: {
           name: 'N',
           address: 'x',
@@ -90,7 +91,7 @@ export class HotelsController {
     },
   })
   @ApiOkResponse({ type: HotelDto })
-  @ApiErrorResponses(400, 404)
+  @ApiErrorResponses(400, 404, 409)
   update(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,

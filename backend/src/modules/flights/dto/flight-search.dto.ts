@@ -62,7 +62,7 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   to!: string;
 
   @ApiProperty({
-    example: '2026-12-01',
+    example: '2027-12-01',
     description:
       'Departure date as the local calendar date at the departure airport (YYYY-MM-DD)',
   })
@@ -143,10 +143,10 @@ export class FlightSearchResultDto {
   @ApiProperty({ example: 'DXB' })
   to!: string;
 
-  @ApiProperty({ example: '2026-12-01T12:30:00.000Z' })
+  @ApiProperty({ example: '2027-12-01T12:30:00.000Z' })
   departureUtc!: Date;
 
-  @ApiProperty({ example: '2026-12-01T14:45:00.000Z' })
+  @ApiProperty({ example: '2027-12-01T14:45:00.000Z' })
   arrivalUtc!: Date;
 
   @ApiProperty({

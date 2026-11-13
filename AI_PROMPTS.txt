@@ -854,3 +854,56 @@ to say why setting everReserved alone is not enough. Protected nights now start 
 date, taken from an airport in the hotel's city, falling back to UTC-12 so tonight is never left
 unprotected. Unit tests cover a New York evening and the fallback; hotel unit and e2e tests pass.
 ================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-136 (Milestone 1 V&V of every Done/Partial requirement), TRVL-129 (CI gate)
+Prompt:
+Analyse the project description, the requirements workbook, the mock data and every Jira task, then
+verify and validate each implemented feature against the workbook and the Jira acceptance criteria.
+Test every endpoint through Swagger so that all scenarios are handled and results are accurate and
+consistent, research best practices first, and apply the most useful skills and agentic workflows.
+How the output was used:
+Claude planned a requirements-based V&V campaign (atomic rules per requirement, boundary values,
+decision tables, an OWASP API Top 10 authorisation matrix, database oracles, concurrency checks) and
+ran four parallel module tracks plus independent verifiers. I started the backend on a separate Atlas
+database with stub auth off; Claude drove Swagger UI with real cookie sessions and captured evidence.
+The result is docs/qa/vv-m1 (report and four traceability matrices), new e2e specs under
+backend/test/vv that pin each confirmed defect with it.failing, and a non-blocking CI step that lists
+implemented requirements no test cites. I reviewed the findings before any Jira bug was filed.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-03, FLT-11, ACC-05, ACC-11, ACC-12, ACC-13, HTL-01, HTL-04, GEN-02, GEN-13 (V&V fixes in #55)
+Prompt:
+Fix all of the issues the milestone 1 V&V flagged, then sync Jira.
+How the output was used:
+Claude fixed each confirmed defect and actionable spec question as its own commit, turning the matching
+it.failing proof into a regular test: future-dated Swagger flight examples, a generic message for
+malformed JSON, field errors for an unknown city and for overlapping ranges, the production placeholder
+check, Swagger example and response documentation, a deactivated account handled like an unknown email
+before the lockout gate, and account status checks for stub callers that name a real account. It set
+the FLT-11 traceability row to Partial, removed a V&V test that compared against the gitignored
+openapi.json, and pushed the two HTL-05 fixes to PR #54. npm run verify passes with 603 unit and 542
+e2e tests.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-05, HTL-04, GEN-02 (update of #55 after #54 merged)
+Prompt:
+#54 is merged, update #55.
+How the output was used:
+Claude merged develop into the V&V branch and resolved the AI_PROMPTS.txt (develop first, then this
+branch's entries), traceability (HTL-04 and HTL-05 rows cite both PRs) and rooms.service.spec.ts
+import conflicts. It then wrote a failing e2e test showing that HTL-05's availability replace still
+answered overlapping ranges without field errors, switched replaceAvailability to overlapFieldErrors
+so it matches HTL-04, and removed the now unused firstOverlap helper. npm run verify passes.
+================================================
