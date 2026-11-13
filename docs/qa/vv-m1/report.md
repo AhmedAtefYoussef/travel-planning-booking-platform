@@ -3,20 +3,21 @@
 Scope: every requirement that is **Done** or **Partial** in [traceability.md](../../requirements/traceability.md) on `develop` @ `fc610e0` (PRs #1 to #53). Open PR #54 (HTL-05) was reviewed before merge on a local merge with `develop`.
 Run on 2026-11-13 by the team leader with Claude Code (AI-assisted, logged in AI_PROMPTS.txt). Milestone 1 is evaluated through Swagger UI on 2026-11-20.
 
-**Result: no Critical or High defects. 239 of 279 atomic rules pass.**
+**Result: no Critical or High defects. Every confirmed defect and every actionable finding is now fixed, so 253 of 279 atomic rules pass and none fails.**
 
-| | Count |
-|---|---|
-| Atomic rules traced | 279 |
-| PASS | 239 |
-| FAIL | 11 |
-| PARTIAL | 5 |
-| BLOCKED-BY a feature not built yet | 22 |
-| UNTESTED (frontend half of a rule, or HTL-02 not built) | 2 |
+| | First run | After fixes |
+|---|---|---|
+| Atomic rules traced | 279 | 279 |
+| PASS | 239 | 253 |
+| FAIL | 11 | 0 |
+| PARTIAL (waits for FLT-22 seat holds) | 5 | 2 |
+| BLOCKED-BY a feature not built yet | 22 | 22 |
+| UNTESTED (frontend half of a rule, or HTL-02 not built) | 2 | 2 |
 
-The 11 FAIL rows come from 10 findings. Some of these were later downgraded to spec questions by an independent verifier (see [Defect log](#defect-log)).
-
-All four tracks' new e2e specs pass. Each defect is pinned by an `it.failing` test, so CI stays green and the defect stays visible.
+**How the fixes were made.**
+- **Merged code, in this PR:** each defect was first pinned by an `it.failing` test. The fix commit turned that test into a regular passing test, so the history shows red, then green.
+- **PR #54, before it merges:** two findings were fixed with commits on that PR's branch (see [PR #54](#pr-54-htl-05-pre-merge-review)).
+- **Spec questions:** the ones that need a team or TA decision stay in [Spec questions](#spec-questions).
 
 ## Sources and order of authority
 
@@ -68,12 +69,12 @@ PASS, FAIL, PARTIAL and BLOCKED count atomic rules. *Live* means the rule was al
 |---|---|---|---|---|---|---|---|
 | ACC-01 | Abdelrahman | 11 | | | | yes | PASS |
 | ACC-04 | Abdelrahman | 8 | | | | yes | PASS |
-| ACC-05 | Abdelrahman | 9 | 1 | 1 | | yes | PASS (spec question SQ-1) |
+| ACC-05 | Abdelrahman | 11 | | | | yes | PASS (SQ-1 and SQ-4 fixed in #55) |
 | ACC-06 | Abdelrahman | 5 | | | | | PASS |
 | ACC-07a | Abdelrahman | 7 | | | | | PASS |
 | ACC-08 | Abdelrahman | 6 | | | | yes | PASS |
 | ACC-09 | Abdelrahman | 6 | | | | | PASS |
-| ACC-11 | Abdelrahman | 3 | 1 | | 2 | yes (39-cell matrix) | PASS (spec question SQ-2) |
+| ACC-11 | Abdelrahman | 4 | | | 2 | yes (39-cell matrix) | PASS (SQ-2 fixed in #55) |
 | ACC-12 | Abdelrahman | 3 | | | 3 | yes | PARTIAL, as declared (bookings block and content hiding wait for FLT-22/HTL-18 and BLG/ITN) |
 | ACC-13 | Abdelrahman | 8 | | | | yes | PASS |
 | ACC-14 | Abdelrahman | 6 | | | | yes | PASS |
@@ -81,71 +82,74 @@ PASS, FAIL, PARTIAL and BLOCKED count atomic rules. *Live* means the rule was al
 | ACC-19 | Abdelrahman | 4 | | | 1 | yes | PASS (frontend half in M2) |
 | FLT-01 | Joudy | 8 | | | 1 | yes | PASS (logo upload waits for GEN-08) |
 | FLT-02 | Joudy | 6 | | | | yes | PASS |
-| FLT-03 | Joudy | 10 | 1 | | | yes | PASS, with D-01 on the Swagger example |
+| FLT-03 | Joudy | 11 | | | | yes | PASS (D-01 fixed in #55) |
 | FLT-04 | Joudy | 8 | | | | yes | PASS |
 | FLT-05 | Joudy | 8 | | 1 | 2 | yes | PARTIAL, as declared (notification waits for GEN-01, price snapshot for FLT-22) |
 | FLT-08 | Joudy | 4 | | | 1 | yes | PASS |
 | FLT-09 | Joudy | 7 | | | 1 | yes | PASS |
-| FLT-11 | Joudy | 7 | | 1 | 1 | yes | PARTIAL: held seats come from FLT-22 (see [Jira drift](#jira-drift)) |
+| FLT-11 | Joudy | 7 | | 1 | 1 | yes | PARTIAL: held seats come from FLT-22 (traceability row set to Partial in #55) |
 | FLT-15 | Joudy | 7 | | | | yes | PASS |
 | FLT-17 | Joudy | 6 | | | | yes | PASS |
 | FLT-30 | Joudy | 4 | | | 2 | yes (live Departed) | PASS |
 | GEN-06 | Joudy | 2 | | | | yes | PASS |
 | GEN-12 | Joudy | 7 | | | | yes | PASS |
-| HTL-01 | Sandra | 13 | 1 | 1 | 1 | yes | PASS, with D-03 |
+| HTL-01 | Sandra | 15 | | | 1 | yes | PASS (D-03 and the PATCH 409 fixed in #55) |
 | HTL-03 | Sandra | 12 | | | | yes | PASS |
-| HTL-04 | Sandra | 14 | 1 | | | yes | PASS (spec question SQ-3) |
-| HTL-05 (PR #54) | Sandra | 10 | 2 | | 2 | | Review notes for the PR (see [PR #54](#pr-54-htl-05-pre-merge-review)) |
-| GEN-02 | Ahmed | 5 | 1 | | | yes | PASS, with D-02 |
+| HTL-04 | Sandra | 15 | | | | yes | PASS (SQ-3 fixed in #55) |
+| HTL-05 (PR #54) | Sandra | 12 | | | 2 | | PASS on PR #54 after its two fix commits (see [PR #54](#pr-54-htl-05-pre-merge-review)) |
+| GEN-02 | Ahmed | 6 | | | | yes | PASS (D-02 fixed in #55) |
 | GEN-05 | Ahmed | 4 | | | | yes | PASS |
-| GEN-13 | Ahmed | 5 | 1 | | | yes | PASS, with D-04 (hardening) |
+| GEN-13 | Ahmed | 6 | | | | yes | PASS (D-04 fixed in #55) |
 | PAY-01, PAY-03, PAY-04, GEN-07, GEN-11, HTL-10 | Ahmed / Sandra | 9 | | | 5 | | The schema-only parts claimed in traceability.md are verified |
-| Swagger (Jira DoD) | all | 3 | 2 | 1 | | yes | D-01, D-05 |
+| Swagger (Jira DoD) | all | 6 | | | | yes | PASS (D-01 and D-05 fixed in #55) |
 
 ## Defect log
 
-Every FAIL was given to an independent verifier that tried to refute it. Only CONFIRMED items are proposed as Jira Bugs; the rest are in [Spec questions](#spec-questions).
+Every FAIL went to an independent verifier that tried to refute it. Every confirmed defect, and every finding the verifier downgraded but that had a clear fix, is now fixed. Each fix commit cites the requirement.
 
-| ID | Sev | Req | Owner | Defect | Where | Proof | Evidence |
-|---|---|---|---|---|---|---|---|
-| D-01 (F-B-01, F-D-03) | Low | FLT-03, FLT-11 (Swagger DoD) | Joudy | The "Valid" Swagger examples for `POST /api/flights` depart on 2026-12-01. From 2026-12-02 they return 400 "Departure must be in the future", and the search example then returns an empty list. They still work on the M1 evaluation day but will fail at M2 (2026-12-11) | `flights.controller.ts:111-112,122-123`; `dto/flight.dto.ts:40,45`; `dto/flight-search.dto.ts:65` | `it.failing` in `vv/flights.vv.e2e-spec.ts` and `vv/foundation.vv.e2e-spec.ts` | code |
-| D-02 (F-D-01) | Low | GEN-02 | Ahmed | A malformed JSON body returns the raw `JSON.parse` message, which echoes fragments of the body (e.g. `Unexpected token '"', ""Travel2026x"" is not valid JSON`). The filter's intended "Malformed JSON request body" branch is never reached: Nest converts the body-parser `SyntaxError` into a `BadRequestException` before the filter runs | `common/filters/all-exceptions.filter.ts:79-88` vs `:144-157` | `it.failing` in `vv/foundation.vv.e2e-spec.ts` | reproduced live |
-| D-03 (F-C-01) | Low | HTL-01, GEN-02 | Sandra | An unknown `cityId` on `POST /api/hotels` returns 400 `BAD_REQUEST` without `fieldErrors`. Unknown airports in flights return a `fieldErrors` entry, so the API is inconsistent for the same kind of input | `hotels.service.ts:128-136` (compare `flights.service.ts:66-75`) | `it.failing` in `vv/hotels.vv.e2e-spec.ts` | [06](#evidence) |
-| D-04 (F-D-02) | Low | GEN-13 (hardening, not a workbook rule) | Ahmed | The production config check does not treat `.env.example`'s `ADMIN_SEED_PASSWORD` as a placeholder, because the regex `/change-me\|replace_me\|placeholder/i` does not match it. A deployment could seed an admin with a password published in the repo | `config/env.validation.ts:137` | `it.failing` in `vv/foundation.vv.e2e-spec.ts` | code |
-| D-05 (F-D-04, F-D-05, F-C-03) | Trivial | Swagger DoD | Abdelrahman, Sandra | Example text that does not match its values: the "Seeded admin" login example password differs from `.env.example` (401 when run); the moderator "traveller role" example sends `ADMIN`; the hotel "too many photos" example sends one bad URL | `auth.controller.ts:137-139`; `admin-accounts.controller.ts:93-101`; `hotels.controller.ts:50-56` | `it.failing` (D-05a) in `vv/foundation.vv.e2e-spec.ts`; code | code |
+| ID | Sev | Req | Owner | Defect | Fix | Status |
+|---|---|---|---|---|---|---|
+| D-01 (F-B-01, F-D-03) | Low | FLT-03, FLT-11 (Swagger DoD) | Joudy | The "Valid" Swagger examples for `POST /api/flights` departed on 2026-12-01, so from 2026-12-02 they returned 400 "Departure must be in the future", and the search example returned an empty list | The create and search examples now use 2027-12-01, like the PATCH examples | Fixed in #55 (`3f2185f`) |
+| D-02 (F-D-01) | Low | GEN-02 | Ahmed | A malformed JSON body returned the raw `JSON.parse` message, which echoes fragments of the body. Nest converted the body-parser `SyntaxError` into a `BadRequestException` before the filter ran | `configureApp` registers the JSON parser followed by `maskMalformedJson`, which hands the filter a client error. The answer is now "Malformed JSON request body"; `rawBody` is kept | Fixed in #55 (`86faa28`) |
+| D-03 (F-C-01) | Low | HTL-01, GEN-02 | Sandra | An unknown `cityId` on `POST/PATCH /api/hotels` returned 400 `BAD_REQUEST` without `fieldErrors` | Now 400 `VALIDATION_FAILED` with a `cityId` field error, like unknown airports in flights | Fixed in #55 (`11f1b5d`) |
+| D-04 (F-D-02) | Low | GEN-13 (hardening) | Ahmed | The production config check did not treat `.env.example`'s `ADMIN_SEED_PASSWORD` as a placeholder | The placeholder pattern now also matches it (`/change-?me\|replace_?me\|placeholder/i`) | Fixed in #55 (`249ff7d`) |
+| D-05 (F-D-04, F-D-05, F-C-03) | Trivial | Swagger DoD | Abdelrahman, Sandra | Example text that did not match its values. The "Seeded admin" login example password differed from `.env.example`; the moderator "traveller role" example sent `ADMIN`; the hotel "too many photos" example sent one bad URL. `PATCH /api/hotels/:id` could return an undocumented 409 | Examples and summaries corrected; 409 documented | Fixed in #55 (`86c0fa8`, `8b68587`) |
 
 ## Spec questions
 
-Each of these is raised for the TAs or the team, not filed as a bug.
+These items were raised as questions. Five (SQ-1 to SQ-5) had a clear fix that matches the existing design, so they were fixed. The rest need a team or TA decision and are left open.
 
-| ID | Req | Question | From |
+| ID | Req | Question | Outcome |
 |---|---|---|---|
-| SQ-1 | ACC-04/05/12 | The lock check runs before the account-status check, so a **deactivated** account accumulates failed logins and then answers 403 `ACCOUNT_LOCKED` even with the right password, while an unknown email always answers the generic 401. Lockout already reveals that an active email exists, so this adds no new enumeration, but it contradicts the method's own docstring. Should ACC-05 apply to deactivated (and suspended) accounts? | F-A-01, reproduced live ([03](#evidence) vs [04](#evidence)) |
-| SQ-2 | ACC-11 | The `x-dev-user` stub skips session, status and forced-change checks. It works only with `AUTH_STUB=true`, outside production, from loopback. ACC-11 has landed, yet `.env.example` still ships `AUTH_STUB=true` and Swagger advertises the scheme. Should it be switched off by default before evaluation? | F-A-02 |
-| SQ-3 | HTL-04 | Overlapping ranges inside one request return 400 `BAD_REQUEST` without `fieldErrors`. conventions.md allows business-rule errors without field errors; does GEN-02 or the DoD require `ranges[i]` errors? | F-C-02, reproduced live ([10](#evidence)) |
-| SQ-4 | ACC-05 | Simultaneous wrong logins can return 429 `TOO_MANY_REQUESTS`, which is not in the workbook. It is explained in the operation text but not listed as a response | F-A-03, reproduced live |
-| SQ-5 | ACC-12 | The `DELETE /users/me` text promises the upcoming-bookings block. Its provider is optional and unbound until the bookings module exists, so wire it in M1 or M2 | F-A-04 |
-| SQ-6 | FLT-03 | The repeated autumn DST hour (e.g. LHR 2027-10-31 01:30) is rejected. The workbook is silent; the error message is clear | Track B |
-| SQ-7 | FLT-05 | Changing an airport keeps the old wall-clock time in the new zone instead of the UTC instant. Also, does a Cancelled or Expired booking still lock the airports? | Track B |
-| SQ-8 | FLT-09, HTL-10 | "Days remaining" is counted in whole 24-hour periods, not calendar days in the provider's zone | Tracks B and D |
-| SQ-9 | GEN-05 | Arrays inside one resource (room availability ranges) are not paginated. Does "every list" cover them? | Track D |
-| SQ-10 | PAY-04 | `PLATFORM_CURRENCY` is validated but never read. No response states the currency of minor-unit amounts, and the payment and refund schemas accept any 3-letter code. Enforce this when PAY-01 lands | Track D |
+| SQ-1 | ACC-04/05/12 | A deactivated account accumulated failed logins and then answered 403 `ACCOUNT_LOCKED`, while an unknown email always answered the generic 401. This contradicted the login method's own docstring | **Fixed in #55** (`affffe4`): a deactivated account is handled like an unknown email before the lockout gate, so it is never counted or locked |
+| SQ-2 | ACC-11 | The `x-dev-user` stub skipped the status and forced-change checks for real accounts (development only: `AUTH_STUB=true`, not production, loopback) | **Fixed in #55** (`19bf639`): a stub caller naming a real account gets the same status and forced-change checks as a cookie request; stub ids with no account are unaffected. Whether to ship `AUTH_STUB=false` in `.env.example` before the evaluation is still the team's call |
+| SQ-3 | HTL-04 | Overlapping ranges inside one request returned 400 `BAD_REQUEST` without `fieldErrors` | **Fixed in #55** (`11f1b5d`): 400 `VALIDATION_FAILED` with `ranges[i].from` for each range that overlaps an earlier one |
+| SQ-4 | ACC-05 | Simultaneous wrong logins can return 429 `TOO_MANY_REQUESTS`, which was explained but not listed as a response | **Fixed in #55** (`86c0fa8`): 429 is now documented on `POST /api/auth/login` (the workbook stays silent on it) |
+| SQ-5 | ACC-12 | The `DELETE /users/me` text promised the upcoming-bookings block, whose provider is unbound until the bookings module exists | **Fixed in #55** (`6f7e374`): the text says the block takes effect once FLT-22/HTL-18 provide `UPCOMING_BOOKINGS` |
+| SQ-6 | FLT-03 | The repeated autumn DST hour (e.g. LHR 2027-10-31 01:30) is rejected. The workbook is silent; the error message is clear | Open (TA question) |
+| SQ-7 | FLT-05 | Changing an airport keeps the old wall-clock time in the new zone instead of the UTC instant. Does a Cancelled or Expired booking still lock the airports? | Open (decide when FLT-22 lands) |
+| SQ-8 | FLT-09, HTL-10 | "Days remaining" is counted in whole 24-hour periods, not calendar days in the provider's zone | Open (TA question) |
+| SQ-9 | GEN-05 | Arrays inside one resource (room availability ranges) are not paginated. Does "every list" cover them? | Open (TA question) |
+| SQ-10 | PAY-04 | `PLATFORM_CURRENCY` is validated but never read; payment and refund schemas accept any 3-letter code | Open (enforce in PAY-01) |
 
 Each track's RTM lists its full spec questions.
 
 ## PR #54 (HTL-05) pre-merge review
 
-PR #54 was merged locally onto `develop` (never pushed). One `AI_PROMPTS.txt` conflict needs both sides kept; there are no code conflicts. Its tests, 44 hotel e2e tests and 118 hotel unit tests pass after the merge.
+PR #54 was first merged locally onto `develop` (never pushed). One `AI_PROMPTS.txt` conflict needs both sides kept; there are no code conflicts. Its tests, 44 hotel e2e tests and 118 hotel unit tests passed after the merge. Two findings were then fixed by commits pushed to the PR's own branch:
 
-- **F-C-51** (Low, latent until HTL-18; CONFIRMED by an independent verifier across 9 interleavings): the availability replace reads `room_nights` but writes only the room. Once a room's `everReserved` is already true, a hold that sets it again (driver `$set`, or Mongoose `doc.save()`, which skips unchanged documents) writes nothing. The two transactions then do not conflict, and a held night can end up outside every range. Proposed contract wording for Sandra: *"The HTL-18 hold transaction must make a write to the room document that always changes it, e.g. `$inc: { reservationVersion: 1 }` alongside `$set: { everReserved: true }`; do not rely on Mongoose timestamps or `doc.save()`."*
-- **F-C-52** (Low): protected nights start at the UTC date, while `room_nights.date` is the hotel's local date. In a hotel west of UTC in the evening, tonight's booked night is not protected.
-- **Spec question:** unexpired HELD nights also block removal. The workbook protects only confirmed reservations, so the PR is stricter.
+- **F-C-51** (Low, latent until HTL-18; CONFIRMED by an independent verifier across 9 interleavings). The availability replace reads `room_nights` but writes only the room. A hold that only sets `everReserved: true` when it is already true writes nothing (the same goes for Mongoose `doc.save()`), so the transactions did not conflict.
+  - **Fix:** the contract now requires the hold to `$inc` a new `reservationVersion` field, a write that always changes the room.
+  - The schema gains `reservationVersion`, and `contracts.md` plus the service comment explain why.
+- **F-C-52** (Low). Protected nights started at the UTC date, while `room_nights.date` is the hotel's local date.
+  - **Fix:** "today" is now the hotel's local date, taken from the time zone of an airport in the hotel's city. When the zone is unknown it falls back to UTC-12, so tonight's night is never unprotected. Unit tests cover New York at 21:00 and the fallback.
+- **Spec question (open):** unexpired HELD nights also block removal. The workbook protects only confirmed reservations, so the PR is stricter.
 
-These are posted as review notes on the PR rather than as Jira Bugs, because the code is not merged.
+Merging note: PR #54 and this PR both change `backend/src/modules/hotels/rooms.service.ts`. Whichever merges second needs a small conflict resolution in the imports and the overlap check. HTL-05's replace should then use `overlapFieldErrors` too, so both endpoints answer overlaps the same way (SQ-3).
 
 ## Jira drift
 
-- **FLT-11** is Done in Jira and traceability.md, but "available = total - booked - **held**" cannot hold until FLT-22 exists. Proposal: set the traceability row to `Partial: held seats wait for FLT-22`. Jira can stay Done or move back to In Progress, as you decide.
+- **FLT-11** was Done in Jira and traceability.md, but "available = total - booked - **held**" cannot hold until FLT-22 exists. This PR sets the traceability row to `Partial`, and the Jira story moves back to In Progress.
 - ACC-12, FLT-05 and HTL-01 are In Progress in Jira and `Partial` in traceability.md. This is consistent, so no change.
 
 ## Evaluator-facing observations (Swagger, 2026-11-20)
@@ -157,7 +161,9 @@ These are posted as review notes on the PR rather than as Jira Bugs, because the
 
 ## Consistency
 
-The full e2e suite (the 32 existing specs plus the 4 V&V specs) ran twice in a row on a fresh in-memory replica set. Both runs gave identical results, `Test Suites: 36 passed` and `Tests: 543 passed, 543 total`, with no flaky tests. The 543 tests are 335 existing ones plus 208 new ones, including 9 `it.failing` defect proofs.
+The full e2e suite (the 32 existing specs plus the 4 V&V specs) ran twice in a row on a fresh in-memory replica set. Both runs gave identical results, `Test Suites: 36 passed` and `Tests: 543 passed, 543 total`, with no flaky tests. The 543 tests were 335 existing ones plus 208 new ones, including 9 `it.failing` defect proofs.
+
+After the fixes the full suite gives `Tests: 542 passed, 542 total` with no `it.failing` left. One V&V test compared against `backend/openapi.json`, which is a gitignored build artifact, so it was removed; the openapi-contract CI job already generates and checks that file.
 
 The live checks were also repeated where state allowed (for example, the login decision table after the lock expired), with the same outcome.
 
@@ -169,14 +175,14 @@ Screenshots of Swagger UI against the live `travel_vv` server are on the never-m
 |---|---|
 | 01 | ACC-01 register 201 (no password in the response) |
 | 02 | ACC-01 / GEN-02 register 400 with `fieldErrors` (name, email, password, acceptTerms, injected `role`) |
-| 03 | SQ-1: deactivated account answers 403 `ACCOUNT_LOCKED` |
+| 03 | SQ-1 before the fix: deactivated account answers 403 `ACCOUNT_LOCKED` (fixed in #55) |
 | 04 | ACC-04: unknown email answers the generic 401 |
 | 05 | ACC-14: admin account search |
-| 06 | D-03: unknown city returns 400 without `fieldErrors` |
+| 06 | D-03 before the fix: unknown city returns 400 without `fieldErrors` (fixed in #55) |
 | 07 | FLT-03: DST-gap local time rejected with a clear field error |
 | 08 | FLT-11 / GEN-06: search by local departure date (HND 00:30 local = previous UTC day) |
 | 09 | FLT-30 / FLT-05: a Departed flight cannot be edited (409) |
-| 10 | SQ-3: overlap inside one availability request |
+| 10 | SQ-3 before the fix: overlap inside one availability request without `fieldErrors` (fixed in #55) |
 | 11 | ACC-11: hotel moderator on an admin route gets 403 |
 | 12 | GEN-05: page-size parameter rejected |
 

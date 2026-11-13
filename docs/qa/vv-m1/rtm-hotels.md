@@ -36,10 +36,10 @@ GEN-05 (paging): no list endpoints in this track, so it does not apply.
 | R-HTL-01-10 | derived | Star class is a whole number from 1 to 5 (`0`, `6`, `3.5` and `"4"` are rejected) | POST, PATCH /api/hotels | hotel.dto.ts:49-54 | hotels.e2e:88, 193 | vv:255 | PASS | |
 | R-HTL-01-11 | jira-dod | Fields sent for mass assignment (`isActive`, `ratingAvg`, `hotelId`) are rejected and nothing changes | PATCH /api/hotels/:id | validation.pipe.ts:38 | none | vv:197 | PASS | |
 | R-HTL-01-12 | jira-dod | Invalid DTO input returns 400 VALIDATION_FAILED with fieldErrors | POST, PATCH /api/hotels | hotel.dto.ts:41-76 | hotels.e2e:88, 193 | vv:255 | PASS | |
-| R-HTL-01-13 | jira-dod | An unknown city returns 400 VALIDATION_FAILED with a field error on `cityId` (GEN-02) | POST, PATCH /api/hotels | hotels.service.ts:128-136 | hotels.e2e:80 (status only) | vv:300 (failing) | FAIL | F-C-01 |
+| R-HTL-01-13 | jira-dod | An unknown city returns 400 VALIDATION_FAILED with a field error on `cityId` (GEN-02) | POST, PATCH /api/hotels | hotels.service.ts:128-136 | hotels.e2e:80 (status only) | vv:300 (regression test) | PASS (fixed in #55) | F-C-01 (fixed) |
 | R-HTL-01-14 | derived | A moderator still on the temporary password gets 403 PASSWORD_CHANGE_REQUIRED (ACC-13) | PATCH /api/hotels/:id | (auth guard) | admin-moderators.e2e:83 (airline only) | vv:216 | PASS | |
 | R-HTL-01-15 | derived | A deactivated hotel cannot be edited (ACC-15) | PATCH /api/hotels/:id | hotels.service.ts:112-126 | hotels.e2e:236 | none | PASS | |
-| R-HTL-01-16 | jira-dod | The Swagger summary starts with HTL-01 and every error the endpoint can return is documented | POST, PATCH /api/hotels | hotels.controller.ts:93; hotels.service.ts:87-91 | openapi-rules | none | PARTIAL | F-C-03 |
+| R-HTL-01-16 | jira-dod | The Swagger summary starts with HTL-01 and every error the endpoint can return is documented | POST, PATCH /api/hotels | hotels.controller.ts:93; hotels.service.ts:87-91 | openapi-rules | none | PASS (fixed in #55) | F-C-03 (fixed) |
 | R-HTL-02-01 | workbook | Hotel details page | GET /api/hotels/:id | none | none | vv:317 (route returns 404) | UNTESTED | (HTL-02 not started) |
 | R-HTL-03-01 | workbook | The hotel moderator adds a room with number or name, type, beds, maximum occupancy and price | POST /api/hotels/:id/rooms | rooms.service.ts:29-44 | rooms.e2e:57 | vv:353 | PASS | |
 | R-HTL-03-02 | workbook | The room number is unique within the hotel (409) | POST /api/hotels/:id/rooms | room.schema.ts:87-91 | rooms.e2e:78 | vv:326 | PASS | |
@@ -65,7 +65,7 @@ GEN-05 (paging): no list endpoints in this track, so it does not apply.
 | R-HTL-04-10 | jira-dod | A room that is not in the hotel in the path, or an unknown room, returns 404 | same | rooms.service.ts:87-97 | ra.e2e:182 | vv:493, 506 | PASS | |
 | R-HTL-04-11 | derived | Two simultaneous overlapping requests: exactly one wins | same | rooms.service.ts:66-84 | ra.e2e:155 | none | PASS | |
 | R-HTL-04-12 | derived | A room holds at most 200 ranges (409) | same | rooms.service.ts:98-104 | ra.e2e:130 | none | PASS | |
-| R-HTL-04-13 | jira-dod | An overlap inside one request returns 400 VALIDATION_FAILED and names the range (GEN-02) | same | rooms.service.ts:58-65 | ra.e2e:103 (status only) | vv:455 (failing) | FAIL | F-C-02 |
+| R-HTL-04-13 | jira-dod | An overlap inside one request returns 400 VALIDATION_FAILED and names the range (GEN-02) | same | rooms.service.ts:58-65 | ra.e2e:103 (status only) | vv:455 (regression test) | PASS (fixed in #55) | F-C-02 (fixed) |
 | R-HTL-04-14 | jira-dod | Unknown keys inside a range (for example `kind`) are rejected | same | validation.pipe.ts:38 | none | vv:466 | PASS | |
 | R-HTL-04-15 | derived | A deactivated hotel cannot change its room dates (ACC-15) | same | hotels.service.ts:118-124 | ra.e2e:194 | none | PASS | |
 | R-HTL-05-01 | workbook | The moderator edits a room's beds, occupancy and price; other fields stay as they were | PATCH .../rooms/:roomId (PR #54) | PR rooms.service.ts:126-155 | room-edit.e2e:97 | htl05:184 | PASS | |
@@ -77,8 +77,8 @@ GEN-05 (paging): no list endpoints in this track, so it does not apply.
 | R-HTL-05-07 | workbook | Availability cannot be removed for dates with confirmed (BOOKED) reservations: 409, nothing changes, and `to` is exclusive | same | PR rooms.service.ts:187-201, 225-243 | room-edit.e2e:181 | htl05:274, 290 | PASS | |
 | R-HTL-05-08 | derived | An unexpired HELD (pending) night also blocks removal | same | PR rooms.service.ts:235 | room-edit.e2e:181 | htl05:298 | PASS | SQ-3 |
 | R-HTL-05-09 | derived | Booked nights before today are not protected | same | PR rooms.service.ts:232 | room-edit.e2e:202 | none | PASS | SQ-4 |
-| R-HTL-05-10 | workbook | The protection also holds against a booking hold that runs at the same time | same | PR rooms.service.ts:181-204; contracts.md (PR) | none | htl05:391, 404 (pass); htl05:413 (failing) | FAIL | F-C-51 |
-| R-HTL-05-11 | workbook | "Today" for a booked night is the hotel's local date, so tonight's booked night is protected | same | PR rooms.service.ts:232; validators.ts:72 | none | htl05:431 (failing) | FAIL | F-C-52 |
+| R-HTL-05-10 | workbook | The protection also holds against a booking hold that runs at the same time | same | PR rooms.service.ts:181-204; contracts.md (PR) | none | htl05:391, 404 (pass); htl05:413 (regression test) | PASS (fixed in PR #54) | F-C-51 (fixed) |
+| R-HTL-05-11 | workbook | "Today" for a booked night is the hotel's local date, so tonight's booked night is protected | same | PR rooms.service.ts:232; validators.ts:72 | none | htl05:431 (regression test) | PASS (fixed in PR #54) | F-C-52 (fixed) |
 | R-HTL-05-12 | jira-dod | HTL-04 range rules and unknown keys apply to the replacement list | same | PR room.dto.ts (ReplaceAvailabilityDto) | room-edit.e2e:215 | htl05:310 | PASS | (F-C-02 also applies) |
 | R-HTL-05-13 | derived | Lowering occupancy below an existing reservation's party size | PATCH .../rooms/:roomId | none | none | none | BLOCKED-BY HTL-17 | SQ-5 |
 | R-HTL-05-14 | jira-dod | The Swagger summaries start with HTL-05, and 400/404/409 are documented | both PATCH endpoints | PR rooms.controller.ts:146, 188 | openapi-rules | none | PASS | |

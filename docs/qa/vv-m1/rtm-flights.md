@@ -35,7 +35,7 @@ Path abbreviations:
 | R-FLT-03-08 | derived | A local time in the repeated autumn hour (LHR 2027-10-31T01:30) is rejected; 00:30 BST and 02:30 GMT convert correctly | POST /api/flights | dates:53-57 | | V:494 | PASS | SQ-B-01 |
 | R-FLT-03-09 | jira-dod | Only an airline moderator (real session) creates flights, always for the session's airline; admin/user 403, guest 401; status/departureUtc/cabins/airlineId in the body rejected | POST /api/flights | fc:95, fs:57, fs:497-511 | flt:162, flt:173 | V:648, V:671 | PASS | |
 | R-FLT-03-10 | derived | A deactivated airline's moderator cannot create flights (ACC-15) | POST /api/flights | fs:59, as:156-166 | flt:198 | V:648 | PASS | |
-| R-FLT-03-11 | jira-dod | Swagger examples are documented and valid when run | POST /api/flights, PATCH /api/flights/:id | fc:105-124, fc:190-199, fdto:39-47 | | V:694 (it.failing) | FAIL | F-B-01 |
+| R-FLT-03-11 | jira-dod | Swagger examples are documented and valid when run | POST /api/flights, PATCH /api/flights/:id | fc:105-124, fc:190-199, fdto:39-47 | | V:694 (regression test) | PASS (fixed in #55) | F-B-01 (fixed) |
 | R-FLT-04-01 | workbook | Cabin class from the fixed set {Economy, Premium Economy, Business, First} | POST /api/flights/:id/cabins | cdto:55-62, fsch:14-19 | cab:138 | V:753 | PASS | |
 | R-FLT-04-02 | workbook | Each class at most once per flight, also under parallel requests | POST /api/flights/:id/cabins | fs:277-304, fsch:161-169 | cab:95, cab:122 | V:753 | PASS | |
 | R-FLT-04-03 | workbook | Seat count whole number > 0 (1 accepted; 0, fractions, text rejected) | POST/PATCH cabins | cdto:10-11 | cab:138, cab:204 | V:753, V:782 | PASS | |
