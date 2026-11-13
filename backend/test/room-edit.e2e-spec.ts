@@ -226,6 +226,17 @@ describe('Room edit (e2e): HTL-05', () => {
       await replace(id, mod(), {}).expect(400);
     });
 
+    it('names an overlapping range in fieldErrors, like HTL-04 (GEN-02)', async () => {
+      const id = await freshRoom();
+      const res = await replace(id, mod(), {
+        ranges: [r('2027-01-01', '2027-01-10'), r('2027-01-05', '2027-01-15')],
+      }).expect(400);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(
+        res.body.fieldErrors.map((f: { field: string }) => f.field),
+      ).toEqual(['ranges[1].from']);
+    });
+
     it('is for the hotel moderator only; 404 for an unknown room; deactivated hotel is 403', async () => {
       const id = await freshRoom();
       await replace(id, null, { ranges: [] }).expect(401);

@@ -8,7 +8,6 @@ import { RoomNightKind, type RoomNight } from './schemas/room-night.schema';
 import { MAX_RANGES_PER_ROOM, type Room } from './schemas/room.schema';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import {
-  firstOverlap,
   nightsOutside,
   overlapFieldErrors,
   RoomsService,
@@ -121,22 +120,6 @@ describe('range helpers (HTL-04)', () => {
         r('2027-01-01', '2027-01-05'),
       ]),
     ).toEqual([r('2027-01-01', '2027-01-05'), r('2027-03-01', '2027-03-05')]);
-  });
-
-  it('finds overlapping neighbours, but not ranges that only touch', () => {
-    expect(
-      firstOverlap([
-        r('2027-01-01', '2027-01-10'),
-        r('2027-01-10', '2027-01-20'),
-      ]),
-    ).toBeNull();
-    expect(
-      firstOverlap([
-        r('2027-01-01', '2027-01-10'),
-        r('2027-01-09', '2027-01-20'),
-      ]),
-    ).toEqual([r('2027-01-01', '2027-01-10'), r('2027-01-09', '2027-01-20')]);
-    expect(firstOverlap([])).toBeNull();
   });
 
   it('names each overlapping range by its position in the request (GEN-02)', () => {

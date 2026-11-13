@@ -168,15 +168,10 @@ export class RoomsService {
     dto: ReplaceAvailabilityDto,
   ): Promise<RoomDto> {
     const hotel = await this.hotels.loadManaged(user, hotelId);
+    // GEN-02: same answer as HTL-04, a field error naming each overlapping range.
+    const overlaps = overlapFieldErrors(dto.ranges);
+    if (overlaps.length) throw new ValidationFailedException(overlaps);
     const ranges = sortedRanges(dto.ranges);
-    const clash = firstOverlap(ranges);
-    if (clash) {
-      throw new AppException(
-        HttpStatus.BAD_REQUEST,
-        ErrorCode.BAD_REQUEST,
-        `The ranges ${clash[0].from} to ${clash[0].to} and ${clash[1].from} to ${clash[1].to} overlap each other`,
-      );
-    }
     const zone = (await this.hotels.timeZoneOf(hotel.cityId)) ?? EARLIEST_ZONE;
     const session = await this.connection.startSession();
     try {
@@ -277,16 +272,6 @@ export function overlapFieldErrors(ranges: RangeLike[]): FieldError[] {
     if (current.to > latest.to) latest = current;
   }
   return errors;
-}
-
-/** The first two neighbours that overlap in a list sorted by `from`, or null. */
-export function firstOverlap(
-  sorted: RangeLike[],
-): [RangeLike, RangeLike] | null {
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].from < sorted[i - 1].to) return [sorted[i - 1], sorted[i]];
-  }
-  return null;
 }
 
 export function toRoomDto(room: RoomDocument): RoomDto {
