@@ -864,8 +864,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
       COOKIE_SECURE: 'true',
       MONGODB_URI: 'mongodb://localhost:27017/prod',
       JWT_SECRET: 'a-real-production-secret-with-enough-entropy-123',
-      STRIPE_SECRET_KEY: 'sk_test_51RealLookingKeyForProd',
-      STRIPE_WEBHOOK_SECRET: 'whsec_RealLookingSecretForProd',
+      STRIPE_SECRET_KEY: 'sk_test_fake_production_like',
+      STRIPE_WEBHOOK_SECRET: 'whsec_fake_production_like',
       FX_API_KEY: 'fx-real-key-123',
       ADMIN_SEED_PASSWORD: 'Unguessable!Admin2026',
     };
