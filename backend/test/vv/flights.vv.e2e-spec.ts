@@ -690,39 +690,36 @@ describe('Local-time flight creation (vv): FLT-03', () => {
     expect(await flights.countDocuments({ flightNumber: 'V3M1' })).toBe(0);
   });
 
-  // F-B-01: the "valid" Swagger examples of POST /api/flights depart on 2026-12-01 and stop working after it.
-  it.failing(
-    'the Swagger "valid" create examples stay valid after 1 Dec 2026',
-    async () => {
-      const service = app.get(FlightsService);
-      const user = {
-        id: new Types.ObjectId().toHexString(),
-        role: Role.AirlineModerator,
-        assignedProvider: { type: ProviderType.Airline, providerId: mod.id },
-      };
-      const dayAfter = new Date('2026-12-02T00:00:00Z');
-      for (const example of [
-        {
-          flightNumber: 'MS777',
-          from: 'CAI',
-          to: 'DXB',
-          departureLocal: '2026-12-01T14:30',
-          arrivalLocal: '2026-12-01T18:45',
-        },
-        {
-          flightNumber: 'BA117',
-          from: 'LHR',
-          to: 'JFK',
-          departureLocal: '2026-12-01T08:25',
-          arrivalLocal: '2026-12-01T11:20',
-        },
-      ]) {
-        await expect(
-          service.create(user, example, dayAfter),
-        ).resolves.toBeDefined();
-      }
-    },
-  );
+  // F-B-01 (fixed): the "valid" Swagger examples of POST /api/flights now depart on 2027-12-01.
+  it('the Swagger "valid" create examples stay valid after the Milestone 2 evaluation', async () => {
+    const service = app.get(FlightsService);
+    const user = {
+      id: new Types.ObjectId().toHexString(),
+      role: Role.AirlineModerator,
+      assignedProvider: { type: ProviderType.Airline, providerId: mod.id },
+    };
+    const dayAfter = new Date('2026-12-12T00:00:00Z');
+    for (const example of [
+      {
+        flightNumber: 'MS777',
+        from: 'CAI',
+        to: 'DXB',
+        departureLocal: '2027-12-01T14:30',
+        arrivalLocal: '2027-12-01T18:45',
+      },
+      {
+        flightNumber: 'BA117',
+        from: 'LHR',
+        to: 'JFK',
+        departureLocal: '2027-12-01T08:25',
+        arrivalLocal: '2027-12-01T11:20',
+      },
+    ]) {
+      await expect(
+        service.create(user, example, dayAfter),
+      ).resolves.toBeDefined();
+    }
+  });
 });
 
 describe('Cabins with real sessions (vv): FLT-04', () => {

@@ -5,7 +5,7 @@ Scope: GEN-02, GEN-05, GEN-12, GEN-13, plus the schema-only Partial rows PAY-01,
 - Baseline: branch `test/vv-m1-acceptance` @ fc610e0.
 - New tests: `backend/test/vv/foundation.vv.e2e-spec.ts`. The file has 105 cases: 101 pass, and 4 are `it.failing` cases that prove defects.
 - Paths are relative to `backend/src` unless they start with `test/`, `scripts/` or `seed/`. In the "VV test" column, `vv:NNN` means line NNN of the vv spec.
-- Contract check: the OpenAPI document generated in-process (`scripts/generate-openapi.ts` to the scratchpad, plus vv:990) is byte-identical to the committed `backend/openapi.json`, so the contract is not stale. `openapi.json` was not modified.
+- Contract check: `backend/openapi.json` is a gitignored build artifact, not a committed file. The `openapi-contract` CI job generates it from the running app and checks it with `scripts/check-openapi.ts`, so there is no committed copy that could go stale.
 
 | Rule | Source | Rule text | Endpoint | Code (file:line) | Existing test (spec:line) | VV test | Verdict | Finding |
 |---|---|---|---|---|---|---|---|---|
@@ -52,7 +52,7 @@ Scope: GEN-02, GEN-05, GEN-12, GEN-13, plus the schema-only Partial rows PAY-01,
 | R-DOD-SW-03 | jira-dod | Every negative example is really rejected, and its summary describes its value | 20 ops | hotels.controller.ts:50, users/admin-accounts.controller.ts:94 | - | vv:1024 | PARTIAL | F-D-05 |
 | R-DOD-SW-04 | jira-dod | Example values still work when the evaluator runs them (dates still in the future at M2) | POST /api/flights, GET /api/flights/search | flights.controller.ts:111-123, flights/dto/flight.dto.ts:40-45, flights/dto/flight-search.dto.ts:65 | - | vv:1047 (failing) | FAIL | F-D-03 |
 | R-DOD-SW-05 | jira-dod | The "Seeded admin" login example works against the documented seed | POST /api/auth/login | modules/auth/auth.controller.ts:136-139 | - | vv:1069 (failing) | FAIL | F-D-04 |
-| R-DOD-SW-06 | jira-dod | The committed openapi.json matches the code (not stale) | - | backend/openapi.json | - | vv:990 | PASS | |
+| R-DOD-SW-06 | jira-dod | The OpenAPI contract is generated from the code, so it cannot go stale | - | scripts/generate-openapi.ts; .github/workflows/ci.yml (openapi-contract) | CI openapi-contract job | - | PASS | |
 
 ## Findings
 

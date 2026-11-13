@@ -883,18 +883,15 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
       ).toThrow(/COOKIE_SECURE must be true/);
     });
 
-    // F-D-02: the published admin password from .env.example passes the production placeholder check.
-    it.failing(
-      'refuses the .env.example ADMIN_SEED_PASSWORD placeholder in production',
-      () => {
-        expect(() =>
-          validateEnv({
-            ...hardened,
-            ADMIN_SEED_PASSWORD: example.ADMIN_SEED_PASSWORD,
-          }),
-        ).toThrow(/ADMIN_SEED_PASSWORD/);
-      },
-    );
+    // F-D-02 (fixed): the published admin password from .env.example is refused in production.
+    it('refuses the .env.example ADMIN_SEED_PASSWORD placeholder in production', () => {
+      expect(() =>
+        validateEnv({
+          ...hardened,
+          ADMIN_SEED_PASSWORD: example.ADMIN_SEED_PASSWORD,
+        }),
+      ).toThrow(/ADMIN_SEED_PASSWORD/);
+    });
   });
 });
 
@@ -987,13 +984,6 @@ describe('Swagger contract as an evaluator sees it (vv): GEN-02', () => {
     await app.close();
   });
 
-  it('the committed backend/openapi.json is the contract the code generates', () => {
-    const committed = readFileSync(join(BACKEND, 'openapi.json'), 'utf8');
-    expect(JSON.parse(committed)).toEqual(
-      JSON.parse(JSON.stringify(doc)) as unknown,
-    );
-  });
-
   it('every operation summary starts with a requirement ID', () => {
     const bad: string[] = [];
     for (const [path, item] of Object.entries(doc.paths)) {
@@ -1043,42 +1033,36 @@ describe('Swagger contract as an evaluator sees it (vv): GEN-02', () => {
     );
   });
 
-  // F-D-03: the "Valid" flight examples depart on 2026-12-01, before the Milestone 2 evaluation.
-  it.failing(
-    'date-based "Valid" examples stay in the future through the Milestone 2 evaluation (2026-12-11)',
-    () => {
-      const m2 = Date.parse('2026-12-11T00:00:00Z');
-      const create = examples.filter(
-        (e) => e.operation === 'POST /api/flights' && !NEGATIVE.test(e.summary),
-      );
-      expect(create.length).toBeGreaterThan(0);
-      for (const ex of create) {
-        const { departureLocal } = ex.value as { departureLocal: string };
-        expect(Date.parse(`${departureLocal}:00Z`)).toBeGreaterThan(m2);
-      }
-      const search = doc.paths['/api/flights/search'].get?.parameters?.find(
-        (p) => 'name' in p && p.name === 'departureDate',
-      ) as { schema?: { example?: string } } | undefined;
-      expect(
-        Date.parse(`${search?.schema?.example}T00:00:00Z`),
-      ).toBeGreaterThan(m2);
-    },
-  );
+  // F-D-03 (fixed): the "Valid" flight examples depart after the Milestone 2 evaluation.
+  it('date-based "Valid" examples stay in the future through the Milestone 2 evaluation (2026-12-11)', () => {
+    const m2 = Date.parse('2026-12-11T00:00:00Z');
+    const create = examples.filter(
+      (e) => e.operation === 'POST /api/flights' && !NEGATIVE.test(e.summary),
+    );
+    expect(create.length).toBeGreaterThan(0);
+    for (const ex of create) {
+      const { departureLocal } = ex.value as { departureLocal: string };
+      expect(Date.parse(`${departureLocal}:00Z`)).toBeGreaterThan(m2);
+    }
+    const search = doc.paths['/api/flights/search'].get?.parameters?.find(
+      (p) => 'name' in p && p.name === 'departureDate',
+    ) as { schema?: { example?: string } } | undefined;
+    expect(Date.parse(`${search?.schema?.example}T00:00:00Z`)).toBeGreaterThan(
+      m2,
+    );
+  });
 
-  // F-D-04: the "Seeded admin" login example does not use the .env.example seed password.
-  it.failing(
-    'the "Seeded admin" login example matches ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD of .env.example',
-    () => {
-      const env = readFileSync(join(BACKEND, '..', '.env.example'), 'utf8');
-      const value = (key: string) =>
-        new RegExp(`^${key}=(.*)$`, 'm').exec(env)?.[1];
-      const admin = examples.find(
-        (e) => e.operation === 'POST /api/auth/login' && e.name === 'admin',
-      );
-      expect(admin?.value).toEqual({
-        email: value('ADMIN_SEED_EMAIL'),
-        password: value('ADMIN_SEED_PASSWORD'),
-      });
-    },
-  );
+  // F-D-04 (fixed): the "Seeded admin" login example uses the .env.example seed credentials.
+  it('the "Seeded admin" login example matches ADMIN_SEED_EMAIL / ADMIN_SEED_PASSWORD of .env.example', () => {
+    const env = readFileSync(join(BACKEND, '..', '.env.example'), 'utf8');
+    const value = (key: string) =>
+      new RegExp(`^${key}=(.*)$`, 'm').exec(env)?.[1];
+    const admin = examples.find(
+      (e) => e.operation === 'POST /api/auth/login' && e.name === 'admin',
+    );
+    expect(admin?.value).toEqual({
+      email: value('ADMIN_SEED_EMAIL'),
+      password: value('ADMIN_SEED_PASSWORD'),
+    });
+  });
 });
