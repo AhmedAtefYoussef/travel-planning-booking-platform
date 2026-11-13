@@ -200,6 +200,24 @@ export class HotelDto {
   @ApiProperty({ type: [String], example: ['WiFi', 'Pool'] })
   amenities!: string[];
 
+  @ApiProperty({
+    example: '14:00',
+    nullable: true,
+    type: String,
+    description:
+      'Standard check-in time, hotel local HH:mm (HTL-09); null until set',
+  })
+  checkInTime!: string | null;
+
+  @ApiProperty({
+    example: '12:00',
+    nullable: true,
+    type: String,
+    description:
+      'Standard check-out time, hotel local HH:mm (HTL-09); null until set',
+  })
+  checkOutTime!: string | null;
+
   @ApiProperty({ example: true })
   isActive!: boolean;
 
