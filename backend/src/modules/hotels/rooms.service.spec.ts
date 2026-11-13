@@ -6,6 +6,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import type { HotelsService } from './hotels.service';
 import { RoomNightKind, type RoomNight } from './schemas/room-night.schema';
 import { MAX_RANGES_PER_ROOM, type Room } from './schemas/room.schema';
+import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import {
   firstOverlap,
   nightsOutside,
@@ -421,5 +422,23 @@ describe('nightsOutside (HTL-05)', () => {
 
   it('with no ranges, every protected night is outside ($nor would be invalid empty)', () => {
     expect(nightsOutside(roomId, [], at)).not.toHaveProperty('$nor');
+  });
+
+  it("starts at the hotel's local date: 21:00 in New York is still the previous day in UTC terms", () => {
+    const evening = new Date('2027-01-06T02:00:00Z'); // 2027-01-05 21:00 in New York
+    expect(
+      nightsOutside(roomId, [], evening, 'America/New_York'),
+    ).toMatchObject({ date: { $gte: '2027-01-05' } });
+    expect(nightsOutside(roomId, [], evening)).toMatchObject({
+      date: { $gte: '2027-01-06' },
+    });
+  });
+
+  it('with an unknown hotel zone, the earliest zone on Earth keeps tonight protected', () => {
+    const lateUtc = new Date('2027-01-05T23:30:00Z');
+    expect(todayIn(EARLIEST_ZONE, lateUtc)).toBe('2027-01-05');
+    expect(todayIn(EARLIEST_ZONE, new Date('2027-01-06T05:00:00Z'))).toBe(
+      '2027-01-05',
+    );
   });
 });

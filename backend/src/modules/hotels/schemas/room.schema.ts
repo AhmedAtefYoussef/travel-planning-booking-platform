@@ -73,6 +73,13 @@ export class Room {
   /** Set on first reservation; such rooms can be deactivated, not deleted. */
   @Prop({ default: false }) everReserved: boolean;
 
+  /**
+   * Incremented (`$inc: { reservationVersion: 1 }`) by every HTL-18 hold transaction. The write always
+   * changes the room, so a hold conflicts with a concurrent HTL-05 availability replace instead of
+   * interleaving with it; setting `everReserved` alone writes nothing once it is already true.
+   */
+  @Prop({ type: Number, default: 0 }) reservationVersion: number;
+
   /** Set by Mongoose `timestamps`. */
   createdAt: Date;
   updatedAt: Date;

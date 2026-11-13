@@ -125,6 +125,15 @@ export class HotelsService {
     return hotel;
   }
 
+  /**
+   * The hotel's IANA time zone, taken from an airport in the same city (every seeded city has one),
+   * or null when the city has none. Used to decide which nights are "from today on" (HTL-05).
+   */
+  async timeZoneOf(cityId: string): Promise<string | null> {
+    const airports = await this.reference.listAirports();
+    return airports.find((a) => a.cityId === cityId)?.timeZone ?? null;
+  }
+
   private async countryOfCity(cityId: string): Promise<string> {
     const city = await this.reference.getCity(cityId);
     if (!city) {
