@@ -638,3 +638,20 @@ transaction that refuses to strand booked or unexpired held nights from today on
 and hold-transaction rules for HTL-17/18 in contracts.md, and wrote unit and e2e tests. I reviewed the 409 rule
 and the tests before committing.
 ================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-05 (review fixes on #54, from the milestone 1 V&V in #55)
+Prompt:
+Fix the two HTL-05 findings from the milestone 1 V&V review of this PR: the availability replace and
+a future booking hold must always conflict, and booked nights must be protected from the hotel's
+local date, not the UTC date.
+How the output was used:
+Claude added a reservationVersion field that the HTL-18 hold must increment, so the hold always
+writes the room and conflicts with a concurrent replace, and rewrote the contract and service comment
+to say why setting everReserved alone is not enough. Protected nights now start at the hotel's local
+date, taken from an airport in the hotel's city, falling back to UTC-12 so tonight is never left
+unprotected. Unit tests cover a New York evening and the fallback; hotel unit and e2e tests pass.
+================================================
