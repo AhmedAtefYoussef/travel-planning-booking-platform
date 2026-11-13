@@ -3,7 +3,25 @@ import {
   type ValidationArguments,
   type ValidationOptions,
 } from 'class-validator';
+import { DateTime } from 'luxon';
 import { parseIsoDate } from '../../../common/utils/dates';
+
+/**
+ * Zone whose calendar date is the earliest on Earth (UTC-12). Used when a hotel's own zone is unknown,
+ * so "today" is never later than the hotel's real today and tonight's booked night stays protected.
+ */
+export const EARLIEST_ZONE = 'Etc/GMT+12';
+
+/**
+ * Today's calendar date in `zone`, YYYY-MM-DD. An invalid zone falls back to EARLIEST_ZONE (fail closed):
+ * a later fallback such as UTC could skip checking tonight's booked night.
+ */
+export function todayIn(zone: string, now: Date = new Date()): string {
+  const local = DateTime.fromJSDate(now, { zone });
+  return (
+    local.isValid ? local : DateTime.fromJSDate(now, { zone: EARLIEST_ZONE })
+  ).toISODate() as string;
+}
 
 /** A real calendar date written YYYY-MM-DD ("2027-02-30" is rejected). */
 export function IsCalendarDate(options?: ValidationOptions) {

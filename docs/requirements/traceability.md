@@ -79,7 +79,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | - | Not started |
 | HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | #23 | Done |
 | HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | #24, #55 | Done |
-| HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | - | Not started |
+| HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |
 | HTL-06 | Mandatory | DELETE /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-52 | - | Not started |
 | HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | - | Not started |
 | HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Sandra | TRVL-54 | - | Not started |

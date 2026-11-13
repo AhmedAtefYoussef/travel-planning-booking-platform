@@ -823,6 +823,39 @@ and was caught by the repository hygiene check before anything was committed.
 ================================================
 
 ================================================
+Date: 2026-11-12
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-05 (TRVL-51)
+Prompt:
+Implement HTL-05: the hotel moderator edits a room's beds, occupancy and price, and replaces its bookable date
+ranges. Price changes must not affect existing reservations, and availability cannot be removed for dates with
+confirmed reservations. Follow the review rules from #21 to #24 (scope first, atomic updates, HTL-04 range rules).
+How the output was used:
+Claude added PATCH /rooms/:roomId (atomic, validated) and PATCH .../availability (replaces the ranges inside a
+transaction that refuses to strand booked or unexpired held nights from today on), documented the price-snapshot
+and hold-transaction rules for HTL-17/18 in contracts.md, and wrote unit and e2e tests. I reviewed the 409 rule
+and the tests before committing.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-05 (review fixes on #54, from the milestone 1 V&V in #55)
+Prompt:
+Fix the two HTL-05 findings from the milestone 1 V&V review of this PR: the availability replace and
+a future booking hold must always conflict, and booked nights must be protected from the hotel's
+local date, not the UTC date.
+How the output was used:
+Claude added a reservationVersion field that the HTL-18 hold must increment, so the hold always
+writes the room and conflicts with a concurrent replace, and rewrote the contract and service comment
+to say why setting everReserved alone is not enough. Protected nights now start at the hotel's local
+date, taken from an airport in the hotel's city, falling back to UTC-12 so tonight is never left
+unprotected. Unit tests cover a New York evening and the fallback; hotel unit and e2e tests pass.
+================================================
+
+================================================
 Date: 2026-11-13
 Student: Ahmed Atef Youssef
 Tool: Claude Code (Claude Opus)
