@@ -77,6 +77,12 @@ jobs:
             echo "traceability.md not present yet (TRVL-134)"
           fi
 
+      # Non-blocking for now (milestone 1 V&V, TRVL-136): lists Done/Partial requirements that no e2e
+      # describe() title cites, in the job summary. Remove continue-on-error to make it a hard rule.
+      - name: Implemented requirements are cited by an e2e test
+        continue-on-error: true
+        run: node .github/scripts/check-test-traceability.mjs
+
       - name: No conflict markers, well-formed AI prompt log
         run: node .github/scripts/check-repo-hygiene.mjs
 
