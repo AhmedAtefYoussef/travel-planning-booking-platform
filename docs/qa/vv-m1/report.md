@@ -145,7 +145,7 @@ PR #54 was first merged locally onto `develop` (never pushed). One `AI_PROMPTS.t
   - **Fix:** "today" is now the hotel's local date, taken from the time zone of an airport in the hotel's city. When the zone is unknown it falls back to UTC-12, so tonight's night is never unprotected. Unit tests cover New York at 21:00 and the fallback.
 - **Spec question (open):** unexpired HELD nights also block removal. The workbook protects only confirmed reservations, so the PR is stricter.
 
-Merging note: PR #54 and this PR both change `backend/src/modules/hotels/rooms.service.ts`. Whichever merges second needs a small conflict resolution in the imports and the overlap check. HTL-05's replace should then use `overlapFieldErrors` too, so both endpoints answer overlaps the same way (SQ-3).
+Merging note: PR #54 merged first (`330b658`). This PR then merged `develop` and resolved the `AI_PROMPTS.txt`, traceability and `rooms.service.spec.ts` conflicts. HTL-05's `replaceAvailability` now reports overlapping ranges with `overlapFieldErrors` too, so both availability endpoints answer the same way (SQ-3); the unused `firstOverlap` helper is removed.
 
 ## Jira drift
 
