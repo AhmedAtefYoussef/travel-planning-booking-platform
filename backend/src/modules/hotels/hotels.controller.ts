@@ -91,7 +91,7 @@ export class HotelsController {
     },
   })
   @ApiOkResponse({ type: HotelDto })
-  @ApiErrorResponses(400, 404)
+  @ApiErrorResponses(400, 404, 409)
   update(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,
