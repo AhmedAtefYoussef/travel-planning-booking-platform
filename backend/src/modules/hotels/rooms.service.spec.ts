@@ -5,7 +5,12 @@ import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import type { HotelsService } from './hotels.service';
 import { MAX_RANGES_PER_ROOM, type Room } from './schemas/room.schema';
-import { firstOverlap, RoomsService, sortedRanges } from './rooms.service';
+import {
+  firstOverlap,
+  overlapFieldErrors,
+  RoomsService,
+  sortedRanges,
+} from './rooms.service';
 
 const hotelId = new Types.ObjectId();
 const now = new Date('2026-11-09T10:00:00Z');
@@ -127,6 +132,25 @@ describe('range helpers (HTL-04)', () => {
       ]),
     ).toEqual([r('2027-01-01', '2027-01-10'), r('2027-01-09', '2027-01-20')]);
     expect(firstOverlap([])).toBeNull();
+  });
+
+  it('names each overlapping range by its position in the request (GEN-02)', () => {
+    expect(
+      overlapFieldErrors([
+        r('2027-01-01', '2027-01-10'),
+        r('2027-01-10', '2027-01-20'),
+      ]),
+    ).toEqual([]);
+    const errors = overlapFieldErrors([
+      r('2027-02-05', '2027-02-08'),
+      r('2027-01-01', '2027-03-01'),
+      r('2027-02-20', '2027-02-25'),
+    ]);
+    expect(errors.map((e) => e.field)).toEqual([
+      'ranges[0].from',
+      'ranges[2].from',
+    ]);
+    expect(errors[0].message).toContain('overlaps ranges[1]');
   });
 });
 

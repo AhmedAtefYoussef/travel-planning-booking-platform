@@ -296,23 +296,20 @@ describe('Hotel profile create and edit (vv): HTL-01', () => {
     expect(after?.updatedAt).toEqual(before?.updatedAt);
   });
 
-  // F-C-01: an unknown city is a plain 400 BAD_REQUEST with no fieldErrors, so the form cannot mark the city field.
-  it.failing(
-    'an unknown city returns 400 VALIDATION_FAILED with a field error on cityId (GEN-02)',
-    async () => {
-      const res = await http()
-        .post('/api/hotels')
-        .set('Cookie', adminCookie)
-        .send({
-          name: 'Nowhere Inn',
-          address: '1 Nowhere Road',
-          cityId: 'atlantis',
-        })
-        .expect(400);
-      expect(res.body.code).toBe('VALIDATION_FAILED');
-      expect(fields(res)).toEqual(['cityId']);
-    },
-  );
+  // F-C-01 (fixed): an unknown city is a cityId field error, like unknown airports in flights.
+  it('an unknown city returns 400 VALIDATION_FAILED with a field error on cityId (GEN-02)', async () => {
+    const res = await http()
+      .post('/api/hotels')
+      .set('Cookie', adminCookie)
+      .send({
+        name: 'Nowhere Inn',
+        address: '1 Nowhere Road',
+        cityId: 'atlantis',
+      })
+      .expect(400);
+    expect(res.body.code).toBe('VALIDATION_FAILED');
+    expect(fields(res)).toEqual(['cityId']);
+  });
 
   it('HTL-02 is not started: GET /api/hotels/:id does not exist yet (discoverability gap, not a defect)', async () => {
     const res = await http()
@@ -451,17 +448,14 @@ describe('Bookable date ranges (vv): HTL-04', () => {
     expect(await storedRanges(roomP)).toHaveLength(3);
   });
 
-  // F-C-02: overlapping ranges inside one request are a plain 400 BAD_REQUEST without fieldErrors.
-  it.failing(
-    'an overlap inside one request names the failing range in fieldErrors (GEN-02)',
-    async () => {
-      const res = await addRanges(hotelP, roomP, modP, {
-        ranges: [r('2031-03-01', '2031-03-10'), r('2031-03-05', '2031-03-12')],
-      }).expect(400);
-      expect(res.body.code).toBe('VALIDATION_FAILED');
-      expect(fields(res)).toContain('ranges[1].from');
-    },
-  );
+  // F-C-02 (fixed): an overlap inside one request names the later range in fieldErrors.
+  it('an overlap inside one request names the failing range in fieldErrors (GEN-02)', async () => {
+    const res = await addRanges(hotelP, roomP, modP, {
+      ranges: [r('2031-03-01', '2031-03-10'), r('2031-03-05', '2031-03-12')],
+    }).expect(400);
+    expect(res.body.code).toBe('VALIDATION_FAILED');
+    expect(fields(res)).toContain('ranges[1].from');
+  });
 
   it('derived: a range that has already ended is 400; at most 366 nights; extra keys in a range are rejected', async () => {
     const past = await addRanges(hotelP, roomP, modP, {
