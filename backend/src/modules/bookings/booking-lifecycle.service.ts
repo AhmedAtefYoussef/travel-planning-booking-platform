@@ -16,6 +16,7 @@ import {
   NodeEnv,
   type EnvironmentVariables,
 } from '../../config/env.validation';
+import { FlightBookingsService } from './flight-bookings.service';
 import { FlightBooking } from './schemas/flight-booking.schema';
 import { HotelReservation } from './schemas/hotel-reservation.schema';
 
@@ -44,7 +45,13 @@ export class BookingLifecycleService
     @InjectModel(HotelReservation.name)
     private readonly hotels: Model<HotelReservation>,
     private readonly config: ConfigService<EnvironmentVariables, true>,
+    private readonly flightBookings: FlightBookingsService,
   ) {}
+
+  /** FLT-22: Pending Payment -> Expired after the 10-minute hold, releasing the seats. */
+  expireFlightHolds(now: Date = new Date()): Promise<number> {
+    return this.flightBookings.expireHolds(now);
+  }
 
   /**
    * Moves every Confirmed booking whose trip ended at or before `now` to Completed. The two collections
@@ -95,10 +102,11 @@ export class BookingLifecycleService
     }
     if (this.config.get('NODE_ENV', { infer: true }) === NodeEnv.Test) return;
     const run = () =>
-      this.completeFinished().catch((e: unknown) =>
-        this.logger.error(
-          `Booking lifecycle job failed: ${e instanceof Error ? e.message : String(e)}`,
-        ),
+      Promise.all([this.expireFlightHolds(), this.completeFinished()]).catch(
+        (e: unknown) =>
+          this.logger.error(
+            `Booking lifecycle job failed: ${e instanceof Error ? e.message : String(e)}`,
+          ),
       );
     void run();
     this.timer = setInterval(() => void run(), BOOKING_LIFECYCLE_INTERVAL_MS);

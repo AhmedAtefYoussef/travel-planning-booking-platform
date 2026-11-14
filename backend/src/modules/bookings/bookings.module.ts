@@ -2,8 +2,12 @@ import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
   FLIGHT_BOOKINGS_LOOKUP,
+  FLIGHT_PAYABLE_BOOKING,
   UPCOMING_BOOKINGS,
 } from '../../common/contracts';
+import { FlightsModule } from '../flights';
+import { FlightBookingsController } from './flight-bookings.controller';
+import { FlightBookingsService } from './flight-bookings.service';
 import { BookingLifecycleService } from './booking-lifecycle.service';
 import { BookingQueriesService } from './booking-queries.service';
 import {
@@ -24,17 +28,21 @@ import {
 @Global()
 @Module({
   imports: [
+    FlightsModule,
     MongooseModule.forFeature([
       { name: FlightBooking.name, schema: FlightBookingSchema },
       { name: HotelReservation.name, schema: HotelReservationSchema },
     ]),
   ],
+  controllers: [FlightBookingsController],
   providers: [
     BookingLifecycleService,
+    FlightBookingsService,
+    { provide: FLIGHT_PAYABLE_BOOKING, useExisting: FlightBookingsService },
     BookingQueriesService,
     { provide: UPCOMING_BOOKINGS, useExisting: BookingQueriesService },
     { provide: FLIGHT_BOOKINGS_LOOKUP, useExisting: BookingQueriesService },
   ],
-  exports: [UPCOMING_BOOKINGS, FLIGHT_BOOKINGS_LOOKUP],
+  exports: [UPCOMING_BOOKINGS, FLIGHT_BOOKINGS_LOOKUP, FLIGHT_PAYABLE_BOOKING],
 })
 export class BookingsModule {}

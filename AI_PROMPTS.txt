@@ -942,3 +942,19 @@ count still works), and GET /api/flights/search/round-trip with independently pa
 return lists. It updated two FLT-11 unit assertions that were tied to the old in-database total, and
 added the FLT-12 rows to docs/qa/vv-m1/rtm-booking.md. I review the design in the PR.
 ================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-22 (TRVL-42), FLT-19, FLT-21, TRVL-144, FLT-11
+Prompt:
+#58 is merged; continue with FLT-22: the 10-minute seat hold with passenger details and the booking
+summary, test first, including the concurrency test.
+How the output was used:
+Claude wrote the failing e2e suite first, then added a FLIGHT_INVENTORY contract in the flights module
+(one conditional update takes seats, so the bookings module never writes flight documents), the
+passenger-age rules, the quote, hold and booking endpoints, the expiry job that releases seats inside the
+same transaction as the Pending -> Expired transition, and the FLIGHT_PAYABLE_BOOKING provider for PAY-01.
+20 parallel holds for 4 seats give exactly 4 bookings. It added the RTM rows; I review the design in the PR.
+================================================
