@@ -1,6 +1,12 @@
 export { HotelsModule } from './hotels.module';
 export { HotelsService } from './hotels.service';
 export {
+  EARLIEST_ZONE,
+  IsCalendarDate,
+  IsRangeEnd,
+  todayIn,
+} from './dto/validators';
+export {
   CancellationTier,
   Hotel,
   HOTELS_COLLECTION,

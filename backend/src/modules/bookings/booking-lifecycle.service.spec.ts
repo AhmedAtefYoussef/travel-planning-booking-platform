@@ -18,13 +18,15 @@ function lifecycle(
   const hotelModel = updater(hotels);
   const config = { get: jest.fn().mockReturnValue(env) };
   const flightBookings = { expireHolds: jest.fn().mockResolvedValue(0) };
+  const hotelBookings = { expireHolds: jest.fn().mockResolvedValue(0) };
   const service = new BookingLifecycleService(
     flightModel as never,
     hotelModel as never,
     config as never,
     flightBookings as never,
+    hotelBookings as never,
   );
-  return { service, flightModel, hotelModel, flightBookings };
+  return { service, flightModel, hotelModel, flightBookings, hotelBookings };
 }
 
 describe('BookingLifecycleService (GEN-11 jobs)', () => {
@@ -64,6 +66,15 @@ describe('BookingLifecycleService (GEN-11 jobs)', () => {
     expect(flightBookings.expireHolds).toHaveBeenCalledWith(NOW);
   });
 
+  it('delegates hotel hold expiry to the hotel bookings service (HTL-18)', async () => {
+    const { service, hotelBookings } = lifecycle(
+      Promise.resolve({ modifiedCount: 0 }),
+      Promise.resolve({ modifiedCount: 0 }),
+    );
+    await service.expireHotelHolds(NOW);
+    expect(hotelBookings.expireHolds).toHaveBeenCalledWith(NOW);
+  });
+
   it('starts no timer in tests, and starts and stops one otherwise', async () => {
     jest.useFakeTimers();
     try {
@@ -81,8 +92,10 @@ describe('BookingLifecycleService (GEN-11 jobs)', () => {
       );
       live.service.onApplicationBootstrap();
       expect(live.flightBookings.expireHolds).toHaveBeenCalledTimes(1);
+      expect(live.hotelBookings.expireHolds).toHaveBeenCalledTimes(1);
       await jest.advanceTimersByTimeAsync(60_000);
       expect(live.flightBookings.expireHolds).toHaveBeenCalledTimes(2);
+      expect(live.hotelBookings.expireHolds).toHaveBeenCalledTimes(2);
       live.service.onApplicationShutdown();
     } finally {
       jest.useRealTimers();

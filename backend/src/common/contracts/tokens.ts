@@ -8,6 +8,7 @@
  *   REFUNDS_SERVICE (Ahmed)         ->  flight/hotel cancellations, FLT-06
  *   FLIGHTS_SEARCH (Joudy)          ->  itineraries (ITN-26)
  *   FLIGHT_INVENTORY (flights)      ->  bookings (FLT-22 seat holds)
+ *   HOTEL_INVENTORY (hotels)        ->  bookings (HTL-18 room holds)
  *   HOTELS_SEARCH (Sandra)          ->  itineraries (ITN-25)
  *   CURRENCY_SERVICE (Ahmed)        ->  budgets (ITN-18)
  *   REFERENCE_SERVICE (Joudy)       ->  all
@@ -26,6 +27,7 @@ export const HOTEL_PAYABLE_BOOKING = Symbol('HOTEL_PAYABLE_BOOKING');
 export const REFUNDS_SERVICE = Symbol('REFUNDS_SERVICE');
 export const FLIGHTS_SEARCH = Symbol('FLIGHTS_SEARCH');
 export const FLIGHT_INVENTORY = Symbol('FLIGHT_INVENTORY');
+export const HOTEL_INVENTORY = Symbol('HOTEL_INVENTORY');
 export const HOTELS_SEARCH = Symbol('HOTELS_SEARCH');
 export const CURRENCY_SERVICE = Symbol('CURRENCY_SERVICE');
 export const REFERENCE_SERVICE = Symbol('REFERENCE_SERVICE');

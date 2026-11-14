@@ -397,7 +397,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         });
       for (const i of [1, 2, 3]) await one(i).expect(201);
       const res = await one(4).expect(409);
-      expect(res.body.message).toMatch(/3 bookings waiting for payment/);
+      expect(res.body.message).toMatch(/3 flight bookings waiting for payment/);
       // Give the seats back for the tests below.
       await app
         .get(BookingLifecycleService)
