@@ -31,17 +31,20 @@ import type {
   FlightSearchResultDto,
   FlightSort,
 } from './dto/flight-search.dto';
+import { partyErrors, priceParty, type Party } from './flight-pricing';
 import { AIRLINES_COLLECTION } from './schemas/airline.schema';
-import { Flight, FlightStatus } from './schemas/flight.schema';
+import { CABIN_CLASSES, Flight, FlightStatus } from './schemas/flight.schema';
 
-/** What every search needs; FLT-12 (round trip, passenger types) extends it. */
+/** What every search needs (FLT-11, FLT-12, FLT-15). */
 export interface SearchCriteria {
   from: string;
   to: string;
   /** Local calendar date at the departure airport, YYYY-MM-DD. */
   departureDate: string;
-  /** Passengers who need a seat. */
-  seats: number;
+  /** FLT-12: adults and children need a seat; infants pay 10% and sit on a lap. */
+  party: Party;
+  /** FLT-12 c: only this cabin class. */
+  cabinClass?: CabinClass;
   page: number;
   /** FLT-15: inclusive range on the fare per passenger (the cabin price), minor units. */
   minPriceMinor?: number;
@@ -89,7 +92,6 @@ interface SearchRow {
     freeBags: number;
     maxKgPerBag: number;
   };
-  totalPriceMinor: number;
   durationMs: number;
 }
 
@@ -112,13 +114,30 @@ export class FlightSearchService implements FlightsSearch {
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
   ) {}
 
-  /** FLIGHTS_SEARCH contract. Seats = adults + children (infants sit on a lap, FLT-12). */
+  /**
+   * FLIGHTS_SEARCH contract: one-way search with passenger types and the cabin filter (FLT-12).
+   * Round trips are two searches; the contract refuses `returnDate` rather than silently ignore it.
+   */
   async search(query: FlightSearchQuery): Promise<Page<FlightSearchResult>> {
+    if (query.returnDate !== undefined) {
+      throw new ValidationFailedException([
+        {
+          field: 'returnDate',
+          message:
+            'FLIGHTS_SEARCH.search is one way: search the return leg separately (or use GET /api/flights/search/round-trip)',
+        },
+      ]);
+    }
     const page = await this.searchOneWay({
       from: query.from,
       to: query.to,
       departureDate: query.departureDate,
-      seats: query.adults + (query.children ?? 0),
+      party: {
+        adults: query.adults,
+        children: query.children,
+        infants: query.infants,
+      },
+      cabinClass: query.cabinClass,
       page: query.page,
       minPriceMinor: query.minPriceMinor,
       maxPriceMinor: query.maxPriceMinor,
@@ -168,6 +187,17 @@ export class FlightSearchService implements FlightsSearch {
         field: 'to',
         message: 'Departure and arrival airports must differ',
       });
+    // FLT-12 party rules and cabin class; checked here so contract callers get them too.
+    errors.push(...partyErrors(criteria.party));
+    if (
+      criteria.cabinClass !== undefined &&
+      !CABIN_CLASSES.includes(criteria.cabinClass)
+    ) {
+      errors.push({
+        field: 'cabinClass',
+        message: `cabinClass must be one of: ${CABIN_CLASSES.join(', ')}`,
+      });
+    }
     // FLT-15: min > max is an error, not an empty result; checked here so contract callers get it too.
     const { minPriceMinor, maxPriceMinor } = criteria;
     if (
@@ -182,17 +212,23 @@ export class FlightSearchService implements FlightsSearch {
     }
 
     let day: { start: Date; end: Date } | null = null;
-    if (origin) {
-      try {
-        day = localDayRangeUtc(criteria.departureDate, origin.timeZone);
-      } catch (e) {
-        if (!(e instanceof InvalidInputError)) throw e;
-        errors.push({ field: 'departureDate', message: e.message });
-      }
+    try {
+      // With an unknown airport there is no zone, but an impossible date (2028-13-40) is still reported
+      // together with the airport error (GEN-02); UTC is enough to tell whether the date exists.
+      const range = localDayRangeUtc(
+        criteria.departureDate,
+        origin?.timeZone ?? 'UTC',
+      );
+      if (origin) day = range;
+    } catch (e) {
+      if (!(e instanceof InvalidInputError)) throw e;
+      errors.push({ field: 'departureDate', message: e.message });
     }
     if (errors.length || !origin || !destination || !day) {
       throw new ValidationFailedException(errors);
     }
+    const { party } = criteria;
+    const seats = party.adults + (party.children ?? 0);
 
     const pipeline: PipelineStage[] = [
       {
@@ -224,12 +260,17 @@ export class FlightSearchService implements FlightsSearch {
         ),
       },
       { $unwind: '$cabins' },
-      { $match: { 'cabins.seatsAvailable': { $gte: criteria.seats } } },
+      {
+        $match: {
+          // Infants take no seat (FLT-12).
+          'cabins.seatsAvailable': { $gte: seats },
+          ...(criteria.cabinClass
+            ? { 'cabins.class': criteria.cabinClass }
+            : {}),
+        },
+      },
       {
         $addFields: {
-          totalPriceMinor: {
-            $multiply: ['$cabins.priceMinor', criteria.seats],
-          },
           durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
         },
       },
@@ -244,7 +285,6 @@ export class FlightSearchService implements FlightsSearch {
           arrivalUtc: 1,
           airline: { name: '$airline.name', code: '$airline.code' },
           cabin: '$cabins',
-          totalPriceMinor: 1,
           durationMs: 1,
         },
       },
@@ -261,9 +301,57 @@ export class FlightSearchService implements FlightsSearch {
       .exec();
     const total = result?.total[0]?.n ?? 0;
     const items = (result?.items ?? []).map((row) =>
-      toResult(row, origin, destination),
+      toResult(row, origin, destination, party),
     );
     return toPage(items, total, criteria.page);
+  }
+
+  /**
+   * FLT-12 a: outbound and return options in one response, for the same party and filters. The return
+   * leg searches the reverse route on returnDate (local date at the outbound arrival airport); each list
+   * is paginated on its own (page, returnPage; GEN-05).
+   *
+   * Both legs are validated together, so every error comes back at once (GEN-02): the return leg's date
+   * errors are reported on returnDate, and its other errors repeat the outbound ones, so they are
+   * dropped. The two dates are compared only when both are real calendar dates.
+   */
+  async searchRoundTrip(
+    criteria: SearchCriteria & { returnDate: string; returnPage: number },
+    now: Date = new Date(),
+  ): Promise<{
+    outbound: Page<FlightSearchResultDto>;
+    return: Page<FlightSearchResultDto>;
+  }> {
+    const back: SearchCriteria = {
+      ...criteria,
+      from: criteria.to,
+      to: criteria.from,
+      departureDate: criteria.returnDate,
+      page: criteria.returnPage,
+    };
+    const [outbound, inbound] = await Promise.allSettled([
+      this.searchOneWay(criteria, now),
+      this.searchOneWay(back, now),
+    ]);
+    const errors: FieldError[] = [
+      ...fieldErrorsOf(outbound),
+      ...fieldErrorsOf(inbound)
+        .filter((f) => f.field === 'departureDate')
+        .map((f) => ({ ...f, field: 'returnDate' })),
+    ];
+    const datesValid = !errors.some(
+      (f) => f.field === 'departureDate' || f.field === 'returnDate',
+    );
+    if (datesValid && criteria.returnDate < criteria.departureDate) {
+      errors.push({
+        field: 'returnDate',
+        message: `returnDate (${criteria.returnDate}) must be on or after departureDate (${criteria.departureDate})`,
+      });
+    }
+    if (errors.length) throw new ValidationFailedException(errors);
+    if (outbound.status === 'rejected') throw outbound.reason;
+    if (inbound.status === 'rejected') throw inbound.reason;
+    return { outbound: outbound.value, return: inbound.value };
   }
 }
 
@@ -286,7 +374,9 @@ function toResult(
   row: SearchRow,
   origin: Airport,
   destination: Airport,
+  party: Party,
 ): FlightSearchResultDto {
+  const price = priceParty(row.cabin.priceMinor, party);
   return {
     flightId: row._id.toHexString(),
     airlineId: row.airlineId.toHexString(),
@@ -314,8 +404,18 @@ function toResult(
     cabinClass: row.cabin.class,
     seatsLeft: row.cabin.seatsAvailable,
     pricePerPassengerMinor: row.cabin.priceMinor,
-    totalPriceMinor: row.totalPriceMinor,
+    infantFareMinor: price.infantFareMinor,
+    totalPriceMinor: price.totalMinor,
     freeBags: row.cabin.freeBags,
     maxKgPerBag: row.cabin.maxKgPerBag,
   };
+}
+
+/** Field errors of a failed search leg; anything other than a validation failure is rethrown. */
+function fieldErrorsOf(outcome: PromiseSettledResult<unknown>): FieldError[] {
+  if (outcome.status === 'fulfilled') return [];
+  if (outcome.reason instanceof ValidationFailedException) {
+    return outcome.reason.fieldErrors ?? [];
+  }
+  throw outcome.reason;
 }

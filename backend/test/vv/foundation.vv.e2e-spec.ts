@@ -492,7 +492,12 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   const ROUTE = { from: 'RUH', to: 'CDG', date: '2028-02-29' };
 
   /** Every list endpoint in the app, with what it needs to answer 200. */
-  const LISTS: { url: string; headers?: Record<string, string> }[] = [
+  const LISTS: {
+    url: string;
+    headers?: Record<string, string>;
+    /** Where the page envelope is, when it is not the whole body (FLT-12 round trip). */
+    envelope?: (body: Record<string, unknown>) => Record<string, unknown>;
+  }[] = [
     { url: '/api/countries?' },
     { url: '/api/cities?' },
     { url: '/api/airports?' },
@@ -500,6 +505,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     { url: '/api/admin/accounts?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       url: `/api/flights/search?from=${ROUTE.from}&to=${ROUTE.to}&departureDate=${ROUTE.date}&passengers=1&`,
+    },
+    {
+      // FLT-12: two lists in one response; `page` pages the outbound list (returnPage the other).
+      url: `/api/flights/search/round-trip?from=${ROUTE.from}&to=${ROUTE.to}&departureDate=${ROUTE.date}&returnDate=2028-03-07&adults=1&`,
+      envelope: (body) => body.outbound as Record<string, unknown>,
     },
     { url: '/api/diagnostics/rows?' },
   ];
@@ -669,9 +679,13 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     '%s beyond the last page is an empty page with the real total',
     async (_path, list) => {
       const res = await get(`${list.url}page=999`, list.headers).expect(200);
-      expect(res.body).toMatchObject({ page: 999, limit: 10, items: [] });
-      expect(res.body.total).toBeGreaterThanOrEqual(0);
-      expect(res.body.totalPages).toBe(Math.ceil(res.body.total / 10));
+      const page = (list.envelope?.(res.body) ?? res.body) as {
+        total: number;
+        totalPages: number;
+      };
+      expect(page).toMatchObject({ page: 999, limit: 10, items: [] });
+      expect(page.total).toBeGreaterThanOrEqual(0);
+      expect(page.totalPages).toBe(Math.ceil(page.total / 10));
     },
   );
 });
@@ -722,6 +736,7 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/airlines/:id',
         'GET /api/airlines/:id/cancellation-policy/refund-preview',
         'GET /api/flights/search',
+        'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
         'POST /api/diagnostics/validation',
         'GET /api/diagnostics/rows',

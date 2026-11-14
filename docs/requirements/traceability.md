@@ -57,7 +57,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
 | FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13, #55 | Partial: one-way search by airports, local departure date and passengers done; held seats are excluded once FLT-22 creates holds |
-| FLT-12 | Mandatory | GET /api/flights/search | Ahmed | TRVL-37 | - | Not started |
+| FLT-12 | Mandatory | GET /api/flights/search; GET /api/flights/search/round-trip | Ahmed | TRVL-37 | #58 | Partial: passenger types (adults/children/infants, infant 10% fare and no seat, at least 1 adult, infants <= adults), cabin filter and round-trip search done; booking a round trip as one booking, the DOB check (FLT-19) and whole-trip cancellation land with FLT-22 and the cancel stories |
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
 | FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |

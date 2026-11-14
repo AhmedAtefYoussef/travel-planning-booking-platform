@@ -1,9 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsIn, IsOptional, Matches, Min, ValidateBy } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  Matches,
+  Min,
+  ValidateBy,
+  ValidateIf,
+} from 'class-validator';
 import { IsWholeNumber } from '../../../common/validation';
 import type { CabinClass, FlightSearchQuery } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
+import type { Party } from '../flight-pricing';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
 import { FlightEndpointDto } from './flight.dto';
 
@@ -39,10 +47,52 @@ const toInteger = ({ value }: { value: unknown }) =>
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
 
+const isCount = (value: unknown, min: number) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+
+const hasTypedCounts = (q: FlightSearchQueryDto) =>
+  q.adults !== undefined || q.children !== undefined || q.infants !== undefined;
+
+/** One rule, one message (GEN-02): a whole number of `min` or more. */
+function IsCount(field: string, min: number) {
+  return ValidateBy({
+    name: 'isCount',
+    validator: {
+      validate: (value: unknown) => isCount(value, min),
+      defaultMessage: () =>
+        `${field} must be a whole number of ${min === 0 ? '0' : `at least ${min}`}${min === 0 ? ' or more' : ''}`,
+    },
+  });
+}
+
+/** FLT-12: an optional count of children or infants given in the query string. */
+function PassengerTypeCount(field: string, description: string) {
+  return function (target: object, key: string) {
+    ApiPropertyOptional({ minimum: 0, description })(target, key);
+    IsOptional()(target, key);
+    Transform(toInteger)(target, key);
+    IsCount(field, 0)(target, key);
+  };
+}
+
+/** FLT-11 and FLT-12 counts are alternatives: `passengers` cannot be combined with typed counts. */
+function NotWithTypedCounts() {
+  return ValidateBy({
+    name: 'notWithTypedCounts',
+    validator: {
+      validate: (_value: unknown, args) =>
+        !hasTypedCounts(args?.object as FlightSearchQueryDto),
+      defaultMessage: () =>
+        'Give either passengers (all adults) or adults/children/infants, not both',
+    },
+  });
+}
+
 /**
  * FLT-11: one-way search by departure and arrival airport, the local departure date at the departure
- * airport, and the number of passengers. FLT-15 adds an inclusive price range and sorting. Round trips,
- * passenger types and the cabin filter are FLT-12.
+ * airport, and the number of passengers. FLT-15 adds an inclusive price range and sorting.
+ * FLT-12 adds passenger types (adults, children 2-11, infants under 2) and an optional cabin filter;
+ * give either `passengers` (all adults, as in FLT-11) or `adults` with optional `children`/`infants`.
  */
 export class FlightSearchQueryDto extends PaginationQueryDto {
   @ApiProperty({
@@ -71,17 +121,60 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
   })
   departureDate!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 2,
     minimum: 1,
     description:
-      'Number of passengers, whole number >= 1; each needs a seat in the same cabin',
+      'FLT-11: number of passengers, all adults, whole number >= 1; each needs a seat in the same cabin. Use this OR adults/children/infants (FLT-12), not both.',
   })
+  // Required unless the FLT-12 counts are given, and refused alongside them; both are checked with the
+  // other fields so every error comes back at once (GEN-02).
+  @ValidateIf(
+    (q: FlightSearchQueryDto) =>
+      q.passengers !== undefined || !hasTypedCounts(q),
+  )
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
   )
   @IsPassengerCount()
-  passengers!: number;
+  @NotWithTypedCounts()
+  passengers?: number;
+
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      'FLT-12: adults (12 or older), at least 1; required when children or infants are given. Each pays the cabin fare and takes a seat.',
+  })
+  @ValidateIf(
+    (q: FlightSearchQueryDto) =>
+      q.passengers === undefined && hasTypedCounts(q),
+  )
+  @Transform(toInteger)
+  @IsCount('adults', 1)
+  adults?: number;
+
+  @PassengerTypeCount(
+    'children',
+    'FLT-12: children (2-11). Each pays the cabin fare and takes a seat.',
+  )
+  children?: number;
+
+  @PassengerTypeCount(
+    'infants',
+    'FLT-12: infants (under 2), at most one per adult. Each pays 10% of the fare and sits on a lap (no seat).',
+  )
+  infants?: number;
+
+  @ApiPropertyOptional({
+    enum: CABIN_CLASSES,
+    description: 'FLT-12: only show this cabin class',
+  })
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(CABIN_CLASSES, {
+    message: `cabinClass must be one of: ${CABIN_CLASSES.join(', ')}`,
+  })
+  cabinClass?: CabinClass;
 
   @ApiPropertyOptional({
     example: 15000,
@@ -118,6 +211,31 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     message: `sort must be one of: ${FLIGHT_SORTS.join(', ')}`,
   })
   sort?: FlightSort;
+}
+
+/** FLT-12 a: the same criteria, plus the return date; the two lists are paged independently. */
+export class RoundTripSearchQueryDto extends FlightSearchQueryDto {
+  @ApiProperty({
+    example: '2027-12-08',
+    description:
+      'Return date: the local calendar date at the return departure airport (the outbound arrival airport), YYYY-MM-DD, on or after departureDate',
+  })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'returnDate must look like 2026-12-08',
+  })
+  returnDate!: string;
+
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 1,
+    default: 1,
+    description:
+      'Page of the return list (page is the outbound list), 10 per page (GEN-05)',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsCount('returnPage', 1)
+  returnPage?: number;
 }
 
 /** One selectable option: a flight and one of its cabins with enough seats (FLT-11). */
@@ -183,8 +301,16 @@ export class FlightSearchResultDto {
   pricePerPassengerMinor!: number;
 
   @ApiProperty({
+    example: 2750,
+    description:
+      'FLT-12: fare per infant (10% of the fare, rounded down), minor units',
+  })
+  infantFareMinor!: number;
+
+  @ApiProperty({
     example: 55000,
-    description: 'Fare for all passengers, minor units',
+    description:
+      'Total for the whole party: (adults + children) x fare + infants x infant fare, minor units',
   })
   totalPriceMinor!: number;
 
@@ -193,4 +319,44 @@ export class FlightSearchResultDto {
 
   @ApiProperty({ example: 23 })
   maxKgPerBag!: number;
+}
+
+/** One page of search results (GEN-05), as used inside the round-trip response. */
+export class FlightSearchPageDto {
+  @ApiProperty({ type: [FlightSearchResultDto] })
+  items!: FlightSearchResultDto[];
+
+  @ApiProperty({ example: 1 })
+  page!: number;
+
+  @ApiProperty({ example: 10 })
+  limit!: number;
+
+  @ApiProperty({ example: 3 })
+  total!: number;
+
+  @ApiProperty({ example: 1 })
+  totalPages!: number;
+}
+
+/** FLT-12 a: outbound and return options for the same party and cabin filter. */
+export class RoundTripSearchResultDto {
+  @ApiProperty({ type: FlightSearchPageDto })
+  outbound!: FlightSearchPageDto;
+
+  @ApiProperty({ type: FlightSearchPageDto })
+  return!: FlightSearchPageDto;
+}
+
+/**
+ * The party a search is for: the FLT-11 `passengers` count (all adults) or the FLT-12
+ * adults/children/infants. The DTO has already refused both, neither, or children without adults.
+ */
+export function partyFromQuery(query: FlightSearchQueryDto): Party {
+  if (query.passengers !== undefined) return { adults: query.passengers };
+  return {
+    adults: query.adults ?? 0,
+    children: query.children,
+    infants: query.infants,
+  };
 }
