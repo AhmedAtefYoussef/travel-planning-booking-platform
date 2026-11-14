@@ -218,7 +218,7 @@ A read-only audit compared every clause of GEN-11, FLT-11, FLT-12, FLT-19, FLT-2
 
 | Rule | Source | Rule text | Technique | Code | Test | Verdict | Notes |
 |---|---|---|---|---|---|---|---|
-| R-FLT-19-01 | workbook (FLT-19, FLT-08) | Extra baggage is entered as bags **and weight** per passenger: `extraBagsWeightKg` (total kg) is required with `extraBags`, refused without them, and at most `extraBags x` the cabin's kg per bag on every flight of the trip (400 on `passengers[i].extraBagsWeightKg`) | EP, BVA (46 kg vs 47 kg for 2 x 23 kg), DT (round trip with a lower limit on the return) | dto/flight-booking.dto.ts, `plan`, flights/flight-inventory.service.ts (`maxKgPerBag`) | flight-bookings.service.spec.ts; flight-hold.e2e-spec.ts | PASS | The fee stays per bag (FLT-08). The weight is stored on the passenger and shown in the quote and booking |
+| R-FLT-19-01 | workbook (FLT-19, FLT-08) | Extra baggage is entered as bags **and weight** per passenger: `extraBagsWeightKg` (total kg) is required with `extraBags`, refused without them, and at most `extraBags x` the cabin's kg per bag on every flight of the trip (400 on `passengers[i].extraBagsWeightKg`) | EP, BVA (46 kg vs 47 kg for 2 x 23 kg), DT (round trip with a lower limit on the return) | dto/flight-booking.dto.ts, `plan`, flights/flight-inventory.service.ts (`maxKgPerBag`) | flight-bookings.service.spec.ts; flight-hold.e2e-spec.ts | PASS | The fee stays per bag (FLT-08). At least 1 kg per bag (derived). The weight is stored on the passenger and shown in the quote and booking |
 | R-FLT-19-02 | derived | A date of birth after today is refused, even when it is before the flight (400 on `passengers[i].dateOfBirth`) | BVA | `plan` (`latestToday`, UTC+14 so a baby born today anywhere is accepted) | flight-bookings.service.spec.ts; flight-hold.e2e-spec.ts | PASS | Before #63 an unborn infant could be booked, and the Swagger example used one (`2027-01-15`), which would fail for any flight before that date |
 
 | Finding | Severity | Resolution |
@@ -228,6 +228,15 @@ A read-only audit compared every clause of GEN-11, FLT-11, FLT-12, FLT-19, FLT-2
 | `POST /api/hotel-bookings` can answer 503 (a hotel whose city has no zone) but Swagger did not list it | LOW | Documented |
 | A unit test title said 403 where the code and assertion say 404 | LOW | Renamed |
 | Stale rows: R-GEN-11-04 and R-FLT-12-04/09/13 still BLOCKED; R-FLT-22-07, R-FLT-22-09 and R-HTL-18-03 contradicted the code | Doc | Corrected above |
+
+**Independent review of the first #63 commit (TypeScript and test-coverage reviewers):**
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| The README demo called the payment routes, which reach develop only with #62 | HIGH (docs) | The step names PAY-01 (#62) |
+| The stored weight was never read back, and the born-today and UTC+14 edges, the DTO's 0/-1/1.5 refusals and "exactly at the lower return limit" were untested | MEDIUM | Tests added: GET reads the weight back, the hold stores it, a baby born today passes and one born tomorrow fails, the UTC+14 day, the DTO refusals and 40 kg for 2 x 20 kg |
+| 5 extra bags weighing 1 kg in total were accepted | LOW | At least 1 kg per bag (derived rule) |
+| The schema typed the weight `?: number` but stored `null` | LOW | `number \| null`, default null |
 
 **Recorded, not changed (spec questions or deferrals, listed in report.md):**
 - Flight holds are released by the minute job, so for up to 60 s after a hold ends its seats still count as held. Hotels clear stale holds inside the next hold's transaction.

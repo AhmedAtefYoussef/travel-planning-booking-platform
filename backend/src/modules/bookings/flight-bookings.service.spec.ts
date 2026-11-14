@@ -241,6 +241,11 @@ describe('FlightBookingsService.quote: baggage weight and dates of birth (FLT-19
       { extraBags: 2, extraBagsWeightKg: 47 },
       weightField,
     ],
+    [
+      'less than 1 kg per extra bag',
+      { extraBags: 2, extraBagsWeightKg: 1 },
+      weightField,
+    ],
   ])('refuses %s', async (_name, bags, field) => {
     const out = cabin();
     const { service } = setup({ [out.flightId]: out });
@@ -273,6 +278,44 @@ describe('FlightBookingsService.quote: baggage weight and dates of birth (FLT-19
       ),
     );
     expect(err.fieldErrors?.map((f) => f.field)).toEqual([weightField]);
+    await expect(
+      service.quote(
+        request(out, [{ ...adult, extraBags: 2, extraBagsWeightKg: 40 }], back),
+        NOW,
+      ),
+    ).resolves.toMatchObject({ extraBagsMinor: 2 * 2 * 5_000 });
+  });
+
+  it('accepts a baby born today and refuses one born tomorrow (NOW is 2027-11-01T08:00Z)', async () => {
+    const out = cabin();
+    const { service } = setup({ [out.flightId]: out });
+    await expect(
+      service.quote(
+        request(out, [adult, fresh({ ...infant, dateOfBirth: '2027-11-01' })]),
+        NOW,
+      ),
+    ).resolves.toBeDefined();
+    const err = await failure(
+      service.quote(
+        request(out, [adult, fresh({ ...infant, dateOfBirth: '2027-11-02' })]),
+        NOW,
+      ),
+    );
+    expect(err.fieldErrors?.map((f) => f.field)).toEqual([
+      'passengers[1].dateOfBirth',
+    ]);
+  });
+
+  it('takes "today" where it is latest on Earth (UTC+14), so no newborn is refused', async () => {
+    const out = cabin();
+    const { service } = setup({ [out.flightId]: out });
+    // 12:00 UTC on 1 Nov is already 02:00 on 2 Nov in UTC+14.
+    await expect(
+      service.quote(
+        request(out, [adult, fresh({ ...infant, dateOfBirth: '2027-11-02' })]),
+        new Date('2027-11-01T12:00:00Z'),
+      ),
+    ).resolves.toBeDefined();
   });
 
   it('refuses a date of birth after today, even before the flight', async () => {
@@ -298,7 +341,10 @@ describe('FlightBookingsService.hold (FLT-22)', () => {
     const { service, inventory, stored } = setup({ [out.flightId]: out });
     const dto = await service.hold(
       user,
-      request(out, [adult, fresh(infant)]),
+      request(out, [
+        { ...adult, extraBags: 1, extraBagsWeightKg: 20 },
+        fresh(infant),
+      ]),
       NOW,
     );
     expect(inventory.reserveSeats).toHaveBeenCalledWith(
@@ -313,6 +359,10 @@ describe('FlightBookingsService.hold (FLT-22)', () => {
       startsAt: out.departureUtc,
       endsAt: out.arrivalUtc,
     });
+    // FLT-19: the bags and their weight are stored with the passenger.
+    expect(
+      (stored[0].passengers as Record<string, unknown>[])[0],
+    ).toMatchObject({ extraBags: 1, extraBagsWeightKg: 20 });
     expect(dto.status).toBe(BookingStatus.PendingPayment);
   });
 

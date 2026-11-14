@@ -70,7 +70,7 @@ cookies, and Swagger sends them with every later call. For this, set `AUTH_STUB=
      `POST /api/flight-bookings/hold`: a 10-minute Pending Payment booking.
    - `POST /api/hotel-bookings` holds the selected rooms the same way.
    - `GET /api/bookings/{type}/{id}/policies`, then `POST /api/bookings/{type}/{id}/accept-policies`.
-   - `POST /api/payments` returns a `paymentIntentId`; pay it with the Stripe CLI (below), then
+   - `POST /api/payments` (PAY-01, from #62) returns a `paymentIntentId`; pay it with the Stripe CLI (below), then
      `GET /api/flight-bookings/{id}` shows CONFIRMED with an `FL-` reference (`HT-` for hotels).
 
 ### Stripe test mode

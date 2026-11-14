@@ -492,6 +492,11 @@ export class FlightBookingsService implements PayableBooking {
           field: weightField,
           message: 'Give the total weight in kg of the extra bags',
         });
+      } else if (bags > 0 && weight !== undefined && weight < bags) {
+        errors.push({
+          field: weightField,
+          message: `${bags} extra bag(s) weigh at least ${bags} kg in total`,
+        });
       }
       for (const leg of legs) {
         const max = leg.extraBaggage?.maxExtraBagsPerPassenger ?? 0;
