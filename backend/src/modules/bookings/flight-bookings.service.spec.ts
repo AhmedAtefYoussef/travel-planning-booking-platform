@@ -27,6 +27,7 @@ function cabin(over: Partial<BookableCabin> = {}): BookableCabin {
     fareMinor: 100_000,
     seatsAvailable: 5,
     extraBaggage: { pricePerBagMinor: 5_000, maxExtraBagsPerPassenger: 2 },
+    maxKgPerBag: 23,
     unavailableReason: null,
     ...over,
   };
@@ -125,7 +126,10 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
     const out = cabin();
     const { service } = setup({ [out.flightId]: out });
     const quote = await service.quote(
-      request(out, [{ ...adult, extraBags: 1 }, fresh(infant)]),
+      request(out, [
+        { ...adult, extraBags: 1, extraBagsWeightKg: 20 },
+        fresh(infant),
+      ]),
       NOW,
     );
     expect(quote).toMatchObject({
@@ -140,6 +144,11 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
       firstName: 'Mona',
       documentNumber: 'A1234567',
       extraBags: 1,
+      extraBagsWeightKg: 20,
+    });
+    expect(quote.passengers[1]).toMatchObject({
+      extraBags: 0,
+      extraBagsWeightKg: null,
     });
     expect(quote.segments[0].seats).toBe(1);
   });
@@ -179,7 +188,7 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
           [
             fresh({ ...adult, dateOfBirth: '2020-01-01' }), // a child declared adult
             fresh({ ...adult, dateOfBirth: '2027-02-30' }), // impossible date
-            fresh({ ...adult, extraBags: 1 }), // the airline sells no extra bags
+            fresh({ ...adult, extraBags: 1, extraBagsWeightKg: 10 }), // the airline sells no extra bags
             fresh(infant),
             fresh(infant),
             fresh(infant),
@@ -210,7 +219,7 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
     });
     const { service } = setup({ [out.flightId]: out, [back.flightId]: back });
     const quote = await service.quote(
-      request(out, [{ ...adult, extraBags: 2 }], back),
+      request(out, [{ ...adult, extraBags: 2, extraBagsWeightKg: 40 }], back),
       NOW,
     );
     expect(quote).toMatchObject({
@@ -218,6 +227,66 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
       extraBagsMinor: 2 * 2 * 5_000,
       totalMinor: 100_000 + 80_000 + 20_000,
     });
+  });
+});
+
+describe('FlightBookingsService.quote: baggage weight and dates of birth (FLT-19, FLT-08)', () => {
+  const weightField = 'passengers[0].extraBagsWeightKg';
+
+  it.each([
+    ['extra bags without their weight', { extraBags: 1 }, weightField],
+    ['a weight without extra bags', { extraBagsWeightKg: 10 }, weightField],
+    [
+      'more than the cabin allows per bag (2 x 23 kg)',
+      { extraBags: 2, extraBagsWeightKg: 47 },
+      weightField,
+    ],
+  ])('refuses %s', async (_name, bags, field) => {
+    const out = cabin();
+    const { service } = setup({ [out.flightId]: out });
+    const err = await failure(
+      service.quote(request(out, [{ ...adult, ...bags }]), NOW),
+    );
+    expect(err.fieldErrors?.map((f) => f.field)).toEqual([field]);
+  });
+
+  it('accepts exactly the cabin limit and checks it on every flight of a round trip', async () => {
+    const out = cabin();
+    const back = cabin({
+      from: 'HND',
+      to: 'CDG',
+      departureUtc: new Date('2027-12-10T10:00:00Z'),
+      arrivalUtc: new Date('2027-12-10T18:00:00Z'),
+      maxKgPerBag: 20,
+    });
+    const { service } = setup({ [out.flightId]: out, [back.flightId]: back });
+    await expect(
+      service.quote(
+        request(out, [{ ...adult, extraBags: 2, extraBagsWeightKg: 46 }]),
+        NOW,
+      ),
+    ).resolves.toMatchObject({ extraBagsMinor: 10_000 });
+    const err = await failure(
+      service.quote(
+        request(out, [{ ...adult, extraBags: 2, extraBagsWeightKg: 46 }], back),
+        NOW,
+      ),
+    );
+    expect(err.fieldErrors?.map((f) => f.field)).toEqual([weightField]);
+  });
+
+  it('refuses a date of birth after today, even before the flight', async () => {
+    const out = cabin(); // departs 2027-12-01; NOW is 2027-11-01
+    const { service } = setup({ [out.flightId]: out });
+    const err = await failure(
+      service.quote(
+        request(out, [adult, fresh({ ...infant, dateOfBirth: '2027-11-20' })]),
+        NOW,
+      ),
+    );
+    expect(err.fieldErrors?.map((f) => f.field)).toEqual([
+      'passengers[1].dateOfBirth',
+    ]);
   });
 });
 
@@ -285,7 +354,7 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
       lean: () => ({ exec: () => Promise.resolve(doc) }),
     });
 
-  it('getPayable: 404 when missing or malformed, 403 for another account, the snapshot for the owner', async () => {
+  it('getPayable: 404 when missing, malformed or another account, the snapshot for the owner', async () => {
     const { service, model } = setup();
     model.findById = found(null);
     expect(await failure(service.getPayable(oid(), ownerId))).toMatchObject({

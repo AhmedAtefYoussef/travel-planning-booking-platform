@@ -990,3 +990,20 @@ hotel terms through the inventory contracts), a version fingerprint so changed t
 unseen, the timestamped acceptance with a stored snapshot for refunds, and the assertPayable gate that
 PAY-01 will call. It added the RTM rows; I review the design in the PR.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-19 (TRVL-40), FLT-21, FLT-22, HTL-18, GEN-11, PAY-01 (docs)
+Prompt:
+Re-verify the booking engine merged in #57 to #61 against the workbook and Jira, systematically, and
+fix what the verification finds.
+How the output was used:
+Claude audited every clause of GEN-11, FLT-11/12/19/21/22 and HTL-16/18 against the code and tests.
+Independent verifiers confirmed the findings, and the fixes were written test first: FLT-19 now takes the
+extra baggage weight, checked against the cabin's kg per bag on every flight; a date of birth after today
+is refused; the Swagger infant example was born in 2027; the hotel 503 is documented. It corrected stale
+RTM rows, the report and the traceability owners, and added the README's per-role Swagger demo with the
+Stripe CLI steps. I reviewed each finding and the diff.
+================================================

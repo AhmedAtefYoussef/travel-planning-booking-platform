@@ -88,6 +88,10 @@ export class Passenger {
   /** FLT-08/FLT-19: extra checked bags bought for this passenger. */
   @Prop({ type: Number, default: 0, min: 0 })
   extraBags!: number;
+
+  /** FLT-19: total kg of those extra bags (absent without extra bags). */
+  @Prop({ type: Number, min: 1 })
+  extraBagsWeightKg?: number;
 }
 const PassengerSchema = SchemaFactory.createForClass(Passenger);
 

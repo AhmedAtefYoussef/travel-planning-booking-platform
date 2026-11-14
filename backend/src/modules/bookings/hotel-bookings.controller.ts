@@ -66,7 +66,7 @@ export class HotelBookingsController {
   })
   @ApiBody({ type: HotelBookingRequestDto, examples: BODY_EXAMPLES })
   @ApiCreatedResponse({ type: HotelReservationDto })
-  @ApiErrorResponses(400, 404, 409)
+  @ApiErrorResponses(400, 404, 409, 503)
   hold(
     @CurrentUser() user: AuthUser,
     @Body() dto: HotelBookingRequestDto,

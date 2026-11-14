@@ -260,6 +260,8 @@ export interface BookableCabin {
     pricePerBagMinor: number;
     maxExtraBagsPerPassenger: number;
   } | null;
+  /** FLT-04/FLT-08: the cabin's weight limit per bag, which also applies to each extra bag. */
+  maxKgPerBag: number;
   /**
    * Why it cannot be booked now (flight not Scheduled, already departed, airline deactivated), or null
    * when it can.

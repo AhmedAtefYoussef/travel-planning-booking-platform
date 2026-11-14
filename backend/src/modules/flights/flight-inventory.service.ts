@@ -67,6 +67,7 @@ export class FlightInventoryService implements FlightInventory {
             maxExtraBagsPerPassenger: extra.maxExtraBagsPerPassenger,
           }
         : null,
+      maxKgPerBag: cabin.maxKgPerBag,
       unavailableReason,
     };
   }
