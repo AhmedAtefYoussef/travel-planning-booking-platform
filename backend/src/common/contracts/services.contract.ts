@@ -1,4 +1,8 @@
 import type { ClientSession } from 'mongoose';
+import type {
+  AirlinePolicySnapshot,
+  HotelPolicySnapshot,
+} from './policies.contract';
 import type { AuthUser, Role } from '../auth/auth.types';
 import type { Page } from '../pagination/pagination';
 
@@ -280,6 +284,11 @@ export interface FlightInventory {
     seats: number,
     session?: ClientSession,
   ): Promise<boolean>;
+  /** PAY-02: the airline's current terms for this flight and cabin, or null when either is gone. */
+  getAirlinePolicy(
+    flightId: string,
+    cabinId: string,
+  ): Promise<AirlinePolicySnapshot | null>;
   /**
    * Gives seats back after an expired hold or a cancellation. Returns false when the flight or cabin no
    * longer exists, so the caller can report it instead of silently losing the seats.
@@ -364,6 +373,8 @@ export interface HotelInventory {
     reference: string,
     session: ClientSession,
   ): Promise<number>;
+  /** PAY-02: the hotel's current terms, or null when the hotel is gone. */
+  getHotelPolicy(hotelId: string): Promise<HotelPolicySnapshot | null>;
   /** Deletes the reservation's HELD nights (expiry). Returns how many were released. */
   releaseNights(reservationId: string, session: ClientSession): Promise<number>;
 }

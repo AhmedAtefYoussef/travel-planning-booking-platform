@@ -51,6 +51,8 @@ export interface PayableSnapshot {
   holdExpiresAt: Date;
   /** Set when the user accepted the provider's policies (PAY-02); payment is blocked until then. */
   policiesAcceptedAt: Date | null;
+  /** Version of the accepted terms stored on the booking (PAY-02); null when no terms are stored. */
+  policiesVersion: string | null;
   reference: string | null;
 }
 

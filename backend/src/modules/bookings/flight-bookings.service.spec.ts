@@ -62,6 +62,7 @@ function setup(
     >((flightId) => Promise.resolve(flightId in legs ? legs[flightId] : null)),
     reserveSeats: jest.fn().mockResolvedValue(opts.reserve ?? true),
     releaseSeats: jest.fn().mockResolvedValue(undefined),
+    getAirlinePolicy: jest.fn(),
   };
   const moved = [...(opts.moved ?? [1])];
   const stored: Record<string, unknown>[] = [];

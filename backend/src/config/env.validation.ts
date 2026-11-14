@@ -30,6 +30,21 @@ const DURATION = /^\d+(ms|s|m|h|d)$/;
  * Every variable listed in .env.example. The app refuses to start when one is missing or malformed
  * (TRVL-130: fail fast), so a misconfigured teammate sees the exact variable instead of a runtime bug.
  */
+/**
+ * PAY-04: the single currency of every price, payment and refund. It must be one the reference dataset
+ * seeds (Countries.currency), because it is also the FX base currency (TRVL-133). A unit test keeps this
+ * list equal to seed/data/Countries.csv.
+ */
+export const PLATFORM_CURRENCIES: readonly string[] = [
+  'AED',
+  'EGP',
+  'EUR',
+  'GBP',
+  'JPY',
+  'SAR',
+  'USD',
+];
+
 export class EnvironmentVariables {
   /** Required (no default): a deployment that forgets it must not silently run as development. */
   @IsEnum(NodeEnv, {
@@ -77,8 +92,8 @@ export class EnvironmentVariables {
   @IsBoolean()
   AUTH_STUB = false;
 
-  @IsIn(Intl.supportedValuesOf('currency'), {
-    message: 'PLATFORM_CURRENCY must be an ISO 4217 code such as USD (PAY-04)',
+  @IsIn(PLATFORM_CURRENCIES, {
+    message: `PLATFORM_CURRENCY must be one of the seeded currencies: ${PLATFORM_CURRENCIES.join(', ')} (PAY-04)`,
   })
   PLATFORM_CURRENCY!: string;
 

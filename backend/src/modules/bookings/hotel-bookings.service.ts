@@ -227,6 +227,7 @@ export class HotelBookingsService implements PayableBooking {
       currency: r.currency,
       holdExpiresAt: r.holdExpiresAt,
       policiesAcceptedAt: r.policiesAcceptedAt,
+      policiesVersion: r.policySnapshot?.version ?? null,
       reference: r.reference,
     };
   }

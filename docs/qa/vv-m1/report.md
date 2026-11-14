@@ -130,7 +130,7 @@ These items were raised as questions. Five (SQ-1 to SQ-5) had a clear fix that m
 | SQ-7 | FLT-05 | Changing an airport keeps the old wall-clock time in the new zone instead of the UTC instant. Does a Cancelled or Expired booking still lock the airports? | Open (decide when FLT-22 lands) |
 | SQ-8 | FLT-09, HTL-10 | "Days remaining" is counted in whole 24-hour periods, not calendar days in the provider's zone | Open (TA question) |
 | SQ-9 | GEN-05 | Arrays inside one resource (room availability ranges) are not paginated. Does "every list" cover them? | Open (TA question) |
-| SQ-10 | PAY-04 | `PLATFORM_CURRENCY` is validated but never read; payment and refund schemas accept any 3-letter code | Open (enforce in PAY-01) |
+| SQ-10 | PAY-04 | `PLATFORM_CURRENCY` is validated but never read; payment and refund schemas accept any 3-letter code | Partly closed (#61): limited to the seeded currencies at startup, read by both booking types and enforced by the payment gate; PAY-01 and PAY-03 call the gate |
 
 Each track's RTM lists its full spec questions.
 

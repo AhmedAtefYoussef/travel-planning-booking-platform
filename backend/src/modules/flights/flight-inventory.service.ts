@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
-import type { BookableCabin, FlightInventory } from '../../common/contracts';
+import type {
+  AirlinePolicySnapshot,
+  BookableCabin,
+  FlightInventory,
+} from '../../common/contracts';
 import { Airline } from './schemas/airline.schema';
 import { Flight, FlightStatus } from './schemas/flight.schema';
 
@@ -64,6 +68,46 @@ export class FlightInventoryService implements FlightInventory {
           }
         : null,
       unavailableReason,
+    };
+  }
+
+  async getAirlinePolicy(
+    flightId: string,
+    cabinId: string,
+  ): Promise<AirlinePolicySnapshot | null> {
+    if (!Types.ObjectId.isValid(flightId) || !Types.ObjectId.isValid(cabinId)) {
+      return null;
+    }
+    const flight = await this.flights.findById(flightId).lean().exec();
+    const cabin = flight?.cabins.find((c) => c._id.toHexString() === cabinId);
+    if (!flight || !cabin) return null;
+    const airline = await this.airlines
+      .findById(flight.airlineId)
+      .lean()
+      .exec();
+    if (!airline) return null;
+    const extra = airline.policy?.extraBaggage;
+    return {
+      airlineId: airline._id.toHexString(),
+      airlineName: airline.name,
+      airlineCode: airline.code,
+      flightNumber: flight.flightNumber,
+      cabinClass: cabin.class,
+      freeBags: cabin.freeBags,
+      maxKgPerBag: cabin.maxKgPerBag,
+      // Sorted, so a stored reordering never changes the version of the same terms (PAY-02).
+      cancellationTiers: [...(airline.policy?.cancellationTiers ?? [])]
+        .sort((a, b) => a.daysBefore - b.daysBefore)
+        .map((t) => ({
+          daysBefore: t.daysBefore,
+          refundPercent: t.refundPercent,
+        })),
+      extraBaggage: extra
+        ? {
+            pricePerBagMinor: extra.pricePerBagMinor,
+            maxExtraBagsPerPassenger: extra.maxExtraBagsPerPassenger,
+          }
+        : null,
     };
   }
 

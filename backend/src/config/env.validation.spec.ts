@@ -1,5 +1,7 @@
 import { TEST_ENV } from '../../test/support/test-env';
-import { NodeEnv, validateEnv } from './env.validation';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { NodeEnv, PLATFORM_CURRENCIES, validateEnv } from './env.validation';
 
 const base = { ...TEST_ENV, MONGODB_URI: 'mongodb://localhost:27017/x' };
 
@@ -42,6 +44,8 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
     ['COOKIE_SECURE', 'yes'],
     ['PLATFORM_CURRENCY', 'usd'],
     ['PLATFORM_CURRENCY', 'ZZZ'],
+    // A real ISO 4217 code that the reference dataset does not seed (PAY-04).
+    ['PLATFORM_CURRENCY', 'CHF'],
     ['STRIPE_SECRET_KEY', 'sk_live_123'],
     ['STRIPE_WEBHOOK_SECRET', 'abc'],
     ['FX_API_BASE_URL', 'not a url'],
@@ -80,5 +84,24 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
     ])('rejects %s=%s', (key, value, message) => {
       expect(() => validateEnv({ ...prod, [key]: value })).toThrow(message);
     });
+  });
+});
+
+describe('PLATFORM_CURRENCY (PAY-04)', () => {
+  it('allows exactly the currencies the reference dataset seeds (Countries.currency)', () => {
+    const csv = readFileSync(
+      join(__dirname, '..', '..', 'seed', 'data', 'Countries.csv'),
+      'utf8',
+    );
+    const [header, ...rows] = csv.trim().split(/\r?\n/);
+    const column = header.split(',').indexOf('currency');
+    const seeded = new Set(rows.map((row) => row.split(',')[column].trim()));
+    expect([...PLATFORM_CURRENCIES].sort()).toEqual([...seeded].sort());
+  });
+
+  it.each([...PLATFORM_CURRENCIES])('accepts %s', (code) => {
+    expect(
+      validateEnv({ ...base, PLATFORM_CURRENCY: code }).PLATFORM_CURRENCY,
+    ).toBe(code);
   });
 });
