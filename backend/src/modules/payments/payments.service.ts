@@ -89,31 +89,37 @@ export class PaymentsService {
     dto: CreatePaymentDto,
     now: Date = new Date(),
   ): Promise<PaymentDto> {
-    const booking = await this.payable(dto.bookingType).getPayable(
-      dto.bookingId,
+    // Rebuilt from constants, so no request value reaches a query unchecked (CodeQL js/sql-injection).
+    const bookingType =
+      dto.bookingType === BookingType.Flight
+        ? BookingType.Flight
+        : BookingType.Hotel;
+    const bookingId = new Types.ObjectId(dto.bookingId).toHexString();
+    const booking = await this.payable(bookingType).getPayable(
+      bookingId,
       user.id,
     );
     assertPayable(booking, { now, platformCurrency: this.platformCurrency() });
     const forBooking = {
-      bookingType: dto.bookingType,
-      bookingId: new Types.ObjectId(dto.bookingId),
+      bookingType,
+      bookingId: new Types.ObjectId(bookingId),
     };
     const existing = await this.payments
       .findOne({ ...forBooking, status: { $in: OPEN } })
       .exec();
     if (existing) return this.view(existing, booking.reference, true, now);
 
-    const generation = await this.payments.countDocuments(forBooking).exec();
+    // Only CLOSED payments count: concurrent first clicks see 0 and share one key (one PaymentIntent),
+    // while a booking whose last PaymentIntent was cancelled gets a new key.
+    const generation = await this.payments
+      .countDocuments({ ...forBooking, status: { $nin: OPEN } })
+      .exec();
     const intent = await this.gateway(() =>
       this.stripe.createPaymentIntent({
         amountMinor: booking.amountMinor,
         currency: booking.currency,
-        metadata: {
-          bookingType: dto.bookingType,
-          bookingId: dto.bookingId,
-          userId: user.id,
-        },
-        idempotencyKey: `checkout:${dto.bookingType}:${dto.bookingId}:${generation}`,
+        metadata: { bookingType, bookingId, userId: user.id },
+        idempotencyKey: `checkout:${bookingType}:${bookingId}:${generation}`,
       }),
     );
     try {

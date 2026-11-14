@@ -299,16 +299,15 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
       );
     });
 
-    it('returns the same payment and PaymentIntent when asked twice, even in parallel', async () => {
+    it('returns the same payment and PaymentIntent when asked several times at once', async () => {
       const bookingId = await holdFlight(owner);
       await acceptPolicies(owner, 'flight', bookingId);
       const before = stripe.intents.size;
-      const [a, b] = await Promise.all([
-        pay(owner, 'FLIGHT', bookingId),
-        pay(owner, 'FLIGHT', bookingId),
-      ]);
-      expect([a.status, b.status]).toEqual([201, 201]);
-      expect(a.body.id).toBe(b.body.id);
+      const all = await Promise.all(
+        Array.from({ length: 5 }, () => pay(owner, 'FLIGHT', bookingId)),
+      );
+      expect(all.map((r) => r.status)).toEqual([201, 201, 201, 201, 201]);
+      expect(new Set(all.map((r) => r.body.id as string)).size).toBe(1);
       expect(stripe.intents.size).toBe(before + 1);
       expect(
         await payments.countDocuments({
