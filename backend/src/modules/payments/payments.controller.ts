@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpCode,
   HttpStatus,
@@ -38,6 +39,7 @@ export class PaymentsController {
 
   @Post()
   @Roles(Role.User)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'PAY-01 Pay for a Pending Payment booking within its hold',
     description: `Creates a Stripe test-mode PaymentIntent for the booking's server-side total in the platform currency and returns its client secret; card details never reach this API. Requires an unexpired hold and accepted policies (PAY-02: 409 POLICIES_NOT_ACCEPTED). Asking again returns the same payment. The booking is NOT confirmed here: only the verified Stripe webhook confirms it. ${HOW_TO_PAY}`,
@@ -81,6 +83,7 @@ export class PaymentsController {
 
   @Post(':id/retry')
   @Roles(Role.User)
+  @Header('Cache-Control', 'no-store')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'PAY-01 Retry a failed payment until the hold expires',
@@ -98,6 +101,7 @@ export class PaymentsController {
 
   @Get(':id')
   @Roles(Role.User, Role.Admin)
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'PAY-01 View a payment (owner or admin)',
     description:

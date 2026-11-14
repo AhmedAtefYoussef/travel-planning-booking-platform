@@ -22,11 +22,12 @@ import {
   PaymentStatus,
   type PaymentDocument,
 } from './schemas/payment.schema';
-import { Refund } from './schemas/refund.schema';
+import { Refund, type RefundDocument } from './schemas/refund.schema';
 import { StripeEvent } from './schemas/stripe-event.schema';
 import {
   STRIPE_GATEWAY,
   StripeApiError,
+  type IntentStatus,
   type StripeGateway,
   type StripeWebhookEvent,
 } from './stripe-gateway';
@@ -35,10 +36,19 @@ import { verifyStripeSignature } from './stripe-signature';
 const DUPLICATE_KEY = 11000;
 const CONFIRM_ATTEMPTS = 3;
 const MAX_ERROR_LENGTH = 500;
-/** The cancel-on-expiry job's batch size. */
-export const CANCEL_BATCH = 100;
+/** The jobs' batch size. */
+export const JOB_BATCH = 100;
+/** Cancel-job backoff for a payment it could not settle: 1, 2, 4 ... minutes, at most an hour. */
+const MAX_BACKOFF_MS = 60 * 60_000;
 
 const OPEN = [PaymentStatus.RequiresPayment, PaymentStatus.Failed];
+
+/** A paid booking that can no longer be confirmed is refunded in full (ADR-0003). */
+const REFUNDABLE_CODES: readonly string[] = [
+  ErrorCode.HOLD_EXPIRED,
+  ErrorCode.INVALID_STATE_TRANSITION,
+  ErrorCode.NOT_FOUND,
+];
 
 /** Thrown inside a webhook transaction when the event id is already recorded (a replay). */
 class EventReplay extends Error {}
@@ -47,7 +57,8 @@ class EventReplay extends Error {}
  * PAY-01 (ADR-0003): pay a Pending Payment booking within its hold with a Stripe PaymentIntent (card
  * details go from Stripe Elements straight to Stripe), confirm ONLY from a signature-verified webhook,
  * let the user retry after a failure until the hold expires, and cancel the PaymentIntent when it does.
- * A payment that Stripe captures after the hold expired is refunded in full.
+ * A payment that Stripe captures when the booking can no longer be confirmed is refunded in full, and a
+ * job keeps re-sending such refunds until Stripe has them.
  */
 @Injectable()
 export class PaymentsService {
@@ -68,9 +79,10 @@ export class PaymentsService {
 
   /**
    * Starts (or resumes) paying for a booking: the payment gate first (hold, status, PAY-02 acceptance,
-   * PAY-04 currency), then one PaymentIntent per booking for its server-side total. Asking again, even
-   * concurrently, returns the same payment: Stripe's idempotency key gives the same PaymentIntent and its
-   * unique id keeps one payment document.
+   * PAY-04 currency), then a PaymentIntent for its server-side total. An open payment is returned as it
+   * is. Otherwise a new PaymentIntent is created under an idempotency key that includes the booking's
+   * payment count, so concurrent clicks share one PaymentIntent, while a booking whose earlier
+   * PaymentIntent was cancelled (hold still valid) gets a fresh one.
    */
   async create(
     user: AuthUser,
@@ -82,15 +94,16 @@ export class PaymentsService {
       user.id,
     );
     assertPayable(booking, { now, platformCurrency: this.platformCurrency() });
+    const forBooking = {
+      bookingType: dto.bookingType,
+      bookingId: new Types.ObjectId(dto.bookingId),
+    };
     const existing = await this.payments
-      .findOne({
-        bookingType: dto.bookingType,
-        bookingId: new Types.ObjectId(dto.bookingId),
-        status: { $in: OPEN },
-      })
+      .findOne({ ...forBooking, status: { $in: OPEN } })
       .exec();
-    if (existing) return this.view(existing, booking.reference, true);
+    if (existing) return this.view(existing, booking.reference, true, now);
 
+    const generation = await this.payments.countDocuments(forBooking).exec();
     const intent = await this.gateway(() =>
       this.stripe.createPaymentIntent({
         amountMinor: booking.amountMinor,
@@ -100,35 +113,57 @@ export class PaymentsService {
           bookingId: dto.bookingId,
           userId: user.id,
         },
-        idempotencyKey: `checkout:${dto.bookingType}:${dto.bookingId}`,
+        idempotencyKey: `checkout:${dto.bookingType}:${dto.bookingId}:${generation}`,
       }),
     );
     try {
       const [created] = await this.payments.create([
         {
-          bookingType: dto.bookingType,
-          bookingId: new Types.ObjectId(dto.bookingId),
+          ...forBooking,
           userId: new Types.ObjectId(user.id),
           stripePaymentIntentId: intent.id,
           amountMinor: booking.amountMinor,
           currency: booking.currency,
           status: PaymentStatus.RequiresPayment,
           holdEndsAt: booking.holdExpiresAt,
+          attemptStartedAt: now,
         },
       ]);
       return toDto(created, booking.reference, intent.clientSecret);
     } catch (e) {
-      // A concurrent request stored the same PaymentIntent first: return that payment.
-      if ((e as { code?: number }).code !== DUPLICATE_KEY) throw e;
-      const winner = await this.payments
-        .findOne({ stripePaymentIntentId: intent.id })
-        .exec();
-      if (!winner) throw e;
-      return toDto(winner, booking.reference, intent.clientSecret);
+      if ((e as { code?: number }).code === DUPLICATE_KEY) {
+        // A concurrent request stored the same PaymentIntent first: return that payment if still open.
+        const winner = await this.payments
+          .findOne({ stripePaymentIntentId: intent.id })
+          .exec();
+        if (winner && OPEN.includes(winner.status)) {
+          return toDto(winner, booking.reference, intent.clientSecret);
+        }
+        throw new AppException(
+          HttpStatus.CONFLICT,
+          ErrorCode.CONFLICT,
+          'This payment changed while it was being created. Try again',
+        );
+      }
+      // Never leave a payable PaymentIntent without its record: cancel it (best effort) and fail.
+      await this.stripe
+        .cancelPaymentIntent(intent.id)
+        .catch((cancelError: unknown) =>
+          this.logger.error(
+            `PaymentIntent ${intent.id} has no payment record and could not be cancelled`,
+            cancelError instanceof Error
+              ? cancelError.stack
+              : String(cancelError),
+          ),
+        );
+      throw e;
     }
   }
 
-  /** After a failed attempt the same PaymentIntent is confirmed again, until the hold expires. */
+  /**
+   * After a failed attempt the same PaymentIntent is confirmed again, until the hold expires. If Stripe
+   * cancelled it meanwhile (hold still valid), the payment is closed and a new one is started.
+   */
   async retry(
     user: AuthUser,
     id: string,
@@ -141,7 +176,7 @@ export class PaymentsService {
     );
     assertPayable(booking, { now, platformCurrency: this.platformCurrency() });
     if (payment.status === PaymentStatus.RequiresPayment) {
-      return this.view(payment, booking.reference, true);
+      return this.view(payment, booking.reference, true, now);
     }
     if (payment.status !== PaymentStatus.Failed) {
       throw new AppException(
@@ -153,18 +188,37 @@ export class PaymentsService {
     const intent = await this.gateway(() =>
       this.stripe.retrievePaymentIntent(payment.stripePaymentIntentId),
     );
-    if (intent.status === 'canceled' || intent.status === 'succeeded') {
+    if (intent.status === 'succeeded') {
       throw new AppException(
         HttpStatus.CONFLICT,
         ErrorCode.INVALID_STATE_TRANSITION,
-        `Stripe reports this payment as ${intent.status}; it cannot be retried`,
+        'Stripe already took this payment; the booking is being confirmed',
+      );
+    }
+    if (intent.status === 'canceled') {
+      await this.payments
+        .updateOne(
+          { _id: payment._id, status: PaymentStatus.Failed },
+          { $set: { status: PaymentStatus.Canceled } },
+        )
+        .exec();
+      return this.create(
+        user,
+        {
+          bookingType: payment.bookingType,
+          bookingId: payment.bookingId.toHexString(),
+        },
+        now,
       );
     }
     const updated = await this.payments
       .findOneAndUpdate(
         { _id: payment._id, status: PaymentStatus.Failed },
         {
-          $set: { status: PaymentStatus.RequiresPayment },
+          $set: {
+            status: PaymentStatus.RequiresPayment,
+            attemptStartedAt: now,
+          },
           $unset: { lastError: 1 },
           $inc: { attempts: 1 },
         },
@@ -177,13 +231,29 @@ export class PaymentsService {
   }
 
   /** The owner sees their payment (with the client secret while it can still be paid); an admin sees any. */
-  async findOne(user: AuthUser, id: string): Promise<PaymentDto> {
+  async findOne(
+    user: AuthUser,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<PaymentDto> {
     const payment = await this.load(user, id, true);
     const owner = payment.userId.toHexString() === user.id;
-    const booking = await this.payable(payment.bookingType)
-      .getPayable(payment.bookingId.toHexString(), payment.userId.toHexString())
-      .catch(() => null);
-    return this.view(payment, booking?.reference ?? null, owner);
+    let reference: string | null = null;
+    try {
+      reference = (
+        await this.payable(payment.bookingType).getPayable(
+          payment.bookingId.toHexString(),
+          payment.userId.toHexString(),
+        )
+      ).reference;
+    } catch (e) {
+      if (!(e instanceof AppException) || e.code !== ErrorCode.NOT_FOUND)
+        throw e;
+      this.logger.warn(
+        `Payment ${id}: its ${payment.bookingType} booking ${payment.bookingId.toHexString()} no longer exists`,
+      );
+    }
+    return this.view(payment, reference, owner, now);
   }
 
   /* ------------------------------------- Stripe webhook ------------------------------------- */
@@ -191,7 +261,7 @@ export class PaymentsService {
   /**
    * ADR-0003. Verifies the signature against the raw body (400 otherwise), then applies the event in ONE
    * transaction with the insert of its id, so a replay is acknowledged and ignored, and any failure rolls
-   * the id back (500) for Stripe to redeliver.
+   * the id back and answers 5xx for Stripe to redeliver.
    */
   async handleWebhook(
     rawBody: Buffer | undefined,
@@ -207,18 +277,20 @@ export class PaymentsService {
       );
     }
     const event = parseEvent(rawBody);
-    const intentId = event.data.object.id ?? '';
     try {
       switch (event.type) {
         case 'payment_intent.succeeded':
-          return await this.onSucceeded(event, intentId);
+          return await this.onSucceeded(event);
         case 'payment_intent.payment_failed':
-          return await this.onFailed(event, intentId);
+          return await this.onFailed(event);
         case 'payment_intent.canceled':
           return await this.inTransaction(event, async (session) => {
             await this.payments
               .updateOne(
-                { stripePaymentIntentId: intentId, status: { $in: OPEN } },
+                {
+                  stripePaymentIntentId: event.data.object.id,
+                  status: { $in: OPEN },
+                },
                 { $set: { status: PaymentStatus.Canceled } },
                 { session },
               )
@@ -242,30 +314,50 @@ export class PaymentsService {
     }
   }
 
-  private async onSucceeded(
-    event: StripeWebhookEvent,
-    intentId: string,
-  ): Promise<void> {
-    let late: PaymentDocument | null = null;
+  /**
+   * payment_intent.succeeded (also used by the cancel job when Stripe reports a capture before the
+   * webhook arrived): the payment becomes SUCCEEDED and the booking is confirmed, or, when it can no
+   * longer be, a full refund is recorded in the same transaction and requested after commit.
+   */
+  private async onSucceeded(event: StripeWebhookEvent): Promise<void> {
+    const intentId = event.data.object.id!;
+    let refundFor: Types.ObjectId | null = null;
     for (let attempt = 1; ; attempt++) {
       try {
-        await this.inTransaction(event, async (session) => {
-          late = null;
+        refundFor = await this.inTransaction(event, async (session) => {
           const payment = await this.payments
-            .findOneAndUpdate(
-              { stripePaymentIntentId: intentId },
-              {
-                $set: { status: PaymentStatus.Succeeded },
-                $unset: { lastError: 1 },
-              },
-              { new: true, session },
-            )
+            .findOne({ stripePaymentIntentId: intentId })
+            .session(session)
             .exec();
           if (!payment) {
+            if (event.data.object.metadata?.bookingId) {
+              // Ours (it names a booking) but unrecorded: never acknowledge money we can't account for.
+              throw new Error(
+                `PaymentIntent ${intentId} of booking ${event.data.object.metadata.bookingId} has no payment record`,
+              );
+            }
             this.logger.warn(
               `Stripe event ${event.id}: PaymentIntent ${intentId} is not one of ours; ignored`,
             );
-            return;
+            return null;
+          }
+          assertSameAmount(event, payment);
+          if (payment.status !== PaymentStatus.Succeeded) {
+            if (payment.status === PaymentStatus.Canceled) {
+              this.logger.warn(
+                `Payment ${payment.id as string} was CANCELED but Stripe captured it`,
+              );
+            }
+            await this.payments
+              .updateOne(
+                { _id: payment._id },
+                {
+                  $set: { status: PaymentStatus.Succeeded },
+                  $unset: { lastError: 1 },
+                },
+                { session },
+              )
+              .exec();
           }
           try {
             await this.payable(payment.bookingType).markConfirmed(
@@ -273,17 +365,16 @@ export class PaymentsService {
               { paymentId: payment.id as string },
               session,
             );
+            return null;
           } catch (e) {
-            // Paid, but the booking can no longer be confirmed (the hold expired first): refund it.
             if (
               !(e instanceof AppException) ||
-              (e.code !== ErrorCode.HOLD_EXPIRED &&
-                e.code !== ErrorCode.INVALID_STATE_TRANSITION)
+              !REFUNDABLE_CODES.includes(e.code)
             ) {
               throw e;
             }
             await this.recordLateRefund(payment, session);
-            late = payment;
+            return payment._id;
           }
         });
         break;
@@ -292,52 +383,68 @@ export class PaymentsService {
         if (!isReferenceCollision(e) || attempt === CONFIRM_ATTEMPTS) throw e;
       }
     }
-    if (late) await this.refundLate(late);
+    if (refundFor) {
+      const refund = await this.refunds
+        .findOne({ paymentId: refundFor })
+        .exec();
+      if (refund) await this.requestRefund(refund);
+    }
   }
 
-  private async onFailed(
-    event: StripeWebhookEvent,
-    intentId: string,
-  ): Promise<void> {
+  /**
+   * payment_failed for the current attempt: FAILED with Stripe's message, so the user can retry. An event
+   * created before the current attempt started (Stripe does not guarantee order) is stale and ignored.
+   */
+  private async onFailed(event: StripeWebhookEvent): Promise<void> {
+    const intentId = event.data.object.id!;
     const reason = (
       event.data.object.last_payment_error?.message ?? 'The payment failed'
     ).slice(0, MAX_ERROR_LENGTH);
-    let failed: PaymentDocument | null = null;
-    await this.inTransaction(event, async (session) => {
-      failed = await this.payments
+    // Stripe's `created` is in whole seconds: any event from the attempt's second onwards counts.
+    const createdBefore = new Date(
+      (Math.floor(event.created ?? Date.now() / 1000) + 1) * 1000,
+    );
+    const failed = await this.inTransaction(event, (session) =>
+      this.payments
         .findOneAndUpdate(
           {
             stripePaymentIntentId: intentId,
-            status: PaymentStatus.RequiresPayment,
+            status: { $in: OPEN },
+            attemptStartedAt: { $lt: createdBefore },
           },
           { $set: { status: PaymentStatus.Failed, lastError: reason } },
           { new: true, session },
         )
-        .exec();
-    });
-    const payment = failed as PaymentDocument | null;
-    if (!payment) return;
-    // The booking stays Pending Payment, so the user can retry until the hold expires.
-    await this.payable(payment.bookingType)
-      .markPaymentFailed(payment.bookingId.toHexString(), {
-        paymentId: payment.id as string,
+        .exec(),
+    );
+    if (!failed) {
+      this.logger.log(
+        `Stripe event ${event.id}: payment_failed for ${intentId} is stale or not for an open payment; ignored`,
+      );
+      return;
+    }
+    // Informational only (the payments collection is the record); the booking stays Pending Payment.
+    await this.payable(failed.bookingType)
+      .markPaymentFailed(failed.bookingId.toHexString(), {
+        paymentId: failed.id as string,
         reason,
       })
       .catch((e: unknown) =>
         this.logger.error(
-          `Payment ${payment.id as string} failed but its booking could not be told`,
+          `Payment ${failed.id as string} failed but its booking could not be told`,
           e instanceof Error ? e.stack : String(e),
         ),
       );
   }
 
   /** Records the event id and applies `work` in one transaction; a recorded id means a replay. */
-  private async inTransaction(
+  private async inTransaction<T>(
     event: StripeWebhookEvent,
-    work: (session: ClientSession) => Promise<void>,
-  ): Promise<void> {
+    work: (session: ClientSession) => Promise<T>,
+  ): Promise<T> {
     const session = await this.connection.startSession();
     try {
+      let result!: T;
       await session.withTransaction(async () => {
         try {
           await this.events.create(
@@ -350,24 +457,26 @@ export class PaymentsService {
           }
           throw e;
         }
-        await work(session);
+        result = await work(session);
       });
+      return result;
     } finally {
       await session.endSession();
     }
   }
 
-  /** The refund owed for a late payment, recorded in the webhook transaction (PENDING until Stripe has it). */
+  /** The full refund owed for a payment whose booking can't be confirmed, keyed by the payment. */
   private async recordLateRefund(
     payment: PaymentDocument,
     session: ClientSession,
   ): Promise<void> {
     await this.refunds
       .updateOne(
-        { bookingType: payment.bookingType, bookingId: payment.bookingId },
+        { paymentId: payment._id },
         {
           $setOnInsert: {
-            paymentId: payment._id,
+            bookingType: payment.bookingType,
+            bookingId: payment.bookingId,
             userId: payment.userId,
             amountMinor: payment.amountMinor,
             currency: payment.currency,
@@ -382,69 +491,91 @@ export class PaymentsService {
       .exec();
   }
 
-  /** After commit: ask Stripe for the refund. A failure is logged and the refund stays PENDING. */
-  private async refundLate(payment: PaymentDocument): Promise<void> {
-    try {
-      const refund = await this.stripe.createRefund({
-        paymentIntentId: payment.stripePaymentIntentId,
-        metadata: {
-          paymentId: payment.id as string,
-          reason: RefundReason.HoldExpired,
-        },
-        idempotencyKey: `late-refund:${payment.id as string}`,
-      });
-      await this.refunds
-        .updateOne(
-          { paymentId: payment._id },
-          { $set: { stripeRefundId: refund.id } },
-        )
-        .exec();
-      this.logger.warn(
-        `Payment ${payment.id as string} succeeded after the hold of ${payment.bookingType} booking ${payment.bookingId.toHexString()} expired; refunded in full (${refund.id})`,
+  /**
+   * Asks Stripe for a recorded late refund (idempotent per payment). Failures leave it PENDING without a
+   * Stripe id, and `retryPendingRefunds` sends it again.
+   */
+  private async requestRefund(refund: RefundDocument): Promise<boolean> {
+    const payment = await this.payments.findById(refund.paymentId).exec();
+    if (!payment) {
+      this.logger.error(
+        `Refund ${refund.id as string}: its payment is missing`,
       );
+      return false;
+    }
+    let stripeRefundId: string;
+    try {
+      stripeRefundId = (
+        await this.stripe.createRefund({
+          paymentIntentId: payment.stripePaymentIntentId,
+          metadata: { paymentId: payment.id as string, reason: refund.reason },
+          idempotencyKey: `late-refund:${payment.id as string}`,
+        })
+      ).id;
     } catch (e) {
       this.logger.error(
-        `Payment ${payment.id as string} must be refunded (hold expired) but Stripe refused; the refund stays PENDING`,
+        `Refund ${refund.id as string} for payment ${payment.id as string} could not be requested; retried by the job`,
         e instanceof Error ? e.stack : String(e),
       );
+      return false;
     }
+    const res = await this.refunds
+      .updateOne({ _id: refund._id }, { $set: { stripeRefundId } })
+      .exec();
+    if (res.matchedCount !== 1) {
+      this.logger.error(
+        `Stripe refund ${stripeRefundId} was created but refund ${refund.id as string} could not be updated`,
+      );
+      return false;
+    }
+    this.logger.warn(
+      `Payment ${payment.id as string} of ${payment.bookingType} booking ${payment.bookingId.toHexString()} could not confirm the booking; refunded in full (${stripeRefundId})`,
+    );
+    return true;
   }
 
-  /* ------------------------------------- expiry job ------------------------------------- */
+  /* ------------------------------------- jobs ------------------------------------- */
+
+  /** Re-sends late refunds that Stripe does not have yet (no Stripe id). */
+  async retryPendingRefunds(): Promise<number> {
+    const pending = await this.refunds
+      .find({
+        reason: RefundReason.HoldExpired,
+        status: RefundStatus.Pending,
+        stripeRefundId: { $exists: false },
+      })
+      .sort({ createdAt: 1 })
+      .limit(JOB_BATCH)
+      .exec();
+    let sent = 0;
+    for (const refund of pending) {
+      if (await this.requestRefund(refund)) sent += 1;
+    }
+    return sent;
+  }
 
   /**
-   * PAY-01: when the hold has expired, its PaymentIntent is cancelled so it can no longer be paid. One
-   * failure is logged and does not stop the others. If Stripe already captured it, the succeeded webhook
-   * refunds it (ADR-0003).
+   * PAY-01: when the hold has expired, its PaymentIntent is cancelled so it can no longer be paid.
+   * - A capture Stripe already made is applied as the succeeded webhook would (the booking can't be
+   *   confirmed any more, so it is refunded).
+   * - A PaymentIntent Stripe no longer has is closed.
+   * - Anything else unsettled is checked again later with a growing delay, so it never blocks the batch.
    */
   async cancelExpiredIntents(now: Date = new Date()): Promise<number> {
     const due = await this.payments
-      .find({ status: { $in: OPEN }, holdEndsAt: { $lte: now } })
+      .find({
+        status: { $in: OPEN },
+        holdEndsAt: { $lte: now },
+        $or: [{ nextCheckAt: null }, { nextCheckAt: { $lte: now } }],
+      })
       .sort({ holdEndsAt: 1 })
-      .limit(CANCEL_BATCH)
+      .limit(JOB_BATCH)
       .exec();
     let cancelled = 0;
     for (const payment of due) {
       try {
-        let status: string;
-        try {
-          status = (
-            await this.stripe.cancelPaymentIntent(payment.stripePaymentIntentId)
-          ).status;
-        } catch (e) {
-          if (
-            !(e instanceof StripeApiError) ||
-            e.code !== 'payment_intent_unexpected_state'
-          ) {
-            throw e;
-          }
-          status = (
-            await this.stripe.retrievePaymentIntent(
-              payment.stripePaymentIntentId,
-            )
-          ).status;
-        }
-        if (status === 'canceled') {
+        const status = await this.cancelOrInspect(payment);
+        if (status === 'canceled' || status === 'missing') {
           const res = await this.payments
             .updateOne(
               { _id: payment._id, status: { $in: OPEN } },
@@ -452,24 +583,63 @@ export class PaymentsService {
             )
             .exec();
           cancelled += res.modifiedCount;
+          if (status === 'missing') {
+            this.logger.error(
+              `Payment ${payment.id as string}: Stripe has no PaymentIntent ${payment.stripePaymentIntentId}; closed`,
+            );
+          }
+        } else if (status === 'succeeded') {
+          await this.onSucceeded(reconcileEvent(payment));
         } else {
-          this.logger.warn(
-            `Payment ${payment.id as string}: hold expired but Stripe reports ${status}; the webhook decides`,
-          );
+          await this.backOff(payment, now, `Stripe reports ${status}`);
         }
       } catch (e) {
-        this.logger.error(
-          `Cancelling the PaymentIntent of payment ${payment.id as string} failed; retried next run`,
-          e instanceof Error ? e.stack : String(e),
+        if (e instanceof EventReplay) continue;
+        await this.backOff(
+          payment,
+          now,
+          e instanceof Error ? e.message : String(e),
         );
       }
     }
-    if (due.length === CANCEL_BATCH) {
-      this.logger.warn(
-        `PaymentIntent cancel backlog: a full batch of ${CANCEL_BATCH} was due`,
-      );
-    }
     return cancelled;
+  }
+
+  private async cancelOrInspect(
+    payment: PaymentDocument,
+  ): Promise<IntentStatus | 'missing'> {
+    try {
+      return (
+        await this.stripe.cancelPaymentIntent(payment.stripePaymentIntentId)
+      ).status;
+    } catch (e) {
+      if (!(e instanceof StripeApiError)) throw e;
+      if (e.code === 'resource_missing') return 'missing';
+      if (e.code !== 'payment_intent_unexpected_state') throw e;
+      return (
+        await this.stripe.retrievePaymentIntent(payment.stripePaymentIntentId)
+      ).status;
+    }
+  }
+
+  private async backOff(
+    payment: PaymentDocument,
+    now: Date,
+    why: string,
+  ): Promise<void> {
+    const delay = Math.min(60_000 * 2 ** payment.checkAttempts, MAX_BACKOFF_MS);
+    this.logger.warn(
+      `Payment ${payment.id as string}: hold expired but its PaymentIntent is not settled (${why}); checked again in ${delay / 60_000} min`,
+    );
+    await this.payments
+      .updateOne(
+        { _id: payment._id },
+        {
+          $set: { nextCheckAt: new Date(now.getTime() + delay) },
+          $inc: { checkAttempts: 1 },
+        },
+      )
+      .exec();
   }
 
   /* ------------------------------------- helpers ------------------------------------- */
@@ -505,19 +675,30 @@ export class PaymentsService {
     return payment;
   }
 
-  /** The DTO, with the client secret for the owner while the payment can still be paid. */
+  /**
+   * The DTO, with the client secret only for the owner, while the payment is open and its hold has time
+   * left. A Stripe outage just leaves the secret out (the rest is local data).
+   */
   private async view(
     payment: PaymentDocument,
     reference: string | null,
     owner: boolean,
+    now: Date,
   ): Promise<PaymentDto> {
-    if (!owner || !OPEN.includes(payment.status)) {
+    if (!owner || !OPEN.includes(payment.status) || payment.holdEndsAt <= now) {
       return toDto(payment, reference);
     }
-    const intent = await this.gateway(() =>
-      this.stripe.retrievePaymentIntent(payment.stripePaymentIntentId),
-    );
-    return toDto(payment, reference, intent.clientSecret);
+    try {
+      const intent = await this.stripe.retrievePaymentIntent(
+        payment.stripePaymentIntentId,
+      );
+      return toDto(payment, reference, intent.clientSecret);
+    } catch (e) {
+      this.logger.error(
+        `Payment ${payment.id as string}: client secret unavailable (${e instanceof Error ? e.message : String(e)})`,
+      );
+      return toDto(payment, reference);
+    }
   }
 
   /** A Stripe outage is a 503 the user can retry, never a raw 500. */
@@ -538,6 +719,36 @@ export class PaymentsService {
   }
 }
 
+/** A synthetic succeeded event for a capture the cancel job found before its webhook (stable id). */
+function reconcileEvent(payment: PaymentDocument): StripeWebhookEvent {
+  return {
+    id: `evt_reconcile_${payment.stripePaymentIntentId}`,
+    type: 'payment_intent.succeeded',
+    data: {
+      object: { id: payment.stripePaymentIntentId, object: 'payment_intent' },
+    },
+  };
+}
+
+/** The captured amount and currency must be the ones recorded (a mismatch is a loud defect, 5xx). */
+function assertSameAmount(
+  event: StripeWebhookEvent,
+  payment: PaymentDocument,
+): void {
+  const o = event.data.object;
+  const amount = o.amount_received ?? o.amount;
+  const amountOff =
+    typeof amount === 'number' && amount !== payment.amountMinor;
+  const currencyOff =
+    typeof o.currency === 'string' &&
+    o.currency.toUpperCase() !== payment.currency;
+  if (amountOff || currencyOff) {
+    throw new Error(
+      `PaymentIntent ${payment.stripePaymentIntentId} captured ${amount} ${o.currency} but payment ${payment.id as string} expects ${payment.amountMinor} ${payment.currency}`,
+    );
+  }
+}
+
 /** The fields the handler reads; anything else is a malformed event (400). */
 function parseEvent(rawBody: Buffer): StripeWebhookEvent {
   let event: Partial<StripeWebhookEvent> | null = null;
@@ -546,14 +757,18 @@ function parseEvent(rawBody: Buffer): StripeWebhookEvent {
   } catch {
     event = null;
   }
-  if (
-    !event ||
-    typeof event.id !== 'string' ||
-    !event.id.startsWith('evt_') ||
-    typeof event.type !== 'string' ||
-    typeof event.data?.object !== 'object' ||
-    event.data.object === null
-  ) {
+  const valid =
+    !!event &&
+    typeof event.id === 'string' &&
+    event.id.startsWith('evt_') &&
+    typeof event.type === 'string' &&
+    typeof event.data?.object === 'object' &&
+    event.data.object !== null &&
+    // Every payment_intent.* event must name its PaymentIntent.
+    (!event.type.startsWith('payment_intent.') ||
+      (typeof event.data.object.id === 'string' &&
+        event.data.object.id.startsWith('pi_')));
+  if (!valid) {
     throw new AppException(
       HttpStatus.BAD_REQUEST,
       ErrorCode.BAD_REQUEST,

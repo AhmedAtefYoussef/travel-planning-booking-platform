@@ -64,11 +64,16 @@ export class StripeApiError extends Error {
 export interface StripeWebhookEvent {
   id: string;
   type: string;
+  /** Unix seconds when Stripe created the event (events can arrive out of order). */
+  created?: number;
   data: {
     object: {
       id?: string;
       object?: string;
       status?: string;
+      amount?: number;
+      amount_received?: number;
+      currency?: string;
       last_payment_error?: { message?: string } | null;
       metadata?: Record<string, string>;
     };

@@ -229,3 +229,33 @@ Tests use an in-memory Stripe (no network) and the real signature check with eve
 | R-PAY-01-09 | derived | A Stripe outage is a 503 the user can retry, never a raw 500; a malformed event is 400 | EP | `gateway`, `parseEvent` | payments.service.spec.ts | PASS | |
 | R-FLT-23-01 | workbook (part) | After a successful payment the flight booking is Confirmed with a unique FL- reference | ST | `onSucceeded` -> FLIGHT_PAYABLE_BOOKING.markConfirmed | payments.e2e-spec.ts | PASS | Notification and e-ticket with FLT-23 |
 | R-HTL-17-03 | workbook (part) | After a successful payment the reservation is Confirmed and its nights are BOOKED | ST | `onSucceeded` -> HOTEL_PAYABLE_BOOKING.markConfirmed | payments.e2e-spec.ts | PASS | Notification and confirmation view with FLT-23/HTL-17 |
+| R-PAY-01-10 | review | A PaymentIntent cancelled while the hold is still valid does not block paying: a new one is created (the idempotency key includes the booking's payment count) | ST | `create`, `retry` | payments.e2e-spec.ts (review fixes) | PASS | |
+| R-PAY-01-11 | review | A payment_failed event created before the current attempt is ignored (Stripe does not guarantee order) | ST | `onFailed` (attemptStartedAt) | payments.e2e-spec.ts | PASS | Compared at Stripe's one-second precision |
+| R-PAY-01-12 | review | A late refund Stripe refused is re-sent by a job until Stripe has it; a capture whose webhook never came is applied by the cancel job | fault injection | `retryPendingRefunds`, `cancelExpiredIntents` | payments.e2e-spec.ts; payments.service.spec.ts | PASS | Same idempotency key, so a refund is never sent twice |
+| R-PAY-01-13 | review | The captured amount and currency must match the payment, or nothing is confirmed (5xx); an unrecorded PaymentIntent naming one of our bookings is a 5xx, not a silent 200 | fault injection | `assertSameAmount`, `onSucceeded` | payments.e2e-spec.ts | PASS | |
+
+### Independent review, 2026-11-14 (PAY-01, first commit 5232519)
+
+Three reviewer subagents (security, TypeScript correctness, silent failures) checked the first commit. The security review found no CRITICAL or HIGH issue: the signature check, owner-only access, the client-secret handling and the gateway's input handling were confirmed sound. The fixes are in the second commit.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| A late refund that Stripe refused, or that was lost in a crash, stayed PENDING forever (the event was already recorded) | CRITICAL | A job re-sends PENDING late refunds with no Stripe id (same idempotency key); the Stripe call and the database write fail separately and are logged separately |
+| The cancel job always took the oldest 100 open payments, so unsettled ones could stall it | CRITICAL | Backoff per payment (`nextCheckAt`, 1 min doubling to 1 h); a PaymentIntent Stripe no longer has is closed; a capture is applied as the webhook would |
+| A PaymentIntent cancelled while the hold was valid blocked the user (same idempotency key, dead client secret) | HIGH | The key includes the booking's payment count; a retry on a cancelled intent starts a new payment |
+| Success overwrote any status and did not check the amount; a missing booking left captured money unrefunded | HIGH | Amount and currency are checked; NOT_FOUND also leads to the full refund; a CANCELED payment that was captured anyway is logged |
+| Success for an unrecorded PaymentIntent was acknowledged silently | HIGH | A 5xx when it names one of our bookings (Stripe redelivers); a warning only for foreign intents |
+| The late refund was upserted per booking, so it could be lost | HIGH | Keyed by payment |
+| Stale or repeated payment_failed events | MEDIUM | Ignored when created before the current attempt; a repeat failure updates the record |
+| `findOne` swallowed every error, needed Stripe for a read, and gave the client secret after the hold ended | MEDIUM | Only NOT_FOUND is tolerated (logged); the secret only while the hold has time left; a Stripe outage omits it |
+| An intent created without its record (insert failure) | MEDIUM | Cancelled at once (best effort, logged) |
+| Closure variables narrowed to null/never | MEDIUM | The webhook transaction helper is generic and returns its result |
+| A payment_intent event without an intent id was accepted | MEDIUM | 400 |
+| The client secret could be cached | LOW | `Cache-Control: no-store` |
+| The fake Stripe ignored idempotency parameters and refund rules | LOW | It rejects a reused key with other parameters and a refund without a successful charge |
+
+**Deferred, with reasons:**
+- A captured-then-refunded payment keeps status SUCCEEDED. Stripe did capture it, and its refund record (reason HOLD_EXPIRED) shows the money going back. A REFUNDED payment status comes with PAY-03's refund views.
+- Throttling create, retry and the webhook. The app has no rate limiter yet, so this is a cross-cutting follow-up.
+- Comparing a delayed webhook with the event time instead of the processing time. Refunding is the fail-safe outcome.
+- `markPaymentFailed` runs after commit. It only logs; the payments collection is the record.

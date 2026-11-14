@@ -21,7 +21,12 @@ export class FakeStripe implements StripeGateway {
     amountMinor?: number;
   })[] = [];
   readonly calls: string[] = [];
-  private readonly byKey = new Map<string, string>();
+  /** Stripe scopes idempotency keys per endpoint and rejects a reused key with other parameters. */
+  private readonly intentKeys = new Map<
+    string,
+    { id: string; params: string }
+  >();
+  private readonly refundKeys = new Map<string, string>();
   /** Set to make the next call throw, e.g. a Stripe outage. */
   failNext: Error | null = null;
 
@@ -41,8 +46,20 @@ export class FakeStripe implements StripeGateway {
     idempotencyKey: string;
   }): Promise<PaymentIntentInfo> {
     this.check('create');
-    const existing = this.byKey.get(input.idempotencyKey);
-    if (existing) return Promise.resolve(this.view(existing));
+    const params = JSON.stringify([input.amountMinor, input.currency]);
+    const existing = this.intentKeys.get(input.idempotencyKey);
+    if (existing) {
+      if (existing.params !== params) {
+        return Promise.reject(
+          new StripeApiError(
+            'Keys for idempotent requests can only be used with the same parameters they were first used with.',
+            400,
+            'idempotency_error',
+          ),
+        );
+      }
+      return Promise.resolve(this.view(existing.id));
+    }
     const id = `pi_${randomBytes(12).toString('hex')}`;
     this.intents.set(id, {
       id,
@@ -52,7 +69,7 @@ export class FakeStripe implements StripeGateway {
       currency: input.currency,
       metadata: input.metadata,
     });
-    this.byKey.set(input.idempotencyKey, id);
+    this.intentKeys.set(input.idempotencyKey, { id, params });
     return Promise.resolve(this.view(id));
   }
 
@@ -85,10 +102,19 @@ export class FakeStripe implements StripeGateway {
   }): Promise<RefundInfo> {
     this.check('refund');
     const existing = this.refunds.find(
-      (r) => r.id === this.byKey.get(input.idempotencyKey),
+      (r) => r.id === this.refundKeys.get(input.idempotencyKey),
     );
     if (existing)
       return Promise.resolve({ id: existing.id, status: existing.status });
+    if (this.get(input.paymentIntentId).status !== 'succeeded') {
+      return Promise.reject(
+        new StripeApiError(
+          'This PaymentIntent does not have a successful charge to refund.',
+          400,
+          'charge_not_refundable',
+        ),
+      );
+    }
     const refund = {
       id: `re_${randomBytes(12).toString('hex')}`,
       status: 'pending',
@@ -96,7 +122,7 @@ export class FakeStripe implements StripeGateway {
       amountMinor: input.amountMinor,
     };
     this.refunds.push(refund);
-    this.byKey.set(input.idempotencyKey, refund.id);
+    this.refundKeys.set(input.idempotencyKey, refund.id);
     return Promise.resolve({ id: refund.id, status: refund.status });
   }
 

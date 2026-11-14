@@ -60,6 +60,17 @@ export class Payment {
   @Prop({ type: Date, required: true })
   holdEndsAt!: Date;
 
+  /** When the current attempt started: a payment_failed event created before it is stale and ignored. */
+  @Prop({ type: Date, default: () => new Date() })
+  attemptStartedAt!: Date;
+
+  /** Cancel-on-expiry backoff: when the job may look at this payment again (null = now). */
+  @Prop({ type: Date, default: null })
+  nextCheckAt!: Date | null;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  checkAttempts!: number;
+
   /** Failure message from Stripe for the last attempt, shown to the user (PAY-01). */
   @Prop({ type: String, maxlength: 500 })
   lastError?: string;

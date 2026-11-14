@@ -44,6 +44,7 @@ function setup(due: unknown[] = []) {
   };
   const payments = {
     findOne: jest.fn(() => exec(null)),
+    countDocuments: jest.fn(() => exec(0)),
     find: jest.fn(() => ({
       sort: () => ({ limit: () => exec(due) }),
     })),
@@ -101,6 +102,7 @@ describe('PaymentsService (PAY-01)', () => {
 
   describe('cancelExpiredIntents', () => {
     const payment = (pi: string) => ({
+      checkAttempts: 0,
       _id: new Types.ObjectId(),
       id: new Types.ObjectId().toHexString(),
       stripePaymentIntentId: pi,
@@ -116,19 +118,37 @@ describe('PaymentsService (PAY-01)', () => {
         .mockRejectedValueOnce(new StripeApiError('boom', 500, null))
         .mockResolvedValueOnce({ status: 'canceled' });
       await expect(service.cancelExpiredIntents()).resolves.toBe(1);
-      expect(log.error).toHaveBeenCalledTimes(1);
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('boom'));
     });
 
-    it('leaves an intent Stripe already captured to the webhook (which refunds it)', async () => {
+    it('backs off a payment Stripe reports as processing, so it never blocks the batch', async () => {
       const { service, stripe, payments, log } = setup([payment('pi_c')]);
       stripe.cancelPaymentIntent.mockRejectedValue(
-        new StripeApiError('succeeded', 400, 'payment_intent_unexpected_state'),
+        new StripeApiError(
+          'processing',
+          400,
+          'payment_intent_unexpected_state',
+        ),
       );
-      stripe.retrievePaymentIntent.mockResolvedValue({ status: 'succeeded' });
+      stripe.retrievePaymentIntent.mockResolvedValue({ status: 'processing' });
       await expect(service.cancelExpiredIntents()).resolves.toBe(0);
-      expect(payments.updateOne).not.toHaveBeenCalled();
+      expect(payments.updateOne).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ $inc: { checkAttempts: 1 } }),
+      );
       expect(log.warn).toHaveBeenCalledWith(
-        expect.stringContaining('succeeded'),
+        expect.stringContaining('processing'),
+      );
+    });
+
+    it('closes a payment whose PaymentIntent Stripe no longer has', async () => {
+      const { service, stripe, log } = setup([payment('pi_gone')]);
+      stripe.cancelPaymentIntent.mockRejectedValue(
+        new StripeApiError('No such payment_intent', 404, 'resource_missing'),
+      );
+      await expect(service.cancelExpiredIntents()).resolves.toBe(1);
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining('pi_gone'),
       );
     });
 

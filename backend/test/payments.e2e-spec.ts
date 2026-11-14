@@ -126,11 +126,17 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
   const webhook = (
     type: string,
     object: Record<string, unknown>,
-    opts: { id?: string; secret?: string; signature?: string } = {},
+    opts: {
+      id?: string;
+      secret?: string;
+      signature?: string;
+      created?: number;
+    } = {},
   ) => {
     const body = JSON.stringify({
       id: opts.id ?? `evt_test_${++evt}`,
       object: 'event',
+      created: opts.created ?? Math.floor(Date.now() / 1000),
       type,
       data: { object },
     });
@@ -273,6 +279,9 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
           '__v', // Mongoose's version key
           '_id',
           'amountMinor',
+          'attemptStartedAt',
+          'checkAttempts',
+          'nextCheckAt',
           'attempts',
           'bookingId',
           'bookingType',
@@ -395,22 +404,40 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
       expect(await events.countDocuments({ stripeEventId: id })).toBe(1);
     });
 
-    it('rolls everything back (500, event not recorded) when confirming fails, so Stripe redelivers', async () => {
+    it('rolls everything back (500, event not recorded) when applying fails, so Stripe redelivers', async () => {
       const { bookingId, pi } = await readyFlight(owner);
-      const saved = await flightBookings.findById(bookingId).lean();
-      await flightBookings.deleteOne({ _id: bookingId });
+      stripe.setStatus(pi, 'succeeded');
       const id = `evt_rollback_${Date.now()}`;
-      await succeeded(pi, id).expect(500);
+      const object = { id: pi, object: 'payment_intent', status: 'succeeded' };
+      // A fault while applying (here: a captured amount that doesn't match) aborts the transaction.
+      await webhook(
+        'payment_intent.succeeded',
+        { ...object, amount_received: 1 },
+        { id },
+      ).expect(500);
       expect(await events.countDocuments({ stripeEventId: id })).toBe(0);
       expect(
         (await payments.findOne({ stripePaymentIntentId: pi }).lean())?.status,
       ).toBe('REQUIRES_PAYMENT');
-      // Redelivery after the fault is fixed is processed normally.
-      await flightBookings.create(saved!);
-      await succeeded(pi, id).expect(200);
+      // The redelivery of the same event is processed normally.
+      await webhook('payment_intent.succeeded', object, { id }).expect(200);
       expect((await flightBookings.findById(bookingId).lean())?.status).toBe(
         BookingStatus.Confirmed,
       );
+    });
+
+    it('refunds a captured payment whose booking no longer exists', async () => {
+      const { bookingId, paymentId, pi } = await readyFlight(owner);
+      await flightBookings.deleteOne({ _id: bookingId });
+      await succeeded(pi).expect(200);
+      const refund = await refunds
+        .findOne({ paymentId: new Types.ObjectId(paymentId) })
+        .lean();
+      expect(refund).toMatchObject({
+        refundPercent: 100,
+        reason: 'HOLD_EXPIRED',
+      });
+      expect(refund?.stripeRefundId).toMatch(/^re_/);
     });
 
     it('acknowledges events it does not handle, and PaymentIntents it does not know', async () => {
@@ -496,6 +523,134 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
         .set('x-dev-user', 'ADMIN')
         .expect(200);
       expect(admin.body.clientSecret).toBeUndefined();
+    });
+  });
+
+  describe('review fixes (PAY-01)', () => {
+    it('sends Cache-Control: no-store with the client secret', async () => {
+      const bookingId = await holdFlight(owner);
+      await acceptPolicies(owner, 'flight', bookingId);
+      const res = await pay(owner, 'FLIGHT', bookingId).expect(201);
+      expect(res.headers['cache-control']).toBe('no-store');
+    });
+
+    it('starts a fresh PaymentIntent when the previous one was cancelled while the hold is still valid', async () => {
+      const { bookingId, paymentId, pi } = await readyFlight(owner);
+      stripe.setStatus(pi, 'canceled');
+      await webhook('payment_intent.canceled', {
+        id: pi,
+        object: 'payment_intent',
+        status: 'canceled',
+      }).expect(200);
+      expect((await payments.findById(paymentId).lean())?.status).toBe(
+        'CANCELED',
+      );
+      const again = await pay(owner, 'FLIGHT', bookingId).expect(201);
+      expect(again.body.id).not.toBe(paymentId);
+      expect(again.body.status).toBe('REQUIRES_PAYMENT');
+      const doc = await payments.findById(again.body.id).lean();
+      expect(doc?.stripePaymentIntentId).not.toBe(pi);
+      await succeeded(doc!.stripePaymentIntentId).expect(200);
+      expect((await flightBookings.findById(bookingId).lean())?.status).toBe(
+        BookingStatus.Confirmed,
+      );
+    });
+
+    it('ignores a payment_failed event created before the current attempt (out-of-order delivery)', async () => {
+      const { paymentId, pi } = await readyFlight(owner);
+      const failedObject = {
+        id: pi,
+        object: 'payment_intent',
+        status: 'requires_payment_method',
+        last_payment_error: { message: 'Declined.' },
+      };
+      await webhook('payment_intent.payment_failed', failedObject).expect(200);
+      await http()
+        .post(`/api/payments/${paymentId}/retry`)
+        .set('Cookie', owner.cookie)
+        .expect(200);
+      const stale = Math.floor(Date.now() / 1000) - 120;
+      await webhook('payment_intent.payment_failed', failedObject, {
+        created: stale,
+      }).expect(200);
+      expect((await payments.findById(paymentId).lean())?.status).toBe(
+        'REQUIRES_PAYMENT',
+      );
+    });
+
+    it('refuses to confirm when the captured amount differs from the payment (500, nothing confirmed)', async () => {
+      const { bookingId, pi } = await readyFlight(owner);
+      stripe.setStatus(pi, 'succeeded');
+      await webhook('payment_intent.succeeded', {
+        id: pi,
+        object: 'payment_intent',
+        status: 'succeeded',
+        amount_received: FARE - 1,
+        currency: TEST_ENV.PLATFORM_CURRENCY.toLowerCase(),
+      }).expect(500);
+      expect((await flightBookings.findById(bookingId).lean())?.status).toBe(
+        BookingStatus.PendingPayment,
+      );
+    });
+
+    it('answers 500 (so Stripe redelivers) for an unrecorded PaymentIntent that names one of our bookings', async () => {
+      await webhook('payment_intent.succeeded', {
+        id: 'pi_orphan_123',
+        object: 'payment_intent',
+        status: 'succeeded',
+        metadata: { bookingId: new Types.ObjectId().toHexString() },
+      }).expect(500);
+    });
+
+    it('re-sends a late refund that Stripe refused the first time', async () => {
+      const { paymentId, pi } = await readyFlight(owner);
+      const later = new Date(Date.now() + 11 * 60_000);
+      await app.get(BookingLifecycleService).expireFlightHolds(later);
+      stripe.setStatus(pi, 'succeeded');
+      const refundCalls = () =>
+        stripe.calls.filter((c) => c === 'refund').length;
+      const before = refundCalls();
+      stripe.failNext = new Error('Stripe is down');
+      await webhook('payment_intent.succeeded', {
+        id: pi,
+        object: 'payment_intent',
+        status: 'succeeded',
+      }).expect(200);
+      expect(refundCalls()).toBe(before + 1);
+      const pending = await refunds
+        .findOne({ paymentId: new Types.ObjectId(paymentId) })
+        .lean();
+      expect(pending).toMatchObject({ status: 'PENDING' });
+      expect(pending?.stripeRefundId).toBeUndefined();
+      await expect(
+        app.get(PaymentsService).retryPendingRefunds(),
+      ).resolves.toBeGreaterThanOrEqual(1);
+      const sent = await refunds
+        .findOne({ paymentId: new Types.ObjectId(paymentId) })
+        .lean();
+      expect(sent?.stripeRefundId).toMatch(/^re_/);
+    });
+
+    it('the cancel job applies a capture whose webhook never arrived (refunded, since the hold is over)', async () => {
+      const { bookingId, paymentId, pi } = await readyFlight(owner);
+      const later = new Date(Date.now() + 11 * 60_000);
+      await app.get(BookingLifecycleService).expireFlightHolds(later);
+      stripe.setStatus(pi, 'succeeded');
+      await app.get(PaymentsService).cancelExpiredIntents(later);
+      expect((await payments.findById(paymentId).lean())?.status).toBe(
+        'SUCCEEDED',
+      );
+      expect((await flightBookings.findById(bookingId).lean())?.status).toBe(
+        BookingStatus.Expired,
+      );
+      const refund = await refunds
+        .findOne({ paymentId: new Types.ObjectId(paymentId) })
+        .lean();
+      expect(refund?.stripeRefundId).toMatch(/^re_/);
+      // The real webhook arriving afterwards changes nothing and refunds nothing twice.
+      const refundsBefore = stripe.refunds.length;
+      await succeeded(pi).expect(200);
+      expect(stripe.refunds.length).toBe(refundsBefore);
     });
   });
 
