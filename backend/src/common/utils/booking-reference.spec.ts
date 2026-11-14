@@ -1,6 +1,7 @@
 import {
   BOOKING_REFERENCE_PATTERN,
   generateBookingReference,
+  isReferenceCollision,
 } from './booking-reference';
 
 describe('generateBookingReference (FLT-23, HTL-17)', () => {
@@ -32,5 +33,18 @@ describe('generateBookingReference (FLT-23, HTL-17)', () => {
     const seen = new Set<string>();
     for (let i = 0; i < 100; i++) seen.add(generateBookingReference('FLIGHT'));
     expect(seen.size).toBe(100);
+  });
+});
+
+describe('isReferenceCollision', () => {
+  it('is true only for a duplicate key on the reference index', () => {
+    expect(
+      isReferenceCollision({ code: 11000, keyPattern: { reference: 1 } }),
+    ).toBe(true);
+    expect(
+      isReferenceCollision({ code: 11000, keyPattern: { paymentId: 1 } }),
+    ).toBe(false);
+    expect(isReferenceCollision({ code: 112 })).toBe(false);
+    expect(isReferenceCollision(null)).toBe(false);
   });
 });

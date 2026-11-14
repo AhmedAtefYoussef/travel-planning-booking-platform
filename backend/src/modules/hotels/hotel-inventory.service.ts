@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import type {
@@ -29,6 +29,8 @@ const DUPLICATE_KEY = 11000;
  */
 @Injectable()
 export class HotelInventoryService implements HotelInventory {
+  private readonly logger = new Logger(HotelInventoryService.name);
+
   constructor(
     @InjectModel(Hotel.name) private readonly hotelModel: Model<Hotel>,
     @InjectModel(Room.name) private readonly rooms: Model<Room>,
@@ -171,6 +173,12 @@ export class HotelInventoryService implements HotelInventory {
       })
       .session(session)
       .exec();
+    if (ids.some((id) => !id)) {
+      // A HELD night without a reservation can never be released by the expiry job.
+      this.logger.error(
+        `HELD room_nights without a reservationId block rooms ${roomIds.join(', ')} on ${nights.join(', ')}`,
+      );
+    }
     return ids.filter(Boolean).map((id) => id.toHexString());
   }
 
@@ -179,12 +187,26 @@ export class HotelInventoryService implements HotelInventory {
     reference: string,
     session: ClientSession,
   ): Promise<number> {
+    const reservation = new Types.ObjectId(reservationId);
+    // Write the rooms as the hold does, so confirming conflicts with a concurrent HTL-05 replace
+    // instead of booking a night the replace has just removed from the room's ranges.
+    const roomIds: Types.ObjectId[] = await this.nights
+      .distinct('roomId', {
+        reservationId: reservation,
+        kind: RoomNightKind.HELD,
+      })
+      .session(session)
+      .exec();
+    await this.rooms
+      .updateMany(
+        { _id: { $in: roomIds } },
+        { $inc: { reservationVersion: 1 } },
+        { session },
+      )
+      .exec();
     const res = await this.nights
       .updateMany(
-        {
-          reservationId: new Types.ObjectId(reservationId),
-          kind: RoomNightKind.HELD,
-        },
+        { reservationId: reservation, kind: RoomNightKind.HELD },
         { $set: { kind: RoomNightKind.BOOKED, reference, expiresAt: null } },
         { session },
       )
@@ -254,11 +276,10 @@ function takenNights(
   taken: { roomId: Types.ObjectId; date: string }[],
   rooms: Map<string, { number: string }>,
 ): AppException {
-  const listed = taken
-    .slice(0, LISTED_NIGHTS)
-    .map(
-      (n) => `room ${rooms.get(n.roomId.toHexString())?.number} on ${n.date}`,
-    );
+  const listed = taken.slice(0, LISTED_NIGHTS).map((n) => {
+    const id = n.roomId.toHexString();
+    return `room ${rooms.get(id)?.number ?? id} on ${n.date}`;
+  });
   const more = taken.length > LISTED_NIGHTS ? ' and more' : '';
   return new AppException(
     HttpStatus.CONFLICT,

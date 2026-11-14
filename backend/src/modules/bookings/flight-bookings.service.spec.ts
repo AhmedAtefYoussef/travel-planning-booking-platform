@@ -390,7 +390,12 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
     model.updateOne = jest.fn(() => ({
       exec: () =>
         ++calls === 1
-          ? Promise.reject(Object.assign(new Error('dup'), { code: 11000 }))
+          ? Promise.reject(
+              Object.assign(new Error('dup'), {
+                code: 11000,
+                keyPattern: { reference: 1 },
+              }),
+            )
           : Promise.resolve({ modifiedCount: 1 }),
     }));
     await service.markConfirmed(oid(), { paymentId: oid() }, undefined, NOW);
@@ -417,7 +422,12 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
     const { service, model } = setup();
     model.updateOne = jest.fn(() => ({
       exec: () =>
-        Promise.reject(Object.assign(new Error('dup'), { code: 11000 })),
+        Promise.reject(
+          Object.assign(new Error('dup'), {
+            code: 11000,
+            keyPattern: { reference: 1 },
+          }),
+        ),
     }));
     expect(
       await failure(
@@ -431,7 +441,12 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
     const { service, model } = setup();
     model.updateOne = jest.fn(() => ({
       exec: () =>
-        Promise.reject(Object.assign(new Error('dup'), { code: 11000 })),
+        Promise.reject(
+          Object.assign(new Error('dup'), {
+            code: 11000,
+            keyPattern: { reference: 1 },
+          }),
+        ),
     }));
     expect(
       await failure(

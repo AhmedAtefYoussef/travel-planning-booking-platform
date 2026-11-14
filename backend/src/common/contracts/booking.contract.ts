@@ -68,7 +68,9 @@ export interface PayableBooking {
   /**
    * PENDING_PAYMENT -> CONFIRMED after Stripe confirmed the PaymentIntent (webhook-verified).
    * Must be idempotent (a replayed webhook is a no-op) and must assign the booking reference
-   * (FLT-23, HTL-17). Runs inside the caller's transaction when `session` is given.
+   * (FLT-23, HTL-17). Runs inside the caller's transaction when `session` is given; a reference
+   * collision is then rethrown (isReferenceCollision) and the caller must re-run its whole transaction,
+   * because withTransaction does not retry duplicate-key errors.
    */
   markConfirmed(
     bookingId: string,

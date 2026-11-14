@@ -152,3 +152,26 @@ Nights are taken only through a new HOTEL_INVENTORY contract owned by the hotels
 | R-HTL-18-10 | OWASP API6 | One account can have at most 3 unpaid hotel holds; the cap is enforced inside the hold transaction | BVA (3 vs 4) | hold-limit.ts | hotel-hold.e2e-spec.ts | PASS | Flights and hotels share the account guard document, so all of one account's holds serialize |
 | R-HTL-17-01 | workbook (part) | Confirmation sets Confirmed with a unique HT- reference, and every held night becomes BOOKED in the same transaction; a reservation with no held nights is never confirmed | ST, IDEM | `markConfirmed`, `bookNights` | hotel-hold.e2e-spec.ts; hotel-bookings.service.spec.ts | PASS | Notification and confirmation view: FLT-23/HTL-17 PR |
 | R-HTL-17-02 | PAY-01 contract | The payable contract shows the reservation only to its owner (404 otherwise); a replayed confirmation is a no-op; a reference collision is retried | IDEM | `getPayable`, `markConfirmed` | hotel-hold.e2e-spec.ts; hotel-bookings.service.spec.ts | PASS | |
+
+### Independent review, 2026-11-14 (HTL-16/18, first commit 6098620)
+
+Two reviewer subagents (TypeScript correctness, silent failures) checked the first commit. Both confirmed the core design: the room write before the re-read makes concurrent holds and an HTL-05 replace conflict, the transaction callback is retry-safe, and expiry is exactly once. The fixes are in the second commit.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| Confirmation accepted a partial set of booked nights (only 0 was refused), leaving unbooked nights sellable | HIGH | The reservation's rooms x nights must all become BOOKED, or the confirmation rolls back and is logged |
+| The hotel name came from a live lookup on every read (an empty name if the hotel was gone; a reference-data failure became a 500) | HIGH | `hotelName` is stored on the reservation at hold time |
+| A hotel with no known time zone was a 409 the user could not resolve, and nothing was logged | HIGH | 503 SERVICE_UNAVAILABLE plus an error log naming the hotel |
+| A reference collision inside the caller's transaction was documented as retried by withTransaction, which never retries duplicate keys | MEDIUM | Docstrings and the PayableBooking contract now say the caller (PAY-01) re-runs its transaction; `isReferenceCollision` is shared (flights too) |
+| Any duplicate key in confirmation was treated as a reference collision | MEDIUM | Only E11000 on the `reference` index is retried; the cause is kept |
+| Upper-case hex ids passed IsMongoId but missed the lowercase lookups (false 404, duplicate check bypassed) | MEDIUM | Ids are normalised before planning |
+| `now` was frozen across transaction retries for the cap and stale-hold checks | MEDIUM | The clock is re-read on every attempt |
+| A stale holder that could not be expired, or a HELD night with no reservation, blocked rooms silently | MEDIUM | Both are logged with the rooms and nights |
+| Expiry checked only for 0 released nights, without context | MEDIUM | Compared with rooms x nights and logged with the reservation |
+| Confirmation did not write the rooms, so it could interleave with an availability replace | LOW | `bookNights` bumps `reservationVersion` like the hold does |
+| A malformed payment id became a BSON 500 without context; "room undefined" could appear in a 409 | LOW | Explicit error; the room id is shown instead |
+
+**Deferred, with reasons:**
+- GET shows PENDING_PAYMENT for up to a minute after `holdExpiresAt`, until the job runs (flights behave the same). `holdExpiresAt` is in the response, and payment refuses an expired hold.
+- A reservation that keeps failing to expire stays at the head of the batch. This matches flights; the backlog warning makes it visible.
+- Occupancy is re-checked after the nights are inserted; a failure rolls the whole transaction back.

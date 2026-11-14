@@ -21,7 +21,10 @@ import {
   type FieldError,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { generateBookingReference } from '../../common/utils/booking-reference';
+import {
+  generateBookingReference,
+  isReferenceCollision,
+} from '../../common/utils/booking-reference';
 import { eachNight, localDayRangeUtc } from '../../common/utils/dates';
 import { multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
@@ -37,7 +40,6 @@ import {
   type HotelReservationDocument,
 } from './schemas/hotel-reservation.schema';
 
-const DUPLICATE_KEY = 11000;
 const REFERENCE_ATTEMPTS = 3;
 
 /** Everything a hold needs, validated once. */
@@ -74,24 +76,31 @@ export class HotelBookingsService implements PayableBooking {
     dto: HotelBookingRequestDto,
     now: Date = new Date(),
   ): Promise<HotelReservationDto> {
+    // Ids are compared as text below; IsMongoId also accepts upper-case hex.
+    dto = {
+      ...dto,
+      hotelId: dto.hotelId.toLowerCase(),
+      rooms: dto.rooms.map((r) => ({ ...r, roomId: r.roomId.toLowerCase() })),
+    };
     const { stay, nights } = await this.plan(dto, now);
     const roomIds = dto.rooms.map((r) => r.roomId);
     const session = await this.connection.startSession();
     try {
       let created: HotelReservationDocument | undefined;
       await session.withTransaction(async () => {
+        // Re-read the clock on every attempt: a transaction retry must not judge holds by a stale time,
+        // and the 10 minutes start when the nights are taken.
+        const at = new Date(Math.max(now.getTime(), Date.now()));
         await assertUnpaidHoldsBelowCap(
           this.guards,
           this.reservations,
           user.id,
-          now,
+          at,
           session,
           'hotel reservations',
         );
-        await this.expireStaleHolders(roomIds, nights, now, session);
-        // The 10 minutes start when the nights are taken, even after a transaction retry.
-        const heldAt = new Date(Math.max(now.getTime(), Date.now()));
-        const holdExpiresAt = new Date(heldAt.getTime() + HOLD_DURATION_MS);
+        await this.expireStaleHolders(roomIds, nights, at, session);
+        const holdExpiresAt = new Date(at.getTime() + HOLD_DURATION_MS);
         const reservationId = new Types.ObjectId();
         const held = await this.inventory.holdNights(
           {
@@ -119,6 +128,7 @@ export class HotelBookingsService implements PayableBooking {
               _id: reservationId,
               userId: new Types.ObjectId(user.id),
               hotelId: new Types.ObjectId(stay.hotelId),
+              hotelName: stay.hotelName,
               checkIn: dto.checkIn,
               checkOut: dto.checkOut,
               nights: nights.length,
@@ -135,7 +145,7 @@ export class HotelBookingsService implements PayableBooking {
           { session },
         );
       });
-      return toDto(created!, stay.hotelName);
+      return toDto(created!);
     } finally {
       await session.endSession();
     }
@@ -151,12 +161,7 @@ export class HotelBookingsService implements PayableBooking {
       bypassRoles: [Role.Admin],
       notFound: true,
     });
-    const stay = await this.inventory.getBookableStay(
-      reservation.hotelId.toHexString(),
-      [],
-      [],
-    );
-    return toDto(reservation, stay?.hotelName ?? '');
+    return toDto(reservation);
   }
 
   /**
@@ -231,8 +236,10 @@ export class HotelBookingsService implements PayableBooking {
    * BOOKED, in one transaction (the caller's when `session` is given). Only while the hold has not
    * expired; idempotent for a replayed webhook. Throws HOLD_EXPIRED / INVALID_STATE_TRANSITION otherwise.
    *
-   * A reference collision (about 1 in 10^12) aborts a transaction: inside the caller's session it is
-   * rethrown for the caller's withTransaction to retry; without one it is retried here.
+   * A reference collision (about 1 in 10^12) aborts a transaction. Without a session it is retried here
+   * with a new reference. Inside the caller's session it is rethrown unchanged (code 11000 on the
+   * `reference` index): withTransaction does NOT retry it, so the caller (PAY-01) must run its whole
+   * transaction again, which draws a new reference. See isReferenceCollision.
    */
   async markConfirmed(
     bookingId: string,
@@ -240,6 +247,11 @@ export class HotelBookingsService implements PayableBooking {
     session?: ClientSession,
     now: Date = new Date(),
   ): Promise<void> {
+    if (!Types.ObjectId.isValid(input.paymentId)) {
+      throw new Error(
+        `markConfirmed for hotel reservation ${bookingId}: "${input.paymentId}" is not a payment id`,
+      );
+    }
     let moved = false;
     if (session) {
       moved = await this.confirmIn(bookingId, input.paymentId, now, session);
@@ -252,10 +264,11 @@ export class HotelBookingsService implements PayableBooking {
           });
           break;
         } catch (e) {
-          if ((e as { code?: number }).code !== DUPLICATE_KEY) throw e;
+          if (!isReferenceCollision(e)) throw e;
           if (attempt === REFERENCE_ATTEMPTS) {
             throw new Error(
               `Could not allocate a unique booking reference for ${bookingId}`,
+              { cause: e },
             );
           }
         } finally {
@@ -327,15 +340,19 @@ export class HotelBookingsService implements PayableBooking {
       },
     );
     if (!moved) return false;
+    const expected = await this.expectedNights(bookingId, session);
     const booked = await this.inventory.bookNights(
       bookingId,
       reference,
       session,
     );
-    if (booked === 0) {
-      // A confirmed reservation without booked nights could be double-booked: refuse it.
+    if (booked !== expected) {
+      // A night that is not BOOKED could be sold again: refuse the whole confirmation (rolls back).
+      this.logger.error(
+        `Hotel reservation ${bookingId}: ${booked} of ${expected} held nights could be booked; not confirmed`,
+      );
       throw new Error(
-        `Hotel reservation ${bookingId} has no held nights to book; not confirmed`,
+        `Hotel reservation ${bookingId} has ${booked} of its ${expected} nights held; not confirmed`,
       );
     }
     return true;
@@ -355,12 +372,29 @@ export class HotelBookingsService implements PayableBooking {
       { where: { holdExpiresAt: { $lte: now } }, session },
     );
     if (moved) {
+      const expected = await this.expectedNights(id, session);
       const released = await this.inventory.releaseNights(id, session);
-      if (released === 0) {
-        this.logger.error(`Expired hotel reservation ${id} had no held nights`);
+      if (released !== expected) {
+        this.logger.error(
+          `Expired hotel reservation ${id}: released ${released} of ${expected} held nights`,
+        );
       }
     }
     return moved;
+  }
+
+  /** rooms x nights of a reservation, read in the caller's transaction. */
+  private async expectedNights(
+    id: string,
+    session: ClientSession,
+  ): Promise<number> {
+    const r = await this.reservations
+      .findById(id, { nights: 1, rooms: 1 }, { session })
+      .lean()
+      .exec();
+    if (!r)
+      throw new Error(`Hotel reservation ${id} disappeared mid-transaction`);
+    return r.nights * r.rooms.length;
   }
 
   /**
@@ -379,7 +413,14 @@ export class HotelBookingsService implements PayableBooking {
       now,
       session,
     );
-    for (const id of stale) await this.expireOne(id, now, session);
+    for (const id of stale) {
+      if (!(await this.expireOne(id, now, session))) {
+        // Its nights stay HELD past their expiry, so these rooms stay blocked: make it visible.
+        this.logger.error(
+          `Hotel reservation ${id} holds expired nights (${nights[0]}..${nights[nights.length - 1]}) but is not PENDING_PAYMENT; they were not released`,
+        );
+      }
+    }
   }
 
   /** HTL-16: occupancy against the room data read inside the hold transaction. */
@@ -417,12 +458,22 @@ export class HotelBookingsService implements PayableBooking {
         `Room ${roomIds[missing]} is not a room of this hotel`,
       );
     }
-    if (stay.unavailableReason || !stay.timeZone) {
+    if (stay.unavailableReason) {
       throw new AppException(
         HttpStatus.CONFLICT,
         ErrorCode.CONFLICT,
-        stay.unavailableReason ??
-          `${stay.hotelName} has no known time zone, so its dates cannot be checked`,
+        stay.unavailableReason,
+      );
+    }
+    if (!stay.timeZone) {
+      // Reference data defect (no airport maps the hotel's city to a zone), not the user's fault.
+      this.logger.error(
+        `Hotel ${stay.hotelId} has no known time zone; its reservations are refused`,
+      );
+      throw new AppException(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        ErrorCode.SERVICE_UNAVAILABLE,
+        `${stay.hotelName} cannot take reservations right now`,
       );
     }
     const timeZone = stay.timeZone;
@@ -500,15 +551,12 @@ function notFound(): AppException {
   );
 }
 
-function toDto(
-  r: HotelReservationDocument,
-  hotelName: string,
-): HotelReservationDto {
+function toDto(r: HotelReservationDocument): HotelReservationDto {
   return {
     id: r.id as string,
     status: r.status,
     hotelId: r.hotelId.toHexString(),
-    hotelName,
+    hotelName: r.hotelName,
     checkIn: r.checkIn,
     checkOut: r.checkOut,
     nights: r.nights,

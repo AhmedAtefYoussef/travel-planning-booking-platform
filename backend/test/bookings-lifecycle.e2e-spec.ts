@@ -69,6 +69,7 @@ function hotelReservation(over: Partial<Record<string, unknown>> = {}) {
   return {
     userId: oid(),
     hotelId: oid(),
+    hotelName: 'Lifecycle Hotel',
     checkIn: '2027-03-05',
     checkOut: '2027-03-07',
     nights: 2,

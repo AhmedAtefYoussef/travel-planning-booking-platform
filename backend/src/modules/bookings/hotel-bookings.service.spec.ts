@@ -65,7 +65,7 @@ function setup(
     ),
     updateOne: jest.fn(() => exec({ modifiedCount: moved.shift() ?? 0 })),
     findById: jest.fn(() => ({
-      lean: () => exec(opts.found ?? null),
+      lean: () => exec(opts.found ?? { nights: 2, rooms: [{}] }),
       exec: () => Promise.resolve(opts.found ?? null),
     })),
     find: jest.fn(),
@@ -170,12 +170,43 @@ describe('HotelBookingsService.hold (HTL-16, HTL-18)', () => {
     );
   });
 
-  it('refuses a hotel without a known time zone with 409 rather than guessing its dates', async () => {
+  it('refuses a hotel without a known time zone with 503 and logs the data defect, rather than guessing', async () => {
     const s = stay({ timeZone: null });
     const { service, inventory } = setup(s);
+    const error = jest
+      .spyOn(service['logger'], 'error')
+      .mockImplementation(() => undefined);
     const err = await failure(service.hold(user, request(s), NOW));
-    expect(err).toMatchObject({ status: 409, code: 'CONFLICT' });
+    expect(err).toMatchObject({ status: 503, code: 'SERVICE_UNAVAILABLE' });
+    expect(error).toHaveBeenCalledWith(expect.stringContaining(s.hotelId));
     expect(inventory.holdNights).not.toHaveBeenCalled();
+  });
+
+  it('accepts ids in upper-case hex as the same room (IsMongoId allows them)', async () => {
+    const s = stay();
+    const { service, inventory } = setup(s);
+    const dto = request(s);
+    dto.hotelId = dto.hotelId.toUpperCase();
+    dto.rooms[0].roomId = dto.rooms[0].roomId.toUpperCase();
+    await service.hold(user, dto, NOW);
+    expect(inventory.getBookableStay).toHaveBeenCalledWith(
+      s.hotelId,
+      [s.rooms[0]!.roomId],
+      expect.any(Array),
+    );
+  });
+
+  it('logs a stale holder that cannot be expired, since its nights stay blocked', async () => {
+    const s = stay();
+    const { service, inventory } = setup(s, { moved: [0] });
+    inventory.staleHolders.mockResolvedValue([oid()]);
+    const error = jest
+      .spyOn(service['logger'], 'error')
+      .mockImplementation(() => undefined);
+    await failure(service.hold(user, request(s), NOW));
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('not PENDING_PAYMENT'),
+    );
   });
 
   it('refuses a deactivated hotel (ACC-15) with 409', async () => {
@@ -244,19 +275,47 @@ describe('HotelBookingsService payable contract (PAY-01, HTL-17)', () => {
     );
   });
 
-  it('refuses to confirm a reservation that has no held nights left', async () => {
-    const { service } = setup(stay(), { booked: 0 });
+  it('refuses to confirm unless every held night (rooms x nights) is booked, and logs it', async () => {
+    for (const booked of [0, 1, 3]) {
+      const { service } = setup(stay(), { booked });
+      const error = jest
+        .spyOn(service['logger'], 'error')
+        .mockImplementation(() => undefined);
+      await expect(
+        service.markConfirmed(id, { paymentId }, undefined, NOW),
+      ).rejects.toThrow(`${booked} of its 2 nights`);
+      expect(error).toHaveBeenCalled();
+    }
+  });
+
+  it('does not retry a duplicate key on another index as a reference collision', async () => {
+    const other = Object.assign(new Error('E11000'), {
+      code: 11000,
+      keyPattern: { paymentId: 1 },
+    });
+    const { service, inventory } = setup(stay(), { moved: [1, 1] });
+    inventory.bookNights.mockRejectedValue(other);
     await expect(
       service.markConfirmed(id, { paymentId }, undefined, NOW),
-    ).rejects.toThrow(/no held nights/);
+    ).rejects.toBe(other);
+    expect(inventory.bookNights).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a malformed payment id with an explicit error', async () => {
+    await expect(
+      setup(stay()).service.markConfirmed(id, { paymentId: 'pi_x' }),
+    ).rejects.toThrow(/not a payment id/);
   });
 
   it('retries a reference collision with a new reference, then gives up with an explicit error', async () => {
-    const collision = Object.assign(new Error('E11000'), { code: 11000 });
+    const collision = Object.assign(new Error('E11000'), {
+      code: 11000,
+      keyPattern: { reference: 1 },
+    });
     const retried = setup(stay(), { moved: [1, 1] });
     retried.inventory.bookNights
       .mockRejectedValueOnce(collision)
-      .mockResolvedValueOnce(1);
+      .mockResolvedValueOnce(2);
     await retried.service.markConfirmed(id, { paymentId }, undefined, NOW);
     const refs = retried.inventory.bookNights.mock.calls.map((c) => c[1]);
     expect(refs).toHaveLength(2);
@@ -270,7 +329,10 @@ describe('HotelBookingsService payable contract (PAY-01, HTL-17)', () => {
   });
 
   it('rethrows a collision inside the caller session for its transaction to retry', async () => {
-    const collision = Object.assign(new Error('E11000'), { code: 11000 });
+    const collision = Object.assign(new Error('E11000'), {
+      code: 11000,
+      keyPattern: { reference: 1 },
+    });
     const { service, inventory } = setup(stay());
     inventory.bookNights.mockRejectedValue(collision);
     await expect(

@@ -36,7 +36,7 @@ const BODY_EXAMPLES = {
     value: EXAMPLE_BODY,
   },
   invalid: {
-    summary: 'Invalid: no adult, a child aged 18 and check-out before check-in',
+    summary: 'Invalid: a child aged 18 and check-out before check-in',
     value: {
       ...EXAMPLE_BODY,
       checkOut: '2027-12-09',
