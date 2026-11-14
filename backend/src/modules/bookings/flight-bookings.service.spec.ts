@@ -78,7 +78,7 @@ function setup(
     findById: jest.fn(),
     find: jest.fn(),
     exists: jest.fn(),
-    countDocuments: jest.fn().mockResolvedValue(0),
+    countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(0) })),
   };
   const session = {
     withTransaction: jest.fn(async (fn: () => Promise<void>) => fn()),
@@ -86,13 +86,17 @@ function setup(
   };
   const connection = { startSession: jest.fn().mockResolvedValue(session) };
   const config = { get: jest.fn().mockReturnValue('EGP') };
+  const guards = {
+    updateOne: jest.fn(() => ({ exec: () => Promise.resolve({}) })),
+  };
   const service = new FlightBookingsService(
     model as never,
+    guards as never,
     connection as never,
     inventory,
     config as never,
   );
-  return { service, inventory, model, session, stored };
+  return { service, inventory, model, session, stored, guards };
 }
 
 const request = (
@@ -535,7 +539,9 @@ describe('FlightBookingsService.hold guards (review)', () => {
   it('refuses a fourth unpaid hold for the same account', async () => {
     const out = cabin();
     const { service, model } = setup({ [out.flightId]: out });
-    Object.assign(model, { countDocuments: jest.fn().mockResolvedValue(3) });
+    Object.assign(model, {
+      countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(3) })),
+    });
     expect(
       await failure(service.hold(user, request(out, [adult]), NOW)),
     ).toMatchObject({
@@ -545,12 +551,23 @@ describe('FlightBookingsService.hold guards (review)', () => {
     expect(model.create).not.toHaveBeenCalled();
   });
 
+  it('writes the account guard before counting, inside the hold transaction (atomic cap)', async () => {
+    const out = cabin();
+    const { service, guards } = setup({ [out.flightId]: out });
+    await service.hold(user, request(out, [adult]), NOW);
+    expect(guards.updateOne).toHaveBeenCalledWith(
+      { _id: new Types.ObjectId(user.id) },
+      { $inc: { touches: 1 }, $set: { lastHoldAt: NOW } },
+      { upsert: true, session: expect.anything() as unknown },
+    );
+  });
+
   it('explains a failed reservation: the flight changed, or the seats ran out', async () => {
     const out = cabin();
     const run = async (after: BookableCabin | null) => {
       const ctx = setup({ [out.flightId]: out }, { reserve: false });
       Object.assign(ctx.model, {
-        countDocuments: jest.fn().mockResolvedValue(0),
+        countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(0) })),
       });
       ctx.inventory.getBookableCabin
         .mockResolvedValueOnce(out)

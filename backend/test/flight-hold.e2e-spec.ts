@@ -404,6 +404,23 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         .expireFlightHolds(new Date(Date.now() + HOLD_DURATION_MS + 1000));
     });
 
+    it('keeps the 3-hold cap under concurrency: 6 parallel holds by one account give exactly 3', async () => {
+      const burst = await loginAs(app, Role.User);
+      const results = await Promise.all(
+        [1, 2, 3, 4, 5, 6].map((i) =>
+          hold(burst, {
+            outbound: small,
+            passengers: [adult({ firstName: `B${i}` })],
+          }),
+        ),
+      );
+      expect(results.filter((r) => r.status === 201)).toHaveLength(3);
+      expect(results.filter((r) => r.status === 409)).toHaveLength(3);
+      await app
+        .get(BookingLifecycleService)
+        .expireFlightHolds(new Date(Date.now() + HOLD_DURATION_MS + 1000));
+    });
+
     it('a confirmation that arrives after the hold expired is refused, and confirmed seats are never released', async () => {
       const late = await hold(traveller, {
         outbound: small,

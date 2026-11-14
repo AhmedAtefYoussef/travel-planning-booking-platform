@@ -14,6 +14,7 @@ import {
   FlightBooking,
   FlightBookingSchema,
 } from './schemas/flight-booking.schema';
+import { HoldGuard, HoldGuardSchema } from './schemas/hold-guard.schema';
 import {
   HotelReservation,
   HotelReservationSchema,
@@ -32,6 +33,7 @@ import {
     MongooseModule.forFeature([
       { name: FlightBooking.name, schema: FlightBookingSchema },
       { name: HotelReservation.name, schema: HotelReservationSchema },
+      { name: HoldGuard.name, schema: HoldGuardSchema },
     ]),
   ],
   controllers: [FlightBookingsController],
