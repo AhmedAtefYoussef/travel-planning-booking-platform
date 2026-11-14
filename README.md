@@ -62,3 +62,16 @@ room 101 `6af75a6515dd5acc6878d0f1`. There is no booking endpoint yet, so for ru
 | `htl-05/06-htl05-booked-night-409.png` | Replacing with 2027-01-15 to 2027-01-20 while 2027-01-10 is booked: 409 naming that night, nothing changed |
 | `htl-05/07-htl05-keep-booked-night-200.png` | 2027-01-10 to 2027-01-12 keeps the booked night inside a range: 200 (run at 19:10:34) |
 | `htl-05/08-htl05-other-moderator-403.png` | Another hotel's moderator: 403 "You can only manage your assigned hotel" |
+
+## HTL-09 (TRVL-54, PR #56) check-in and check-out times
+
+Captured on 14 Nov 2026 on `feature/HTL-09-check-in-out-times`, against `sandra_demo`, hotel
+`6af887d93345c3faf4ed1043` (Policy Demo Hotel). Two screenshots of one run are stacked (grey divider).
+
+| File | What it shows |
+|---|---|
+| `htl-09/00-htl09-hotel-created-201.png` | `POST /api/hotels` as `ADMIN`: 201, `checkInTime` and `checkOutTime` are `null` |
+| `htl-09/01-htl09-set-times-200.png` | `PUT /api/hotels/{id}/policies` with 14:00 / 12:00 as the hotel's moderator: 200, both times returned |
+| `htl-09/02-htl09-invalid-times-400.png` | `2pm` / `24:00`: 400 `VALIDATION_FAILED` with errors on both fields |
+| `htl-09/03-htl09-missing-checkout-400.png` | Check-in only: 400 on `checkOutTime` |
+| `htl-09/04-htl09-other-moderator-403.png` | Another hotel's moderator: 403 "You can only manage your assigned hotel" |
