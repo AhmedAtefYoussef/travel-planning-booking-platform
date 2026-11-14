@@ -56,13 +56,13 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
 | FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
-| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13, #55, #59 | Done: one-way search by airports, local departure date and passengers; seats held or booked are excluded (proven with real FLT-22 holds, #59) |
+| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13, #55, #59 | Done |
 | FLT-12 | Mandatory | GET /api/flights/search; GET /api/flights/search/round-trip | Ahmed | TRVL-37 | #58, #59 | Partial: passenger types, cabin filter and round-trip search (#58); a round trip is held as one booking with two segments and passenger types are checked against the date of birth (#59); whole-trip cancellation with the outbound tier lands with the cancel stories |
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
-| FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Karim | TRVL-40 | #59 | Done: passenger name, date of birth, passport/ID number and extra bags (airline maximum, charged per flight) entered with the booking |
-| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Karim | TRVL-41 | #59 | Done: summary of flights, cabin, passengers, extra bags and total before payment; holds nothing |
-| FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done: atomic seat hold for 10 minutes as one Pending Payment booking (round trip all or nothing), expiry releases seats exactly once, no overbooking under 20 parallel holds (TRVL-144) |
+| FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Karim | TRVL-40 | #59 | Done |
+| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Karim | TRVL-41 | #59 | Done |
+| FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
 | FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | - | Not started |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
