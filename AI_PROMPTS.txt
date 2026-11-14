@@ -958,3 +958,19 @@ passenger-age rules, the quote, hold and booking endpoints, the expiry job that 
 same transaction as the Pending -> Expired transition, and the FLIGHT_PAYABLE_BOOKING provider for PAY-01.
 20 parallel holds for 4 seats give exactly 4 bookings. It added the RTM rows; I review the design in the PR.
 ================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-16 (TRVL-59), HTL-18 (TRVL-61), HTL-17 (part), TRVL-144
+Prompt:
+#59 is merged; continue with HTL-16/18: the multi-room reservation and the all-or-nothing 10-minute
+room hold, test first, including the concurrency test.
+How the output was used:
+Claude wrote the failing e2e suite first, then added a HOTEL_INVENTORY contract in the hotels module
+(the bookings module never writes rooms or room_nights itself), the reservation endpoint with guests per
+room and occupancy rules, the expiry job, lazy expiry of unswept holds, and the HOTEL_PAYABLE_BOOKING
+provider for PAY-01 (confirmation books the nights). 8 parallel overlapping requests give exactly one
+reservation. The unpaid-hold cap moved to one shared helper. It added the RTM rows; I review the design.
+================================================

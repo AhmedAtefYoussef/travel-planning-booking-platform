@@ -293,6 +293,82 @@ export interface FlightInventory {
 }
 
 /* ----------------------------------------------------------------------------------------------
+ * Hotel inventory (HTL-18). The hotels module owns rooms and room_nights; bookings hold, book and
+ * release nights only through this contract, inside the caller's transaction (ADR-0002). Register
+ * under HOTEL_INVENTORY.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface BookableRoom {
+  roomId: string;
+  number: string;
+  maxOccupancy: number;
+  /** Price per night now, minor units (HTL-03). The hold stores the price it read in its transaction. */
+  priceMinor: number;
+  /** Why it cannot be booked for the stay (deactivated, not bookable on some night), or null. */
+  unavailableReason: string | null;
+}
+
+export interface BookableStay {
+  hotelId: string;
+  hotelName: string;
+  /** The hotel's IANA zone; room_nights dates and "today" are in it. Null when the city has none. */
+  timeZone: string | null;
+  /** In the order requested; null where the id is not a room of this hotel. */
+  rooms: (BookableRoom | null)[];
+  /** Why the hotel takes no bookings (ACC-15 deactivated), or null. */
+  unavailableReason: string | null;
+}
+
+/** One room's nights for a hold, with the price the hold read inside its transaction. */
+export interface HeldRoom {
+  roomId: string;
+  number: string;
+  maxOccupancy: number;
+  priceMinor: number;
+}
+
+export interface HotelInventory {
+  /** The hotel and the requested rooms as a booking needs them, or null when the hotel does not exist. */
+  getBookableStay(
+    hotelId: string,
+    roomIds: string[],
+    nights: string[],
+  ): Promise<BookableStay | null>;
+  /**
+   * Holds every night of every room for one reservation, or throws and holds nothing. Inside `session`
+   * it first writes each room (`$inc reservationVersion`, so it conflicts with an HTL-05 availability
+   * replace), then re-reads the rooms and checks they are active and bookable on every night, then
+   * inserts the HELD nights (the unique {roomId, date} index rejects any overlap). Throws 409
+   * INSUFFICIENT_INVENTORY naming the taken nights, or 409 CONFLICT when a room changed.
+   */
+  holdNights(
+    input: {
+      hotelId: string;
+      roomIds: string[];
+      nights: string[];
+      reservationId: string;
+      expiresAt: Date;
+    },
+    session: ClientSession,
+  ): Promise<HeldRoom[]>;
+  /** Reservations whose HELD nights on these rooms and dates expired at or before `now`. */
+  staleHolders(
+    roomIds: string[],
+    nights: string[],
+    now: Date,
+    session: ClientSession,
+  ): Promise<string[]>;
+  /** HELD -> BOOKED for every night of the reservation (HTL-17). Returns how many nights changed. */
+  bookNights(
+    reservationId: string,
+    reference: string,
+    session: ClientSession,
+  ): Promise<number>;
+  /** Deletes the reservation's HELD nights (expiry). Returns how many were released. */
+  releaseNights(reservationId: string, session: ClientSession): Promise<number>;
+}
+
+/* ----------------------------------------------------------------------------------------------
  * Uploads (GEN-08). Register under UPLOADS_SERVICE.
  * -------------------------------------------------------------------------------------------- */
 

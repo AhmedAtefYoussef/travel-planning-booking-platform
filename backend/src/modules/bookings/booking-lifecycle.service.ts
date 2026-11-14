@@ -17,6 +17,7 @@ import {
   type EnvironmentVariables,
 } from '../../config/env.validation';
 import { FlightBookingsService } from './flight-bookings.service';
+import { HotelBookingsService } from './hotel-bookings.service';
 import { FlightBooking } from './schemas/flight-booking.schema';
 import { HotelReservation } from './schemas/hotel-reservation.schema';
 
@@ -28,7 +29,7 @@ export const BOOKING_LIFECYCLE_INTERVAL_MS = 60_000;
  * tests (which call the job methods directly with a fixed `now`).
  *
  * - Confirmed -> Completed once the trip has ended (last arrival / check-out day in the hotel's zone).
- * - Pending Payment -> Expired is added by FLT-22 and HTL-18, which also release the seats or nights.
+ * - Pending Payment -> Expired after the 10-minute hold (FLT-22 seats, HTL-18 nights released with it).
  *
  * Every write is status-conditioned, so several API instances running the job at once are harmless.
  */
@@ -46,11 +47,17 @@ export class BookingLifecycleService
     private readonly hotels: Model<HotelReservation>,
     private readonly config: ConfigService<EnvironmentVariables, true>,
     private readonly flightBookings: FlightBookingsService,
+    private readonly hotelBookings: HotelBookingsService,
   ) {}
 
   /** FLT-22: Pending Payment -> Expired after the 10-minute hold, releasing the seats. */
   expireFlightHolds(now: Date = new Date()): Promise<number> {
     return this.flightBookings.expireHolds(now);
+  }
+
+  /** HTL-18: Pending Payment -> Expired after the 10-minute hold, releasing the nights. */
+  expireHotelHolds(now: Date = new Date()): Promise<number> {
+    return this.hotelBookings.expireHolds(now);
   }
 
   /**
@@ -111,6 +118,7 @@ export class BookingLifecycleService
     const run = () =>
       Promise.all([
         job('expire flight holds', () => this.expireFlightHolds()),
+        job('expire hotel holds', () => this.expireHotelHolds()),
         job('complete finished trips', () => this.completeFinished()),
       ]);
     void run();

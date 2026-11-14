@@ -56,6 +56,10 @@ export class HotelReservation {
   @Prop({ type: MongooseSchema.Types.ObjectId, required: true })
   hotelId!: Types.ObjectId;
 
+  /** The hotel's name when booked, so the reservation reads the same if the hotel is renamed. */
+  @Prop({ type: String, required: true, trim: true })
+  hotelName!: string;
+
   /** Hotel-local dates, YYYY-MM-DD; check-out is the first night not included. */
   @Prop({ type: String, required: true, match: /^\d{4}-\d{2}-\d{2}$/ })
   checkIn!: string;

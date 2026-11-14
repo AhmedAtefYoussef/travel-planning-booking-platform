@@ -12,6 +12,18 @@ export const BOOKING_REFERENCE_PATTERN = /^(FL|HT)-[0-9A-HJKMNP-TV-Z]{8}$/;
  * 40 random bits (about 10^12 values); uniqueness is still guaranteed by the unique `reference` index,
  * and callers retry on the (very unlikely) duplicate-key error.
  */
+/**
+ * True for a duplicate-key error (E11000) on the unique `reference` index. Inside a transaction it aborts
+ * the transaction and withTransaction does not retry it, so the caller must run the transaction again.
+ */
+export function isReferenceCollision(e: unknown): boolean {
+  const err = e as {
+    code?: number;
+    keyPattern?: Record<string, unknown>;
+  } | null;
+  return err?.code === 11000 && !!err.keyPattern?.reference;
+}
+
 export function generateBookingReference(
   type: keyof typeof PREFIX,
   random: (bytes: number) => Buffer = randomBytes,

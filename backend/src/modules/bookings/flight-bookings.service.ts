@@ -22,7 +22,10 @@ import {
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { InvalidInputError } from '../../common/errors/invalid-input.error';
-import { generateBookingReference } from '../../common/utils/booking-reference';
+import {
+  generateBookingReference,
+  isReferenceCollision,
+} from '../../common/utils/booking-reference';
 import { multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { partyErrors, priceParty } from '../flights';
@@ -32,6 +35,7 @@ import type {
   FlightQuoteDto,
   PassengerDto,
 } from './dto/flight-booking.dto';
+import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
 import { ageOn, passengerTypeOn } from './passenger-age';
 import { HoldGuard } from './schemas/hold-guard.schema';
 import {
@@ -47,14 +51,6 @@ interface Plan {
   legs: BookableCabin[];
   seats: number;
 }
-
-const DUPLICATE_KEY = 11000;
-
-/** API6 (sensitive business flows): one account cannot pin a cabin with endless unpaid holds. */
-export const MAX_UNPAID_HOLDS_PER_USER = 3;
-
-/** The expiry job's batch size; a full batch means more are due and is logged. */
-export const EXPIRY_BATCH = 500;
 
 /** No passenger is older than this on the travel date (catches typos such as 1900 for 1990). */
 const MAX_AGE = 120;
@@ -99,7 +95,14 @@ export class FlightBookingsService implements PayableBooking {
     try {
       let created: FlightBookingDocument | undefined;
       await session.withTransaction(async () => {
-        await this.assertHoldAllowed(user.id, now, session);
+        await assertUnpaidHoldsBelowCap(
+          this.guards,
+          this.bookings,
+          user.id,
+          now,
+          session,
+          'flight bookings',
+        );
         for (const leg of legs) {
           const ok = await this.inventory.reserveSeats(
             leg.flightId,
@@ -139,42 +142,6 @@ export class FlightBookingsService implements PayableBooking {
       return toDto(created!);
     } finally {
       await session.endSession();
-    }
-  }
-
-  /**
-   * API6 cap, enforced atomically inside the hold transaction: write the account's guard document first
-   * (concurrent holds by one account conflict on it and are retried one after another), then count.
-   */
-  private async assertHoldAllowed(
-    userId: string,
-    now: Date,
-    session: ClientSession,
-  ): Promise<void> {
-    const account = new Types.ObjectId(userId);
-    await this.guards
-      .updateOne(
-        { _id: account },
-        { $inc: { touches: 1 }, $set: { lastHoldAt: now } },
-        { upsert: true, session },
-      )
-      .exec();
-    const unpaid = await this.bookings
-      .countDocuments(
-        {
-          userId: account,
-          status: BookingStatus.PendingPayment,
-          holdExpiresAt: { $gt: now },
-        },
-        { session },
-      )
-      .exec();
-    if (unpaid >= MAX_UNPAID_HOLDS_PER_USER) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.CONFLICT,
-        `You already have ${MAX_UNPAID_HOLDS_PER_USER} bookings waiting for payment; pay for one or let it expire first`,
-      );
     }
   }
 
@@ -296,9 +263,9 @@ export class FlightBookingsService implements PayableBooking {
    * webhook cannot confirm an expired booking; PAY-01 refunds it instead). Idempotent: a replay for the
    * same payment is a no-op. Throws HOLD_EXPIRED / INVALID_STATE_TRANSITION otherwise.
    *
-   * A reference collision (about 1 in 10^12) aborts a transaction, so inside the caller's session the
-   * error is rethrown for the caller's withTransaction to retry the whole callback (drawing a new
-   * reference); without a session it is retried here.
+   * A reference collision (about 1 in 10^12) aborts a transaction. Without a session it is retried here.
+   * Inside the caller's session it is rethrown unchanged: withTransaction does NOT retry a duplicate-key
+   * error, so the caller (PAY-01) must run its whole transaction again (see isReferenceCollision).
    */
   async markConfirmed(
     bookingId: string,
@@ -327,7 +294,7 @@ export class FlightBookingsService implements PayableBooking {
         );
         if (!moved) break;
       } catch (e) {
-        const collision = (e as { code?: number }).code === DUPLICATE_KEY;
+        const collision = isReferenceCollision(e);
         if (!collision || session) throw e;
         if (attempt === attempts) {
           throw new Error(
