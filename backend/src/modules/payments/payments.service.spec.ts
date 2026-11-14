@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
+import { AppException } from '../../common/errors/app.exception';
 import {
   BookingStatus,
   BookingType,
@@ -118,11 +119,29 @@ describe('PaymentsService (PAY-01)', () => {
     const err = await service
       .create(user, { bookingType: BookingType.Flight, bookingId })
       .catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(Error);
-    expect(err).not.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    // An explicit 500 whose message never repeats Stripe's text to the client.
+    expect(err).toMatchObject({ code: 'INTERNAL_ERROR' });
+    expect((err as AppException).getStatus()).toBe(500);
+    expect((err as Error).message).not.toContain('0.50');
     expect(log.error).toHaveBeenCalledWith(
       expect.stringContaining('amount_too_small'),
     );
+  });
+
+  it('does not cancel a PaymentIntent whose record could not be saved: nobody holds its secret, and the next attempt reuses it under the same key', async () => {
+    const { service, stripe, payments } = setup();
+    stripe.createPaymentIntent.mockResolvedValue({
+      id: 'pi_orphan',
+      clientSecret: 'pi_orphan_secret_x',
+      status: 'requires_payment_method',
+      amountMinor: 10_000,
+      currency: 'USD',
+    });
+    payments.create.mockRejectedValue(new Error('db down'));
+    await expect(
+      service.create(user, { bookingType: BookingType.Flight, bookingId }),
+    ).rejects.toThrow('db down');
+    expect(stripe.cancelPaymentIntent).not.toHaveBeenCalled();
   });
 
   it('refuses a malformed event with 400 even when correctly signed', async () => {
@@ -186,6 +205,15 @@ describe('PaymentsService (PAY-01)', () => {
       expect(log.error).toHaveBeenCalledWith(
         expect.stringContaining('pi_gone'),
       );
+    });
+
+    it('logs a Stripe rejection a retry cannot fix (e.g. a revoked key) as an error, not a warning', async () => {
+      const { service, stripe, log } = setup([payment('pi_key')]);
+      stripe.cancelPaymentIntent.mockRejectedValue(
+        new StripeApiError('Invalid API Key provided', 401, null),
+      );
+      await expect(service.cancelExpiredIntents()).resolves.toBe(0);
+      expect(log.error).toHaveBeenCalledWith(expect.stringContaining('pi_key'));
     });
 
     it('records an intent that was already cancelled at Stripe', async () => {

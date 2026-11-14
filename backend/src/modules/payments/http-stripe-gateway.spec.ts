@@ -105,6 +105,15 @@ describe('HttpStripeGateway (PAY-01, Stripe REST in test mode)', () => {
     });
   });
 
+  it('reports a success answer without a PaymentIntent (cut-off body) as a retryable StripeApiError', async () => {
+    respond(200, {});
+    await expect(gateway.retrievePaymentIntent('pi_1')).rejects.toMatchObject({
+      name: 'StripeApiError',
+      httpStatus: 502,
+      code: 'network_error',
+    });
+  });
+
   it('reports a network failure as a 503 StripeApiError', async () => {
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('ECONNRESET'));
     const err = await gateway

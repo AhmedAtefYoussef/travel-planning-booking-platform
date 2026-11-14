@@ -557,6 +557,30 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
       );
     });
 
+    it('starts a fresh PaymentIntent on retry when Stripe no longer has the failed one', async () => {
+      const { bookingId, paymentId, pi } = await readyFlight(owner);
+      await webhook('payment_intent.payment_failed', {
+        id: pi,
+        object: 'payment_intent',
+        status: 'requires_payment_method',
+        last_payment_error: { message: 'Your card was declined.' },
+      }).expect(200);
+      stripe.intents.delete(pi);
+      const retry = await http()
+        .post(`/api/payments/${paymentId}/retry`)
+        .set('Cookie', owner.cookie)
+        .expect(200);
+      expect(retry.body).toMatchObject({
+        bookingId,
+        status: 'REQUIRES_PAYMENT',
+      });
+      expect(retry.body.id).not.toBe(paymentId);
+      expect(retry.body.paymentIntentId).not.toBe(pi);
+      expect((await payments.findById(paymentId).lean())?.status).toBe(
+        'CANCELED',
+      );
+    });
+
     it('ignores a payment_failed event created before the current attempt (out-of-order delivery)', async () => {
       const { paymentId, pi } = await readyFlight(owner);
       const failedObject = {

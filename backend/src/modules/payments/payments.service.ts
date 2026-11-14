@@ -151,17 +151,9 @@ export class PaymentsService {
           'This payment changed while it was being created. Try again',
         );
       }
-      // Never leave a payable PaymentIntent without its record: cancel it (best effort) and fail.
-      await this.stripe
-        .cancelPaymentIntent(intent.id)
-        .catch((cancelError: unknown) =>
-          this.logger.error(
-            `PaymentIntent ${intent.id} has no payment record and could not be cancelled`,
-            cancelError instanceof Error
-              ? cancelError.stack
-              : String(cancelError),
-          ),
-        );
+      // Leave the PaymentIntent alone: its client secret never left this server, so nobody can pay it,
+      // and the next attempt asks Stripe with the same key and gets this very intent back to record.
+      // Cancelling it here would make that replay hand back a cancelled intent stored as payable.
       throw e;
     }
   }
@@ -191,17 +183,27 @@ export class PaymentsService {
         `This payment is ${payment.status} and cannot be retried`,
       );
     }
-    const intent = await this.gateway(() =>
-      this.stripe.retrievePaymentIntent(payment.stripePaymentIntentId),
-    );
-    if (intent.status === 'succeeded') {
+    const intent = await this.gateway(async () => {
+      try {
+        return await this.stripe.retrievePaymentIntent(
+          payment.stripePaymentIntentId,
+        );
+      } catch (e) {
+        // Stripe no longer has it: start over like a cancelled one.
+        if (e instanceof StripeApiError && e.code === 'resource_missing') {
+          return null;
+        }
+        throw e;
+      }
+    });
+    if (intent?.status === 'succeeded') {
       throw new AppException(
         HttpStatus.CONFLICT,
         ErrorCode.INVALID_STATE_TRANSITION,
         'Stripe already took this payment; the booking is being confirmed',
       );
     }
-    if (intent.status === 'canceled') {
+    if (intent === null || intent.status === 'canceled') {
       await this.payments
         .updateOne(
           { _id: payment._id, status: PaymentStatus.Failed },
@@ -601,6 +603,12 @@ export class PaymentsService {
         }
       } catch (e) {
         if (e instanceof EventReplay) continue;
+        if (e instanceof StripeApiError && !isRetryable(e)) {
+          // A retry cannot fix this (e.g. a revoked key): the intent stays payable until someone acts.
+          this.logger.error(
+            `Payment ${payment.id as string}: Stripe refused to cancel PaymentIntent ${payment.stripePaymentIntentId} (${e.httpStatus} ${e.code ?? ''}): ${e.message}`,
+          );
+        }
         await this.backOff(
           payment,
           now,
@@ -720,7 +728,13 @@ export class PaymentsService {
       this.logger.error(
         `Stripe call failed (${e.httpStatus} ${e.code ?? ''}): ${e.message}`,
       );
-      if (!isRetryable(e)) throw e;
+      if (!isRetryable(e)) {
+        throw new AppException(
+          HttpStatus.INTERNAL_SERVER_ERROR,
+          ErrorCode.INTERNAL_ERROR,
+          'The payment could not be started; it has been logged for the team',
+        );
+      }
       throw new AppException(
         HttpStatus.SERVICE_UNAVAILABLE,
         ErrorCode.SERVICE_UNAVAILABLE,

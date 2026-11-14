@@ -259,3 +259,26 @@ Three reviewer subagents (security, TypeScript correctness, silent failures) che
 - Throttling create, retry and the webhook. The app has no rate limiter yet, so this is a cross-cutting follow-up.
 - Comparing a delayed webhook with the event time instead of the processing time. Refunding is the fail-safe outcome.
 - `markPaymentFailed` runs after commit. It only logs; the payments collection is the record.
+
+### Session 3 re-verification, 2026-11-15 (PAY-01 fixes 553c32c and its review commit)
+
+Read-only audits of #57 to #62 against the workbook and the Jira acceptance criteria. An independent verifier then confirmed each finding against the code and Stripe's documentation before it was fixed, test first.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| PaymentIntents allowed redirect methods, so the documented `stripe payment_intents confirm <id> --payment-method pm_card_visa` fails without a `return_url` | HIGH | `automatic_payment_methods[allow_redirects]=never`: cards only, with 3-D Secure in a modal (http-stripe-gateway.spec.ts) |
+| When saving the payment failed after Stripe created the intent, the intent was cancelled; the next attempt then got it back under the same idempotency key and stored a cancelled intent as payable, blocking the user until the hold ended (found by the review) | HIGH | The orphan intent is left alone. Its secret never left the server, and the next attempt records it (payments.service.spec.ts). This reverses the 2026-11-14 "cancel at once" row above |
+| The PaymentIntent id was not in the response, so a Swagger demo had to cut it out of `clientSecret` | MEDIUM | `paymentIntentId` in PaymentDto. It is not a secret, and only the owner or an admin can read it (payments.e2e-spec.ts) |
+| The cancel call used a fixed idempotency key; Stripe replays a key's first error for 24 hours | MEDIUM | No key. A repeat cancel returns `payment_intent_unexpected_state`, which is handled (http-stripe-gateway.spec.ts) |
+| Every Stripe error became 503 "try again", including ones a retry can't fix | MEDIUM | Network, 429, 5xx and `idempotency_key_in_use` give 503. Any other rejection gives an explicit 500 INTERNAL_ERROR that never repeats Stripe's text (payments.service.spec.ts) |
+| Retry on a PaymentIntent Stripe no longer has failed with 500 every time and blocked the booking (found by the review) | MEDIUM | Handled like a cancelled intent: the payment is closed and a new one started (payments.e2e-spec.ts) |
+| The cancel job logged a rejection a retry can't fix (e.g. a revoked key) only as a warning (found by the review) | MEDIUM | Logged as an error with the payment and intent ids; the job still backs off (payments.service.spec.ts) |
+| A 2xx answer with an unreadable body became a TypeError (found by the review) | MEDIUM | A retryable StripeApiError, 502 `network_error` (http-stripe-gateway.spec.ts) |
+| Swagger did not list the 503 on create and retry, or the webhook's deliberate 500 | LOW | Documented |
+| PAY-02 marked Done although no endpoint sets a hotel's times or tiers | Doc | Traceability set to Partial; R-PAY-02-02 is PARTIAL |
+| ADR-0003 and R-PAY-01-05/06/07 described behaviour or names that don't exist | Doc | Corrected; the stored operational fields are listed as a declared deviation |
+
+**Rebutted or deferred, with reasons:**
+- The signature check rejects timestamps more than 5 minutes in the future as well as in the past. Stripe's libraries reject only old ones. Kept on purpose: `t` is inside the HMAC, so this costs nothing in security, and the spec asserts it.
+- A Stripe error the user can't fix is logged twice: once in the gateway, with Stripe's code, and once in the exception filter, with the stack. This is cosmetic.
+- Refunds that never leave PENDING (no `refund.*` webhook) belong to PAY-03, the next story.

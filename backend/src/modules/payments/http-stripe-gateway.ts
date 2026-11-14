@@ -151,6 +151,14 @@ export class HttpStripeGateway implements StripeGateway {
 }
 
 function toIntent(b: StripeIntentBody): PaymentIntentInfo {
+  if (typeof b?.id !== 'string' || typeof b.status !== 'string') {
+    // A 2xx whose body was cut off or unreadable: treat it like a network failure (retryable).
+    throw new StripeApiError(
+      'Stripe answered without a PaymentIntent',
+      502,
+      'network_error',
+    );
+  }
   return {
     id: b.id,
     clientSecret: b.client_secret,
