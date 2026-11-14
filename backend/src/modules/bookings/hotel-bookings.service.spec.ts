@@ -50,6 +50,7 @@ function setup(
     staleHolders: jest.fn().mockResolvedValue([]),
     bookNights: jest.fn().mockResolvedValue(opts.booked ?? 2),
     releaseNights: jest.fn().mockResolvedValue(2),
+    getHotelPolicy: jest.fn(),
   };
   const moved = [...(opts.moved ?? [1])];
   const model = {

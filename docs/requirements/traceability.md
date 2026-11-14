@@ -102,9 +102,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4 | Partial: schemas |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | - | Not started |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61 | Partial: the airline or hotel policies are shown and accepted with a timestamp, a version check and a stored snapshot; the payment gate (assertPayable) refuses unaccepted bookings (#61); the gate is called by POST /api/payments with PAY-01 |
 | PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
-| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2 | Partial: money utils, env |
+| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61 | Partial: money utils; PLATFORM_CURRENCY limited at startup to the seeded currencies; bookings are priced in it and the payment gate refuses any other currency (#61); payments and refunds use the gate with PAY-01 and PAY-03 |
 
 ## Itineraries
 

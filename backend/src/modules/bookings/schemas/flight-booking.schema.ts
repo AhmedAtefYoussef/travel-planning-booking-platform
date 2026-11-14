@@ -1,6 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { BookingStatus, SCHEMA_OPTIONS } from '../../../common/contracts';
+import {
+  BookingStatus,
+  SCHEMA_OPTIONS,
+  type PolicySnapshot,
+} from '../../../common/contracts';
 import {
   addLifecycle,
   BOOKING_STATUS,
@@ -145,7 +149,7 @@ export class FlightBooking {
 
   /** PAY-02: the airline's cancellation and baggage policies as accepted, used for refunds (PAY-03). */
   @Prop({ type: MongooseSchema.Types.Mixed, default: null })
-  policySnapshot!: Record<string, unknown> | null;
+  policySnapshot!: PolicySnapshot | null;
 
   @Prop({ type: Date, default: null })
   policiesAcceptedAt!: Date | null;

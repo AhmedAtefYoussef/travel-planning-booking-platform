@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /**
  * Provider policies shown and accepted before payment (PAY-02) and snapshotted onto each booking, so a
  * later policy change never alters an existing booking's refund (brief section 6.4).
@@ -112,4 +114,68 @@ export function cancellationTierErrors(
   return cancellationTierFieldErrors(tiers).map(
     (e) => `${e.field.slice(0, e.field.lastIndexOf('.') + 1)}${e.message}`,
   );
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * PAY-02: the policies shown before payment and stored on the booking when accepted. PAY-03 refunds
+ * from the stored snapshot, so a later policy change never alters an existing booking's refund.
+ * -------------------------------------------------------------------------------------------- */
+
+/** One flight of the booking, with its airline's terms and the booked cabin's free allowance. */
+export interface AirlinePolicySnapshot {
+  airlineId: string;
+  airlineName: string;
+  airlineCode: string;
+  flightNumber: string;
+  cabinClass: string;
+  /** FLT-04: free checked bags per passenger in the booked cabin, and the weight limit per bag. */
+  freeBags: number;
+  maxKgPerBag: number;
+  /** FLT-09: empty means a user cancellation refunds 0%. */
+  cancellationTiers: CancellationTier[];
+  /** FLT-08: null when the airline sells no extra bags. */
+  extraBaggage: ExtraBaggagePolicy | null;
+}
+
+export interface HotelPolicySnapshot {
+  hotelId: string;
+  hotelName: string;
+  /** HTL-10: empty means a user cancellation refunds 0%. */
+  cancellationTiers: CancellationTier[];
+  /** HTL-09: "HH:mm" in the hotel's local time, or null until the hotel sets it. */
+  checkInTime: string | null;
+  checkOutTime: string | null;
+}
+
+/** The terms of one booking: the airline of each flight, or the hotel. */
+export interface ProviderPolicies {
+  airlines?: AirlinePolicySnapshot[];
+  hotel?: HotelPolicySnapshot;
+}
+
+/** Stored on the booking at acceptance (`policySnapshot`), with the version the user accepted. */
+export interface PolicySnapshot extends ProviderPolicies {
+  version: string;
+}
+
+/**
+ * A short fingerprint of the terms. The user accepts a version, so terms that changed between showing
+ * and accepting are never accepted unseen (409, show them again). Independent of key order.
+ */
+export function policiesVersion(policies: ProviderPolicies): string {
+  return createHash('sha256')
+    .update(canonicalJson(policies))
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
 }

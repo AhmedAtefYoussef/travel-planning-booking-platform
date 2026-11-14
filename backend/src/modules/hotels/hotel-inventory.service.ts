@@ -6,6 +6,7 @@ import type {
   BookableStay,
   HeldRoom,
   HotelInventory,
+  HotelPolicySnapshot,
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -212,6 +213,24 @@ export class HotelInventoryService implements HotelInventory {
       )
       .exec();
     return res.modifiedCount;
+  }
+
+  async getHotelPolicy(hotelId: string): Promise<HotelPolicySnapshot | null> {
+    if (!Types.ObjectId.isValid(hotelId)) return null;
+    const hotel = await this.hotelModel.findById(hotelId).lean().exec();
+    if (!hotel) return null;
+    return {
+      hotelId,
+      hotelName: hotel.name,
+      cancellationTiers: [...(hotel.cancellationTiers ?? [])]
+        .sort((a, b) => a.daysBefore - b.daysBefore)
+        .map((t) => ({
+          daysBefore: t.daysBefore,
+          refundPercent: t.refundPercent,
+        })),
+      checkInTime: hotel.checkInTime ?? null,
+      checkOutTime: hotel.checkOutTime ?? null,
+    };
   }
 
   async releaseNights(

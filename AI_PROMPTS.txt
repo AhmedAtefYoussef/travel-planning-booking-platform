@@ -974,3 +974,19 @@ room and occupancy rules, the expiry job, lazy expiry of unswept holds, and the 
 provider for PAY-01 (confirmation books the nights). 8 parallel overlapping requests give exactly one
 reservation. The unpaid-hold cap moved to one shared helper. It added the RTM rows; I review the design.
 ================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-02 (TRVL-68), PAY-04 (TRVL-109)
+Prompt:
+#60 is merged; GEN-01 is still assigned to a teammate, so continue with PAY-04 and PAY-02: one platform
+currency and the provider policies accepted before payment, test first.
+How the output was used:
+Claude wrote the failing tests first, then limited PLATFORM_CURRENCY to the seeded currencies (a test keeps
+the list equal to Countries.csv), added the policy endpoints in the bookings module (reading airline and
+hotel terms through the inventory contracts), a version fingerprint so changed terms are never accepted
+unseen, the timestamped acceptance with a stored snapshot for refunds, and the assertPayable gate that
+PAY-01 will call. It added the RTM rows; I review the design in the PR.
+================================================
