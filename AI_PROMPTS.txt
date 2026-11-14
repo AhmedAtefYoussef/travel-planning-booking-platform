@@ -990,3 +990,20 @@ hotel terms through the inventory contracts), a version fingerprint so changed t
 unseen, the timestamped acceptance with a stored snapshot for refunds, and the assertPayable gate that
 PAY-01 will call. It added the RTM rows; I review the design in the PR.
 ================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (TRVL-67), PAY-02, FLT-23 (part), HTL-17 (part)
+Prompt:
+#61 is merged; continue with PAY-01: Stripe test-mode payment within the hold, webhook-verified
+confirmation, retry, and cancel on expiry, test first.
+How the output was used:
+Claude wrote the failing tests first, then a Stripe gateway over the REST API (no SDK dependency) with an
+in-memory fake for tests, its own Stripe-Signature verification, the payment endpoints behind the PAY-02
+payment gate, the ADR-0003 webhook transaction (event id and confirmation commit together; replays are
+ignored; failures roll back for redelivery), a job that cancels PaymentIntents of expired holds, and a full
+refund for a payment captured after its hold expired. It amended ADR-0003 and added the RTM rows; I review
+the design in the PR.
+================================================
