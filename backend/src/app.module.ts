@@ -4,6 +4,7 @@ import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth';
+import { BookingsModule } from './modules/bookings';
 import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
 import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
@@ -25,6 +26,7 @@ import { UsersModule } from './modules/users';
     UsersModule,
     AuthModule,
     AuditModule,
+    BookingsModule,
     PaymentsModule,
     ReferenceModule,
     FlightsModule,

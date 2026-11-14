@@ -41,13 +41,10 @@ const notifications: NotificationsService = {
 
 @Global()
 @Module({
-  providers: [
-    { provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup },
-    { provide: NOTIFICATIONS_SERVICE, useValue: notifications },
-  ],
-  exports: [FLIGHT_BOOKINGS_LOOKUP, NOTIFICATIONS_SERVICE],
+  providers: [{ provide: NOTIFICATIONS_SERVICE, useValue: notifications }],
+  exports: [NOTIFICATIONS_SERVICE],
 })
-class FakeBookingsAndNotificationsModule {}
+class FakeNotificationsModule {}
 
 /** FLT-05 on its own airline (code FE, CDG -> FRA, both UTC+1 in December). */
 describe('Edit flights (e2e): FLT-05', () => {
@@ -87,7 +84,11 @@ describe('Edit flights (e2e): FLT-05', () => {
     http().patch(`/api/flights/${id}`).set('x-dev-user', as).send(body);
 
   beforeAll(async () => {
-    app = await createTestApp([FakeBookingsAndNotificationsModule]);
+    app = await createTestApp(
+      [FakeNotificationsModule],
+      // The real bookings module provides FLIGHT_BOOKINGS_LOOKUP; replace it with the stand-in.
+      [{ provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup }],
+    );
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
     flights = app.get<Model<Flight>>(getModelToken(Flight.name));
     const airline = await http()

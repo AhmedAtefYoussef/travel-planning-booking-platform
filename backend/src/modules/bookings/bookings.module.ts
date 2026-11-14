@@ -1,0 +1,40 @@
+import { Global, Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import {
+  FLIGHT_BOOKINGS_LOOKUP,
+  UPCOMING_BOOKINGS,
+} from '../../common/contracts';
+import { BookingLifecycleService } from './booking-lifecycle.service';
+import { BookingQueriesService } from './booking-queries.service';
+import {
+  FlightBooking,
+  FlightBookingSchema,
+} from './schemas/flight-booking.schema';
+import {
+  HotelReservation,
+  HotelReservationSchema,
+} from './schemas/hotel-reservation.schema';
+
+/**
+ * Flight bookings and hotel reservations (TRVL-139, GEN-11; FLT-22/23, HTL-16/17/18 build on it).
+ *
+ * Global so the contract tokens it provides reach the modules that inject them as optional:
+ * UPCOMING_BOOKINGS (users, ACC-12) and FLIGHT_BOOKINGS_LOOKUP (flights, FLT-05).
+ */
+@Global()
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: FlightBooking.name, schema: FlightBookingSchema },
+      { name: HotelReservation.name, schema: HotelReservationSchema },
+    ]),
+  ],
+  providers: [
+    BookingLifecycleService,
+    BookingQueriesService,
+    { provide: UPCOMING_BOOKINGS, useExisting: BookingQueriesService },
+    { provide: FLIGHT_BOOKINGS_LOOKUP, useExisting: BookingQueriesService },
+  ],
+  exports: [UPCOMING_BOOKINGS, FLIGHT_BOOKINGS_LOOKUP],
+})
+export class BookingsModule {}

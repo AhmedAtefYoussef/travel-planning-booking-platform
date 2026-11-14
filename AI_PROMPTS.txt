@@ -907,3 +907,21 @@ import conflicts. It then wrote a failing e2e test showing that HTL-05's availab
 answered overlapping ranges without field errors, switched replaceAvailability to overlapFieldErrors
 so it matches HTL-04, and removed the now unused firstOverlap helper. npm run verify passes.
 ================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-11 (TRVL-106), TRVL-139, ACC-12, FLT-05
+Prompt:
+Continue the Milestone 1 plan: analyse my open Jira work, research best practices for the booking engine
+and V&V, then implement it one PR per story, starting with the GEN-11 booking lifecycle and the booking
+schemas, with systematic verification.
+How the output was used:
+Claude wrote failing tests first, then added transitionBooking (the only way to change a booking status:
+it refuses the 21 transitions outside the GEN-11 table and runs a status-conditioned update), a booking
+reference generator, the flight_bookings and hotel_reservations schemas (partial unique index on the
+reference, lifecycle indexes), and a global bookings module that provides UPCOMING_BOOKINGS (ACC-12) and
+FLIGHT_BOOKINGS_LOOKUP (FLT-05) plus the Confirmed -> Completed job. It started docs/qa/vv-m1/rtm-booking.md
+with one row per atomic rule and its test technique. The design follows ADR-0002/0003; I review it in the PR.
+================================================
