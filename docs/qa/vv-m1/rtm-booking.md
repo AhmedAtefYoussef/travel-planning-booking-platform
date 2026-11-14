@@ -52,3 +52,19 @@ Two reviewer subagents (TypeScript correctness, silent failures) reviewed the fi
 - The FLT-05 schedule-change path must update the booking's `startsAt`/`endsAt`. That belongs to FLT-22, which creates the first real bookings.
 - Rooms with 0 adults remain valid, because the workbook requires one adult per reservation, not per room.
 - The ACC-12 message still says "upcoming confirmed bookings" although unexpired holds now count too. Changing the user-visible text is left to the ACC-12 owner.
+
+## FLT-12 round trip, passenger types and cabin filter
+
+| Rule | Source | Rule text | Technique | Code | Test | Verdict | Note |
+|---|---|---|---|---|---|---|---|
+| R-FLT-12-01 | workbook (b) | Adults and children pay the cabin fare and each take a seat | EP | src/modules/flights/flight-pricing.ts (`priceParty`) | flight-pricing.spec.ts; test/flight-search-round-trip.e2e-spec.ts | PASS | |
+| R-FLT-12-02 | workbook (b) | Infants pay 10% of the fare (rounded down to whole minor units) and take no seat | EP, BVA (fare 999 → 99; 2 adults + 2 infants fit a 2-seat cabin, while 3 seated passengers do not) | flight-pricing.ts, flight-search.service.ts | flight-pricing.spec.ts; flight-search-round-trip.e2e-spec.ts | PASS | Search and FLT-22 holds share `priceParty` |
+| R-FLT-12-03 | workbook (b) | Each booking needs at least one adult and no more infants than adults | BVA (0 / 1 adult; infants = adults vs adults + 1) | flight-pricing.ts (`partyErrors`) | flight-pricing.spec.ts; flight-search-round-trip.e2e-spec.ts | PASS | Enforced again at hold time (FLT-22) |
+| R-FLT-12-04 | workbook (b) | The passenger type is validated against the date of birth | BVA | - | - | BLOCKED-BY FLT-19 / FLT-22 | Search has no DOB |
+| R-FLT-12-05 | derived (FLT-11 compatibility) | Give either the FLT-11 `passengers` count (all adults) or adults/children/infants, never both and never neither; a request missing everything reports `passengers` together with the other fields | DT (4 combinations) | dto/flight-search.dto.ts (`partyFromQuery`, `ValidateIf`) | flight-search-round-trip.e2e-spec.ts; flight-search.e2e-spec.ts (FLT-11 unchanged) | PASS | |
+| R-FLT-12-06 | workbook (c) | An optional cabin-class filter keeps only that cabin; an unknown class is a 400 on cabinClass | EP | flight-search.service.ts | flight-search-round-trip.e2e-spec.ts | PASS | |
+| R-FLT-12-07 | workbook (a) | Round-trip search returns outbound and return options for the same party and cabin, each paginated (page, returnPage) | EP | flight-search.service.ts (`searchRoundTrip`), flights.controller.ts | flight-search-round-trip.e2e-spec.ts | PASS | |
+| R-FLT-12-08 | derived | returnDate must be given and on or after departureDate (a same-day return is allowed); invalid dates are reported on returnDate | BVA (D-1, D, D+7) | searchRoundTrip | flight-search-round-trip.e2e-spec.ts | PASS | |
+| R-FLT-12-09 | workbook (a) | A round trip is booked as one booking with two segments, one payment and one reference | ST | bookings schema (2 segments validated, #57) | - | BLOCKED-BY FLT-22 | |
+| R-FLT-12-10 | workbook (a) | A round trip is cancelled as a whole using the outbound segment's tier | DT | - | - | BLOCKED-BY the cancel stories / PAY-03 | |
+| R-FLT-12-11 | contracts.md | FLIGHTS_SEARCH applies passenger types and the cabin filter for other modules, and refuses `returnDate` instead of ignoring it | EP | flight-search.service.ts (`search`) | flight-search-round-trip.e2e-spec.ts (contract) | PASS | |

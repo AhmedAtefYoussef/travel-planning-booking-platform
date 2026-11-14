@@ -61,7 +61,7 @@ const criteria = {
   from: 'cai',
   to: 'dxb',
   departureDate: '2026-12-01',
-  seats: 2,
+  party: { adults: 2 },
   page: 1,
 };
 
@@ -120,7 +120,7 @@ describe('FlightSearchService.searchOneWay (FLT-11)', () => {
 
   it('keeps only active airlines and cabins with enough seats for every passenger', async () => {
     const { service, pipelines } = setup();
-    await service.searchOneWay({ ...criteria, seats: 3 }, NOW);
+    await service.searchOneWay({ ...criteria, party: { adults: 3 } }, NOW);
     const stages = pipelines[0];
     expect(stages).toEqual(
       expect.arrayContaining([
@@ -187,6 +187,7 @@ describe('FlightSearchService.searchOneWay (FLT-11)', () => {
       cabinClass: 'ECONOMY',
       seatsLeft: 150,
       pricePerPassengerMinor: 27500,
+      infantFareMinor: 2750,
       totalPriceMinor: 55000,
       freeBags: 1,
       maxKgPerBag: 23,
@@ -250,14 +251,15 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
   const stageOf = (stages: PipelineStage[], key: string) =>
     stages.find((st) => key in st) as Record<string, unknown> | undefined;
 
-  it('computes the total fare for all passengers before filtering', async () => {
+  it('filters and sorts on the fare per passenger; the party total is priced after the query (priceParty, FLT-12)', async () => {
     const { service, pipelines } = setup();
-    await service.searchOneWay({ ...criteria, seats: 3 }, NOW);
+    await service.searchOneWay({ ...criteria, party: { adults: 3 } }, NOW);
+    // The database only adds the duration; the total (with infants at 10%) is computed by priceParty,
+    // the same function bookings use, so search and booking totals cannot differ.
     expect(pipelines[0]).toEqual(
       expect.arrayContaining([
         {
           $addFields: {
-            totalPriceMinor: { $multiply: ['$cabins.priceMinor', 3] },
             durationMs: { $subtract: ['$arrivalUtc', '$departureUtc'] },
           },
         },
@@ -294,7 +296,7 @@ describe('FlightSearchService price range and sort (FLT-15)', () => {
   it('keeps the other criteria when a price range is set', async () => {
     const { service, pipelines } = setup();
     await service.searchOneWay(
-      { ...criteria, seats: 3, minPriceMinor: 1, maxPriceMinor: 2 },
+      { ...criteria, party: { adults: 3 }, minPriceMinor: 1, maxPriceMinor: 2 },
       NOW,
     );
     const first = stageOf(pipelines[0], '$match') as {

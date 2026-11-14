@@ -925,3 +925,20 @@ reference, lifecycle indexes), and a global bookings module that provides UPCOMI
 FLIGHT_BOOKINGS_LOOKUP (FLT-05) plus the Confirmed -> Completed job. It started docs/qa/vv-m1/rtm-booking.md
 with one row per atomic rule and its test technique. The design follows ADR-0002/0003; I review it in the PR.
 ================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-12 (TRVL-37)
+Prompt:
+PR #57 is merged; continue the plan with FLT-12: round-trip search, passenger types (adult, child,
+infant) and the cabin filter, test first, keeping FLT-11 and FLT-15 behaviour unchanged.
+How the output was used:
+Claude wrote failing tests first, then added priceParty and partyErrors (one pure pricing function that
+FLT-22 holds will reuse: infants pay 10% rounded down and take no seat; at least one adult; no more
+infants than adults), the adults/children/infants and cabinClass query parameters (the FLT-11 passengers
+count still works), and GET /api/flights/search/round-trip with independently paginated outbound and
+return lists. It updated two FLT-11 unit assertions that were tied to the old in-database total, and
+added the FLT-12 rows to docs/qa/vv-m1/rtm-booking.md. I review the design in the PR.
+================================================
