@@ -738,6 +738,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
+        // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
+        'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',
         'GET /api/diagnostics/rows',
         'POST /api/diagnostics/records',

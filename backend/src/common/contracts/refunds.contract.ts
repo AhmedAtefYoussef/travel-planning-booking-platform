@@ -13,6 +13,11 @@ export enum RefundReason {
   UserCancellation = 'USER_CANCELLATION',
   /** Provider cancels (FLT-06): always 100%. */
   ProviderCancellation = 'PROVIDER_CANCELLATION',
+  /**
+   * PAY-01, ADR-0003: Stripe captured a payment after the hold had expired (it can't be cancelled once
+   * it succeeded), so the booking is not confirmed and the payment is refunded in full.
+   */
+  HoldExpired = 'HOLD_EXPIRED',
 }
 
 export enum RefundStatus {

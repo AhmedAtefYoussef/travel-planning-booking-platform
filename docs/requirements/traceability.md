@@ -63,7 +63,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Karim | TRVL-40 | #59 | Done |
 | FLT-21 | Mandatory | POST /api/flight-bookings/quote | Karim | TRVL-41 | #59 | Done |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
-| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | - | Not started |
+| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62 | Partial: the verified payment webhook confirms the booking with a unique FL- reference (#62); the confirmation notification and the e-ticket come with FLT-23 |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
 | FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |
@@ -88,7 +88,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
 | HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | - | Not started |
 | HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60 | Done |
-| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60 | Partial: HOTEL_PAYABLE_BOOKING.markConfirmed sets Confirmed, the HT- reference and BOOKED nights in one transaction (#60); the payment webhook, notification and confirmation view come with PAY-01 and FLT-23 |
+| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60, #62 | Partial: the verified payment webhook confirms the reservation, its HT- reference and BOOKED nights in one transaction (#60, #62); the notification and confirmation view come with FLT-23/HTL-17 |
 | HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60 | Done |
 | HTL-20 | Mandatory | GET /api/hotel-bookings; GET /api/hotel-bookings/:id | Karim | TRVL-62 | - | Not started |
 | HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Karim | TRVL-63 | - | Not started |
@@ -101,10 +101,10 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4 | Partial: schemas |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61 | Partial: the airline or hotel policies are shown and accepted with a timestamp, a version check and a stored snapshot; the payment gate (assertPayable) refuses unaccepted bookings (#61); the gate is called by POST /api/payments with PAY-01 |
+| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #62 | Done |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61, #62 | Done |
 | PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
-| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61 | Partial: money utils; PLATFORM_CURRENCY limited at startup to the seeded currencies; bookings are priced in it and the payment gate refuses any other currency (#61); payments and refunds use the gate with PAY-01 and PAY-03 |
+| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61, #62 | Partial: PLATFORM_CURRENCY limited at startup to the seeded currencies (#61); bookings and payments use it through the payment gate (#61, #62); refunds with PAY-03 |
 
 ## Itineraries
 
