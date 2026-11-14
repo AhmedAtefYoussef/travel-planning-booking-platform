@@ -254,6 +254,7 @@ export class FlightBookingsService implements PayableBooking {
       currency: booking.currency,
       holdExpiresAt: booking.holdExpiresAt,
       policiesAcceptedAt: booking.policiesAcceptedAt,
+      policiesVersion: booking.policySnapshot?.version ?? null,
       reference: booking.reference,
     };
   }

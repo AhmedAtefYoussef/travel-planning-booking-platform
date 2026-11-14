@@ -1,4 +1,4 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
@@ -22,7 +22,7 @@ import type {
 import { FlightBooking } from './schemas/flight-booking.schema';
 import { HotelReservation } from './schemas/hotel-reservation.schema';
 
-/** What both booking collections share for PAY-02. */
+/** What PAY-02 reads from either booking collection, in one query. */
 interface PolicyTarget {
   _id: Types.ObjectId;
   userId: Types.ObjectId;
@@ -30,6 +30,10 @@ interface PolicyTarget {
   holdExpiresAt: Date;
   policiesAcceptedAt: Date | null;
   policySnapshot: PolicySnapshot | null;
+  /** Hotel reservations. */
+  hotelId?: Types.ObjectId;
+  /** Flight bookings. */
+  segments?: { flightId: Types.ObjectId; cabinId: Types.ObjectId }[];
 }
 
 /** The two calls PAY-02 makes, common to both booking models. */
@@ -44,14 +48,29 @@ interface BookingModel {
   ): { exec(): Promise<{ modifiedCount: number }> };
 }
 
+const PROJECTION: Record<string, 1> = {
+  userId: 1,
+  status: 1,
+  holdExpiresAt: 1,
+  policiesAcceptedAt: 1,
+  policySnapshot: 1,
+  hotelId: 1,
+  'segments.flightId': 1,
+  'segments.cabinId': 1,
+};
+
 /**
  * PAY-02: shows the provider's policies for one booking (airline: cancellation and baggage; hotel:
  * cancellation and check-in/check-out times) and records the user's acceptance with a timestamp and a
  * snapshot of exactly those terms. PAY-01 refuses payment until then (assertPayable). PAY-03 refunds
  * from the snapshot, so a later policy change never alters this booking's refund.
+ *
+ * An empty tier list is shown as it is defined (FLT-09, HTL-10): no refund on a user cancellation.
  */
 @Injectable()
 export class BookingPoliciesService {
+  private readonly logger = new Logger(BookingPoliciesService.name);
+
   constructor(
     @InjectModel(FlightBooking.name)
     private readonly flights: Model<FlightBooking>,
@@ -68,17 +87,17 @@ export class BookingPoliciesService {
     id: string,
   ): Promise<BookingPoliciesDto> {
     const booking = await this.load(user, type, id);
-    if (booking.policiesAcceptedAt && booking.policySnapshot) {
-      return toDto(type, booking, booking.policySnapshot);
-    }
-    const terms = await this.currentTerms(type, id);
+    const accepted = acceptedSnapshot(booking);
+    if (accepted) return toDto(type, booking, accepted);
+    const terms = await this.currentTerms(type, booking);
     return toDto(type, booking, { ...terms, version: policiesVersion(terms) });
   }
 
   /**
-   * Records the acceptance of `dto.version`, the terms the user was shown. Refused with 409 when the
-   * terms changed since (show them again), when the hold is over (HOLD_EXPIRED), or when the booking is
-   * no longer awaiting payment. Idempotent: a repeat keeps the first acceptance time.
+   * Records the acceptance of `dto.version`, the terms the user was shown. Refused with 409
+   * POLICIES_CHANGED when the terms changed since (show them again), HOLD_EXPIRED when the hold is over,
+   * or INVALID_STATE_TRANSITION when the booking no longer awaits payment. Only an exact repeat (same
+   * version) is idempotent and keeps the first acceptance time.
    */
   async accept(
     user: AuthUser,
@@ -88,29 +107,22 @@ export class BookingPoliciesService {
     now: Date = new Date(),
   ): Promise<BookingPoliciesDto> {
     const booking = await this.load(user, type, id);
-    if (booking.policiesAcceptedAt && booking.policySnapshot) {
-      return toDto(type, booking, booking.policySnapshot);
-    }
+    const accepted = acceptedSnapshot(booking);
+    if (accepted) return this.repeat(type, booking, accepted, dto.version);
     assertAwaitingPayment(booking, now);
-    const terms = await this.currentTerms(type, id);
+    const terms = await this.currentTerms(type, booking);
     const version = policiesVersion(terms);
-    if (version !== dto.version) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.CONFLICT,
-        `The provider's policies changed after they were shown (now version ${version}). Review them again with GET /api/bookings/${type.toLowerCase()}/${id}/policies; nothing was accepted`,
-      );
-    }
+    if (version !== dto.version) throw policiesChanged(type, id, version);
     const snapshot: PolicySnapshot = { ...terms, version };
-    const model = this.model(type);
-    const res = await model
+    const res = await this.model(type)
       .updateOne(
         {
           _id: booking._id,
           userId: booking.userId,
           status: BookingStatus.PendingPayment,
           holdExpiresAt: { $gt: now },
-          policiesAcceptedAt: null,
+          // A timestamp without stored terms is a defect; accepting again repairs it.
+          $or: [{ policiesAcceptedAt: null }, { policySnapshot: null }],
         },
         { $set: { policySnapshot: snapshot, policiesAcceptedAt: now } },
       )
@@ -124,15 +136,31 @@ export class BookingPoliciesService {
     }
     // Another request accepted, or the booking moved, between the read and the write.
     const fresh = await this.load(user, type, id);
-    if (fresh.policiesAcceptedAt && fresh.policySnapshot) {
-      return toDto(type, fresh, fresh.policySnapshot);
-    }
+    const winner = acceptedSnapshot(fresh);
+    if (winner) return this.repeat(type, fresh, winner, dto.version);
     assertAwaitingPayment(fresh, now);
     throw new AppException(
       HttpStatus.CONFLICT,
       ErrorCode.CONFLICT,
       'The booking changed while the policies were being accepted. Try again',
     );
+  }
+
+  /** An exact repeat returns the stored acceptance; a different version was not what was accepted. */
+  private repeat(
+    type: BookingType,
+    booking: PolicyTarget,
+    snapshot: PolicySnapshot,
+    version: string,
+  ): BookingPoliciesDto {
+    if (snapshot.version !== version) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.POLICIES_CHANGED,
+        `Other terms (version ${snapshot.version}) were already accepted for this booking; they are the ones that apply`,
+      );
+    }
+    return toDto(type, booking, snapshot);
   }
 
   private model(type: BookingType): BookingModel {
@@ -146,17 +174,11 @@ export class BookingPoliciesService {
   ): Promise<PolicyTarget> {
     const booking = Types.ObjectId.isValid(id)
       ? ((await this.model(type)
-          .findById(id, {
-            userId: 1,
-            status: 1,
-            holdExpiresAt: 1,
-            policiesAcceptedAt: 1,
-            policySnapshot: 1,
-          })
+          .findById(id, PROJECTION)
           .lean()
           .exec()) as PolicyTarget | null)
       : null;
-    // The owner only: anyone else, admins included, gets "not found" (ACC-11, OWASP API1).
+    // The owner only: anyone else gets "not found", so ids cannot be probed (ACC-11, OWASP API1).
     if (!booking || booking.userId.toHexString() !== user.id) {
       throw new AppException(
         HttpStatus.NOT_FOUND,
@@ -164,36 +186,78 @@ export class BookingPoliciesService {
         'Booking not found',
       );
     }
+    if (booking.policiesAcceptedAt && !booking.policySnapshot) {
+      this.logger.error(
+        `${type} booking ${id} has policiesAcceptedAt but no stored policy terms; it must be accepted again`,
+      );
+    }
     return booking;
   }
 
-  /** The provider's terms now: each flight's airline, or the hotel. A provider gone is a 409. */
+  /** The provider's terms now: each flight's airline, or the hotel. A provider gone is logged and a 409. */
   private async currentTerms(
     type: BookingType,
-    id: string,
+    booking: PolicyTarget,
   ): Promise<ProviderPolicies> {
+    const id = booking._id.toHexString();
     if (type === BookingType.Hotel) {
-      const r = await this.hotels.findById(id, { hotelId: 1 }).lean().exec();
-      const hotel = r
-        ? await this.hotelInventory.getHotelPolicy(r.hotelId.toHexString())
+      const hotelId = booking.hotelId?.toHexString();
+      const hotel = hotelId
+        ? await this.hotelInventory.getHotelPolicy(hotelId)
         : null;
-      if (!hotel) throw providerGone();
+      if (!hotel) {
+        throw this.providerGone(id, `hotel ${hotelId ?? '(none)'} not found`);
+      }
       return { hotel };
     }
-    const b = await this.flights.findById(id, { segments: 1 }).lean().exec();
-    const airlines = await Promise.all(
-      (b?.segments ?? []).map((s) =>
-        this.flightInventory.getAirlinePolicy(
-          s.flightId.toHexString(),
-          s.cabinId.toHexString(),
-        ),
-      ),
-    );
-    if (!airlines.length || airlines.some((a) => a === null)) {
-      throw providerGone();
+    const segments = booking.segments ?? [];
+    if (!segments.length) {
+      throw this.providerGone(id, 'the booking has no flights');
     }
-    return { airlines: airlines.map((a) => a!) };
+    const airlines = [];
+    for (const s of segments) {
+      const policy = await this.flightInventory.getAirlinePolicy(
+        s.flightId.toHexString(),
+        s.cabinId.toHexString(),
+      );
+      if (!policy) {
+        throw this.providerGone(
+          id,
+          `flight ${s.flightId.toHexString()}, its cabin ${s.cabinId.toHexString()} or its airline not found`,
+        );
+      }
+      airlines.push(policy);
+    }
+    return { airlines };
   }
+
+  private providerGone(bookingId: string, reason: string): AppException {
+    this.logger.error(
+      `Policies of booking ${bookingId} cannot be shown: ${reason}`,
+    );
+    return new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.CONFLICT,
+      "The provider of this booking no longer exists, so its policies can't be shown",
+    );
+  }
+}
+
+/** The accepted terms, only when both the timestamp and the terms are stored. */
+function acceptedSnapshot(b: PolicyTarget): PolicySnapshot | null {
+  return b.policiesAcceptedAt && b.policySnapshot ? b.policySnapshot : null;
+}
+
+function policiesChanged(
+  type: BookingType,
+  id: string,
+  version: string,
+): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.POLICIES_CHANGED,
+    `The provider's policies changed after they were shown (now version ${version}). Review them again with GET /api/bookings/${type.toLowerCase()}/${id}/policies; nothing was accepted`,
+  );
 }
 
 function assertAwaitingPayment(
@@ -220,26 +284,19 @@ function assertAwaitingPayment(
   }
 }
 
-function providerGone(): AppException {
-  return new AppException(
-    HttpStatus.CONFLICT,
-    ErrorCode.CONFLICT,
-    "The provider of this booking no longer exists, so its policies can't be shown",
-  );
-}
-
 function toDto(
   type: BookingType,
   b: PolicyTarget,
   snapshot: PolicySnapshot,
 ): BookingPoliciesDto {
+  const accepted = acceptedSnapshot(b) !== null;
   return {
     bookingType: type,
     bookingId: b._id.toHexString(),
     status: b.status,
     holdExpiresAt: b.holdExpiresAt,
-    accepted: b.policiesAcceptedAt !== null,
-    acceptedAt: b.policiesAcceptedAt,
+    accepted,
+    acceptedAt: accepted ? b.policiesAcceptedAt : null,
     version: snapshot.version,
     ...(snapshot.airlines && { airlines: snapshot.airlines }),
     ...(snapshot.hotel && { hotel: snapshot.hotel }),

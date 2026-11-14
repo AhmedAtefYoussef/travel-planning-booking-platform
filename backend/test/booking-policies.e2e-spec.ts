@@ -257,6 +257,7 @@ describe('Booking policies (e2e): PAY-02, PAY-04', () => {
       await policies(other, 'hotel', id).expect(404);
       await policies(owner, 'flight', id).expect(404); // right id, wrong type
       const bad = await policies(owner, 'train', id).expect(400);
+      await policies(owner, 'constructor', id).expect(400);
       expect(bad.body.fieldErrors?.[0]?.field).toBe('type');
       await policies(null, 'hotel', id).expect(401);
     });
@@ -286,6 +287,12 @@ describe('Booking policies (e2e): PAY-02, PAY-04', () => {
         version: shown.body.version,
       }).expect(200);
       expect(again.body.acceptedAt).toBe(res.body.acceptedAt);
+      // Another version is not what was accepted: refused, the stored terms stay.
+      const other = await accept(owner, 'hotel', id, {
+        accepted: true,
+        version: 'ffffffffffffffff',
+      }).expect(409);
+      expect(other.body.code).toBe('POLICIES_CHANGED');
     });
 
     it('requires the checkbox: accepted must be true (400 on accepted), and a version', async () => {
@@ -321,7 +328,7 @@ describe('Booking policies (e2e): PAY-02, PAY-04', () => {
           accepted: true,
           version: shown.body.version,
         }).expect(409);
-        expect(res.body.code).toBe('CONFLICT');
+        expect(res.body.code).toBe('POLICIES_CHANGED');
         expect(
           (await flightBookings.findById(id).lean())?.policiesAcceptedAt,
         ).toBeNull();

@@ -18,6 +18,7 @@ function snapshot(over: Partial<PayableSnapshot> = {}): PayableSnapshot {
     currency: 'USD',
     holdExpiresAt: new Date(NOW.getTime() + 60_000),
     policiesAcceptedAt: new Date(NOW.getTime() - 1_000),
+    policiesVersion: '0123456789abcdef',
     reference: null,
     ...over,
   };
@@ -28,7 +29,7 @@ const outcome = (s: PayableSnapshot, platformCurrency = 'USD') => {
     assertPayable(s, { now: NOW, platformCurrency });
     return 'payable';
   } catch (e) {
-    return (e as { code: string }).code;
+    return (e as { code?: string }).code ?? 'DEFECT';
   }
 };
 
@@ -42,6 +43,11 @@ describe('assertPayable (decision table): PAY-02, PAY-04', () => {
     [
       'policies not accepted yet (PAY-02)',
       snapshot({ policiesAcceptedAt: null }),
+      'POLICIES_NOT_ACCEPTED',
+    ],
+    [
+      'timestamp set but no stored terms (data defect)',
+      snapshot({ policiesVersion: null }),
       'POLICIES_NOT_ACCEPTED',
     ],
     [
@@ -68,8 +74,11 @@ describe('assertPayable (decision table): PAY-02, PAY-04', () => {
     expect(outcome(s)).toBe(expected);
   });
 
-  it('refuses an amount in another currency than PLATFORM_CURRENCY (PAY-04)', () => {
-    expect(outcome(snapshot({ currency: 'EGP' }), 'USD')).toBe('CONFLICT');
+  it('never charges another currency than PLATFORM_CURRENCY or a bad amount: a loud defect (PAY-04)', () => {
+    expect(outcome(snapshot({ currency: 'EGP' }), 'USD')).toBe('DEFECT');
+    for (const amountMinor of [0, -1, 1.5, Number.NaN]) {
+      expect(outcome(snapshot({ amountMinor }))).toBe('DEFECT');
+    }
   });
 
   it('checks the hold before the policies, so an expired hold never asks for acceptance', () => {

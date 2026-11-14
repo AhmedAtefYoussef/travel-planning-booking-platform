@@ -191,3 +191,23 @@ The policies are read through the FLIGHT_INVENTORY and HOTEL_INVENTORY contracts
 | R-PAY-02-07 | ACC-11, GEN-11 | Only the owner sees or accepts (404 otherwise, wrong type included); only while PENDING_PAYMENT with time left (409 HOLD_EXPIRED / INVALID_STATE_TRANSITION); an unknown type is 400 on `type` | AUTHZ, ST | booking-policies.controller.ts, `load`, `assertAwaitingPayment` | booking-policies.e2e-spec.ts; booking-policies.service.spec.ts | PASS | |
 | R-PAY-04-01 | workbook, TRVL-109 | PLATFORM_CURRENCY must be one of the seeded currencies (Countries.currency: AED, EGP, EUR, GBP, JPY, SAR, USD); startup fails otherwise | EP (each seeded code; CHF, a real but unseeded code, refused) | config/env.validation.ts (`PLATFORM_CURRENCIES`) | config/env.validation.spec.ts | PASS | A test keeps the list equal to seed/data/Countries.csv |
 | R-PAY-04-02 | workbook | Bookings are priced and stored in PLATFORM_CURRENCY, and the payment gate refuses any other currency | DT | bookings services, `assertPayable` | payment-gate.spec.ts; booking-policies.e2e-spec.ts | PARTIAL | Payments and refunds go through the gate with PAY-01 and PAY-03 (SQ-10) |
+
+### Independent review, 2026-11-14 (PAY-02/PAY-04, first commit f3d9cf6)
+
+Two reviewer subagents (TypeScript correctness, silent failures) checked the first commit. Neither found a way to pay without accepting, or to accept terms that were not shown. The fixes are in the second commit.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| A timestamp stored without terms passed the payment gate, and the service could not repair it | HIGH | `PayableSnapshot.policiesVersion`; the gate needs both; accepting again repairs it, and the defect is logged |
+| A repeat accept with another version returned 200, claiming terms the user had not accepted | MEDIUM | Only an exact repeat is idempotent; another version is 409 POLICIES_CHANGED |
+| "Terms changed" and "retry" shared the generic CONFLICT code | MEDIUM | New POLICIES_CHANGED code |
+| A currency mismatch or a bad amount was a 409 the user could not fix | MEDIUM | A loud 500 naming the booking; never charged |
+| A vanished provider gave the same unlogged 409 for four different causes | MEDIUM | The cause is logged with the booking |
+| The terms were read in several queries | MEDIUM | One projected read of the booking |
+| The type pipe accepted `constructor` and other inherited keys | LOW | Own keys only (400) |
+| Airline tiers were not sorted, so a stored reorder changed the version | LOW | Sorted like the hotel tiers |
+
+**Rebutted, with reasons:**
+- *An airline or hotel without tiers is shown as "0% refund".* That is the defined rule (FLT-09, HTL-10: no tier means no refund on a user cancellation), and the empty list is shown explicitly before acceptance. Missing check-in/out times are shown as null until HTL-09 lands.
+- *Terms of an inactive provider.* ACC-15 keeps existing bookings valid, so a hold made before deactivation can still be paid on the terms shown.
+- *JPY has no minor unit.* `money.ts` uses each currency's ISO exponent, so JPY amounts are whole yen.

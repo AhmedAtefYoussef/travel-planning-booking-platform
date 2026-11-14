@@ -35,7 +35,8 @@ const TYPES: Record<string, BookingType> = {
 /** `flight` or `hotel` in the path; anything else is a 400 on `type` (GEN-02). */
 class ParseBookingTypePipe implements PipeTransform<string, BookingType> {
   transform(value: string): BookingType {
-    const type = TYPES[value];
+    // Own keys only: "constructor" or "__proto__" must not pass as a type.
+    const type = Object.hasOwn(TYPES, value) ? TYPES[value] : undefined;
     if (!type) {
       throw new ValidationFailedException([
         { field: 'type', message: 'type must be flight or hotel' },

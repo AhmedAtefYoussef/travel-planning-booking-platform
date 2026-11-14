@@ -32,18 +32,23 @@ export function assertPayable(
       `This booking is ${booking.status} and cannot be paid`,
     );
   }
-  if (!booking.policiesAcceptedAt) {
+  // Both the timestamp and the stored terms: PAY-03 refunds from the terms (PAY-02).
+  if (!booking.policiesAcceptedAt || !booking.policiesVersion) {
     throw new AppException(
       HttpStatus.CONFLICT,
       ErrorCode.POLICIES_NOT_ACCEPTED,
       `Accept the provider's policies first: POST /api/bookings/${booking.bookingType.toLowerCase()}/${booking.bookingId}/accept-policies`,
     );
   }
+  // Data defects the user cannot fix: never charge, fail loudly (500) with the booking named.
   if (booking.currency !== opts.platformCurrency) {
-    throw new AppException(
-      HttpStatus.CONFLICT,
-      ErrorCode.CONFLICT,
-      `This booking is priced in ${booking.currency}, but payments are taken in ${opts.platformCurrency} only (PAY-04)`,
+    throw new Error(
+      `PAY-04: ${booking.bookingType} booking ${booking.bookingId} is priced in ${booking.currency}, but payments are taken in ${opts.platformCurrency} only`,
+    );
+  }
+  if (!Number.isSafeInteger(booking.amountMinor) || booking.amountMinor <= 0) {
+    throw new Error(
+      `${booking.bookingType} booking ${booking.bookingId} has an invalid amount (${booking.amountMinor}); not charged`,
     );
   }
 }

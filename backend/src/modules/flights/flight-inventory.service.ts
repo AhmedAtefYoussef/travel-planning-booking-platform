@@ -95,10 +95,13 @@ export class FlightInventoryService implements FlightInventory {
       cabinClass: cabin.class,
       freeBags: cabin.freeBags,
       maxKgPerBag: cabin.maxKgPerBag,
-      cancellationTiers: (airline.policy?.cancellationTiers ?? []).map((t) => ({
-        daysBefore: t.daysBefore,
-        refundPercent: t.refundPercent,
-      })),
+      // Sorted, so a stored reordering never changes the version of the same terms (PAY-02).
+      cancellationTiers: [...(airline.policy?.cancellationTiers ?? [])]
+        .sort((a, b) => a.daysBefore - b.daysBefore)
+        .map((t) => ({
+          daysBefore: t.daysBefore,
+          refundPercent: t.refundPercent,
+        })),
       extraBaggage: extra
         ? {
             pricePerBagMinor: extra.pricePerBagMinor,

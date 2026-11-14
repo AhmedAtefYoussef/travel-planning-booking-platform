@@ -64,7 +64,6 @@ describe('BookingPoliciesService: PAY-02', () => {
     const { service } = setup(
       [
         booking(),
-        { hotelId: new Types.ObjectId(hotel.hotelId) },
         booking({
           policiesAcceptedAt: acceptedAt,
           policySnapshot: { hotel, version },
@@ -85,11 +84,7 @@ describe('BookingPoliciesService: PAY-02', () => {
 
   it('reports a hold that expired between the read and the write as HOLD_EXPIRED', async () => {
     const { service } = setup(
-      [
-        booking(),
-        { hotelId: new Types.ObjectId(hotel.hotelId) },
-        booking({ status: BookingStatus.Expired }),
-      ],
+      [booking(), booking({ status: BookingStatus.Expired })],
       0,
     );
     await expect(
@@ -120,11 +115,7 @@ describe('BookingPoliciesService: PAY-02', () => {
   });
 
   it('answers 409 when the provider no longer exists, rather than accepting empty terms', async () => {
-    const { service } = setup(
-      [booking(), { hotelId: new Types.ObjectId(hotel.hotelId) }],
-      1,
-      null,
-    );
+    const { service } = setup([booking()], 1, null);
     await expect(
       service.show(user, BookingType.Hotel, id),
     ).rejects.toMatchObject({
@@ -138,5 +129,49 @@ describe('BookingPoliciesService: PAY-02', () => {
       service.show(user, BookingType.Hotel, 'nope'),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(hotels.findById).not.toHaveBeenCalled();
+  });
+
+  it('refuses a repeat with another version than the stored one (POLICIES_CHANGED)', async () => {
+    const { service } = setup([
+      booking({
+        policiesAcceptedAt: new Date(NOW.getTime() - 500),
+        policySnapshot: { hotel, version },
+      }),
+    ]);
+    await expect(
+      service.accept(
+        user,
+        BookingType.Hotel,
+        id,
+        { accepted: true, version: 'ffffffffffffffff' },
+        NOW,
+      ),
+    ).rejects.toMatchObject({ code: 'POLICIES_CHANGED' });
+  });
+
+  it('logs a timestamp stored without terms and lets the owner accept again to repair it', async () => {
+    const { service, hotels } = setup([
+      booking({ policiesAcceptedAt: new Date(NOW.getTime() - 500) }),
+    ]);
+    const error = jest
+      .spyOn(service['logger'], 'error')
+      .mockImplementation(() => undefined);
+    const dto = await service.accept(
+      user,
+      BookingType.Hotel,
+      id,
+      { accepted: true, version },
+      NOW,
+    );
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('no stored policy terms'),
+    );
+    expect(dto.accepted).toBe(true);
+    expect(hotels.updateOne).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $or: [{ policiesAcceptedAt: null }, { policySnapshot: null }],
+      }),
+      expect.anything(),
+    );
   });
 });
