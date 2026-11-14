@@ -89,6 +89,42 @@ describe('PaymentsService (PAY-01)', () => {
     ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
   });
 
+  it.each([
+    ['a rate limit', 429, 'rate_limit'],
+    ['a Stripe server error', 500, 'api_error'],
+    ['a concurrent request on the same key', 409, 'idempotency_key_in_use'],
+  ])(
+    'answers 503 for %s, which a retry can fix',
+    async (_name, status, code) => {
+      const { service, stripe } = setup();
+      stripe.createPaymentIntent.mockRejectedValue(
+        new StripeApiError('busy', status, code),
+      );
+      await expect(
+        service.create(user, { bookingType: BookingType.Flight, bookingId }),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    },
+  );
+
+  it('does not tell the user to retry a request Stripe rejects for good (a loud 500, logged)', async () => {
+    const { service, stripe, log } = setup();
+    stripe.createPaymentIntent.mockRejectedValue(
+      new StripeApiError(
+        'Amount must be at least $0.50',
+        400,
+        'amount_too_small',
+      ),
+    );
+    const err = await service
+      .create(user, { bookingType: BookingType.Flight, bookingId })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    expect(log.error).toHaveBeenCalledWith(
+      expect.stringContaining('amount_too_small'),
+    );
+  });
+
   it('refuses a malformed event with 400 even when correctly signed', async () => {
     const { service } = setup();
     const body = Buffer.from('{"type":"payment_intent.succeeded"}');

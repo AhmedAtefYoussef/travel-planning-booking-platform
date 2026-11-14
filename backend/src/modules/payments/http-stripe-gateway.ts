@@ -41,6 +41,9 @@ export class HttpStripeGateway implements StripeGateway {
       amount: String(input.amountMinor),
       currency: input.currency.toLowerCase(),
       'automatic_payment_methods[enabled]': 'true',
+      // No redirect-based methods: cards (with 3-D Secure in a modal) only, so confirming needs no
+      // return_url, e.g. `stripe payment_intents confirm <pi> --payment-method pm_card_visa`.
+      'automatic_payment_methods[allow_redirects]': 'never',
     };
     for (const [k, v] of Object.entries(input.metadata)) {
       form[`metadata[${k}]`] = v;
@@ -64,13 +67,17 @@ export class HttpStripeGateway implements StripeGateway {
     );
   }
 
+  /**
+   * No idempotency key: Stripe replays a key's first answer (errors included) for 24 hours, which would
+   * keep a still-payable intent "uncancellable". A repeated cancel is safe without one: Stripe answers
+   * payment_intent_unexpected_state, which the caller handles by reading the intent.
+   */
   async cancelPaymentIntent(id: string): Promise<PaymentIntentInfo> {
     return toIntent(
       await this.call<StripeIntentBody>(
         'POST',
         `/payment_intents/${encodeURIComponent(id)}/cancel`,
         {},
-        `cancel:${id}`,
       ),
     );
   }

@@ -18,18 +18,20 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
+import { ErrorResponseDto } from '../../common/errors/error-response.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import { CreatePaymentDto, PaymentDto } from './dto/payment.dto';
 import { PaymentsService } from './payments.service';
 
 const HOW_TO_PAY =
-  'In test mode, pay the returned PaymentIntent with Stripe Elements, or from the Stripe CLI: `stripe payment_intents confirm <pi id> --payment-method pm_card_visa` (pm_card_chargeDeclined to fail). Run `stripe listen --forward-to localhost:3000/api/payments/webhook` so the webhook confirms the booking.';
+  'In test mode, pay the returned PaymentIntent with Stripe Elements, or from the Stripe CLI: `stripe payment_intents confirm <paymentIntentId> --payment-method pm_card_visa` (pm_card_chargeDeclined to fail). Run `stripe listen --forward-to localhost:3000/api/payments/webhook` so the webhook confirms the booking.';
 
 /** Payments (PAY-01, ADR-0003). */
 @ApiTags('payments')
@@ -54,7 +56,7 @@ export class PaymentsController {
     },
   })
   @ApiCreatedResponse({ type: PaymentDto })
-  @ApiErrorResponses(400, 404, 409)
+  @ApiErrorResponses(400, 404, 409, 503)
   create(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreatePaymentDto,
@@ -73,6 +75,12 @@ export class PaymentsController {
   @ApiHeader({ name: 'Stripe-Signature', required: true })
   @ApiOkResponse({ schema: { example: { received: true } } })
   @ApiErrorResponses(400)
+  @ApiResponse({
+    status: 500,
+    type: ErrorResponseDto,
+    description:
+      'Applying the event failed and nothing was recorded, so Stripe redelivers it later',
+  })
   async webhook(
     @Req() req: RawBodyRequest<Request>,
     @Headers('stripe-signature') signature: string | undefined,
@@ -91,7 +99,7 @@ export class PaymentsController {
   })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiOkResponse({ type: PaymentDto })
-  @ApiErrorResponses(400, 404, 409)
+  @ApiErrorResponses(400, 404, 409, 503)
   retry(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,

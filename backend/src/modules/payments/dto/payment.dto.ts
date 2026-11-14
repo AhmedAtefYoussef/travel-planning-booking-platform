@@ -46,6 +46,12 @@ export class PaymentDto {
   @ApiProperty({ description: 'The PaymentIntent is cancelled after this' })
   holdExpiresAt!: Date;
   @ApiProperty({
+    example: 'pi_3QxYz...',
+    description:
+      'The Stripe PaymentIntent id (not a secret). In test mode without a frontend: `stripe payment_intents confirm <id> --payment-method pm_card_visa`.',
+  })
+  paymentIntentId!: string;
+  @ApiProperty({
     type: String,
     nullable: true,
     example: null,

@@ -8,7 +8,7 @@ Card data must never reach the backend. A booking is confirmed only after the ba
 
 ## Decision
 - **Test mode only:** env validation rejects any `STRIPE_SECRET_KEY` that is not `sk_test_...`.
-- `POST /api/payments` checks ownership, status `PENDING_PAYMENT`, an unexpired hold and `policiesAcceptedAt` (PAY-02). It then creates a PaymentIntent for the booking's server-side total in `PLATFORM_CURRENCY` and returns only the `client_secret`. Card entry happens in Stripe Elements on the frontend.
+- `POST /api/payments` checks ownership, status `PENDING_PAYMENT`, an unexpired hold and `policiesAcceptedAt` (PAY-02). It then creates a PaymentIntent for the booking's server-side total in `PLATFORM_CURRENCY`, card-only with no redirect methods (`automatic_payment_methods[allow_redirects]=never`, so confirming needs no `return_url`). It returns the payment with the PaymentIntent id and its `client_secret`; the secret is never stored. Card entry happens in Stripe Elements on the frontend.
 - **Only the webhook confirms.** `POST /api/payments/webhook` is `@Public()`. It verifies the `Stripe-Signature` against the raw request body (`rawBody: true` in `main.ts`) using `STRIPE_WEBHOOK_SECRET`, then:
   1. opens **one transaction** that inserts the event id into `stripe_events`, marks the payment `SUCCEEDED` and calls `PayableBooking.markConfirmed`, which is idempotent and assigns the reference (FLT-23, HTL-17)
   2. a duplicate-key error on the event id means a replay of an event that was already committed, so it is acknowledged with 200 and ignored

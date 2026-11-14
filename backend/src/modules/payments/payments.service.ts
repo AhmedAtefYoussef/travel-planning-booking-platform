@@ -707,7 +707,11 @@ export class PaymentsService {
     }
   }
 
-  /** A Stripe outage is a 503 the user can retry, never a raw 500. */
+  /**
+   * A Stripe outage (network, rate limit, 5xx, a concurrent request on the same key) is a 503 the user
+   * can retry. Any other rejection means our request or configuration is wrong (e.g. amount_too_small,
+   * a revoked key): retrying can't help, so it stays a loud, logged 500.
+   */
   private async gateway<T>(call: () => Promise<T>): Promise<T> {
     try {
       return await call();
@@ -716,6 +720,7 @@ export class PaymentsService {
       this.logger.error(
         `Stripe call failed (${e.httpStatus} ${e.code ?? ''}): ${e.message}`,
       );
+      if (!isRetryable(e)) throw e;
       throw new AppException(
         HttpStatus.SERVICE_UNAVAILABLE,
         ErrorCode.SERVICE_UNAVAILABLE,
@@ -723,6 +728,16 @@ export class PaymentsService {
       );
     }
   }
+}
+
+/** Stripe failures a later attempt can get past. */
+function isRetryable(e: StripeApiError): boolean {
+  return (
+    e.code === 'network_error' ||
+    e.code === 'idempotency_key_in_use' ||
+    e.httpStatus === 429 ||
+    e.httpStatus >= 500
+  );
 }
 
 /** A synthetic succeeded event for a capture the cancel job found before its webhook (stable id). */
@@ -799,6 +814,7 @@ function toDto(
     attempts: p.attempts,
     lastError: p.lastError ?? null,
     holdExpiresAt: p.holdEndsAt,
+    paymentIntentId: p.stripePaymentIntentId,
     reference,
     ...(clientSecret !== undefined && { clientSecret }),
     createdAt: p.createdAt,

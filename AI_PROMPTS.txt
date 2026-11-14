@@ -1007,3 +1007,21 @@ ignored; failures roll back for redelivery), a job that cancels PaymentIntents o
 refund for a payment captured after its hold expired. It amended ADR-0003 and added the RTM rows; I review
 the design in the PR.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (TRVL-67), PAY-02 (TRVL-68)
+Prompt:
+Re-verify everything built in the previous (compacted) session against the workbook and Jira, with
+systematic V&V, Swagger evidence and a Jira sync; fix the payment findings on the open PAY-01 PR.
+How the output was used:
+Claude ran read-only audits of the booking and payment code, then independent verifiers that confirmed
+each finding against the code and Stripe's documentation. Test first, it fixed the confirmed PAY-01 ones:
+PaymentIntents are card-only without redirects so a Stripe CLI confirm needs no return_url, the response
+shows the PaymentIntent id, the cancel call drops an idempotency key Stripe would replay for 24 hours,
+only retryable Stripe errors become 503, and Swagger documents 503 and the webhook's 500. It set PAY-02
+to Partial (hotel times and tiers have no endpoint yet) and corrected ADR-0003 and the RTM. I reviewed
+each finding and the diff.
+================================================

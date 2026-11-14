@@ -46,6 +46,10 @@ describe('HttpStripeGateway (PAY-01, Stripe REST in test mode)', () => {
     expect(form.get('amount')).toBe('12000');
     expect(form.get('currency')).toBe('usd');
     expect(form.get('automatic_payment_methods[enabled]')).toBe('true');
+    // Card-only, no redirect methods, so a server-side confirm needs no return_url (Stripe CLI demo).
+    expect(form.get('automatic_payment_methods[allow_redirects]')).toBe(
+      'never',
+    );
     expect(form.get('metadata[bookingId]')).toBe('b1');
   });
 
@@ -66,6 +70,12 @@ describe('HttpStripeGateway (PAY-01, Stripe REST in test mode)', () => {
     expect(fetch.mock.calls[0][0]).toBe(
       'https://api.stripe.com/v1/payment_intents/pi_1/cancel',
     );
+    // No idempotency key: Stripe would replay a first error for 24 h, and cancelling twice is safe.
+    expect(
+      (fetch.mock.calls[0][1]!.headers as Record<string, string>)[
+        'Idempotency-Key'
+      ],
+    ).toBeUndefined();
     jest.restoreAllMocks();
     const refund = respond(200, { id: 're_1', status: 'pending' });
     await expect(

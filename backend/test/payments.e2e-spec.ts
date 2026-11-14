@@ -268,6 +268,8 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
         clientSecret: expect.stringMatching(/^pi_.+_secret_/) as string,
       });
       const doc = await payments.findById(res.body.id).lean();
+      // The PaymentIntent id (not a secret) is shown, so the Stripe CLI can confirm it in a demo.
+      expect(res.body.paymentIntentId).toBe(doc!.stripePaymentIntentId);
       const pi = stripe.intents.get(doc!.stripePaymentIntentId)!;
       expect(pi).toMatchObject({
         amountMinor: FARE,
