@@ -1,4 +1,4 @@
-import { Global, INestApplication, Module } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import request from 'supertest';
@@ -19,13 +19,6 @@ const fakeBookings: UpcomingBookings = {
     Promise.resolve(upcoming.get(userId) ?? 0),
 };
 
-@Global()
-@Module({
-  providers: [{ provide: UPCOMING_BOOKINGS, useValue: fakeBookings }],
-  exports: [UPCOMING_BOOKINGS],
-})
-class FakeBookingsModule {}
-
 /** ACC-12: self-deactivation after confirmation, blocked by upcoming Confirmed bookings. */
 describe('Self-deactivation (e2e): ACC-12', () => {
   let app: INestApplication<App>;
@@ -37,7 +30,12 @@ describe('Self-deactivation (e2e): ACC-12', () => {
     http().delete('/api/users/me').set('Cookie', cookie).send(body);
 
   beforeAll(async () => {
-    app = await createTestApp([FakeBookingsModule]);
+    app = await createTestApp(
+      [],
+      [{ provide: UPCOMING_BOOKINGS, useValue: fakeBookings }],
+    );
+    // A mistyped override would silently test the real service instead.
+    expect(app.get(UPCOMING_BOOKINGS)).toBe(fakeBookings);
     users = app.get(getModelToken(User.name));
     sessions = app.get(getModelToken(Session.name));
   });

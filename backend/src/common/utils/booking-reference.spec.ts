@@ -1,0 +1,36 @@
+import {
+  BOOKING_REFERENCE_PATTERN,
+  generateBookingReference,
+} from './booking-reference';
+
+describe('generateBookingReference (FLT-23, HTL-17)', () => {
+  it('prefixes flights with FL and hotels with HT, followed by 8 unambiguous characters', () => {
+    expect(generateBookingReference('FLIGHT')).toMatch(
+      /^FL-[0-9A-HJKMNP-TV-Z]{8}$/,
+    );
+    expect(generateBookingReference('HOTEL')).toMatch(
+      /^HT-[0-9A-HJKMNP-TV-Z]{8}$/,
+    );
+  });
+
+  it('never uses I, L, O or U, which are easy to misread', () => {
+    const allOnes = () => Buffer.alloc(8, 0xff);
+    const ref = generateBookingReference('FLIGHT', allOnes);
+    expect(ref).toBe('FL-ZZZZZZZZ');
+    const zeros = () => Buffer.alloc(8, 0);
+    expect(generateBookingReference('HOTEL', zeros)).toBe('HT-00000000');
+  });
+
+  it('matches the exported validation pattern', () => {
+    expect(
+      BOOKING_REFERENCE_PATTERN.test(generateBookingReference('HOTEL')),
+    ).toBe(true);
+    expect(BOOKING_REFERENCE_PATTERN.test('FL-ILOU0000')).toBe(false);
+  });
+
+  it('draws fresh randomness each time (100 draws, about a 1 in 200 million chance of a repeat)', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 100; i++) seen.add(generateBookingReference('FLIGHT'));
+    expect(seen.size).toBe(100);
+  });
+});

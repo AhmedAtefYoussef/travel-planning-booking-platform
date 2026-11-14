@@ -35,7 +35,7 @@ export interface LoggedIn {
   refreshCookie: string;
 }
 
-const TEST_PASSWORD = 'Travel2026';
+export const TEST_PASSWORD = 'Travel2026';
 
 /**
  * Creates a real account of `role` (moderators get a provider) and logs it in through

@@ -12,10 +12,10 @@
  *   REFERENCE_SERVICE (Joudy)       ->  all
  *   AUDIT_SERVICE (Ahmed)           ->  admin, moderation
  *   NOTIFICATIONS_SERVICE (Karim)   ->  bookings, payments, admin, flights
- *   FLIGHT_BOOKINGS_LOOKUP (Karim)  ->  flights (FLT-05 schedule-change notifications)
+ *   FLIGHT_BOOKINGS_LOOKUP (bookings) ->  flights (FLT-05 schedule-change notifications)
  *   UPLOADS_SERVICE (Ahmed)         ->  blog, itineraries, hotels, airlines
  *   SESSION_VALIDATOR (Abdelrahman) ->  common/auth AuthGuard (ACC-06 idle expiry, logout)
- *   UPCOMING_BOOKINGS (Karim)       ->  users (ACC-12 self-deactivation)
+ *   UPCOMING_BOOKINGS (bookings)    ->  users (ACC-12 self-deactivation)
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
  * The providing module exports `{ provide: AUDIT_SERVICE, useExisting: AuditLogService }`.

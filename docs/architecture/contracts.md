@@ -13,7 +13,7 @@ exports: [AUDIT_SERVICE],
 
 | Token | Interface | Implemented by | Used by |
 |---|---|---|---|
-| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | flight-bookings, hotel-bookings (Karim) | payments (Ahmed) |
+| `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | bookings (FLT-22, HTL-18) | payments (Ahmed) |
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor` | payments (Ahmed) | cancellations (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
@@ -21,13 +21,13 @@ exports: [AUDIT_SERVICE],
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
-| `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | flight-bookings (Karim) | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
+| `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | bookings (`BookingQueriesService`, TRVL-139), **implemented** | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
 | `UPLOADS_SERVICE` | `UploadsService.saveImages` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (Ahmed) | blog, itineraries, hotels, airlines |
-| `UPCOMING_BOOKINGS` | `UpcomingBookings.countUpcomingConfirmed(userId, now)`: Confirmed flight bookings not yet departed plus Confirmed hotel reservations not yet checked in (one provider for both) | flight-bookings / hotel-reservations (Karim) | users ACC-12 self-deactivation (`DeactivationService`, injected `@Optional()`; until it is provided nobody can hold a booking) |
+| `UPCOMING_BOOKINGS` | `UpcomingBookings.countUpcomingConfirmed(userId, now)`: Confirmed flight bookings not yet departed plus Confirmed hotel reservations not yet checked in (one provider for both) | bookings (`BookingQueriesService`, TRVL-139), **implemented** | users ACC-12 self-deactivation (`DeactivationService`, injected `@Optional()`; until it is provided nobody can hold a booking) |
 | `SESSION_VALIDATOR` | `SessionValidator.touch(sessionId, userId)` returns `SessionCheck`: atomically checks the session is not revoked, expired or idle and records the request (ACC-06), then returns the account's current `AuthUser`, status (ACC-11) and `mustChangePassword` (ACC-07a, ACC-13) | users (Abdelrahman, **implemented**) | the global `AuthGuard` in common/auth, on every cookie-authenticated request |
 
 ## Shared rules that live in the contracts
-- **Booking lifecycle (GEN-11):** `BookingStatus`, `BOOKING_TRANSITIONS` and `canTransition()`. Check transitions with `canTransition` and update with a status-conditioned query (`{ _id, status: from }`) so concurrent updates cannot skip a state.
+- **Booking lifecycle (GEN-11):** `BookingStatus`, `BOOKING_TRANSITIONS` and `canTransition()`. Change a status only through `transitionBooking(model, id, from, to, { set, where, session })` (`common/contracts/booking-transition.ts`): it refuses a transition outside the table with 409 `INVALID_STATE_TRANSITION` and otherwise runs the status-conditioned update (`{ _id, status: from }`), returning `false` when another writer moved the booking first. Bulk jobs (expiry, completion) use the same status-conditioned filter in `updateMany`.
 - **Holds:** `HOLD_DURATION_MS` = 10 minutes (FLT-22, HTL-18).
 - **Cancellation tiers (FLT-09, HTL-10):** `selectCancellationTier()` picks the highest threshold that does not exceed the days remaining, or 0% when none applies. `cancellationTierErrors()` validates policy input.
 - **Refunds:** `computeRefundQuote()` blocks user cancellation after departure or check-in, refunds 100% for provider cancellations, and rounds down. Use the booking's **policy snapshot**, not the provider's current policy.

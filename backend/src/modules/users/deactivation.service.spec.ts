@@ -32,10 +32,12 @@ function setup(
   };
   const sessions = { revokeAllForUser: jest.fn().mockResolvedValue(undefined) };
   const passwords = { verify: jest.fn().mockResolvedValue(passwordOk) };
-  const bookings =
-    upcoming === null
-      ? undefined
-      : { countUpcomingConfirmed: jest.fn().mockResolvedValue(upcoming) };
+  const bookings = {
+    countUpcomingConfirmed:
+      upcoming === null
+        ? jest.fn().mockRejectedValue(new Error('bookings unavailable'))
+        : jest.fn().mockResolvedValue(upcoming),
+  };
   const service = new DeactivationService(
     users as unknown as Model<User>,
     sessions as unknown as SessionsService,
@@ -57,7 +59,7 @@ describe('DeactivationService (ACC-12)', () => {
     await service.deactivate(caller, 'Travel2026', NOW);
 
     expect(passwords.verify).toHaveBeenCalledWith('Travel2026', 'stored-hash');
-    expect(bookings!.countUpcomingConfirmed).toHaveBeenCalledWith(
+    expect(bookings.countUpcomingConfirmed).toHaveBeenCalledWith(
       caller.id,
       NOW,
     );
@@ -90,14 +92,17 @@ describe('DeactivationService (ACC-12)', () => {
     expect(e.fieldErrors).toEqual([
       { field: 'password', message: 'password is incorrect' },
     ]);
-    expect(bookings!.countUpcomingConfirmed).not.toHaveBeenCalled();
+    expect(bookings.countUpcomingConfirmed).not.toHaveBeenCalled();
     expect(users.updateOne).not.toHaveBeenCalled();
   });
 
-  it('works without a bookings provider (no bookings can exist yet)', async () => {
-    const { service, users } = setup({ upcoming: null });
-    await service.deactivate(caller, 'Travel2026', NOW);
-    expect(users.updateOne).toHaveBeenCalled();
+  it('fails closed: if the bookings check fails, the account is not deactivated', async () => {
+    const { service, users, sessions } = setup({ upcoming: null });
+    await expect(service.deactivate(caller, 'Travel2026', NOW)).rejects.toThrow(
+      'bookings unavailable',
+    );
+    expect(users.updateOne).not.toHaveBeenCalled();
+    expect(sessions.revokeAllForUser).not.toHaveBeenCalled();
   });
 
   it('is 401 for a missing account and 409 when the account is no longer active', async () => {
