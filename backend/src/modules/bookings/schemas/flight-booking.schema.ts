@@ -2,10 +2,10 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { BookingStatus, SCHEMA_OPTIONS } from '../../../common/contracts';
 import {
+  addLifecycle,
   BOOKING_STATUS,
-  LIFECYCLE_INDEXES,
+  CancelledBy,
   MINOR_AMOUNT,
-  REFERENCE_INDEX_OPTIONS,
 } from './booking-fields';
 
 export const FLIGHT_BOOKINGS_COLLECTION = 'flight_bookings';
@@ -132,11 +132,14 @@ export class FlightBooking {
   @Prop({ type: Date, required: true })
   holdExpiresAt!: Date;
 
-  /** First departure; "upcoming" for ACC-12 means startsAt is in the future. */
+  /** First departure (UTC). */
   @Prop({ type: Date, required: true })
   startsAt!: Date;
 
-  /** Last arrival; the completion job moves CONFIRMED to COMPLETED after it (GEN-11). */
+  /**
+   * Last arrival (UTC). The completion job moves CONFIRMED to COMPLETED after it (GEN-11), and until
+   * then the booking blocks ACC-12 self-deactivation. FLT-05 schedule changes must update it.
+   */
   @Prop({ type: Date, required: true })
   endsAt!: Date;
 
@@ -147,15 +150,13 @@ export class FlightBooking {
   @Prop({ type: Date, default: null })
   policiesAcceptedAt!: Date | null;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, default: null })
-  paymentId!: Types.ObjectId | null;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, default: null })
-  refundId!: Types.ObjectId | null;
-
-  /** Assigned on confirmation (FLT-23). */
-  @Prop({ type: String, default: null })
+  // Added by addLifecycle (booking-fields.ts): reference, paymentId, refundId, confirmedAt, cancelledAt, cancelledBy.
   reference!: string | null;
+  paymentId!: Types.ObjectId | null;
+  refundId!: Types.ObjectId | null;
+  confirmedAt!: Date | null;
+  cancelledAt!: Date | null;
+  cancelledBy!: CancelledBy | null;
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -163,7 +164,17 @@ export class FlightBooking {
 
 export type FlightBookingDocument = HydratedDocument<FlightBooking>;
 export const FlightBookingSchema = SchemaFactory.createForClass(FlightBooking);
-FlightBookingSchema.index({ reference: 1 }, REFERENCE_INDEX_OPTIONS);
-for (const index of LIFECYCLE_INDEXES) FlightBookingSchema.index(index);
+addLifecycle(FlightBookingSchema);
+FlightBookingSchema.pre('validate', function () {
+  const expected = this.tripType === TripType.RoundTrip ? 2 : 1;
+  if (this.segments.length !== expected) {
+    this.invalidate(
+      'segments',
+      this.tripType === TripType.RoundTrip
+        ? 'A round trip has exactly two segments (outbound and return)'
+        : 'A one-way booking has exactly one segment',
+    );
+  }
+});
 // FLT-05 schedule-change notifications and SQ-7 "does this flight have bookings".
 FlightBookingSchema.index({ 'segments.flightId': 1, status: 1 });

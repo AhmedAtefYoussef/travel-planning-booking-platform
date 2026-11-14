@@ -7,6 +7,7 @@ import { Role } from '../src/common/auth/auth.types';
 import {
   BookingStatus,
   FLIGHT_BOOKINGS_LOOKUP,
+  transitionBooking,
   type FlightBookingsLookup,
   UPCOMING_BOOKINGS,
   type UpcomingBookings,
@@ -128,6 +129,21 @@ describe('Booking lifecycle (e2e): GEN-11, ACC-12', () => {
       ).rejects.toMatchObject({ code: 11000 });
     });
 
+    it('rejects copied trip data that contradicts itself', async () => {
+      await expect(
+        flights.create(flightBooking({ tripType: 'ROUND_TRIP' })),
+      ).rejects.toThrow(/round trip/i);
+      await expect(
+        flights.create(flightBooking({ endsAt: hours(47) })),
+      ).rejects.toThrow(/endsAt/);
+      await expect(
+        hotels.create(hotelReservation({ checkOut: '2027-03-05' })),
+      ).rejects.toThrow(/checkOut/);
+      await expect(
+        flights.create(flightBooking({ reference: 'FL-ILOU0000' })),
+      ).rejects.toThrow(/reference/);
+    });
+
     it('rejects a status outside the GEN-11 lifecycle and a non-integer amount', async () => {
       await expect(
         flights.create(flightBooking({ status: 'BOOKED' })),
@@ -139,12 +155,17 @@ describe('Booking lifecycle (e2e): GEN-11, ACC-12', () => {
   });
 
   describe('UPCOMING_BOOKINGS (ACC-12 needs it)', () => {
-    it('counts only Confirmed flight bookings and hotel reservations of this user that have not started', async () => {
+    it("counts the user's unfinished Confirmed bookings and unexpired holds, in flights and hotels", async () => {
       const userId = oid();
       await flights.create([
-        flightBooking({ userId }), // counts
-        flightBooking({ userId, startsAt: hours(-1), endsAt: hours(3) }), // already departed
-        flightBooking({ userId, status: BookingStatus.PendingPayment }),
+        flightBooking({ userId }), // counts: Confirmed, not started
+        flightBooking({ userId, startsAt: hours(-1), endsAt: hours(3) }), // counts: trip in progress
+        flightBooking({
+          userId,
+          status: BookingStatus.PendingPayment,
+          holdExpiresAt: hours(0.1),
+        }), // counts: paid hold may be confirmed by the webhook any moment
+        flightBooking({ userId, status: BookingStatus.PendingPayment }), // hold expired
         flightBooking({ userId, status: BookingStatus.Cancelled }),
         flightBooking(), // someone else
       ]);
@@ -161,7 +182,7 @@ describe('Booking lifecycle (e2e): GEN-11, ACC-12', () => {
       const upcoming = app.get<UpcomingBookings>(UPCOMING_BOOKINGS);
       await expect(
         upcoming.countUpcomingConfirmed(userId.toHexString(), NOW),
-      ).resolves.toBe(2);
+      ).resolves.toBe(4);
       await expect(
         upcoming.countUpcomingConfirmed(oid().toHexString(), NOW),
       ).resolves.toBe(0);
@@ -185,6 +206,15 @@ describe('Booking lifecycle (e2e): GEN-11, ACC-12', () => {
     });
   });
 
+  it('fails closed on a malformed id instead of answering "no bookings"', async () => {
+    const upcoming = app.get<UpcomingBookings>(UPCOMING_BOOKINGS);
+    const lookup = app.get<FlightBookingsLookup>(FLIGHT_BOOKINGS_LOOKUP);
+    await expect(upcoming.countUpcomingConfirmed('nope', NOW)).rejects.toThrow(
+      /invalid/i,
+    );
+    await expect(lookup.confirmedBookings('nope')).rejects.toThrow(/invalid/i);
+  });
+
   describe('FLIGHT_BOOKINGS_LOOKUP (FLT-05 needs it)', () => {
     it('lists the Confirmed bookings on a flight, with the account to notify', async () => {
       const flightId = oid();
@@ -203,10 +233,54 @@ describe('Booking lifecycle (e2e): GEN-11, ACC-12', () => {
     });
   });
 
+  describe('transitionBooking on the replica set (R-GEN-11-02)', () => {
+    it('lets exactly one of two concurrent writers move the same booking', async () => {
+      const booking = await flights.create(
+        flightBooking({ status: BookingStatus.PendingPayment }),
+      );
+      const results = await Promise.all(
+        [1, 2].map(() =>
+          transitionBooking(
+            flights,
+            booking.id,
+            BookingStatus.PendingPayment,
+            BookingStatus.Expired,
+          ),
+        ),
+      );
+      expect(results.filter(Boolean)).toHaveLength(1);
+      expect((await flights.findById(booking.id).lean())?.status).toBe(
+        BookingStatus.Expired,
+      );
+    });
+
+    it('cannot confirm a booking that already expired (late webhook)', async () => {
+      const booking = await flights.create(
+        flightBooking({ status: BookingStatus.Expired }),
+      );
+      await expect(
+        transitionBooking(
+          flights,
+          booking.id,
+          BookingStatus.PendingPayment,
+          BookingStatus.Confirmed,
+          {
+            set: { paymentId: oid(), reference: 'FL-BBBBBBBB' },
+          },
+        ),
+      ).resolves.toBe(false);
+      expect(await flights.findById(booking.id).lean()).toMatchObject({
+        status: BookingStatus.Expired,
+        reference: null,
+      });
+    });
+  });
+
   describe('completion job: Confirmed -> Completed', () => {
     it('completes Confirmed bookings whose trip has ended, and nothing else', async () => {
       const lifecycle = app.get(BookingLifecycleService);
       // The job is collection-wide: start from no bookings so earlier tests' rows do not count.
+      // Safe because test:e2e runs suites one at a time (--runInBand) and only this suite uses these collections.
       await Promise.all([flights.deleteMany({}), hotels.deleteMany({})]);
       const [ended, future, pendingEnded] = await flights.create([
         flightBooking({ startsAt: hours(-10), endsAt: hours(-1) }),

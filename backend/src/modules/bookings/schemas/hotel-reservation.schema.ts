@@ -2,10 +2,10 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { BookingStatus, SCHEMA_OPTIONS } from '../../../common/contracts';
 import {
+  addLifecycle,
   BOOKING_STATUS,
-  LIFECYCLE_INDEXES,
+  CancelledBy,
   MINOR_AMOUNT,
-  REFERENCE_INDEX_OPTIONS,
 } from './booking-fields';
 
 export const HOTEL_RESERVATIONS_COLLECTION = 'hotel_reservations';
@@ -92,11 +92,14 @@ export class HotelReservation {
   @Prop({ type: Date, required: true })
   holdExpiresAt!: Date;
 
-  /** Start of the check-in day in the hotel's zone (ACC-12 "upcoming"). */
+  /** Start of the check-in day in the hotel's zone. */
   @Prop({ type: Date, required: true })
   startsAt!: Date;
 
-  /** Start of the check-out day in the hotel's zone; completion runs after it (GEN-11). */
+  /**
+   * End of the check-out day in the hotel's zone (the next day's 00:00). The stay is never completed
+   * while the guest may still be in the room, and until then it blocks ACC-12 self-deactivation (GEN-11).
+   */
   @Prop({ type: Date, required: true })
   endsAt!: Date;
 
@@ -107,15 +110,13 @@ export class HotelReservation {
   @Prop({ type: Date, default: null })
   policiesAcceptedAt!: Date | null;
 
-  @Prop({ type: MongooseSchema.Types.ObjectId, default: null })
-  paymentId!: Types.ObjectId | null;
-
-  @Prop({ type: MongooseSchema.Types.ObjectId, default: null })
-  refundId!: Types.ObjectId | null;
-
-  /** Assigned on confirmation (HTL-17). */
-  @Prop({ type: String, default: null })
+  // Added by addLifecycle (booking-fields.ts): reference, paymentId, refundId, confirmedAt, cancelledAt, cancelledBy.
   reference!: string | null;
+  paymentId!: Types.ObjectId | null;
+  refundId!: Types.ObjectId | null;
+  confirmedAt!: Date | null;
+  cancelledAt!: Date | null;
+  cancelledBy!: CancelledBy | null;
 
   createdAt!: Date;
   updatedAt!: Date;
@@ -124,6 +125,11 @@ export class HotelReservation {
 export type HotelReservationDocument = HydratedDocument<HotelReservation>;
 export const HotelReservationSchema =
   SchemaFactory.createForClass(HotelReservation);
-HotelReservationSchema.index({ reference: 1 }, REFERENCE_INDEX_OPTIONS);
-for (const index of LIFECYCLE_INDEXES) HotelReservationSchema.index(index);
+addLifecycle(HotelReservationSchema);
+HotelReservationSchema.pre('validate', function () {
+  // ISO dates compare correctly as strings.
+  if (this.checkIn && this.checkOut && this.checkOut <= this.checkIn) {
+    this.invalidate('checkOut', 'checkOut must be after checkIn');
+  }
+});
 HotelReservationSchema.index({ hotelId: 1, status: 1 });

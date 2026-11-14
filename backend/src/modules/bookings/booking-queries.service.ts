@@ -10,6 +10,14 @@ import {
 import { FlightBooking } from './schemas/flight-booking.schema';
 import { HotelReservation } from './schemas/hotel-reservation.schema';
 
+/** A malformed id is a caller bug: fail closed instead of answering "no bookings". */
+function objectId(value: string, what: string): Types.ObjectId {
+  if (!Types.ObjectId.isValid(value)) {
+    throw new Error(`Invalid ${what} id: ${JSON.stringify(value)}`);
+  }
+  return new Types.ObjectId(value);
+}
+
 /**
  * Read-only booking questions other modules ask through contract tokens:
  * - UPCOMING_BOOKINGS (ACC-12): one provider covering flights and hotels
@@ -26,12 +34,19 @@ export class BookingQueriesService
     private readonly hotels: Model<HotelReservation>,
   ) {}
 
+  /**
+   * Bookings that must block self-deactivation (ACC-12), in both collections:
+   * - Confirmed and not yet finished (a trip in progress still counts), and
+   * - Pending Payment with an unexpired hold: the user may already have paid, and the webhook can
+   *   confirm it at any moment, so deactivating now would leave a Confirmed booking on a closed account.
+   */
   async countUpcomingConfirmed(userId: string, now: Date): Promise<number> {
-    if (!Types.ObjectId.isValid(userId)) return 0;
     const filter = {
-      userId: new Types.ObjectId(userId),
-      status: BookingStatus.Confirmed,
-      startsAt: { $gt: now },
+      userId: objectId(userId, 'user'),
+      $or: [
+        { status: BookingStatus.Confirmed, endsAt: { $gt: now } },
+        { status: BookingStatus.PendingPayment, holdExpiresAt: { $gt: now } },
+      ],
     };
     const [flights, hotels] = await Promise.all([
       this.flights.countDocuments(filter).exec(),
@@ -41,11 +56,10 @@ export class BookingQueriesService
   }
 
   async confirmedBookings(flightId: string): Promise<ConfirmedFlightBooking[]> {
-    if (!Types.ObjectId.isValid(flightId)) return [];
     const rows = await this.flights
       .find(
         {
-          'segments.flightId': new Types.ObjectId(flightId),
+          'segments.flightId': objectId(flightId, 'flight'),
           status: BookingStatus.Confirmed,
         },
         { userId: 1 },

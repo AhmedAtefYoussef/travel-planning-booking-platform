@@ -89,6 +89,7 @@ describe('Edit flights (e2e): FLT-05', () => {
       // The real bookings module provides FLIGHT_BOOKINGS_LOOKUP; replace it with the stand-in.
       [{ provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup }],
     );
+    expect(app.get(FLIGHT_BOOKINGS_LOOKUP)).toBe(lookup);
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
     flights = app.get<Model<Flight>>(getModelToken(Flight.name));
     const airline = await http()

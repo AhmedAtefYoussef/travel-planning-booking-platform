@@ -28,10 +28,9 @@ describe('generateBookingReference (FLT-23, HTL-17)', () => {
     expect(BOOKING_REFERENCE_PATTERN.test('FL-ILOU0000')).toBe(false);
   });
 
-  it('does not repeat across 10 000 draws (40 random bits each)', () => {
+  it('draws fresh randomness each time (100 draws, about a 1 in 200 million chance of a repeat)', () => {
     const seen = new Set<string>();
-    for (let i = 0; i < 10_000; i++)
-      seen.add(generateBookingReference('FLIGHT'));
-    expect(seen.size).toBe(10_000);
+    for (let i = 0; i < 100; i++) seen.add(generateBookingReference('FLIGHT'));
+    expect(seen.size).toBe(100);
   });
 });

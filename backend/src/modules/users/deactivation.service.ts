@@ -1,10 +1,4 @@
-import {
-  HttpStatus,
-  Inject,
-  Injectable,
-  Logger,
-  Optional,
-} from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Types, type Model } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
@@ -26,22 +20,14 @@ import { SessionsService } from './sessions.service';
  */
 @Injectable()
 export class DeactivationService {
-  private readonly logger = new Logger(DeactivationService.name);
-
   constructor(
     @InjectModel(User.name) private readonly users: Model<User>,
     private readonly sessions: SessionsService,
     private readonly passwords: PasswordService,
-    @Optional()
+    // Required, not optional: without it deactivation would silently ignore bookings (fail open).
     @Inject(UPCOMING_BOOKINGS)
-    private readonly bookings?: UpcomingBookings,
-  ) {
-    if (!bookings) {
-      this.logger.warn(
-        'UPCOMING_BOOKINGS is not provided yet (bookings modules): self-deactivation cannot see bookings',
-      );
-    }
-  }
+    private readonly bookings: UpcomingBookings,
+  ) {}
 
   async deactivate(
     caller: AuthUser,
@@ -67,9 +53,7 @@ export class DeactivationService {
       );
     }
 
-    const upcoming = this.bookings
-      ? await this.bookings.countUpcomingConfirmed(caller.id, now)
-      : 0;
+    const upcoming = await this.bookings.countUpcomingConfirmed(caller.id, now);
     if (upcoming > 0) {
       throw new AppException(
         HttpStatus.CONFLICT,

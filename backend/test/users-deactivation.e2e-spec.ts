@@ -34,6 +34,8 @@ describe('Self-deactivation (e2e): ACC-12', () => {
       [],
       [{ provide: UPCOMING_BOOKINGS, useValue: fakeBookings }],
     );
+    // A mistyped override would silently test the real service instead.
+    expect(app.get(UPCOMING_BOOKINGS)).toBe(fakeBookings);
     users = app.get(getModelToken(User.name));
     sessions = app.get(getModelToken(Session.name));
   });

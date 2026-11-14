@@ -312,15 +312,17 @@ export interface SessionValidator {
 }
 
 /* ----------------------------------------------------------------------------------------------
- * Upcoming bookings (ACC-12 needs it; Karim's flight-bookings and hotel-reservations modules provide
- * it as one provider covering both). Register under UPCOMING_BOOKINGS. Until it is provided, nobody
- * can hold a booking, so self-deactivation is allowed and the users module logs a warning at startup.
+ * Upcoming bookings (ACC-12 needs it). The bookings module provides it under UPCOMING_BOOKINGS as one
+ * provider covering flights and hotels. The users module requires it: an app without it fails at boot
+ * rather than letting deactivation ignore bookings.
  * -------------------------------------------------------------------------------------------- */
 
 export interface UpcomingBookings {
   /**
-   * How many of the user's bookings are Confirmed (GEN-11) and not yet started: a flight whose first
-   * segment departs after `now`, or a hotel reservation whose check-in is after `now`.
+   * How many of the user's bookings block self-deactivation (ACC-12), counting flights and hotels:
+   * Confirmed (GEN-11) and not yet finished (endsAt after `now`; a trip in progress still counts), plus
+   * Pending Payment within an unexpired hold, because a payment made just before deactivating can still
+   * be confirmed by the webhook. Throws on a malformed id (fail closed).
    */
   countUpcomingConfirmed(userId: string, now: Date): Promise<number>;
 }

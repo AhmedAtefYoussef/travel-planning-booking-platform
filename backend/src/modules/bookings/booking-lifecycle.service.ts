@@ -7,7 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { BookingStatus, canTransition } from '../../common/contracts';
+import {
+  BookingStatus,
+  canTransition,
+  transitionManyBookings,
+} from '../../common/contracts';
 import {
   NodeEnv,
   type EnvironmentVariables,
@@ -42,22 +46,27 @@ export class BookingLifecycleService
     private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {}
 
-  /** Moves every Confirmed booking whose trip ended at or before `now` to Completed. */
+  /**
+   * Moves every Confirmed booking whose trip ended at or before `now` to Completed. The two collections
+   * are updated independently: one failing is logged with its stack and does not discard the other.
+   */
   async completeFinished(
     now: Date = new Date(),
   ): Promise<{ flights: number; hotels: number }> {
-    const from = BookingStatus.Confirmed;
-    const to = BookingStatus.Completed;
-    if (!canTransition(from, to)) throw new Error('GEN-11 table changed');
-    const filter = { status: from, endsAt: { $lte: now } };
-    const update = { $set: { status: to } };
-    const [flights, hotels] = await Promise.all([
-      this.flights.updateMany(filter, update).exec(),
-      this.hotels.updateMany(filter, update).exec(),
+    const move = (model: Model<FlightBooking> | Model<HotelReservation>) =>
+      transitionManyBookings(
+        model,
+        BookingStatus.Confirmed,
+        BookingStatus.Completed,
+        { where: { endsAt: { $lte: now } } },
+      );
+    const [flights, hotels] = await Promise.allSettled([
+      move(this.flights),
+      move(this.hotels),
     ]);
     const result = {
-      flights: flights.modifiedCount,
-      hotels: hotels.modifiedCount,
+      flights: this.settled('flight bookings', flights),
+      hotels: this.settled('hotel reservations', hotels),
     };
     if (result.flights + result.hotels > 0) {
       this.logger.log(
@@ -67,7 +76,23 @@ export class BookingLifecycleService
     return result;
   }
 
+  private settled(what: string, outcome: PromiseSettledResult<number>): number {
+    if (outcome.status === 'fulfilled') return outcome.value;
+    const e: unknown = outcome.reason;
+    this.logger.error(
+      `Completing ${what} failed: ${e instanceof Error ? e.message : String(e)}`,
+      e instanceof Error ? e.stack : undefined,
+    );
+    return 0;
+  }
+
   onApplicationBootstrap(): void {
+    // A programming error, not a runtime one: refuse to start rather than log it every minute.
+    if (!canTransition(BookingStatus.Confirmed, BookingStatus.Completed)) {
+      throw new Error(
+        'GEN-11: BOOKING_TRANSITIONS no longer allows Confirmed -> Completed',
+      );
+    }
     if (this.config.get('NODE_ENV', { infer: true }) === NodeEnv.Test) return;
     const run = () =>
       this.completeFinished().catch((e: unknown) =>
