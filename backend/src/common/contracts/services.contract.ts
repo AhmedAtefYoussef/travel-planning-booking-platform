@@ -230,6 +230,69 @@ export interface FlightBookingsLookup {
 }
 
 /* ----------------------------------------------------------------------------------------------
+ * Flight inventory (FLT-22). The flights module owns the seat counters; bookings reserve and release
+ * seats only through this contract, inside the caller's transaction (ADR-0002). Register under
+ * FLIGHT_INVENTORY.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface BookableCabin {
+  flightId: string;
+  airlineId: string;
+  flightNumber: string;
+  /** IATA codes. */
+  from: string;
+  to: string;
+  departureUtc: Date;
+  arrivalUtc: Date;
+  /** Departure date in the departure airport's zone, YYYY-MM-DD (passenger ages are taken on it). */
+  departureLocalDate: string;
+  cabinId: string;
+  cabinClass: CabinClass;
+  /** Fare per adult or child seat, minor units. */
+  fareMinor: number;
+  seatsAvailable: number;
+  /** FLT-08: null when the airline sells no extra bags. */
+  extraBaggage: {
+    pricePerBagMinor: number;
+    maxExtraBagsPerPassenger: number;
+  } | null;
+  /**
+   * Why it cannot be booked now (flight not Scheduled, already departed, airline deactivated), or null
+   * when it can.
+   */
+  unavailableReason: string | null;
+}
+
+export interface FlightInventory {
+  /** The flight and cabin as a booking needs them, or null when either does not exist. */
+  getBookableCabin(
+    flightId: string,
+    cabinId: string,
+    now: Date,
+  ): Promise<BookableCabin | null>;
+  /**
+   * Atomically takes `seats` seats only if that many remain on a Scheduled flight (one conditional
+   * update). Returns false, changing nothing, when they do not.
+   */
+  reserveSeats(
+    flightId: string,
+    cabinId: string,
+    seats: number,
+    session?: ClientSession,
+  ): Promise<boolean>;
+  /**
+   * Gives seats back after an expired hold or a cancellation. Returns false when the flight or cabin no
+   * longer exists, so the caller can report it instead of silently losing the seats.
+   */
+  releaseSeats(
+    flightId: string,
+    cabinId: string,
+    seats: number,
+    session?: ClientSession,
+  ): Promise<boolean>;
+}
+
+/* ----------------------------------------------------------------------------------------------
  * Uploads (GEN-08). Register under UPLOADS_SERVICE.
  * -------------------------------------------------------------------------------------------- */
 

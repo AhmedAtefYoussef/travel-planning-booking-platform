@@ -83,3 +83,49 @@ One reviewer subagent (TypeScript correctness and test coverage) checked the fir
 | R-FLT-12-11 had no test for refusing `returnDate` | MEDIUM | Test added |
 | Duplicate messages for one field; untested omitted or malformed returnDate, returnPage, return-list envelope and price filter with infants | LOW | One validator per count; tests added |
 | "Return departs after outbound arrives" was missing | LOW | A booking rule, so it is now row R-FLT-12-13 (BLOCKED-BY FLT-22) |
+
+## FLT-22 seat hold, FLT-19 passenger details, FLT-21 summary, TRVL-144 concurrency
+
+| Rule | Source | Rule text | Technique | Code | Test | Verdict | Note |
+|---|---|---|---|---|---|---|---|
+| R-FLT-22-01 | workbook | Proceeding to payment atomically reserves the seats only if enough remain, creating one PENDING_PAYMENT booking held for 10 minutes | EP, BVA (holdExpiresAt = now + 10 min ± tolerance) | modules/bookings/flight-bookings.service.ts (`hold`), modules/flights/flight-inventory.service.ts (`reserveSeats`) | test/flight-hold.e2e-spec.ts | PASS | Seats change only through the FLIGHT_INVENTORY contract (owner module) |
+| R-FLT-22-02 | workbook | More seated passengers than remain → 409 INSUFFICIENT_INVENTORY, nothing held | BVA (4 requested, 3 left) | `reserveSeats` conditional update | flight-hold.e2e-spec.ts | PASS | |
+| R-FLT-22-03 | workbook | An unpaid hold becomes EXPIRED after 10 minutes and its seats are released exactly once, even when two expiry runs overlap | ST, BVA (1 ms before expiry vs after), CONC | `expireHolds`, booking-lifecycle.service.ts | flight-hold.e2e-spec.ts (hold expiry) | PASS | Release runs in the same transaction as the status-conditioned transition |
+| R-FLT-22-04 | workbook, TRVL-144 | Concurrent requests never take more seats than exist: 20 parallel one-seat holds for the last 4 seats → exactly 4 succeed, 16 get 409, seats end at 0 | CONC (replica set) | `reserveSeats` | flight-hold.e2e-spec.ts (concurrency) | PASS | |
+| R-FLT-22-05 | FLT-12 a | A round trip is held as one booking with two segments, all or nothing: if the return leg lacks seats, the outbound seats are untouched | CONC, DT | `hold` (one transaction) | flight-hold.e2e-spec.ts | PASS | Closes R-FLT-12-09 |
+| R-FLT-22-06 | FLT-12 a | The return flight must be the reverse route and leave after the outbound lands (400 on `return`) | DT | `plan` | flight-hold.e2e-spec.ts | PASS | Closes R-FLT-12-13 |
+| R-FLT-22-07 | FLT-12 b, FLT-19 | Each declared passenger type must match the date of birth on the departure date in the departure airport's zone (400 on `passengers[i].type`); at least one adult and no more infants than adults (400 on `passengers`) | BVA (2nd and 12th birthdays, leap day), EP | bookings/passenger-age.ts, `plan` | passenger-age.spec.ts; flight-hold.e2e-spec.ts | PASS | Closes R-FLT-12-04. The outbound date is used for both legs of a round trip |
+| R-FLT-19-01 | workbook | Passenger details: name, date of birth, passport/ID number (5-30 letters or digits) are required, with field errors | EP | dto/flight-booking.dto.ts | flight-hold.e2e-spec.ts | PASS | |
+| R-FLT-19-02 | FLT-08, FLT-19 | Extra bags per passenger are limited by the airline maximum (0 when it sells none) and charged on each flight of the trip | BVA (max vs max + 1) | `plan` | flight-hold.e2e-spec.ts | PASS | Closes R-FLT-08-04 |
+| R-FLT-21-01 | workbook | The summary before payment shows the flights, cabin, passengers, fares, infant fare, extra bags and total, and holds nothing | EP | `quote` | flight-hold.e2e-spec.ts (quote) | PASS | The quote and the hold share one validation and pricing path |
+| R-FLT-22-08 | ACC-11 | A booking is visible to its owner and to an admin; anyone else gets 404 (no existence leak); holds are for registered users only (401 signed out, 403 admin) | AUTHZ (owner / other user / admin / guest) | flight-bookings.controller.ts, `findOne` | flight-hold.e2e-spec.ts | PASS | Real login cookies |
+| R-FLT-22-09 | PAY-01 contract | The payable contract shows the booking only to its owner (403 otherwise); confirmation needs an unexpired hold, assigns a FL- reference and confirmedAt, and a replayed confirmation is a no-op | ST, IDEM | `getPayable`, `markConfirmed` | flight-hold.e2e-spec.ts (PayableBooking) | PASS | A late webhook on an expired booking is refused with HOLD_EXPIRED; PAY-01 refunds it |
+| R-FLT-11-06 | workbook | Search excludes seats held or booked | EP | flight-search.service.ts | flight-hold.e2e-spec.ts (FLT-11 case) | PASS | Was PARTIAL (only simulated decrements) |
+| R-GEN-11-04 | workbook | PENDING_PAYMENT → EXPIRED when the hold times out, releasing inventory | ST | `expireHolds` | flight-hold.e2e-spec.ts | PASS (flights) | Hotels with HTL-18 |
+| R-FLT-22-10 | contracts.md | An FLT-05 schedule change must move the booking's startsAt/endsAt | - | - | - | BLOCKED-BY a follow-up on FlightScheduleNotifier | Until then a rescheduled trip completes on its original arrival time |
+| R-FLT-22-11 | OWASP API6 | One account can have at most 3 unpaid (unexpired) holds; a fourth is a 409, so a script cannot pin a cabin. The cap holds under concurrency: 6 parallel holds by one account give exactly 3 | BVA (3 vs 4), CONC | `assertHoldAllowed` (write the account's guard document, then count, inside the hold transaction) | flight-hold.e2e-spec.ts (abuse) | PASS | The first version counted before the transaction (check-then-act); the automated security review caught it and the concurrency test reproduced it (5 of 6 got through) |
+| R-FLT-22-12 | ADR-0003 | A confirmation after the hold expired is refused with HOLD_EXPIRED, and expiring holds never releases the seats of a confirmed booking | ST | `markConfirmed`, `expireHolds` | flight-hold.e2e-spec.ts (late payments) | PASS | |
+| R-FLT-19-03 | derived | Two passengers in one booking cannot share a document number (case-insensitive), and no passenger is older than 120 | EP, BVA | `plan` | flight-hold.e2e-spec.ts | PASS | |
+| R-FLT-22-13 | FLT-12 b | A round-trip passenger whose type changes between the two flights (for example an infant who turns 2) is refused | BVA | `plan` (each leg's date) | flight-bookings.service.spec.ts | PASS | |
+
+### Independent review, 2026-11-14 (FLT-22, first commit)
+
+Two reviewer subagents (TypeScript correctness, silent failures) checked the first commit. Both confirmed the overbooking guarantee (one conditional `$inc`; reserve and insert in one transaction) and found no DI cycle. The fixes are in the second commit.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| One failing booking stopped the expiry job for every hold behind it, every minute | HIGH | Each booking is expired in its own try/catch, logged with its id and stack; ordered by holdExpiresAt; a full batch logs a backlog warning |
+| A seat release that matched no cabin was silently ignored | HIGH | `releaseSeats` returns whether it matched (contract updated) and the job logs the booking, flight and cabin |
+| One account could pin a cabin with endless holds (API6) | HIGH | At most 3 unpaid holds per account (R-FLT-22-11) |
+| The reference-collision retry inside the caller's transaction could not work, and three collisions gave a false HOLD_EXPIRED | MEDIUM | Inside a session the error is rethrown for the caller's transaction to retry; without one it ends in an explicit error |
+| The expired count was incremented inside a retried transaction callback | MEDIUM | Counted after commit |
+| The hold window started before transaction retries | MEDIUM | Starts when the seats are taken |
+| A round-trip passenger could change type between the flights | MEDIUM | Checked on each leg (R-FLT-22-13) |
+| `getPayable` answered 403 for another account's booking (existence oracle) | MEDIUM | 404, contract updated |
+| Duplicate document numbers; impossible birth years; untested late confirmation | MEDIUM | Validated and tested (R-FLT-19-03, R-FLT-22-12) |
+| "Not enough seats" also reported for a cancelled or removed flight; `markPaymentFailed` dropped its reason; the timer log had no stack and did not name the job | LOW | Accurate reasons; the reason is logged; each job is logged on its own with its stack |
+
+**Deferred, with reasons:**
+- The fare and the airline status are checked just before the transaction, not inside it. The window is milliseconds, and the seat check itself is atomic.
+- Document numbers are shown in full to the booking's owner and to admins. Masking can follow with the M2 UI.
+- Field errors are reported only after both flights resolve (a missing flight is a 404 first).

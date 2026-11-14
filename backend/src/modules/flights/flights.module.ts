@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { FLIGHTS_SEARCH } from '../../common/contracts';
+import { FLIGHT_INVENTORY, FLIGHTS_SEARCH } from '../../common/contracts';
 import { AirlinesController } from './airlines.controller';
 import { AirlinesService } from './airlines.service';
+import { FlightInventoryService } from './flight-inventory.service';
 import { FlightScheduleNotifier } from './flight-schedule-notifier';
 import { FlightSearchService } from './flight-search.service';
 import { FlightStatusService } from './flight-status.service';
@@ -29,8 +30,10 @@ import { Flight, FlightSchema } from './schemas/flight.schema';
     FlightSearchService,
     FlightStatusService,
     FlightScheduleNotifier,
+    FlightInventoryService,
     { provide: FLIGHTS_SEARCH, useExisting: FlightSearchService },
+    { provide: FLIGHT_INVENTORY, useExisting: FlightInventoryService },
   ],
-  exports: [MongooseModule, AirlinesService, FLIGHTS_SEARCH],
+  exports: [MongooseModule, AirlinesService, FLIGHTS_SEARCH, FLIGHT_INVENTORY],
 })
 export class FlightsModule {}

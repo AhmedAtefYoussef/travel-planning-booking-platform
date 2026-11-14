@@ -9,3 +9,5 @@ export {
   FlightStatus,
 } from './schemas/flight.schema';
 export type { FlightDocument } from './schemas/flight.schema';
+export { INFANT_FARE_PERCENT, partyErrors, priceParty } from './flight-pricing';
+export type { Party, PartyPrice } from './flight-pricing';

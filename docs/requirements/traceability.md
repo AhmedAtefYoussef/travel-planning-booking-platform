@@ -56,13 +56,13 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
 | FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
-| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13, #55 | Partial: one-way search by airports, local departure date and passengers done; held seats are excluded once FLT-22 creates holds |
-| FLT-12 | Mandatory | GET /api/flights/search; GET /api/flights/search/round-trip | Ahmed | TRVL-37 | #58 | Partial: passenger types (adults/children/infants, infant 10% fare and no seat, at least 1 adult, infants <= adults), cabin filter and round-trip search done; booking a round trip as one booking, the DOB check (FLT-19) and whole-trip cancellation land with FLT-22 and the cancel stories |
+| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13, #55, #59 | Done |
+| FLT-12 | Mandatory | GET /api/flights/search; GET /api/flights/search/round-trip | Ahmed | TRVL-37 | #58, #59 | Partial: passenger types, cabin filter and round-trip search (#58); a round trip is held as one booking with two segments and passenger types are checked against the date of birth (#59); whole-trip cancellation with the outbound tier lands with the cancel stories |
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
-| FLT-19 | Mandatory | POST /api/flight-bookings | Karim | TRVL-40 | - | Not started |
-| FLT-21 | Mandatory | POST /api/flight-bookings | Karim | TRVL-41 | - | Not started |
-| FLT-22 | Mandatory | POST /api/flight-bookings/hold | Ahmed | TRVL-42 | - | Not started |
+| FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Karim | TRVL-40 | #59 | Done |
+| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Karim | TRVL-41 | #59 | Done |
+| FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
 | FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | - | Not started |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
@@ -159,7 +159,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-08 | Mandatory | UPLOADS_SERVICE (image endpoints) | Ahmed | TRVL-103 | - | Not started |
 | GEN-09 | Mandatory | POST /api/reports | Malak | TRVL-104 | - | Not started |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Malak | TRVL-105 | - | Not started |
-| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57 | Partial: transition table and guard, flight_bookings and hotel_reservations schemas, Confirmed -> Completed job done; Pending -> Expired lands with FLT-22/HTL-18, Confirmed -> Cancelled with the cancellation stories |
+| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59 | Partial: transition guard, schemas, Confirmed -> Completed job (#57) and Pending -> Expired for flight holds (#59) done; hotel holds expire with HTL-18; Confirmed -> Cancelled with the cancel stories |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3, #55 | Done |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | #43 | Done |
