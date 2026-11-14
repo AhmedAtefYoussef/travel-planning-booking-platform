@@ -138,9 +138,47 @@ describe('Flight search (e2e): FLT-12', () => {
         'passengers',
       ],
       ['no passenger count at all', {}, 'passengers'],
+      ['children without adults', { children: 1 }, 'adults'],
     ])('rejects %s with a field error', async (_label, q, field) => {
       const res = await search(q).expect(400);
       expect(fieldsOf(res.body)).toContain(field);
+    });
+
+    it('reports the party rule together with the unknown airport and the impossible date (GEN-02)', async () => {
+      const res = await http()
+        .get('/api/flights/search')
+        .query({
+          from: 'ZZZ',
+          to: 'DXB',
+          departureDate: '2028-13-40',
+          adults: 1,
+          infants: 2,
+        })
+        .expect(400);
+      expect(fieldsOf(res.body).sort()).toEqual([
+        'departureDate',
+        'from',
+        'infants',
+      ]);
+    });
+
+    it('reports one message per field for a non-numeric count (GEN-02)', async () => {
+      const res = await search({ adults: 'abc' }).expect(400);
+      expect(fieldsOf(res.body)).toEqual(['adults']);
+    });
+
+    it('keeps the FLT-15 price range on the fare per passenger when infants travel', async () => {
+      const res = await search({
+        adults: 1,
+        infants: 1,
+        minPriceMinor: 80_000,
+        maxPriceMinor: 80_000,
+      }).expect(200);
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0]).toMatchObject({
+        pricePerPassengerMinor: 80_000,
+        totalPriceMinor: 88_000,
+      });
     });
 
     it('still accepts the FLT-11 passengers count, as that many adults', async () => {
@@ -211,6 +249,56 @@ describe('Flight search (e2e): FLT-12', () => {
       expect(fieldsOf(res.body)).toContain(field);
     });
 
+    const base = {
+      from: 'JFK',
+      to: 'DXB',
+      departureDate: '2028-03-10',
+      adults: 1,
+    };
+    it.each([
+      ['an omitted return date', base],
+      ['a malformed return date', { ...base, returnDate: '2028-3-9' }],
+    ])('rejects %s on returnDate', async (_label, query) => {
+      const res = await http()
+        .get('/api/flights/search/round-trip')
+        .query(query)
+        .expect(400);
+      expect(fieldsOf(res.body)).toEqual(['returnDate']);
+    });
+
+    it('rejects a return page of 0 with one message', async () => {
+      const res = await roundTrip({ adults: 1, returnPage: 0 }).expect(400);
+      expect(fieldsOf(res.body)).toEqual(['returnPage']);
+    });
+
+    it('reports errors in both legs at once, and a non-existent return date on returnDate (GEN-02)', async () => {
+      const res = await roundTrip({
+        from: 'ZZZ',
+        adults: 1,
+        returnDate: '2028-02-30',
+      }).expect(400);
+      expect(fieldsOf(res.body).sort()).toEqual(['from', 'returnDate']);
+    });
+
+    it('does not compare dates that are not real calendar dates', async () => {
+      const res = await roundTrip({
+        adults: 1,
+        departureDate: '2028-02-30',
+        returnDate: '2028-02-29',
+      }).expect(400);
+      expect(fieldsOf(res.body)).toEqual(['departureDate']);
+    });
+
+    it('pages the return list on its own: past its last page is an empty page of size 10', async () => {
+      const res = await roundTrip({ adults: 1, returnPage: 999 }).expect(200);
+      expect(res.body.return).toMatchObject({
+        page: 999,
+        limit: 10,
+        total: 1,
+        items: [],
+      });
+    });
+
     it('accepts a same-day return (boundary)', async () => {
       await roundTrip({ adults: 1, returnDate: '2028-03-10' }).expect(200);
     });
@@ -229,6 +317,36 @@ describe('Flight search (e2e): FLT-12', () => {
       });
       expect(page.items).toHaveLength(1);
       expect(page.items[0].totalPriceMinor).toBe(88_000);
+    });
+
+    it('refuses a returnDate instead of silently searching one way', async () => {
+      await expect(
+        app.get<FlightsSearch>(FLIGHTS_SEARCH).search({
+          from: 'JFK',
+          to: 'DXB',
+          departureDate: '2028-03-10',
+          returnDate: '2028-03-17',
+          adults: 1,
+          page: 1,
+        }),
+      ).rejects.toMatchObject({
+        fieldErrors: [expect.objectContaining({ field: 'returnDate' })],
+      });
+    });
+
+    it('refuses an unknown cabin class instead of returning an empty page', async () => {
+      await expect(
+        app.get<FlightsSearch>(FLIGHTS_SEARCH).search({
+          from: 'JFK',
+          to: 'DXB',
+          departureDate: '2028-03-10',
+          adults: 1,
+          cabinClass: 'economy' as never,
+          page: 1,
+        }),
+      ).rejects.toMatchObject({
+        fieldErrors: [expect.objectContaining({ field: 'cabinClass' })],
+      });
     });
   });
 });

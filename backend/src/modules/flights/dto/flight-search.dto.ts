@@ -10,7 +10,6 @@ import {
 } from 'class-validator';
 import { IsWholeNumber } from '../../../common/validation';
 import type { CabinClass, FlightSearchQuery } from '../../../common/contracts';
-import { ValidationFailedException } from '../../../common/errors/app.exception';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import type { Party } from '../flight-pricing';
 import { CABIN_CLASSES } from '../schemas/flight.schema';
@@ -48,18 +47,45 @@ const toInteger = ({ value }: { value: unknown }) =>
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
 
-/** A whole number of 0 or more given in a query string (FLT-12 passenger counts). */
+const isCount = (value: unknown, min: number) =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= min;
+
+const hasTypedCounts = (q: FlightSearchQueryDto) =>
+  q.adults !== undefined || q.children !== undefined || q.infants !== undefined;
+
+/** One rule, one message (GEN-02): a whole number of `min` or more. */
+function IsCount(field: string, min: number) {
+  return ValidateBy({
+    name: 'isCount',
+    validator: {
+      validate: (value: unknown) => isCount(value, min),
+      defaultMessage: () =>
+        `${field} must be a whole number of ${min === 0 ? '0' : `at least ${min}`}${min === 0 ? ' or more' : ''}`,
+    },
+  });
+}
+
+/** FLT-12: an optional count of children or infants given in the query string. */
 function PassengerTypeCount(field: string, description: string) {
   return function (target: object, key: string) {
     ApiPropertyOptional({ minimum: 0, description })(target, key);
     IsOptional()(target, key);
     Transform(toInteger)(target, key);
-    IsWholeNumber(`${field} must be a whole number of 0 or more`)(target, key);
-    Min(0, { message: `${field} must be a whole number of 0 or more` })(
-      target,
-      key,
-    );
+    IsCount(field, 0)(target, key);
   };
+}
+
+/** FLT-11 and FLT-12 counts are alternatives: `passengers` cannot be combined with typed counts. */
+function NotWithTypedCounts() {
+  return ValidateBy({
+    name: 'notWithTypedCounts',
+    validator: {
+      validate: (_value: unknown, args) =>
+        !hasTypedCounts(args?.object as FlightSearchQueryDto),
+      defaultMessage: () =>
+        'Give either passengers (all adults) or adults/children/infants, not both',
+    },
+  });
 }
 
 /**
@@ -101,24 +127,30 @@ export class FlightSearchQueryDto extends PaginationQueryDto {
     description:
       'FLT-11: number of passengers, all adults, whole number >= 1; each needs a seat in the same cabin. Use this OR adults/children/infants (FLT-12), not both.',
   })
-  // Required unless the FLT-12 counts are given, so a request missing everything reports it together
-  // with the other fields (GEN-02), exactly as in FLT-11.
+  // Required unless the FLT-12 counts are given, and refused alongside them; both are checked with the
+  // other fields so every error comes back at once (GEN-02).
   @ValidateIf(
     (q: FlightSearchQueryDto) =>
-      q.adults === undefined &&
-      q.children === undefined &&
-      q.infants === undefined,
+      q.passengers !== undefined || !hasTypedCounts(q),
   )
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : value,
   )
   @IsPassengerCount()
+  @NotWithTypedCounts()
   passengers?: number;
 
-  @PassengerTypeCount(
-    'adults',
-    'FLT-12: adults (12 or older), at least 1. Each pays the cabin fare and takes a seat.',
+  @ApiPropertyOptional({
+    minimum: 1,
+    description:
+      'FLT-12: adults (12 or older), at least 1; required when children or infants are given. Each pays the cabin fare and takes a seat.',
+  })
+  @ValidateIf(
+    (q: FlightSearchQueryDto) =>
+      q.passengers === undefined && hasTypedCounts(q),
   )
+  @Transform(toInteger)
+  @IsCount('adults', 1)
   adults?: number;
 
   @PassengerTypeCount(
@@ -202,8 +234,7 @@ export class RoundTripSearchQueryDto extends FlightSearchQueryDto {
   })
   @IsOptional()
   @Transform(toInteger)
-  @IsWholeNumber('returnPage must be a whole number of at least 1')
-  @Min(1, { message: 'returnPage must be a whole number of at least 1' })
+  @IsCount('returnPage', 1)
   returnPage?: number;
 }
 
@@ -318,36 +349,13 @@ export class RoundTripSearchResultDto {
 }
 
 /**
- * The party a search is for: either the FLT-11 `passengers` count (all adults) or the FLT-12
- * adults/children/infants, never both and never neither. The counts themselves are checked by
- * partyErrors in the service.
+ * The party a search is for: the FLT-11 `passengers` count (all adults) or the FLT-12
+ * adults/children/infants. The DTO has already refused both, neither, or children without adults.
  */
 export function partyFromQuery(query: FlightSearchQueryDto): Party {
-  const typed =
-    query.adults !== undefined ||
-    query.children !== undefined ||
-    query.infants !== undefined;
-  if (query.passengers !== undefined && typed) {
-    throw new ValidationFailedException([
-      {
-        field: 'passengers',
-        message:
-          'Give either passengers (all adults) or adults/children/infants, not both',
-      },
-    ]);
-  }
   if (query.passengers !== undefined) return { adults: query.passengers };
-  if (query.adults === undefined) {
-    throw new ValidationFailedException([
-      {
-        field: 'passengers',
-        message:
-          'Give the number of travellers: adults (with optional children and infants), or passengers',
-      },
-    ]);
-  }
   return {
-    adults: query.adults,
+    adults: query.adults ?? 0,
     children: query.children,
     infants: query.infants,
   };

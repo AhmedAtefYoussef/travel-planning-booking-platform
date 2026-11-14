@@ -33,7 +33,7 @@ import type {
 } from './dto/flight-search.dto';
 import { partyErrors, priceParty, type Party } from './flight-pricing';
 import { AIRLINES_COLLECTION } from './schemas/airline.schema';
-import { Flight, FlightStatus } from './schemas/flight.schema';
+import { CABIN_CLASSES, Flight, FlightStatus } from './schemas/flight.schema';
 
 /** What every search needs (FLT-11, FLT-12, FLT-15). */
 export interface SearchCriteria {
@@ -187,8 +187,17 @@ export class FlightSearchService implements FlightsSearch {
         field: 'to',
         message: 'Departure and arrival airports must differ',
       });
-    // FLT-12 party rules; checked here so contract callers get them too.
+    // FLT-12 party rules and cabin class; checked here so contract callers get them too.
     errors.push(...partyErrors(criteria.party));
+    if (
+      criteria.cabinClass !== undefined &&
+      !CABIN_CLASSES.includes(criteria.cabinClass)
+    ) {
+      errors.push({
+        field: 'cabinClass',
+        message: `cabinClass must be one of: ${CABIN_CLASSES.join(', ')}`,
+      });
+    }
     // FLT-15: min > max is an error, not an empty result; checked here so contract callers get it too.
     const { minPriceMinor, maxPriceMinor } = criteria;
     if (
@@ -203,13 +212,17 @@ export class FlightSearchService implements FlightsSearch {
     }
 
     let day: { start: Date; end: Date } | null = null;
-    if (origin) {
-      try {
-        day = localDayRangeUtc(criteria.departureDate, origin.timeZone);
-      } catch (e) {
-        if (!(e instanceof InvalidInputError)) throw e;
-        errors.push({ field: 'departureDate', message: e.message });
-      }
+    try {
+      // With an unknown airport there is no zone, but an impossible date (2028-13-40) is still reported
+      // together with the airport error (GEN-02); UTC is enough to tell whether the date exists.
+      const range = localDayRangeUtc(
+        criteria.departureDate,
+        origin?.timeZone ?? 'UTC',
+      );
+      if (origin) day = range;
+    } catch (e) {
+      if (!(e instanceof InvalidInputError)) throw e;
+      errors.push({ field: 'departureDate', message: e.message });
     }
     if (errors.length || !origin || !destination || !day) {
       throw new ValidationFailedException(errors);
@@ -296,8 +309,11 @@ export class FlightSearchService implements FlightsSearch {
   /**
    * FLT-12 a: outbound and return options in one response, for the same party and filters. The return
    * leg searches the reverse route on returnDate (local date at the outbound arrival airport); each list
-   * is paginated on its own (page, returnPage; GEN-05). Errors in the return leg's date are reported on
-   * returnDate.
+   * is paginated on its own (page, returnPage; GEN-05).
+   *
+   * Both legs are validated together, so every error comes back at once (GEN-02): the return leg's date
+   * errors are reported on returnDate, and its other errors repeat the outbound ones, so they are
+   * dropped. The two dates are compared only when both are real calendar dates.
    */
   async searchRoundTrip(
     criteria: SearchCriteria & { returnDate: string; returnPage: number },
@@ -306,14 +322,6 @@ export class FlightSearchService implements FlightsSearch {
     outbound: Page<FlightSearchResultDto>;
     return: Page<FlightSearchResultDto>;
   }> {
-    if (criteria.returnDate < criteria.departureDate) {
-      throw new ValidationFailedException([
-        {
-          field: 'returnDate',
-          message: `returnDate (${criteria.returnDate}) must be on or after departureDate (${criteria.departureDate})`,
-        },
-      ]);
-    }
     const back: SearchCriteria = {
       ...criteria,
       from: criteria.to,
@@ -321,17 +329,29 @@ export class FlightSearchService implements FlightsSearch {
       departureDate: criteria.returnDate,
       page: criteria.returnPage,
     };
-    const outbound = await this.searchOneWay(criteria, now);
-    try {
-      return { outbound, return: await this.searchOneWay(back, now) };
-    } catch (e) {
-      if (!(e instanceof ValidationFailedException)) throw e;
-      throw new ValidationFailedException(
-        (e.fieldErrors ?? []).map((f) =>
-          f.field === 'departureDate' ? { ...f, field: 'returnDate' } : f,
-        ),
-      );
+    const [outbound, inbound] = await Promise.allSettled([
+      this.searchOneWay(criteria, now),
+      this.searchOneWay(back, now),
+    ]);
+    const errors: FieldError[] = [
+      ...fieldErrorsOf(outbound),
+      ...fieldErrorsOf(inbound)
+        .filter((f) => f.field === 'departureDate')
+        .map((f) => ({ ...f, field: 'returnDate' })),
+    ];
+    const datesValid = !errors.some(
+      (f) => f.field === 'departureDate' || f.field === 'returnDate',
+    );
+    if (datesValid && criteria.returnDate < criteria.departureDate) {
+      errors.push({
+        field: 'returnDate',
+        message: `returnDate (${criteria.returnDate}) must be on or after departureDate (${criteria.departureDate})`,
+      });
     }
+    if (errors.length) throw new ValidationFailedException(errors);
+    if (outbound.status === 'rejected') throw outbound.reason;
+    if (inbound.status === 'rejected') throw inbound.reason;
+    return { outbound: outbound.value, return: inbound.value };
   }
 }
 
@@ -389,4 +409,13 @@ function toResult(
     freeBags: row.cabin.freeBags,
     maxKgPerBag: row.cabin.maxKgPerBag,
   };
+}
+
+/** Field errors of a failed search leg; anything other than a validation failure is rethrown. */
+function fieldErrorsOf(outcome: PromiseSettledResult<unknown>): FieldError[] {
+  if (outcome.status === 'fulfilled') return [];
+  if (outcome.reason instanceof ValidationFailedException) {
+    return outcome.reason.fieldErrors ?? [];
+  }
+  throw outcome.reason;
 }
