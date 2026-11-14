@@ -59,7 +59,10 @@ export interface PayableSnapshot {
  * Register implementations under FLIGHT_PAYABLE_BOOKING / HOTEL_PAYABLE_BOOKING.
  */
 export interface PayableBooking {
-  /** Loads the booking for `userId`; throws 404 when missing and 403 when not the owner (ACC-11). */
+  /**
+   * Loads the booking for `userId`; throws 404 when it is missing OR belongs to someone else, so a
+   * payment request cannot probe which booking ids exist (ACC-11, OWASP API1).
+   */
   getPayable(bookingId: string, userId: string): Promise<PayableSnapshot>;
 
   /**

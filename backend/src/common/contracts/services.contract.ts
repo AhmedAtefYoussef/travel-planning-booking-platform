@@ -280,13 +280,16 @@ export interface FlightInventory {
     seats: number,
     session?: ClientSession,
   ): Promise<boolean>;
-  /** Gives seats back after an expired hold or a cancellation. */
+  /**
+   * Gives seats back after an expired hold or a cancellation. Returns false when the flight or cabin no
+   * longer exists, so the caller can report it instead of silently losing the seats.
+   */
   releaseSeats(
     flightId: string,
     cabinId: string,
     seats: number,
     session?: ClientSession,
-  ): Promise<void>;
+  ): Promise<boolean>;
 }
 
 /* ----------------------------------------------------------------------------------------------

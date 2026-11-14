@@ -32,6 +32,7 @@ function cabin(over: Partial<BookableCabin> = {}): BookableCabin {
   };
 }
 
+let doc = 1_000_000;
 const adult = {
   type: PassengerType.Adult,
   firstName: ' Mona ',
@@ -39,6 +40,11 @@ const adult = {
   dateOfBirth: '1990-05-01',
   documentNumber: 'a1234567',
 };
+/** A fresh copy of a fixture passenger with its own document number. */
+const fresh = <T extends object>(p: T): T => ({
+  ...p,
+  documentNumber: `x${doc++}`,
+});
 const infant = {
   ...adult,
   type: PassengerType.Infant,
@@ -72,6 +78,7 @@ function setup(
     findById: jest.fn(),
     find: jest.fn(),
     exists: jest.fn(),
+    countDocuments: jest.fn().mockResolvedValue(0),
   };
   const session = {
     withTransaction: jest.fn(async (fn: () => Promise<void>) => fn()),
@@ -113,7 +120,7 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
     const out = cabin();
     const { service } = setup({ [out.flightId]: out });
     const quote = await service.quote(
-      request(out, [{ ...adult, extraBags: 1 }, infant]),
+      request(out, [{ ...adult, extraBags: 1 }, fresh(infant)]),
       NOW,
     );
     expect(quote).toMatchObject({
@@ -165,13 +172,13 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
         request(
           out,
           [
-            { ...adult, dateOfBirth: '2020-01-01' }, // a child declared adult
-            { ...adult, dateOfBirth: '2027-02-30' }, // impossible date
-            { ...adult, extraBags: 1 }, // the airline sells no extra bags
-            infant,
-            infant,
-            infant,
-            infant, // 4 infants for 3 adults
+            fresh({ ...adult, dateOfBirth: '2020-01-01' }), // a child declared adult
+            fresh({ ...adult, dateOfBirth: '2027-02-30' }), // impossible date
+            fresh({ ...adult, extraBags: 1 }), // the airline sells no extra bags
+            fresh(infant),
+            fresh(infant),
+            fresh(infant),
+            fresh(infant), // 4 infants for 3 adults
           ],
           back,
         ),
@@ -215,7 +222,11 @@ describe('FlightBookingsService.hold (FLT-22)', () => {
   it('reserves the seats and creates a PENDING_PAYMENT booking held for 10 minutes', async () => {
     const out = cabin();
     const { service, inventory, stored } = setup({ [out.flightId]: out });
-    const dto = await service.hold(user, request(out, [adult, infant]), NOW);
+    const dto = await service.hold(
+      user,
+      request(out, [adult, fresh(infant)]),
+      NOW,
+    );
     expect(inventory.reserveSeats).toHaveBeenCalledWith(
       out.flightId,
       out.cabinId,
@@ -280,7 +291,7 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
     });
     model.findById = found(booking());
     expect(await failure(service.getPayable(oid(), oid()))).toMatchObject({
-      status: 403,
+      status: 404,
     });
     await expect(service.getPayable(oid(), ownerId)).resolves.toMatchObject({
       bookingType: 'FLIGHT',
@@ -330,21 +341,27 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
       replay.service.markConfirmed(id, { paymentId }, undefined, NOW),
     ).resolves.toBeUndefined();
 
-    for (const status of [
-      BookingStatus.PendingPayment,
-      BookingStatus.Expired,
+    // The hold is over: already Expired, or still Pending but past holdExpiresAt.
+    for (const over of [
+      booking({ status: BookingStatus.Expired }),
+      booking({ holdExpiresAt: NOW }),
     ]) {
       const late = setup({}, { moved: [0] });
-      late.model.findById = found(booking({ status }));
+      late.model.findById = found(over);
       expect(
         await failure(
           late.service.markConfirmed(id, { paymentId }, undefined, NOW),
         ),
-      ).toMatchObject({
-        status: 409,
-        code: 'HOLD_EXPIRED',
-      });
+      ).toMatchObject({ status: 409, code: 'HOLD_EXPIRED' });
     }
+    // Still Pending with time left but not moved (another writer won): not reported as expired.
+    const raced = setup({}, { moved: [0] });
+    raced.model.findById = found(booking());
+    expect(
+      await failure(
+        raced.service.markConfirmed(id, { paymentId }, undefined, NOW),
+      ),
+    ).toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
     const other = setup({}, { moved: [0] });
     other.model.findById = found(booking({ status: BookingStatus.Cancelled }));
     expect(
@@ -378,13 +395,47 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
 
   it('markPaymentFailed: 404 for an unknown booking, nothing changes otherwise', async () => {
     const { service, model } = setup();
-    model.exists = jest.fn().mockResolvedValue(null);
-    expect(await failure(service.markPaymentFailed(oid()))).toMatchObject({
+    const failed = { paymentId: oid(), reason: 'card_declined' };
+    model.findById = found(null);
+    expect(
+      await failure(service.markPaymentFailed(oid(), failed)),
+    ).toMatchObject({
       status: 404,
     });
-    model.exists = jest.fn().mockResolvedValue({ _id: 1 });
-    await expect(service.markPaymentFailed(oid())).resolves.toBeUndefined();
+    model.findById = found(booking());
+    await expect(
+      service.markPaymentFailed(oid(), failed),
+    ).resolves.toBeUndefined();
     expect(model.updateOne).not.toHaveBeenCalled();
+  });
+
+  it('markConfirmed: inside a caller transaction a reference collision is rethrown for the caller to retry', async () => {
+    const { service, model } = setup();
+    model.updateOne = jest.fn(() => ({
+      exec: () =>
+        Promise.reject(Object.assign(new Error('dup'), { code: 11000 })),
+    }));
+    expect(
+      await failure(
+        service.markConfirmed(oid(), { paymentId: oid() }, {} as never, NOW),
+      ),
+    ).toMatchObject({ message: 'dup' });
+    expect(model.updateOne).toHaveBeenCalledTimes(1);
+  });
+
+  it('markConfirmed: three collisions in a row give an explicit error, never a false HOLD_EXPIRED', async () => {
+    const { service, model } = setup();
+    model.updateOne = jest.fn(() => ({
+      exec: () =>
+        Promise.reject(Object.assign(new Error('dup'), { code: 11000 })),
+    }));
+    expect(
+      await failure(
+        service.markConfirmed(oid(), { paymentId: oid() }, undefined, NOW),
+      ),
+    ).toMatchObject({
+      message: expect.stringMatching(/unique booking reference/) as string,
+    });
   });
 });
 
@@ -396,14 +447,17 @@ describe('FlightBookingsService.expireHolds (FLT-22, GEN-11)', () => {
       seats: 2,
     };
     const { service, model, inventory } = setup({}, { moved: [1, 0] });
+    inventory.releaseSeats.mockResolvedValue(true);
     model.find = jest.fn().mockReturnValue({
-      limit: () => ({
-        lean: () => ({
-          exec: () =>
-            Promise.resolve([
-              { _id: new Types.ObjectId() },
-              { _id: new Types.ObjectId() },
-            ]),
+      sort: () => ({
+        limit: () => ({
+          lean: () => ({
+            exec: () =>
+              Promise.resolve([
+                { _id: new Types.ObjectId() },
+                { _id: new Types.ObjectId() },
+              ]),
+          }),
         }),
       }),
     });
@@ -418,5 +472,101 @@ describe('FlightBookingsService.expireHolds (FLT-22, GEN-11)', () => {
       2,
       expect.anything(),
     );
+  });
+});
+
+describe('FlightBookingsService.expireHolds isolation (silent-failure review)', () => {
+  const due = (n: number) =>
+    jest.fn().mockReturnValue({
+      sort: () => ({
+        limit: () => ({
+          lean: () => ({
+            exec: () =>
+              Promise.resolve(
+                Array.from({ length: n }, () => ({
+                  _id: new Types.ObjectId(),
+                })),
+              ),
+          }),
+        }),
+      }),
+    });
+  const segments = (segs: object[]) =>
+    jest.fn().mockReturnValue({
+      lean: () => ({ exec: () => Promise.resolve({ segments: segs }) }),
+    });
+  const seg = {
+    flightId: new Types.ObjectId(),
+    cabinId: new Types.ObjectId(),
+    seats: 1,
+  };
+
+  it('one failing booking is logged and does not stop the others', async () => {
+    const { service, model, inventory } = setup({}, { moved: [1, 1, 1] });
+    model.find = due(3);
+    model.findById = segments([seg]);
+    inventory.releaseSeats
+      .mockResolvedValueOnce(true)
+      .mockRejectedValueOnce(new Error('cabin locked'))
+      .mockResolvedValueOnce(true);
+    await expect(service.expireHolds(NOW)).resolves.toBe(2);
+    expect(inventory.releaseSeats).toHaveBeenCalledTimes(3);
+  });
+
+  it('a booking without segments is not counted as expired', async () => {
+    const { service, model } = setup({}, { moved: [1] });
+    model.find = due(1);
+    model.findById = segments([]);
+    await expect(service.expireHolds(NOW)).resolves.toBe(0);
+  });
+
+  it('a release that matches no cabin still expires the hold (and is logged)', async () => {
+    const { service, model, inventory } = setup({}, { moved: [1] });
+    model.find = due(1);
+    model.findById = segments([seg]);
+    inventory.releaseSeats.mockResolvedValue(false);
+    await expect(service.expireHolds(NOW)).resolves.toBe(1);
+  });
+});
+
+describe('FlightBookingsService.hold guards (review)', () => {
+  const user = { id: oid(), role: Role.User } as AuthUser;
+
+  it('refuses a fourth unpaid hold for the same account', async () => {
+    const out = cabin();
+    const { service, model } = setup({ [out.flightId]: out });
+    Object.assign(model, { countDocuments: jest.fn().mockResolvedValue(3) });
+    expect(
+      await failure(service.hold(user, request(out, [adult]), NOW)),
+    ).toMatchObject({
+      status: 409,
+      code: 'CONFLICT',
+    });
+    expect(model.create).not.toHaveBeenCalled();
+  });
+
+  it('explains a failed reservation: the flight changed, or the seats ran out', async () => {
+    const out = cabin();
+    const run = async (after: BookableCabin | null) => {
+      const ctx = setup({ [out.flightId]: out }, { reserve: false });
+      Object.assign(ctx.model, {
+        countDocuments: jest.fn().mockResolvedValue(0),
+      });
+      ctx.inventory.getBookableCabin
+        .mockResolvedValueOnce(out)
+        .mockResolvedValueOnce(after);
+      return failure(ctx.service.hold(user, request(out, [adult]), NOW));
+    };
+    expect(await run(null)).toMatchObject({ status: 404 });
+    expect(
+      await run(
+        cabin({
+          unavailableReason: 'Flight HQ100 is cancelled and cannot be booked',
+        }),
+      ),
+    ).toMatchObject({
+      code: 'CONFLICT',
+    });
+    expect(await run(out)).toMatchObject({ code: 'INSUFFICIENT_INVENTORY' });
   });
 });

@@ -71,12 +71,14 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
     return { flightId: res.body.id as string, cabinId };
   }
 
+  let doc = 1_000_000;
+  /** Each passenger gets their own document number unless a test sets one. */
   const adult = (over: object = {}) => ({
     type: 'ADULT',
     firstName: 'Mona',
     lastName: 'Adel',
     dateOfBirth: '1990-05-01',
-    documentNumber: 'A1234567',
+    documentNumber: `A${doc++}`,
     ...over,
   });
   const infant = {
@@ -224,6 +226,19 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         'passengers[0].extraBags',
       ],
       [
+        'two passengers with the same document number',
+        [
+          adult({ documentNumber: 'D1234567' }),
+          adult({ firstName: 'Twin', documentNumber: 'd1234567' }),
+        ],
+        'passengers[1].documentNumber',
+      ],
+      [
+        'a date of birth more than 120 years ago',
+        [adult({ dateOfBirth: '1900-01-01' })],
+        'passengers[0].dateOfBirth',
+      ],
+      [
         'a missing document number',
         [adult({ documentNumber: '' })],
         'passengers[0].documentNumber',
@@ -355,7 +370,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
       const payable = app.get<PayableBooking>(FLIGHT_PAYABLE_BOOKING);
       await expect(
         payable.getPayable(created.body.id, other.userId),
-      ).rejects.toMatchObject({ status: 403 });
+      ).rejects.toMatchObject({ status: 404 }); // no existence leak (ACC-11)
       const snap = await payable.getPayable(created.body.id, traveller.userId);
       expect(snap).toMatchObject({
         status: BookingStatus.PendingPayment,
@@ -369,6 +384,50 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
       expect(doc).toMatchObject({ status: BookingStatus.Confirmed });
       expect(doc?.reference).toMatch(/^FL-[0-9A-HJKMNP-TV-Z]{8}$/);
       expect(doc?.confirmedAt).toBeInstanceOf(Date);
+    });
+  });
+
+  describe('abuse and late payments', () => {
+    it('allows at most 3 unpaid holds per user at a time (API6 sensitive business flow)', async () => {
+      const greedy = await loginAs(app, Role.User);
+      const one = (i: number) =>
+        hold(greedy, {
+          outbound: small,
+          passengers: [adult({ documentNumber: `G${i}00000` })],
+        });
+      for (const i of [1, 2, 3]) await one(i).expect(201);
+      const res = await one(4).expect(409);
+      expect(res.body.message).toMatch(/3 bookings waiting for payment/);
+      // Give the seats back for the tests below.
+      await app
+        .get(BookingLifecycleService)
+        .expireFlightHolds(new Date(Date.now() + HOLD_DURATION_MS + 1000));
+    });
+
+    it('a confirmation that arrives after the hold expired is refused, and confirmed seats are never released', async () => {
+      const late = await hold(traveller, {
+        outbound: small,
+        passengers: [adult()],
+      }).expect(201);
+      const paid = await hold(traveller, {
+        outbound: small,
+        passengers: [adult({ firstName: 'Paid' })],
+      }).expect(201);
+      const payable = app.get<PayableBooking>(FLIGHT_PAYABLE_BOOKING);
+      await payable.markConfirmed(paid.body.id, {
+        paymentId: new Types.ObjectId().toHexString(),
+      });
+      const seats = await seatsLeft(small.flightId);
+      await app
+        .get(BookingLifecycleService)
+        .expireFlightHolds(new Date(Date.now() + HOLD_DURATION_MS + 1000));
+      // Only the unpaid hold's seat comes back.
+      expect(await seatsLeft(small.flightId)).toBe(seats + 1);
+      await expect(
+        payable.markConfirmed(late.body.id, {
+          paymentId: new Types.ObjectId().toHexString(),
+        }),
+      ).rejects.toMatchObject({ code: 'HOLD_EXPIRED' });
     });
   });
 

@@ -32,7 +32,7 @@ import type {
   FlightQuoteDto,
   PassengerDto,
 } from './dto/flight-booking.dto';
-import { passengerTypeOn } from './passenger-age';
+import { ageOn, passengerTypeOn } from './passenger-age';
 import {
   FlightBooking,
   type FlightBookingDocument,
@@ -48,6 +48,15 @@ interface Plan {
 }
 
 const DUPLICATE_KEY = 11000;
+
+/** API6 (sensitive business flows): one account cannot pin a cabin with endless unpaid holds. */
+export const MAX_UNPAID_HOLDS_PER_USER = 3;
+
+/** The expiry job's batch size; a full batch means more are due and is logged. */
+export const EXPIRY_BATCH = 500;
+
+/** No passenger is older than this on the travel date (catches typos such as 1900 for 1990). */
+const MAX_AGE = 120;
 
 /**
  * Flight bookings: FLT-21 summary, FLT-22 seat hold and expiry, FLT-19 passenger details, and the
@@ -83,6 +92,18 @@ export class FlightBookingsService implements PayableBooking {
     now: Date = new Date(),
   ): Promise<FlightBookingDto> {
     const { quote, legs, seats } = await this.plan(dto, now);
+    const unpaid = await this.bookings.countDocuments({
+      userId: new Types.ObjectId(user.id),
+      status: BookingStatus.PendingPayment,
+      holdExpiresAt: { $gt: now },
+    });
+    if (unpaid >= MAX_UNPAID_HOLDS_PER_USER) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        `You already have ${MAX_UNPAID_HOLDS_PER_USER} bookings waiting for payment; pay for one or let it expire first`,
+      );
+    }
     const session = await this.connection.startSession();
     try {
       let created: FlightBookingDocument | undefined;
@@ -94,14 +115,10 @@ export class FlightBookingsService implements PayableBooking {
             seats,
             session,
           );
-          if (!ok) {
-            throw new AppException(
-              HttpStatus.CONFLICT,
-              ErrorCode.INSUFFICIENT_INVENTORY,
-              `Not enough seats left in ${leg.cabinClass} on flight ${leg.flightNumber} for ${seats} passenger(s)`,
-            );
-          }
+          if (!ok) throw await this.reserveFailure(leg, seats, now);
         }
+        // The 10 minutes start when the seats are taken, even after a transaction retry.
+        const heldAt = new Date(Math.max(now.getTime(), Date.now()));
         [created] = await this.bookings.create(
           [
             {
@@ -119,7 +136,7 @@ export class FlightBookingsService implements PayableBooking {
               totalMinor: quote.totalMinor,
               currency: quote.currency,
               status: BookingStatus.PendingPayment,
-              holdExpiresAt: new Date(now.getTime() + HOLD_DURATION_MS),
+              holdExpiresAt: new Date(heldAt.getTime() + HOLD_DURATION_MS),
               startsAt: legs[0].departureUtc,
               endsAt: legs[legs.length - 1].arrivalUtc,
             },
@@ -148,8 +165,9 @@ export class FlightBookingsService implements PayableBooking {
 
   /**
    * FLT-22, GEN-11: moves every hold past its 10 minutes to EXPIRED and gives its seats back. Each
-   * booking is expired and released in one transaction; the transition is status-conditioned, so of
-   * two concurrent runs only one releases the seats.
+   * booking is expired and released in its own transaction (the transition is status-conditioned, so of
+   * two concurrent runs only one releases). One failing booking is logged with its id and does not stop
+   * the others; a full batch is logged because more holds are already due.
    */
   async expireHolds(now: Date = new Date()): Promise<number> {
     const due = await this.bookings
@@ -157,42 +175,67 @@ export class FlightBookingsService implements PayableBooking {
         { status: BookingStatus.PendingPayment, holdExpiresAt: { $lte: now } },
         { _id: 1 },
       )
-      .limit(500)
+      .sort({ holdExpiresAt: 1 })
+      .limit(EXPIRY_BATCH)
       .lean()
       .exec();
     let expired = 0;
     for (const { _id } of due) {
+      const id = _id.toHexString();
       const session = await this.connection.startSession();
       try {
+        let moved = false;
         await session.withTransaction(async () => {
-          const moved = await transitionBooking(
+          moved = await transitionBooking(
             this.bookings,
-            _id.toHexString(),
+            id,
             BookingStatus.PendingPayment,
             BookingStatus.Expired,
             { where: { holdExpiresAt: { $lte: now } }, session },
           );
-          if (!moved) return;
-          const booking = await this.bookings
-            .findById(_id, { segments: 1 }, { session })
-            .lean()
-            .exec();
-          for (const s of booking?.segments ?? []) {
-            await this.inventory.releaseSeats(
-              s.flightId.toHexString(),
-              s.cabinId.toHexString(),
-              s.seats,
-              session,
-            );
-          }
-          expired += 1;
+          if (moved) await this.releaseAll(id, session);
         });
+        if (moved) expired += 1;
+      } catch (e) {
+        this.logger.error(
+          `Expiring flight hold ${id} failed; it stays held until the next run`,
+          e instanceof Error ? e.stack : String(e),
+        );
       } finally {
         await session.endSession();
       }
     }
+    if (due.length === EXPIRY_BATCH) {
+      this.logger.warn(
+        `Flight hold expiry backlog: a full batch of ${EXPIRY_BATCH} was due; more holds are waiting`,
+      );
+    }
     if (expired) this.logger.log(`Expired ${expired} flight hold(s)`);
     return expired;
+  }
+
+  /** Gives back every segment's seats; a seat counter that no longer exists is logged, not ignored. */
+  private async releaseAll(id: string, session: ClientSession): Promise<void> {
+    const booking = await this.bookings
+      .findById(id, { segments: 1 }, { session })
+      .lean()
+      .exec();
+    if (!booking?.segments?.length) {
+      throw new Error(`Flight booking ${id} has no segments to release`);
+    }
+    for (const s of booking.segments) {
+      const released = await this.inventory.releaseSeats(
+        s.flightId.toHexString(),
+        s.cabinId.toHexString(),
+        s.seats,
+        session,
+      );
+      if (!released) {
+        this.logger.error(
+          `Booking ${id}: could not give ${s.seats} seat(s) back to flight ${s.flightId.toHexString()} cabin ${s.cabinId.toHexString()} (flight or cabin no longer exists)`,
+        );
+      }
+    }
   }
 
   /* ----------------------------- FLIGHT_PAYABLE_BOOKING (PAY-01) ----------------------------- */
@@ -205,13 +248,8 @@ export class FlightBookingsService implements PayableBooking {
       ? await this.bookings.findById(bookingId).lean().exec()
       : null;
     if (!booking) throw notFound();
-    if (booking.userId.toHexString() !== userId) {
-      throw new AppException(
-        HttpStatus.FORBIDDEN,
-        ErrorCode.FORBIDDEN,
-        'This booking belongs to another account',
-      );
-    }
+    // Someone else's booking is "not found", never "forbidden": no existence leak (ACC-11, API1).
+    if (booking.userId.toHexString() !== userId) throw notFound();
     return {
       bookingType: BookingType.Flight,
       bookingId,
@@ -229,6 +267,10 @@ export class FlightBookingsService implements PayableBooking {
    * PENDING_PAYMENT -> CONFIRMED with a fresh reference, only while the hold has not expired (a late
    * webhook cannot confirm an expired booking; PAY-01 refunds it instead). Idempotent: a replay for the
    * same payment is a no-op. Throws HOLD_EXPIRED / INVALID_STATE_TRANSITION otherwise.
+   *
+   * A reference collision (about 1 in 10^12) aborts a transaction, so inside the caller's session the
+   * error is rethrown for the caller's withTransaction to retry the whole callback (drawing a new
+   * reference); without a session it is retried here.
    */
   async markConfirmed(
     bookingId: string,
@@ -236,9 +278,11 @@ export class FlightBookingsService implements PayableBooking {
     session?: ClientSession,
     now: Date = new Date(),
   ): Promise<void> {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const attempts = session ? 1 : 3;
+    let moved = false;
+    for (let attempt = 1; attempt <= attempts && !moved; attempt++) {
       try {
-        const moved = await transitionBooking(
+        moved = await transitionBooking(
           this.bookings,
           bookingId,
           BookingStatus.PendingPayment,
@@ -253,13 +297,18 @@ export class FlightBookingsService implements PayableBooking {
             session,
           },
         );
-        if (moved) return;
-        break;
+        if (!moved) break;
       } catch (e) {
-        // A reference collision (about 1 in 10^12) just draws another one.
-        if ((e as { code?: number }).code !== DUPLICATE_KEY) throw e;
+        const collision = (e as { code?: number }).code === DUPLICATE_KEY;
+        if (!collision || session) throw e;
+        if (attempt === attempts) {
+          throw new Error(
+            `Could not allocate a unique booking reference for ${bookingId}`,
+          );
+        }
       }
     }
+    if (moved) return;
     const current = await this.bookings
       .findById(bookingId, null, { session })
       .lean()
@@ -271,30 +320,66 @@ export class FlightBookingsService implements PayableBooking {
     ) {
       return; // replayed webhook
     }
-    if (current.status === BookingStatus.PendingPayment) {
-      throw new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.HOLD_EXPIRED,
-        'The 10-minute hold on this booking has expired',
-      );
-    }
+    const holdOver =
+      current.status === BookingStatus.Expired ||
+      (current.status === BookingStatus.PendingPayment &&
+        current.holdExpiresAt <= now);
     throw new AppException(
       HttpStatus.CONFLICT,
-      current.status === BookingStatus.Expired
-        ? ErrorCode.HOLD_EXPIRED
-        : ErrorCode.INVALID_STATE_TRANSITION,
-      `This booking is ${current.status} and cannot be confirmed`,
+      holdOver ? ErrorCode.HOLD_EXPIRED : ErrorCode.INVALID_STATE_TRANSITION,
+      holdOver
+        ? 'The 10-minute hold on this booking has expired'
+        : `This booking is ${current.status} and cannot be confirmed`,
     );
   }
 
-  /** The booking stays PENDING_PAYMENT so the user can retry until the hold expires (PAY-01). */
-  async markPaymentFailed(bookingId: string): Promise<void> {
-    if (
-      !Types.ObjectId.isValid(bookingId) ||
-      !(await this.bookings.exists({ _id: bookingId }))
-    ) {
-      throw notFound();
+  /**
+   * The booking stays PENDING_PAYMENT so the user can retry until the hold expires (PAY-01). The
+   * payments collection keeps the attempt and its error; this side checks the booking and logs.
+   */
+  async markPaymentFailed(
+    bookingId: string,
+    input: { paymentId: string; reason: string },
+  ): Promise<void> {
+    const booking = Types.ObjectId.isValid(bookingId)
+      ? await this.bookings.findById(bookingId, { status: 1 }).lean().exec()
+      : null;
+    if (!booking) throw notFound();
+    this.logger.warn(
+      `Payment ${input.paymentId} for flight booking ${bookingId} (${booking.status}) failed: ${input.reason}`,
+    );
+  }
+
+  /** Why taking the seats failed: the flight changed since validation, or the seats ran out. */
+  private async reserveFailure(
+    leg: BookableCabin,
+    seats: number,
+    now: Date,
+  ): Promise<AppException> {
+    const fresh = await this.inventory.getBookableCabin(
+      leg.flightId,
+      leg.cabinId,
+      now,
+    );
+    if (!fresh) {
+      return new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        `Flight ${leg.flightNumber} or its ${leg.cabinClass} cabin no longer exists`,
+      );
     }
+    if (fresh.unavailableReason) {
+      return new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.CONFLICT,
+        fresh.unavailableReason,
+      );
+    }
+    return new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.INSUFFICIENT_INVENTORY,
+      `Not enough seats left in ${leg.cabinClass} on flight ${leg.flightNumber} for ${seats} passenger(s)`,
+    );
   }
 
   /* ------------------------------------------ helpers ------------------------------------------ */
@@ -345,17 +430,33 @@ export class FlightBookingsService implements PayableBooking {
     }
 
     const counts = { adults: 0, children: 0, infants: 0 };
+    const documents = new Map<string, number>();
     dto.passengers.forEach((p, i) => {
       try {
-        const actual = passengerTypeOn(
-          p.dateOfBirth,
-          outbound.departureLocalDate,
-        );
-        if (actual !== p.type) {
+        if (ageOn(p.dateOfBirth, outbound.departureLocalDate) > MAX_AGE) {
           errors.push({
-            field: `passengers[${i}].type`,
-            message: `A passenger born ${p.dateOfBirth} travels as ${actual} on ${outbound.departureLocalDate}, not ${p.type}`,
+            field: `passengers[${i}].dateOfBirth`,
+            message: `A passenger cannot be older than ${MAX_AGE}; check the year of ${p.dateOfBirth}`,
           });
+        } else {
+          // FLT-12 b: the type must hold on every flight of the trip, because seats and fares are the
+          // same for the whole booking.
+          for (const leg of legs) {
+            const actual = passengerTypeOn(
+              p.dateOfBirth,
+              leg.departureLocalDate,
+            );
+            if (actual !== p.type) {
+              errors.push({
+                field: `passengers[${i}].type`,
+                message:
+                  leg === outbound
+                    ? `A passenger born ${p.dateOfBirth} travels as ${actual} on ${leg.departureLocalDate}, not ${p.type}`
+                    : `This passenger is ${p.type} on the outbound flight but ${actual} on the return (${leg.departureLocalDate}); book the two flights separately`,
+              });
+              break;
+            }
+          }
         }
       } catch (e) {
         if (!(e instanceof InvalidInputError)) throw e;
@@ -363,6 +464,16 @@ export class FlightBookingsService implements PayableBooking {
           field: `passengers[${i}].dateOfBirth`,
           message: e.message,
         });
+      }
+      const docKey = p.documentNumber.toUpperCase();
+      const first = documents.get(docKey);
+      if (first !== undefined) {
+        errors.push({
+          field: `passengers[${i}].documentNumber`,
+          message: `The same document number is already used by passenger ${first + 1}`,
+        });
+      } else {
+        documents.set(docKey, i);
       }
       if (p.type === PassengerType.Adult) counts.adults++;
       else if (p.type === PassengerType.Child) counts.children++;

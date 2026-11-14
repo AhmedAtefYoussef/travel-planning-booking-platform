@@ -97,11 +97,11 @@ export class FlightInventoryService implements FlightInventory {
     cabinId: string,
     seats: number,
     session?: ClientSession,
-  ): Promise<void> {
+  ): Promise<boolean> {
     // Exactly-once is the caller's job: bookings release inside the same transaction as the
     // status-conditioned PENDING_PAYMENT -> EXPIRED (or CONFIRMED -> CANCELLED) transition, so only the
     // writer that wins the transition gives the seats back.
-    await this.flights
+    const res = await this.flights
       .updateOne(
         {
           _id: new Types.ObjectId(flightId),
@@ -111,5 +111,6 @@ export class FlightInventoryService implements FlightInventory {
         { session },
       )
       .exec();
+    return res.matchedCount === 1;
   }
 }

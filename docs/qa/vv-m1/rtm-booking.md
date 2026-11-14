@@ -103,3 +103,29 @@ One reviewer subagent (TypeScript correctness and test coverage) checked the fir
 | R-FLT-11-06 | workbook | Search excludes seats held or booked | EP | flight-search.service.ts | flight-hold.e2e-spec.ts (FLT-11 case) | PASS | Was PARTIAL (only simulated decrements) |
 | R-GEN-11-04 | workbook | PENDING_PAYMENT → EXPIRED when the hold times out, releasing inventory | ST | `expireHolds` | flight-hold.e2e-spec.ts | PASS (flights) | Hotels with HTL-18 |
 | R-FLT-22-10 | contracts.md | An FLT-05 schedule change must move the booking's startsAt/endsAt | - | - | - | BLOCKED-BY a follow-up on FlightScheduleNotifier | Until then a rescheduled trip completes on its original arrival time |
+| R-FLT-22-11 | OWASP API6 | One account can have at most 3 unpaid (unexpired) holds; a fourth is a 409, so a script cannot pin a cabin | BVA (3 vs 4) | `hold` (MAX_UNPAID_HOLDS_PER_USER) | flight-hold.e2e-spec.ts (abuse) | PASS | |
+| R-FLT-22-12 | ADR-0003 | A confirmation after the hold expired is refused with HOLD_EXPIRED, and expiring holds never releases the seats of a confirmed booking | ST | `markConfirmed`, `expireHolds` | flight-hold.e2e-spec.ts (late payments) | PASS | |
+| R-FLT-19-03 | derived | Two passengers in one booking cannot share a document number (case-insensitive), and no passenger is older than 120 | EP, BVA | `plan` | flight-hold.e2e-spec.ts | PASS | |
+| R-FLT-22-13 | FLT-12 b | A round-trip passenger whose type changes between the two flights (for example an infant who turns 2) is refused | BVA | `plan` (each leg's date) | flight-bookings.service.spec.ts | PASS | |
+
+### Independent review, 2026-11-14 (FLT-22, first commit)
+
+Two reviewer subagents (TypeScript correctness, silent failures) checked the first commit. Both confirmed the overbooking guarantee (one conditional `$inc`; reserve and insert in one transaction) and found no DI cycle. The fixes are in the second commit.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| One failing booking stopped the expiry job for every hold behind it, every minute | HIGH | Each booking is expired in its own try/catch, logged with its id and stack; ordered by holdExpiresAt; a full batch logs a backlog warning |
+| A seat release that matched no cabin was silently ignored | HIGH | `releaseSeats` returns whether it matched (contract updated) and the job logs the booking, flight and cabin |
+| One account could pin a cabin with endless holds (API6) | HIGH | At most 3 unpaid holds per account (R-FLT-22-11) |
+| The reference-collision retry inside the caller's transaction could not work, and three collisions gave a false HOLD_EXPIRED | MEDIUM | Inside a session the error is rethrown for the caller's transaction to retry; without one it ends in an explicit error |
+| The expired count was incremented inside a retried transaction callback | MEDIUM | Counted after commit |
+| The hold window started before transaction retries | MEDIUM | Starts when the seats are taken |
+| A round-trip passenger could change type between the flights | MEDIUM | Checked on each leg (R-FLT-22-13) |
+| `getPayable` answered 403 for another account's booking (existence oracle) | MEDIUM | 404, contract updated |
+| Duplicate document numbers; impossible birth years; untested late confirmation | MEDIUM | Validated and tested (R-FLT-19-03, R-FLT-22-12) |
+| "Not enough seats" also reported for a cancelled or removed flight; `markPaymentFailed` dropped its reason; the timer log had no stack and did not name the job | LOW | Accurate reasons; the reason is logged; each job is logged on its own with its stack |
+
+**Deferred, with reasons:**
+- The fare and the airline status are checked just before the transaction, not inside it. The window is milliseconds, and the seat check itself is atomic.
+- Document numbers are shown in full to the booking's owner and to admins. Masking can follow with the M2 UI.
+- Field errors are reported only after both flights resolve (a missing flight is a 404 first).

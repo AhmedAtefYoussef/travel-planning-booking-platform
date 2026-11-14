@@ -101,13 +101,18 @@ export class BookingLifecycleService
       );
     }
     if (this.config.get('NODE_ENV', { infer: true }) === NodeEnv.Test) return;
-    const run = () =>
-      Promise.all([this.expireFlightHolds(), this.completeFinished()]).catch(
-        (e: unknown) =>
-          this.logger.error(
-            `Booking lifecycle job failed: ${e instanceof Error ? e.message : String(e)}`,
-          ),
+    const job = (name: string, work: () => Promise<unknown>) =>
+      work().catch((e: unknown) =>
+        this.logger.error(
+          `Booking lifecycle job "${name}" failed: ${e instanceof Error ? e.message : String(e)}`,
+          e instanceof Error ? e.stack : undefined,
+        ),
       );
+    const run = () =>
+      Promise.all([
+        job('expire flight holds', () => this.expireFlightHolds()),
+        job('complete finished trips', () => this.completeFinished()),
+      ]);
     void run();
     this.timer = setInterval(() => void run(), BOOKING_LIFECYCLE_INTERVAL_MS);
     this.timer.unref();
