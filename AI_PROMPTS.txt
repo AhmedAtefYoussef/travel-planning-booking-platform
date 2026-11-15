@@ -990,3 +990,19 @@ hotel terms through the inventory contracts), a version fingerprint so changed t
 unseen, the timestamped acceptance with a stored snapshot for refunds, and the assertPayable gate that
 PAY-01 will call. It added the RTM rows; I review the design in the PR.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-21 (TRVL-41), FLT-12 (TRVL-37), HTL-18 (TRVL-61)
+Prompt:
+Verify and validate my merged booking PRs (#57 to #61) against the workbook; fix confirmed defects in
+merged code in one separate fix PR.
+How the output was used:
+A spec-conformance review, confirmed by an independent verifier, found that a round-trip quote showed
+only the outbound infant fare, so the FLT-21 summary lines did not add up to the total when the two
+flights cost differently. Claude wrote a failing e2e test with unequal leg fares, then added each
+segment's own infant fare to the quote (not stored, since it derives from the stored fare). It also
+corrected RTM rows whose cited evidence was weaker than claimed. I reviewed the finding and the diff.
+================================================

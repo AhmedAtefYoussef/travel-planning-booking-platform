@@ -48,6 +48,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
     departureLocal: string,
     arrivalLocal: string,
     totalSeats: number,
+    priceMinor: number = FARE,
   ): Promise<{ flightId: string; cabinId: string }> {
     const res = await http()
       .post('/api/flights')
@@ -60,7 +61,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
       .send({
         class: 'ECONOMY',
         totalSeats,
-        priceMinor: FARE,
+        priceMinor,
         freeBags: 1,
         maxKgPerBag: 23,
       })
@@ -173,6 +174,45 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         'INFANT',
       ]);
       expect(await seatsLeft(small.flightId)).toBe(5);
+    });
+
+    it('shows each leg its own infant fare on a round trip, so the summary lines add up to the total', async () => {
+      // Different fares per leg: an outbound-only infant fare would hide the return one (Session 4, SC-05).
+      const RETURN_FARE = 80_010;
+      const dearer = await flight(
+        'HQ102',
+        'HND',
+        'CDG',
+        '2028-04-22T10:00',
+        '2028-04-22T16:00',
+        5,
+        RETURN_FARE,
+      );
+      const res = await http()
+        .post('/api/flight-bookings/quote')
+        .set('Cookie', traveller.cookie)
+        .send({
+          outbound: small,
+          return: dearer,
+          passengers: [adult({ extraBags: 1 }), infant],
+        })
+        .expect(200);
+      const segments = res.body.segments as {
+        fareMinor: number;
+        seats: number;
+        infantFareMinor: number;
+      }[];
+      expect(segments.map((s) => s.infantFareMinor)).toEqual([
+        FARE / 10,
+        8_001,
+      ]);
+      const infants = 1;
+      const lines =
+        segments.reduce(
+          (sum, s) => sum + s.fareMinor * s.seats + s.infantFareMinor * infants,
+          0,
+        ) + (res.body.extraBagsMinor as number);
+      expect(lines).toBe(res.body.totalMinor);
     });
   });
 
