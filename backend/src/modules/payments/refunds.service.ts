@@ -302,7 +302,15 @@ export class RefundsServiceImpl
       .exec();
     let sent = 0;
     for (const refund of pending) {
-      if (await this.sendRefund(refund, now)) sent += 1;
+      // One refund failing (e.g. its payment lookup throws) never stops the rest of the batch.
+      try {
+        if (await this.sendRefund(refund, now)) sent += 1;
+      } catch (e) {
+        this.logger.error(
+          `Refund ${refund.id as string} could not be dispatched; the next run tries again`,
+          e instanceof Error ? e.stack : String(e),
+        );
+      }
     }
     return sent;
   }
@@ -330,7 +338,11 @@ export class RefundsServiceImpl
         paymentIntentId: payment.stripePaymentIntentId,
         // A late refund is the whole payment (Stripe's default), as it was first requested.
         ...(late ? {} : { amountMinor: refund.amountMinor }),
-        metadata: { refundId, paymentId, reason: refund.reason },
+        // A late refund keeps PAY-01's exact request (key and metadata), so a refund already in flight
+        // at Stripe under `late-refund:<paymentId>` is never answered with idempotency_error.
+        metadata: late
+          ? { paymentId, reason: refund.reason }
+          : { refundId, paymentId, reason: refund.reason },
         idempotencyKey: late
           ? `late-refund:${paymentId}`
           : `refund:${refundId}`,
@@ -405,6 +417,26 @@ export class RefundsServiceImpl
       // Another Stripe refund already belongs to it: this event is not about our refund.
       if (byMeta && !byMeta.stripeRefundId) refund = byMeta;
     }
+    const metaPayment = o.metadata?.paymentId;
+    if (
+      !refund &&
+      !metaId &&
+      metaPayment &&
+      Types.ObjectId.isValid(metaPayment)
+    ) {
+      // A late refund (PAY-01 metadata: paymentId and reason only) whose Stripe id is not saved yet.
+      refund = await this.refunds
+        .findOne(
+          {
+            paymentId: new Types.ObjectId(metaPayment),
+            reason: RefundReason.HoldExpired,
+            stripeRefundId: { $exists: false },
+          },
+          null,
+          { session },
+        )
+        .exec();
+    }
     if (!refund) {
       this.logger.warn(
         `Stripe event ${event.id}: refund ${stripeRefundId} is not one of ours; ignored`,
@@ -425,6 +457,15 @@ export class RefundsServiceImpl
         .exec();
     }
     if (status === RefundStatus.Pending) return;
+    if (refund.status !== RefundStatus.Pending && refund.status !== status) {
+      // Only a PENDING refund changes (PAY-03), but Stripe contradicting a settled refund (e.g. failing
+      // one we showed as REFUNDED) means money may not have moved: loud, for a person to check.
+      // Stripe's code only, never its message.
+      this.logger.error(
+        `Refund ${refund.id as string} (Stripe ${stripeRefundId}) is ${refund.status} but Stripe event ${event.id} reports ${status}${status === RefundStatus.Failed ? ` (stripe:${o.failure_reason ?? 'unknown'})` : ''}; left unchanged, needs a manual check`,
+      );
+      return;
+    }
     await this.settleIn(
       session,
       refund._id,

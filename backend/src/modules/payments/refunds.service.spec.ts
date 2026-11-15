@@ -324,8 +324,8 @@ describe('RefundsServiceImpl (PAY-03, PAY-04)', () => {
       await service.dispatchPendingRefunds();
       expect(stripe.createRefund).toHaveBeenCalledWith({
         paymentIntentId: 'pi_paid',
+        // Exactly PAY-01's request on develop: no refundId, so in-flight keys never conflict.
         metadata: {
-          refundId: refund.id,
           paymentId: paymentOid.toHexString(),
           reason: RefundReason.HoldExpired,
         },
@@ -398,6 +398,30 @@ describe('RefundsServiceImpl (PAY-03, PAY-04)', () => {
           { nextAttemptAt: { $lte: now } },
         ],
       });
+    });
+
+    it('PAY-03 one refund throwing does not stop the rest of the batch', async () => {
+      const { service, stripe, refunds, payments, log } = setup();
+      const broken = refundDoc();
+      const fine = refundDoc();
+      refunds.find.mockReturnValue({
+        sort: () => ({ limit: () => exec([broken, fine]) }),
+      });
+      payments.findById
+        .mockReturnValueOnce({
+          exec: () => Promise.reject(new Error('connection reset')),
+        })
+        .mockReturnValueOnce(exec(paymentDoc()));
+      stripe.createRefund.mockResolvedValue({ id: 're_ok', status: 'pending' });
+      await expect(service.dispatchPendingRefunds()).resolves.toBe(1);
+      expect(stripe.createRefund).toHaveBeenCalledTimes(1);
+      expect(stripe.createRefund).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: `refund:${fine.id}` }),
+      );
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining(broken.id),
+        expect.any(String),
+      );
     });
 
     it('logs and skips a refund whose payment is missing', async () => {

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { INestApplication } from '@nestjs/common';
-import { getModelToken } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Role } from '../src/common/auth/auth.types';
@@ -104,6 +104,44 @@ describe('Refunds (e2e): PAY-03, PAY-04', () => {
       status: 'succeeded',
     }).expect(200);
     return { bookingId, paymentId: paid.body.id as string, pi };
+  };
+
+  /** A held flight booking with policies accepted and a PaymentIntent, not yet captured. */
+  const paidFlightUnconfirmed = async (who: LoggedIn) => {
+    const held = await http()
+      .post('/api/flight-bookings/hold')
+      .set('Cookie', who.cookie)
+      .send({
+        outbound: flight,
+        passengers: [
+          {
+            type: 'ADULT',
+            firstName: 'Late',
+            lastName: 'Capture',
+            dateOfBirth: '1992-04-04',
+            documentNumber: `C${new Types.ObjectId().toHexString().slice(-8)}`,
+          },
+        ],
+      })
+      .expect(201);
+    const bookingId = held.body.id as string;
+    const shown = await http()
+      .get(`/api/bookings/flight/${bookingId}/policies`)
+      .set('Cookie', who.cookie)
+      .expect(200);
+    await http()
+      .post(`/api/bookings/flight/${bookingId}/accept-policies`)
+      .set('Cookie', who.cookie)
+      .send({ accepted: true, version: shown.body.version })
+      .expect(200);
+    const res = await http()
+      .post('/api/payments')
+      .set('Cookie', who.cookie)
+      .send({ bookingType: 'FLIGHT', bookingId })
+      .expect(201);
+    const pi = (await payments.findById(res.body.id).lean())!
+      .stripePaymentIntentId;
+    return { bookingId, paymentId: res.body.id as string, pi };
   };
 
   /** A Confirmed, paid flight booking. */
@@ -594,9 +632,14 @@ describe('Refunds (e2e): PAY-03, PAY-04', () => {
       .findOne({ paymentId: new Types.ObjectId(paid.body.id as string) })
       .lean();
     expect(late).toMatchObject({ reason: 'HOLD_EXPIRED', status: 'PENDING' });
-    expect(
-      stripe.refunds.find((r) => r.id === late!.stripeRefundId),
-    ).toMatchObject({ idempotencyKey: `late-refund:${paid.body.id}` });
+    // The late refund's request is exactly PAY-01's (develop): same key, same metadata, no amount.
+    const lateCall = stripe.refunds.find((r) => r.id === late!.stripeRefundId);
+    expect(lateCall?.idempotencyKey).toBe(`late-refund:${paid.body.id}`);
+    expect(lateCall?.metadata).toEqual({
+      paymentId: paid.body.id as string,
+      reason: 'HOLD_EXPIRED',
+    });
+    expect(lateCall?.amountMinor).toBeUndefined();
     expect(await notices(owner, NotificationType.RefundIssued)).toBe(1);
     stripe.setRefundStatus(late!.stripeRefundId!, 'succeeded');
     await webhook(
@@ -609,5 +652,104 @@ describe('Refunds (e2e): PAY-03, PAY-04', () => {
       .expect(200);
     expect(shown.body.status).toBe('REFUNDED');
     expect(await notices(owner, NotificationType.RefundUpdated)).toBe(1);
+  });
+
+  /** A paid flight whose booking vanished before capture: Stripe captures, a late refund is owed. */
+  const lateCapture = async (who: LoggedIn, failStripe = false) => {
+    const paid = await paidFlightUnconfirmed(who);
+    await app
+      .get(getModelToken('FlightBooking'))
+      .deleteOne({ _id: new Types.ObjectId(paid.bookingId) });
+    stripe.setStatus(paid.pi, 'succeeded');
+    if (failStripe) stripe.failNext = new Error('Stripe is down');
+    await webhook('payment_intent.succeeded', {
+      id: paid.pi,
+      object: 'payment_intent',
+      status: 'succeeded',
+    }).expect(200);
+    return paid;
+  };
+
+  it('PAY-03 a Stripe failure for a refund already REFUNDED leaves it REFUNDED, notifies nobody and is logged as an error', async () => {
+    const paid = await paidFlight(owner);
+    const record = await refundFlight(paid, owner);
+    await dispatcher.dispatchPendingRefunds();
+    const re = await stripeRefundOf(record!.refundId);
+    stripe.setRefundStatus(re, 'succeeded');
+    await webhook('refund.updated', stripe.refundObject(re)).expect(200);
+    const logged = jest.spyOn(dispatcher['logger'], 'error');
+    try {
+      stripe.setRefundStatus(re, 'failed', 'expired_or_canceled_card');
+      await webhook('refund.failed', stripe.refundObject(re)).expect(200);
+      expect(await refunds.findById(record!.refundId).lean()).toMatchObject({
+        status: 'REFUNDED',
+      });
+      expect(await notices(owner, NotificationType.RefundUpdated)).toBe(1);
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringMatching(
+          new RegExp(
+            `${record!.refundId}.*${re}.*stripe:expired_or_canceled_card`,
+          ),
+        ),
+      );
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it('PAY-03 a late refund settles from refund.updated carrying only metadata.paymentId before its Stripe id is saved', async () => {
+    const paid = await lateCapture(owner, true);
+    const late = await refunds
+      .findOne({ paymentId: new Types.ObjectId(paid.paymentId) })
+      .lean();
+    expect(late?.stripeRefundId).toBeUndefined();
+    // Stripe took a request with PAY-01's metadata, but its id never reached us.
+    const early = await stripe.createRefund({
+      paymentIntentId: paid.pi,
+      metadata: { paymentId: paid.paymentId, reason: 'HOLD_EXPIRED' },
+      idempotencyKey: `late-refund:${paid.paymentId}`,
+    });
+    stripe.setRefundStatus(early.id, 'succeeded');
+    await webhook('refund.updated', stripe.refundObject(early.id)).expect(200);
+    expect(await refunds.findById(late!._id).lean()).toMatchObject({
+      status: 'REFUNDED',
+      stripeRefundId: early.id,
+    });
+    expect(await notices(owner, NotificationType.RefundUpdated)).toBe(1);
+  });
+
+  it('PAY-03 outbox: an aborted cancellation leaves no refund, no notification, and nothing for Stripe', async () => {
+    const paid = await paidFlight(owner);
+    const connection = app.get<Connection>(getConnectionToken());
+    const session = await connection.startSession();
+    try {
+      session.startTransaction();
+      const record = await refundsService.refundFor(
+        {
+          bookingType: BookingType.Flight,
+          bookingId: paid.bookingId,
+          paymentId: paid.paymentId,
+          userId: owner.userId,
+          quote: halfQuote(),
+          reason: RefundReason.UserCancellation,
+        },
+        session,
+      );
+      expect(record?.status).toBe('PENDING');
+      await session.abortTransaction();
+    } finally {
+      await session.endSession();
+    }
+    expect(
+      await refunds.countDocuments({
+        bookingId: new Types.ObjectId(paid.bookingId),
+      }),
+    ).toBe(0);
+    expect(await notices(owner, NotificationType.RefundIssued)).toBe(0);
+    const before = stripe.refunds.length;
+    await dispatcher.dispatchPendingRefunds();
+    expect(
+      stripe.refunds.slice(before).filter((r) => r.paymentIntentId === paid.pi),
+    ).toHaveLength(0);
   });
 });
