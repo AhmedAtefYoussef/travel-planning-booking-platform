@@ -1,17 +1,50 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import {
-  IsEnum,
-  IsISO8601,
-  IsOptional,
-  Matches,
-  ValidateBy,
-} from 'class-validator';
+import { IsEnum, IsOptional, Matches, ValidateBy } from 'class-validator';
 import { AuditAction, AuditTargetType } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+const DATE_TIME_ZONED =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})$/;
+
+/** A date-only value (YYYY-MM-DD) means the whole UTC day; a date-time must carry its zone. */
+export function isDateOnly(value: string): boolean {
+  return DATE_ONLY.test(value);
+}
+
+/** Parses an accepted timestamp, or returns null (wrong form, or not a real date such as 2026-02-31). */
+export function parseTimestamp(value: unknown): Date | null {
+  if (typeof value !== 'string') return null;
+  if (!DATE_ONLY.test(value) && !DATE_TIME_ZONED.test(value)) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  if (DATE_ONLY.test(value) && date.toISOString().slice(0, 10) !== value)
+    return null;
+  return date;
+}
+
+/** Exclusive upper bound for a "to": next 00:00 UTC for a date-only value, the instant itself otherwise. */
+export function upperBound(to: string): { op: '$lt' | '$lte'; at: Date } {
+  const at = new Date(parseTimestamp(to)!);
+  if (!isDateOnly(to)) return { op: '$lte', at };
+  at.setUTCDate(at.getUTCDate() + 1);
+  return { op: '$lt', at };
+}
+
+function IsTimestamp(field: string) {
+  return ValidateBy({
+    name: 'isTimestamp',
+    validator: {
+      validate: (value: unknown) => parseTimestamp(value) !== null,
+      defaultMessage: () =>
+        `${field} must be a date (YYYY-MM-DD) or an ISO-8601 date-time with a zone (Z or +hh:mm)`,
+    },
+  });
+}
 
 /** `from` must not be later than `to`; reported on `from` (GEN-02 field-level error). */
 function NotAfterTo() {
@@ -20,9 +53,10 @@ function NotAfterTo() {
     validator: {
       validate: (value: unknown, args) => {
         const to = (args?.object as { to?: unknown }).to;
-        if (typeof value !== 'string' || typeof to !== 'string') return true;
-        const [a, b] = [Date.parse(value), Date.parse(to)];
-        return Number.isNaN(a) || Number.isNaN(b) || a <= b;
+        const from = parseTimestamp(value);
+        if (!from || parseTimestamp(to) === null) return true;
+        const bound = upperBound(to as string);
+        return bound.op === '$lt' ? from < bound.at : from <= bound.at;
       },
       defaultMessage: () => 'from must not be later than to',
     },
@@ -68,24 +102,19 @@ export class ListAuditLogsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     example: '2026-11-01T00:00:00Z',
     description:
-      'Earliest entry time, ISO-8601, inclusive. A date alone means 00:00 UTC. Must not be later than to.',
+      'Earliest entry time, inclusive: YYYY-MM-DD (00:00 UTC that day) or an ISO-8601 date-time with a zone (Z or +hh:mm). Must not be later than to.',
   })
   @IsOptional()
-  @IsISO8601(
-    { strict: true },
-    { message: 'from must be an ISO-8601 date or date-time' },
-  )
+  @IsTimestamp('from')
   @NotAfterTo()
   from?: string;
 
   @ApiPropertyOptional({
     example: '2026-11-30T23:59:59Z',
-    description: 'Latest entry time, ISO-8601, inclusive',
+    description:
+      'Latest entry time: YYYY-MM-DD includes that whole UTC day; an ISO-8601 date-time with a zone (Z or +hh:mm) is inclusive of that instant',
   })
   @IsOptional()
-  @IsISO8601(
-    { strict: true },
-    { message: 'to must be an ISO-8601 date or date-time' },
-  )
+  @IsTimestamp('to')
   to?: string;
 }

@@ -172,6 +172,65 @@ describe('Audit log read endpoint (e2e): GEN-07', () => {
     expect(notDate.body.fieldErrors[0].field).toBe('from');
   });
 
+  it('GEN-07 a date-only to includes that whole UTC day; a date-time to is inclusive', async () => {
+    const admin = await loginAs(app, Role.Admin);
+    await audit.record({
+      actor: { id: admin.userId, role: Role.Admin },
+      action: AuditAction.HideContent,
+      targetType: AuditTargetType.Post,
+      targetId: new Types.ObjectId().toHexString(),
+    });
+    const today = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const yesterday = new Date(Date.now() - 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+    const q = (r: string) => `actorId=${admin.userId}&${r}`;
+    expect((await list(q(`to=${today}`), admin).expect(200)).body.total).toBe(
+      1,
+    );
+    expect(
+      (await list(q(`from=${today}&to=${today}`), admin).expect(200)).body
+        .total,
+    ).toBe(1);
+    expect(
+      (await list(q(`to=${yesterday}`), admin).expect(200)).body.total,
+    ).toBe(0);
+    expect(
+      (await list(q(`from=${tomorrow}`), admin).expect(200)).body.total,
+    ).toBe(0);
+    // A date-time to is the instant itself.
+    expect(
+      (await list(q('to=2020-01-01T00:00:00Z'), admin).expect(200)).body.total,
+    ).toBe(0);
+    expect(
+      (await list(q('to=2999-01-01T00:00:00%2B02:00'), admin).expect(200)).body
+        .total,
+    ).toBe(1);
+  });
+
+  it('GEN-07 week, ordinal, zoneless and impossible dates are 400, never 500', async () => {
+    const admin = await loginAs(app, Role.Admin);
+    for (const bad of [
+      '2026-W46',
+      '2026-320',
+      '2026-11-16T10:00',
+      '2026-02-31',
+      '2026-13-01',
+      '20261116',
+    ]) {
+      for (const field of ['from', 'to']) {
+        const res = await list(
+          `${field}=${encodeURIComponent(bad)}`,
+          admin,
+        ).expect(400);
+        expect(res.body.fieldErrors[0].field).toBe(field);
+      }
+    }
+  });
+
   it('GEN-07 a malformed actorId is 400 and a page size parameter is rejected', async () => {
     const admin = await loginAs(app, Role.Admin);
     const res = await list('actorId=not-an-id', admin).expect(400);

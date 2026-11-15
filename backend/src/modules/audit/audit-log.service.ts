@@ -4,7 +4,11 @@ import { ClientSession, FilterQuery, Model, Types } from 'mongoose';
 import type { AuditEntry, AuditService } from '../../common/contracts';
 import { paginate, type Page } from '../../common/pagination/pagination';
 import type { AuditLogDto } from './dto/audit-log.dto';
-import type { ListAuditLogsQueryDto } from './dto/list-audit-logs.query';
+import {
+  parseTimestamp,
+  upperBound,
+  type ListAuditLogsQueryDto,
+} from './dto/list-audit-logs.query';
 import { AuditLog } from './schemas/audit-log.schema';
 
 // guard-rails: allow no-raw-card-data - redaction pattern that strips card-like keys from audit metadata
@@ -57,10 +61,13 @@ export class AuditLogService implements AuditService {
     if (query.targetType) filter.targetType = query.targetType;
     if (query.actorId) filter.actorId = new Types.ObjectId(query.actorId);
     if (query.from || query.to) {
-      filter.createdAt = {
-        ...(query.from && { $gte: new Date(query.from) }),
-        ...(query.to && { $lte: new Date(query.to) }),
-      };
+      const range: Record<string, Date> = {};
+      if (query.from) range.$gte = parseTimestamp(query.from)!;
+      if (query.to) {
+        const { op, at } = upperBound(query.to);
+        range[op] = at;
+      }
+      filter.createdAt = range;
     }
     const page = await paginate(this.model, filter, query.page, {
       sort: { createdAt: -1 },
@@ -77,7 +84,9 @@ function toDto(doc: AuditLog & { _id: Types.ObjectId }): AuditLogDto {
     targetType: doc.targetType,
     targetId: doc.targetId.toHexString(),
     ...(doc.reason !== undefined && { reason: doc.reason }),
-    ...(doc.metadata !== undefined && { metadata: doc.metadata }),
+    ...(doc.metadata != null && {
+      metadata: sanitizeMetadata(doc.metadata) as Record<string, unknown>,
+    }),
     createdAt: doc.createdAt,
   };
 }

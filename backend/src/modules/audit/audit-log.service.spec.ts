@@ -74,7 +74,7 @@ describe('AuditLogService.list (GEN-07)', () => {
       actorId,
       createdAt: {
         $gte: new Date('2026-11-01'),
-        $lte: new Date('2026-11-30'),
+        $lt: new Date('2026-12-01'),
       },
     });
     expect(result.items[0]).toEqual({
@@ -86,6 +86,34 @@ describe('AuditLogService.list (GEN-07)', () => {
       createdAt: row.createdAt,
     });
     expect(result).toMatchObject({ total: 1, limit: 10, page: 1 });
+  });
+
+  it('a date-time to stays inclusive ($lte)', async () => {
+    const model = fakeModel();
+    await new AuditLogService(model as never).list({
+      page: 1,
+      to: '2026-11-30T10:00:00+02:00',
+    });
+    expect(model.find.mock.calls[0][0]).toEqual({
+      createdAt: { $lte: new Date('2026-11-30T08:00:00Z') },
+    });
+  });
+
+  it('strips secret-looking keys from metadata of older rows when reading', async () => {
+    const model = fakeModel();
+    model.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockReturnThis(),
+      exec: jest
+        .fn()
+        .mockResolvedValue([
+          { ...row, metadata: { role: 'USER', passwordHash: 'x', token: 't' } },
+        ]),
+    });
+    const result = await new AuditLogService(model as never).list({ page: 1 });
+    expect(result.items[0].metadata).toEqual({ role: 'USER' });
   });
 
   it('applies no filter when none is given', async () => {
