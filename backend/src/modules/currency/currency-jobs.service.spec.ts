@@ -71,6 +71,32 @@ describe('CurrencyJobsService: ITN-18 daily rates (TRVL-133)', () => {
     expect(CURRENCY_JOB_INTERVAL_MS).toBe(60 * 60 * 1000);
   });
 
+  it('redacts FX_API_KEY (raw and URL-encoded) from a logged job failure and its stack', async () => {
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const key = 'job-K3y+/=';
+    const { rates, jobs } = setup();
+    Object.assign(jobs, {
+      config: {
+        get: (n: string) => (n === 'FX_API_KEY' ? key : 'production'),
+      },
+    });
+    rates.hasCachedRates.mockRejectedValue(
+      new Error(
+        `boom ?api_key=${encodeURIComponent(key)} raw ${key} ${encodeURIComponent(key)}`,
+      ),
+    );
+    jobs.onApplicationBootstrap();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(log).toHaveBeenCalledTimes(1);
+    const [message, stack] = log.mock.calls[0] as [string, string];
+    expect(message).toContain('boom');
+    for (const text of [message, stack]) {
+      expect(text).not.toContain(key);
+      expect(text).not.toContain(encodeURIComponent(key));
+    }
+    jobs.onApplicationShutdown();
+  });
+
   it('logs a job failure instead of crashing the process', async () => {
     const log = jest.spyOn(Logger.prototype, 'error').mockImplementation();
     const { rates, jobs } = setup();

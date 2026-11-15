@@ -100,7 +100,10 @@ export class ExchangeRatesService implements CurrencyService {
     return (await this.model.exists({ base: this.base }).exec()) !== null;
   }
 
-  /** True when nothing is cached or the newest rate day is before today's UTC date. */
+  /**
+   * True when nothing is cached or the newest fetch (`fetchedAt`) was on an earlier UTC day than `now`.
+   * Deliberately not the API-reported `rateDate`, which may lag (weekends, just after 00:00 UTC).
+   */
   async isStale(now: Date): Promise<boolean> {
     // Keyed on the platform's own fetch day, not the API-reported rateDate: an API date that lags
     // (weekends, just after 00:00 UTC) must not cause a fetch every hour.
