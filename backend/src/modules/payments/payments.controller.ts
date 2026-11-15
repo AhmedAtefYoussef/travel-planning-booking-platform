@@ -44,7 +44,7 @@ export class PaymentsController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'PAY-01 Pay for a Pending Payment booking within its hold',
-    description: `Creates a Stripe test-mode PaymentIntent for the booking's server-side total in the platform currency and returns its client secret; card details never reach this API. Requires an unexpired hold and accepted policies (PAY-02: 409 POLICIES_NOT_ACCEPTED). Asking again returns the same payment. The booking is NOT confirmed here: only the verified Stripe webhook confirms it. ${HOW_TO_PAY}`,
+    description: `Creates a Stripe test-mode PaymentIntent for the booking's server-side total in the platform currency and returns its client secret; card details never reach this API. Requires an unexpired hold and accepted policies (PAY-02: 409 POLICIES_NOT_ACCEPTED). Asking again while a payment is open returns that same payment (also 201). 503 when Stripe is unavailable (try again); 500 when Stripe refuses the request for good (logged for the team). The booking is NOT confirmed here: only the verified Stripe webhook confirms it. ${HOW_TO_PAY}`,
   })
   @ApiBody({
     type: CreatePaymentDto,
@@ -57,6 +57,12 @@ export class PaymentsController {
   })
   @ApiCreatedResponse({ type: PaymentDto })
   @ApiErrorResponses(400, 404, 409, 503)
+  @ApiResponse({
+    status: 500,
+    type: ErrorResponseDto,
+    description:
+      'Stripe refused the request for a reason a retry cannot fix (e.g. a revoked key); logged for the team',
+  })
   create(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreatePaymentDto,
@@ -95,11 +101,17 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'PAY-01 Retry a failed payment until the hold expires',
-    description: `After a failed attempt (status FAILED, lastError says why), returns the same PaymentIntent's client secret to try again. Refused once the hold has expired (409 HOLD_EXPIRED). ${HOW_TO_PAY}`,
+    description: `After a failed attempt (status FAILED, lastError says why), returns the same PaymentIntent's client secret to try again. If Stripe cancelled that PaymentIntent meanwhile, the old payment is closed (CANCELED) and a NEW payment with a new id and PaymentIntent is returned: use the id in this response from now on. Refused once the hold has expired (409 HOLD_EXPIRED). 503 when Stripe is unavailable; 500 when Stripe refuses the request for good. ${HOW_TO_PAY}`,
   })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiOkResponse({ type: PaymentDto })
   @ApiErrorResponses(400, 404, 409, 503)
+  @ApiResponse({
+    status: 500,
+    type: ErrorResponseDto,
+    description:
+      'Stripe refused the request for a reason a retry cannot fix; logged for the team',
+  })
   retry(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,

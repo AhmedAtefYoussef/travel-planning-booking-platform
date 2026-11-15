@@ -107,20 +107,24 @@ export class PaymentsService {
     const existing = await this.payments
       .findOne({ ...forBooking, status: { $in: OPEN } })
       .exec();
-    if (existing) return this.view(existing, booking.reference, true, now);
+    if (existing) {
+      return this.view(existing, booking.reference, true, now, true);
+    }
 
     // Only CLOSED payments count: concurrent first clicks see 0 and share one key (one PaymentIntent),
     // while a booking whose last PaymentIntent was cancelled gets a new key.
     const generation = await this.payments
       .countDocuments({ ...forBooking, status: { $nin: OPEN } })
       .exec();
-    const intent = await this.gateway(() =>
-      this.stripe.createPaymentIntent({
-        amountMinor: booking.amountMinor,
-        currency: booking.currency,
-        metadata: { bookingType, bookingId, userId: user.id },
-        idempotencyKey: `checkout:${bookingType}:${bookingId}:${generation}`,
-      }),
+    const intent = await this.gateway(
+      `creating a PaymentIntent for ${bookingType} booking ${bookingId}`,
+      () =>
+        this.stripe.createPaymentIntent({
+          amountMinor: booking.amountMinor,
+          currency: booking.currency,
+          metadata: { bookingType, bookingId, userId: user.id },
+          idempotencyKey: `checkout:${bookingType}:${bookingId}:${generation}`,
+        }),
     );
     try {
       const [created] = await this.payments.create([
@@ -174,7 +178,7 @@ export class PaymentsService {
     );
     assertPayable(booking, { now, platformCurrency: this.platformCurrency() });
     if (payment.status === PaymentStatus.RequiresPayment) {
-      return this.view(payment, booking.reference, true, now);
+      return this.view(payment, booking.reference, true, now, true);
     }
     if (payment.status !== PaymentStatus.Failed) {
       throw new AppException(
@@ -183,7 +187,7 @@ export class PaymentsService {
         `This payment is ${payment.status} and cannot be retried`,
       );
     }
-    const intent = await this.gateway(async () => {
+    const intent = await this.gateway(`retrying payment ${id}`, async () => {
       try {
         return await this.stripe.retrievePaymentIntent(
           payment.stripePaymentIntentId,
@@ -278,6 +282,10 @@ export class PaymentsService {
   ): Promise<void> {
     const secret = this.config.get('STRIPE_WEBHOOK_SECRET', { infer: true });
     if (!rawBody || !verifyStripeSignature(rawBody, signature, secret, now)) {
+      // Visible on purpose: a wrong STRIPE_WEBHOOK_SECRET otherwise fails every confirmation silently.
+      this.logger.warn(
+        `Webhook refused: invalid Stripe signature (${signature ? 'header present' : 'header missing'}, ${rawBody ? 'body present' : 'no raw body'})`,
+      );
       throw new AppException(
         HttpStatus.BAD_REQUEST,
         ErrorCode.BAD_REQUEST,
@@ -521,6 +529,25 @@ export class PaymentsService {
         })
       ).id;
     } catch (e) {
+      if (e instanceof StripeApiError && !isRetryable(e)) {
+        // Sending it again can't help (e.g. charge_already_refunded): close it as FAILED, once.
+        await this.refunds
+          .updateOne(
+            { _id: refund._id, status: RefundStatus.Pending },
+            {
+              $set: {
+                status: RefundStatus.Failed,
+                failureReason:
+                  `${e.httpStatus} ${e.code ?? ''}: ${e.message}`.slice(0, 500),
+              },
+            },
+          )
+          .exec();
+        this.logger.error(
+          `Refund ${refund.id as string} for payment ${payment.id as string} was refused by Stripe (${e.httpStatus} ${e.code ?? ''}): ${e.message}; marked FAILED`,
+        );
+        return false;
+      }
       this.logger.error(
         `Refund ${refund.id as string} for payment ${payment.id as string} could not be requested; retried by the job`,
         e instanceof Error ? e.stack : String(e),
@@ -608,6 +635,12 @@ export class PaymentsService {
           this.logger.error(
             `Payment ${payment.id as string}: Stripe refused to cancel PaymentIntent ${payment.stripePaymentIntentId} (${e.httpStatus} ${e.code ?? ''}): ${e.message}`,
           );
+        } else if (!(e instanceof StripeApiError)) {
+          // Our own failure (e.g. a capture that could not be applied): money may be taken, so be loud.
+          this.logger.error(
+            `Payment ${payment.id as string} (PaymentIntent ${payment.stripePaymentIntentId}, ${payment.bookingType} booking ${payment.bookingId?.toHexString()}): settling the expired hold failed`,
+            e instanceof Error ? e.stack : String(e),
+          );
         }
         await this.backOff(
           payment,
@@ -691,16 +724,26 @@ export class PaymentsService {
 
   /**
    * The DTO, with the client secret only for the owner, while the payment is open and its hold has time
-   * left. A Stripe outage just leaves the secret out (the rest is local data).
+   * left. On a plain read a Stripe outage just leaves the secret out (the rest is local data). When the
+   * caller is about to pay (`forPaying`: create or retry), a missing secret would be an answer nobody can
+   * use, so Stripe's failure surfaces as the 503/500 of `gateway`.
    */
   private async view(
     payment: PaymentDocument,
     reference: string | null,
     owner: boolean,
     now: Date,
+    forPaying = false,
   ): Promise<PaymentDto> {
     if (!owner || !OPEN.includes(payment.status) || payment.holdEndsAt <= now) {
       return toDto(payment, reference);
+    }
+    if (forPaying) {
+      const intent = await this.gateway(
+        `reading payment ${payment.id as string}`,
+        () => this.stripe.retrievePaymentIntent(payment.stripePaymentIntentId),
+      );
+      return toDto(payment, reference, intent.clientSecret);
     }
     try {
       const intent = await this.stripe.retrievePaymentIntent(
@@ -720,19 +763,19 @@ export class PaymentsService {
    * can retry. Any other rejection means our request or configuration is wrong (e.g. amount_too_small,
    * a revoked key): retrying can't help, so it stays a loud, logged 500.
    */
-  private async gateway<T>(call: () => Promise<T>): Promise<T> {
+  private async gateway<T>(what: string, call: () => Promise<T>): Promise<T> {
     try {
       return await call();
     } catch (e) {
       if (!(e instanceof StripeApiError)) throw e;
       this.logger.error(
-        `Stripe call failed (${e.httpStatus} ${e.code ?? ''}): ${e.message}`,
+        `Stripe call failed while ${what} (${e.httpStatus} ${e.code ?? ''}): ${e.message}`,
       );
       if (!isRetryable(e)) {
         throw new AppException(
           HttpStatus.INTERNAL_SERVER_ERROR,
           ErrorCode.INTERNAL_ERROR,
-          'The payment could not be started; it has been logged for the team',
+          'The payment provider refused this request; it has been logged for the team',
         );
       }
       throw new AppException(

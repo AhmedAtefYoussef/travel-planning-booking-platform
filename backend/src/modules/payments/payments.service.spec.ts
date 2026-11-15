@@ -45,12 +45,19 @@ function setup(due: unknown[] = []) {
   };
   const payments = {
     findOne: jest.fn(() => exec(null)),
+    findById: jest.fn(() => exec(null)),
     countDocuments: jest.fn(() => exec(0)),
     find: jest.fn(() => ({
       sort: () => ({ limit: () => exec(due) }),
     })),
     updateOne: jest.fn(() => exec({ modifiedCount: 1 })),
     create: jest.fn(),
+  };
+  const refunds = {
+    find: jest.fn(() => ({
+      sort: () => ({ limit: () => exec([] as unknown[]) }),
+    })),
+    updateOne: jest.fn(() => exec({ matchedCount: 1, modifiedCount: 1 })),
   };
   const flights = { getPayable: jest.fn().mockResolvedValue(snapshot()) };
   const config = {
@@ -60,7 +67,7 @@ function setup(due: unknown[] = []) {
   };
   const service = new PaymentsService(
     payments as never,
-    {} as never,
+    refunds as never,
     {} as never,
     {} as never,
     stripe,
@@ -76,7 +83,27 @@ function setup(due: unknown[] = []) {
       .spyOn(service['logger'], 'warn')
       .mockImplementation(() => undefined),
   };
-  return { service, stripe, payments, log };
+  return { service, stripe, payments, refunds, log };
+}
+
+/** A stored payment, open unless said otherwise. */
+function paymentDoc(over: Record<string, unknown> = {}) {
+  return {
+    _id: new Types.ObjectId(),
+    id: new Types.ObjectId().toHexString(),
+    userId: new Types.ObjectId(user.id),
+    bookingType: BookingType.Flight,
+    bookingId: new Types.ObjectId(bookingId),
+    stripePaymentIntentId: 'pi_open',
+    status: PaymentStatus.RequiresPayment,
+    amountMinor: 10_000,
+    currency: 'USD',
+    attempts: 0,
+    checkAttempts: 0,
+    holdEndsAt: new Date(Date.now() + 60_000),
+    createdAt: new Date(),
+    ...over,
+  };
 }
 
 describe('PaymentsService (PAY-01)', () => {
@@ -155,6 +182,112 @@ describe('PaymentsService (PAY-01)', () => {
     });
   });
 
+  describe('Session 4 V&V gaps', () => {
+    it('EH-3: answers 503 instead of an unpayable 201 when Stripe cannot hand back the open payment secret', async () => {
+      const { service, stripe, payments } = setup();
+      payments.findOne.mockReturnValue(exec(paymentDoc()) as never);
+      stripe.retrievePaymentIntent.mockRejectedValue(
+        new StripeApiError('down', 502, 'network_error'),
+      );
+      await expect(
+        service.create(user, { bookingType: BookingType.Flight, bookingId }),
+      ).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    });
+
+    it('EH-3: a retry of a payment still awaiting the card answers 503 when Stripe is down, not a 200 without a secret', async () => {
+      const { service, stripe, payments } = setup();
+      const open = paymentDoc();
+      payments.findById.mockReturnValue(exec(open) as never);
+      stripe.retrievePaymentIntent.mockRejectedValue(
+        new StripeApiError('down', 503, 'api_error'),
+      );
+      await expect(service.retry(user, open.id)).rejects.toMatchObject({
+        code: 'SERVICE_UNAVAILABLE',
+      });
+    });
+
+    it('EH-6: a rejected retry names the payment in the log and does not say the payment "could not be started"', async () => {
+      const { service, stripe, payments, log } = setup();
+      const failed = paymentDoc({ status: PaymentStatus.Failed });
+      payments.findById.mockReturnValue(exec(failed) as never);
+      stripe.retrievePaymentIntent.mockRejectedValue(
+        new StripeApiError('Invalid API Key provided', 401, null),
+      );
+      const err = await service.retry(user, failed.id).catch((e: unknown) => e);
+      expect(err).toMatchObject({ code: 'INTERNAL_ERROR' });
+      expect((err as Error).message).not.toContain('started');
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining(failed.id),
+      );
+    });
+
+    it('EH-5: logs a rejected webhook signature, so a wrong STRIPE_WEBHOOK_SECRET is visible', async () => {
+      const { service, log } = setup();
+      const body = Buffer.from('{}');
+      await expect(
+        service.handleWebhook(body, 't=1,v1=00'),
+      ).rejects.toMatchObject({ code: 'BAD_REQUEST' });
+      expect(log.warn).toHaveBeenCalledWith(
+        expect.stringContaining('signature'),
+      );
+    });
+
+    describe('EH-2: late refunds Stripe refuses for good', () => {
+      const pendingRefund = (paymentId: Types.ObjectId) => ({
+        _id: new Types.ObjectId(),
+        id: new Types.ObjectId().toHexString(),
+        paymentId,
+        reason: 'HOLD_EXPIRED',
+      });
+
+      it('marks the refund FAILED with the reason and stops re-sending it', async () => {
+        const { service, stripe, payments, refunds, log } = setup();
+        const payment = paymentDoc({ status: PaymentStatus.Succeeded });
+        const refund = pendingRefund(payment._id);
+        refunds.find.mockReturnValue({
+          sort: () => ({ limit: () => exec([refund]) }),
+        });
+        payments.findById.mockReturnValue(exec(payment) as never);
+        stripe.createRefund.mockRejectedValue(
+          new StripeApiError(
+            'Charge has already been refunded',
+            400,
+            'charge_already_refunded',
+          ),
+        );
+        await expect(service.retryPendingRefunds()).resolves.toBe(0);
+        expect(refunds.updateOne).toHaveBeenCalledWith(
+          { _id: refund._id, status: 'PENDING' },
+          {
+            $set: {
+              status: 'FAILED',
+              failureReason: expect.stringContaining(
+                'charge_already_refunded',
+              ) as unknown,
+            },
+          },
+        );
+        expect(log.error).toHaveBeenCalledWith(
+          expect.stringContaining(refund.id),
+        );
+      });
+
+      it('keeps a refund PENDING (re-sent by the job) when Stripe is only unavailable', async () => {
+        const { service, stripe, payments, refunds } = setup();
+        const payment = paymentDoc({ status: PaymentStatus.Succeeded });
+        refunds.find.mockReturnValue({
+          sort: () => ({ limit: () => exec([pendingRefund(payment._id)]) }),
+        });
+        payments.findById.mockReturnValue(exec(payment) as never);
+        stripe.createRefund.mockRejectedValue(
+          new StripeApiError('down', 503, 'api_error'),
+        );
+        await expect(service.retryPendingRefunds()).resolves.toBe(0);
+        expect(refunds.updateOne).not.toHaveBeenCalled();
+      });
+    });
+  });
+
   describe('cancelExpiredIntents', () => {
     const payment = (pi: string) => ({
       checkAttempts: 0,
@@ -214,6 +347,18 @@ describe('PaymentsService (PAY-01)', () => {
       );
       await expect(service.cancelExpiredIntents()).resolves.toBe(0);
       expect(log.error).toHaveBeenCalledWith(expect.stringContaining('pi_key'));
+    });
+
+    it('EH-4: logs a capture it could not apply as an error with the stack, not a bare warning', async () => {
+      const { service, stripe, log } = setup([payment('pi_paid')]);
+      stripe.cancelPaymentIntent.mockResolvedValue({ status: 'succeeded' });
+      (service as unknown as { onSucceeded: () => Promise<void> }).onSucceeded =
+        () => Promise.reject(new Error('2 of its 3 nights could be booked'));
+      await expect(service.cancelExpiredIntents()).resolves.toBe(0);
+      expect(log.error).toHaveBeenCalledWith(
+        expect.stringContaining('pi_paid'),
+        expect.stringContaining('2 of its 3 nights'),
+      );
     });
 
     it('records an intent that was already cancelled at Stripe', async () => {
