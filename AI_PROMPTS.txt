@@ -1185,3 +1185,21 @@ then the FXRatesAPI client behind FX_RATES_CLIENT, the exchange_rates schema, CU
 stale-check job and GET /api/currencies/rates and /convert, plus listCurrencies on REFERENCE_SERVICE for
 the seeded minor units. I checked the live response shape and reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet)
+Related Requirement: GEN-07 (TRVL-102)
+Prompt:
+Add GET /api/admin/audit-logs for the existing AUDIT_SERVICE: admin only, newest first (createdAt then
+_id), 10 per page, filters for action, targetType, actorId, from and to (from after to is a 400 on
+from, a malformed actorId is a 400), test-first, and document that ACC-15, ACC-16 and GEN-10 must record
+their entries through AUDIT_SERVICE inside their transaction.
+How the output was used:
+Claude wrote the failing e2e tests first (entries created through the real reset-password and
+create-moderator routes appear newest first, filters, date range and from-after-to, 403 for users and
+moderators, 401 for guests, 11 entries paginate 10 + 1), then AuditLogService.list, the query and
+response DTOs and the controller, and added the route to the paginated-route list in the foundation V&V
+suite. I reviewed the diff and the traceability and contracts notes.
+================================================
