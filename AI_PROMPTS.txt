@@ -1147,3 +1147,22 @@ in deleteImage, two concurrent uploads past the limit, 403/401), then the UPLOAD
 with UUID file names, ImageFilesInterceptor, the hotel endpoints with a conditional $push that deletes the
 loser's files, the logo replace that deletes the old file, and the URL validators. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-03 (TRVL-69), PAY-04 (TRVL-109)
+Prompt:
+Implement PAY-03 refunds through the Stripe Refunds API behind REFUNDS_SERVICE: refundFor records one
+PENDING refund per booking in the caller's transaction (null for a zero amount, refused outside the
+platform currency), a dispatcher sends it after commit, refund.* webhooks settle it exactly once, and
+the booking details and GET /api/refunds/:id show its status, test-first.
+How the output was used:
+Claude wrote the failing unit and e2e tests first (zero amount records nothing, idempotent per booking,
+foreign currency refused, a synchronous succeeded answer notifies once, refund.updated arriving before
+the Stripe id is saved, replayed and out-of-order events, refund.failed with stripe:<code>, stranger 404
+equal to unknown 404, refund block on flight and hotel details), then RefundsServiceImpl with a
+transactional outbox, the webhook cases, the controller and the booking DTO block. It moved the
+dispatcher out of PaymentsService to avoid a DI cycle and kept the late-refund key. I reviewed the diff.
+================================================
