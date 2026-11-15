@@ -2,17 +2,30 @@ import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
-import { AuthUser, ProviderType } from '../../common/auth/auth.types';
+import { AuthUser, ProviderType, Role } from '../../common/auth/auth.types';
 import { ACTIVE_PROVIDER_FILTER } from '../../common/contracts';
-import { REFERENCE_SERVICE } from '../../common/contracts/tokens';
-import type { ReferenceService } from '../../common/contracts/services.contract';
+import {
+  REFERENCE_SERVICE,
+  UPLOADS_SERVICE,
+} from '../../common/contracts/tokens';
+import type {
+  ReferenceService,
+  UploadedFileLike,
+  UploadsService,
+} from '../../common/contracts/services.contract';
 import {
   AppException,
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { localUploadUrlPattern } from '../../common/validation';
 import type { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
-import { Hotel, HotelDocument } from './schemas/hotel.schema';
+import { Hotel, HotelDocument, MAX_HOTEL_PHOTOS } from './schemas/hotel.schema';
+
+/** A hotel photo this backend stored (GEN-08); group 2 is its image id. */
+const HOTEL_UPLOAD_URL = localUploadUrlPattern(['hotels']);
+const IMAGE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 const EDITABLE_FIELDS = [
   'name',
@@ -34,6 +47,7 @@ export class HotelsService {
   constructor(
     @InjectModel(Hotel.name) private readonly hotels: Model<Hotel>,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
+    @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
   ) {}
 
   async create(dto: CreateHotelDto): Promise<HotelDto> {
@@ -126,6 +140,112 @@ export class HotelsService {
       );
     }
     return hotel;
+  }
+
+  /**
+   * GEN-08 / HTL-01: adds uploaded JPG/PNG photos (up to MAX_HOTEL_PHOTOS in all). The files are checked
+   * and written first, then added with one conditional $push that only matches while the hotel still has
+   * room for all of them, so two concurrent uploads can never take it past the limit. The request that
+   * loses gets 400 and its files are deleted again, as on any other failure after they were written.
+   */
+  async addImages(
+    user: AuthUser,
+    id: string,
+    files: UploadedFileLike[],
+  ): Promise<HotelDto> {
+    const hotel = await this.loadForImages(user, id);
+    const stored = await this.uploads.saveImages(files, {
+      entityType: 'HOTEL',
+      entityId: id,
+      existingCount: hotel.photos.length,
+    });
+    const urls = stored.map((image) => image.url);
+    let updated: HotelDocument | null;
+    try {
+      updated = await this.hotels
+        .findOneAndUpdate(
+          {
+            _id: id,
+            ...this.writableFilter(user),
+            $expr: {
+              $lte: [{ $size: '$photos' }, MAX_HOTEL_PHOTOS - urls.length],
+            },
+          },
+          { $push: { photos: { $each: urls } } },
+          { new: true },
+        )
+        .exec();
+    } catch (err) {
+      await this.discard(urls);
+      throw err;
+    }
+    if (updated) return toHotelDto(updated);
+    await this.discard(urls);
+    // 404/403 if the hotel was deleted or deactivated meanwhile; otherwise another upload filled it.
+    await this.loadForImages(user, id);
+    throw new ValidationFailedException([
+      {
+        field: 'images',
+        message: `A hotel can have at most ${MAX_HOTEL_PHOTOS} photos, and other photos were added at the same time. Reload and try again`,
+      },
+    ]);
+  }
+
+  /**
+   * GEN-08 / HTL-01: removes one uploaded photo from the hotel and deletes its file, unless another
+   * hotel's photo list still points at the same file (a moderator can PATCH any uploaded hotel URL in).
+   */
+  async removeImage(
+    user: AuthUser,
+    id: string,
+    imageId: string,
+  ): Promise<HotelDto> {
+    if (!IMAGE_ID.test(imageId)) {
+      throw new ValidationFailedException([
+        {
+          field: 'imageId',
+          message: 'imageId must be the id returned by the upload (a UUID)',
+        },
+      ]);
+    }
+    const hotel = await this.loadForImages(user, id);
+    const url = hotel.photos.find(
+      (photo) => HOTEL_UPLOAD_URL.exec(photo)?.[2] === imageId,
+    );
+    const updated = url
+      ? await this.hotels
+          .findOneAndUpdate(
+            { _id: id, ...this.writableFilter(user), photos: url },
+            { $pull: { photos: url } },
+            { new: true },
+          )
+          .exec()
+      : null;
+    if (!url || !updated) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Image not found',
+      );
+    }
+    const stillUsed = await this.hotels.exists({ photos: url }).exec();
+    if (!stillUsed) await this.uploads.deleteImage(url);
+    return toHotelDto(updated);
+  }
+
+  /** Admins may manage any hotel's images; a moderator only their own, active hotel (ACC-11, ACC-15). */
+  private loadForImages(user: AuthUser, id: string): Promise<HotelDocument> {
+    return user.role === Role.Admin
+      ? this.load(id)
+      : this.loadManaged(user, id);
+  }
+
+  private writableFilter(user: AuthUser): Record<string, unknown> {
+    return user.role === Role.Admin ? {} : { ...ACTIVE_PROVIDER_FILTER };
+  }
+
+  private async discard(urls: string[]): Promise<void> {
+    for (const url of urls) await this.uploads.deleteImage(url);
   }
 
   /**

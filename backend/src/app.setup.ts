@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import { resolve } from 'node:path';
 
 export const API_PREFIX = 'api';
 
@@ -34,8 +35,32 @@ export function configureApp(app: INestApplication): INestApplication {
     origin: origins.length ? origins : false,
     credentials: true,
   });
+  serveUploads(app);
   app.enableShutdownHooks();
   return app;
+}
+
+/**
+ * GEN-08: stored images are public and served by URL at /uploads/<folder>/<file>, outside the /api
+ * prefix and before any guard. Only files are served: no directory index or redirect, dotfiles denied.
+ * `nosniff` makes the browser trust the image Content-Type (taken from the .jpg/.png extension that the
+ * upload service chose from the file's bytes) instead of guessing, and the CSP stops a file from running
+ * anything if it is ever opened as a document.
+ */
+function serveUploads(app: INestApplication): void {
+  const dir = app.get(ConfigService).get<string>('UPLOAD_DIR');
+  if (!dir) return;
+  (app as NestExpressApplication).useStaticAssets?.(resolve(dir), {
+    prefix: '/uploads/',
+    index: false,
+    redirect: false,
+    dotfiles: 'deny',
+    fallthrough: true,
+    setHeaders: (res: { setHeader(name: string, value: string): void }) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    },
+  });
 }
 
 /**

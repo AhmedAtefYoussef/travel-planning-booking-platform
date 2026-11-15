@@ -1,6 +1,16 @@
-import { Body, Controller, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Param,
+  Patch,
+  Post,
+  UploadedFiles,
+  UseInterceptors,
+} from '@nestjs/common';
 import {
   ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -10,8 +20,13 @@ import {
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
+import {
+  UPLOAD_LIMITS,
+  type UploadedFileLike,
+} from '../../common/contracts/services.contract';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import { ImageFilesInterceptor } from '../uploads';
 import { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
 import { HotelsService } from './hotels.service';
 
@@ -98,5 +113,69 @@ export class HotelsController {
     @Body() dto: UpdateHotelDto,
   ): Promise<HotelDto> {
     return this.hotels.update(user, id, dto);
+  }
+
+  @Post(':id/images')
+  @Roles(Role.Admin, Role.HotelModerator)
+  @UseInterceptors(
+    ImageFilesInterceptor('images', UPLOAD_LIMITS.maxImagesPerEntity),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'GEN-08 / HTL-01 Upload hotel images',
+    description:
+      'Send 1-5 JPG or PNG files in the multipart field "images", each at most 5 MB. A hotel has at most 5 photos in all, so the batch is refused when it would take the hotel past 5. The type is read from the file content: a text file renamed .png is refused, as is a file whose Content-Type does not match its content. Any problem refuses the whole batch with 400 and fieldErrors on "images"; nothing is stored. The files are stored on the server under new random names and their public URLs (/uploads/hotels/<imageId>.jpg|png, served without the /api prefix) are added to photos. Allowed: an admin, or the moderator assigned to this hotel (the moderator of another hotel gets 403) while it is active (ACC-15).',
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiBody({
+    description:
+      'multipart/form-data with 1-5 files in "images" (JPG or PNG, 5 MB each). Invalid: a 6th photo, a 5 MB + 1 byte file, a PDF or text file, or files under another field name.',
+    schema: {
+      type: 'object',
+      required: ['images'],
+      properties: {
+        images: {
+          type: 'array',
+          minItems: 1,
+          maxItems: UPLOAD_LIMITS.maxImagesPerEntity,
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    type: HotelDto,
+    description: 'The hotel, with the new /uploads/hotels/... URLs in photos',
+  })
+  @ApiErrorResponses(400, 404)
+  addImages(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @UploadedFiles() files: UploadedFileLike[] | undefined,
+  ): Promise<HotelDto> {
+    return this.hotels.addImages(user, id, files ?? []);
+  }
+
+  @Delete(':id/images/:imageId')
+  @Roles(Role.Admin, Role.HotelModerator)
+  @ApiOperation({
+    summary: 'GEN-08 / HTL-01 Delete an uploaded hotel image',
+    description:
+      'Removes the uploaded photo from the hotel and deletes its file from the server. imageId is the UUID in the photo URL (/uploads/hotels/<imageId>.png); a malformed id is 400, an id this hotel does not have is 404. Same access as the upload.',
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiParam({
+    name: 'imageId',
+    description: 'Image id (UUID) from the photo URL',
+    example: '3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e',
+  })
+  @ApiOkResponse({ type: HotelDto })
+  @ApiErrorResponses(400, 404)
+  removeImage(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('imageId') imageId: string,
+  ): Promise<HotelDto> {
+    return this.hotels.removeImage(user, id, imageId);
   }
 }

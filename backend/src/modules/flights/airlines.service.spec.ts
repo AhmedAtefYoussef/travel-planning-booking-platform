@@ -4,6 +4,7 @@ import {
   AppException,
   ValidationFailedException,
 } from '../../common/errors/app.exception';
+import type { UploadsService } from '../../common/contracts/services.contract';
 import { AirlinesService } from './airlines.service';
 import type { Airline } from './schemas/airline.schema';
 
@@ -51,7 +52,10 @@ function setup(found: ReturnType<typeof fakeAirline> | null) {
   };
   return {
     model,
-    service: new AirlinesService(model as unknown as Model<Airline>),
+    service: new AirlinesService(
+      model as unknown as Model<Airline>,
+      {} as UploadsService,
+    ),
   };
 }
 
