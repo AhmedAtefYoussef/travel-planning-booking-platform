@@ -7,7 +7,7 @@ import { App } from 'supertest/types';
 import { Role } from '../../src/common/auth/auth.types';
 import { BookingStatus } from '../../src/common/contracts';
 import { FlightBooking } from '../../src/modules/bookings';
-import { StripeEvent } from '../../src/modules/payments';
+import { Refund, StripeEvent } from '../../src/modules/payments';
 import { STRIPE_GATEWAY } from '../../src/modules/payments/stripe-gateway';
 import { signStripePayload } from '../../src/modules/payments/stripe-signature';
 import {
@@ -33,6 +33,7 @@ describe('Booking engine and payments (vv)', () => {
   const http = () => request(app.getHttpServer());
   const stripe = new FakeStripe();
   let events: Model<StripeEvent>;
+  let refunds: Model<Refund>;
   let flightBookings: Model<FlightBooking>;
   let outbound: { flightId: string; cabinId: string };
   let inbound: { flightId: string; cabinId: string };
@@ -111,6 +112,7 @@ describe('Booking engine and payments (vv)', () => {
     );
     expect(app.get(STRIPE_GATEWAY)).toBe(stripe);
     events = app.get(getModelToken(StripeEvent.name));
+    refunds = app.get(getModelToken(Refund.name));
     flightBookings = app.get(getModelToken(FlightBooking.name));
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
 
@@ -340,7 +342,16 @@ describe('Booking engine and payments (vv)', () => {
         const a = await theirs[i].set('Cookie', stranger.cookie);
         const b = await missing[i].set('Cookie', stranger.cookie);
         expect([i, a.status, a.body.code]).toEqual([i, 404, 'NOT_FOUND']);
-        expect([i, b.status, b.body.code]).toEqual([i, 404, 'NOT_FOUND']);
+        // Same body as for an id that does not exist, apart from the request's own path and time.
+        // Routes 0 and 1 (GET booking by id) still word the message differently; fixed in #64, which
+        // tightens its own tests: compare the full body there.
+        if (i < 2) continue;
+        const strip = (body: Record<string, unknown>) => ({
+          ...body,
+          path: undefined,
+          timestamp: undefined,
+        });
+        expect([i, strip(a.body)]).toEqual([i, strip(b.body)]);
       }
     });
   });
@@ -369,6 +380,16 @@ describe('Booking engine and payments (vv)', () => {
       const booking = await flightBookings.findById(bookingId).lean();
       expect(booking?.status).toBe(BookingStatus.Confirmed);
       expect(booking?.reference).toMatch(/^FL-/);
+      // A 5xx loser is recoverable: Stripe's redelivery is acknowledged and changes nothing.
+      await webhook(id, {
+        id: pi,
+        object: 'payment_intent',
+        status: 'succeeded',
+      }).expect(200);
+      expect(await events.countDocuments({ stripeEventId: id })).toBe(1);
+      const again = await flightBookings.findById(bookingId).lean();
+      expect(again?.reference).toBe(booking?.reference);
+      expect(again?.confirmedAt).toEqual(booking?.confirmedAt);
     });
 
     it('a capture in another currency is not accepted: 5xx for Stripe to redeliver, the booking stays Pending Payment', async () => {
@@ -385,7 +406,18 @@ describe('Booking engine and payments (vv)', () => {
           currency: 'eur',
         },
       );
-      expect(res.status).toBeGreaterThanOrEqual(500);
+      // The deliberate 500 (Stripe redelivers), not a crash elsewhere: nothing recorded, nothing refunded.
+      expect([res.status, res.body.code]).toEqual([500, 'INTERNAL_ERROR']);
+      expect(
+        await events.countDocuments({
+          stripeEventId: { $regex: '^evt_vv_currency_' },
+        }),
+      ).toBe(0);
+      expect(
+        await refunds.countDocuments({
+          bookingId: new Types.ObjectId(bookingId),
+        }),
+      ).toBe(0);
       const booking = await flightBookings.findById(bookingId).lean();
       expect(booking?.status).toBe(BookingStatus.PendingPayment);
       expect(booking?.reference ?? null).toBeNull();

@@ -261,15 +261,29 @@ describe('PaymentsService (PAY-01)', () => {
           {
             $set: {
               status: 'FAILED',
-              failureReason: expect.stringContaining(
-                'charge_already_refunded',
-              ) as unknown,
+              // R2: Stripe's code only, never its text (ADR-0003).
+              failureReason: 'stripe:charge_already_refunded',
             },
           },
         );
         expect(log.error).toHaveBeenCalledWith(
           expect.stringContaining(refund.id),
         );
+      });
+
+      it('R1: keeps the refund PENDING on a configuration error (revoked key), so it is sent once the key is fixed', async () => {
+        const { service, stripe, payments, refunds, log } = setup();
+        const payment = paymentDoc({ status: PaymentStatus.Succeeded });
+        refunds.find.mockReturnValue({
+          sort: () => ({ limit: () => exec([pendingRefund(payment._id)]) }),
+        });
+        payments.findById.mockReturnValue(exec(payment) as never);
+        stripe.createRefund.mockRejectedValue(
+          new StripeApiError('Invalid API Key provided', 401, null),
+        );
+        await expect(service.retryPendingRefunds()).resolves.toBe(0);
+        expect(refunds.updateOne).not.toHaveBeenCalled();
+        expect(log.error).toHaveBeenCalled();
       });
 
       it('keeps a refund PENDING (re-sent by the job) when Stripe is only unavailable', async () => {

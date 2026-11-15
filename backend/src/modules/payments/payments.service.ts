@@ -529,16 +529,17 @@ export class PaymentsService {
         })
       ).id;
     } catch (e) {
-      if (e instanceof StripeApiError && !isRetryable(e)) {
-        // Sending it again can't help (e.g. charge_already_refunded): close it as FAILED, once.
+      if (e instanceof StripeApiError && isRefundTerminal(e)) {
+        // This charge can never be refunded this way (e.g. already refunded): close it as FAILED, once.
+        // A configuration error (revoked key, permissions) is not terminal: it stays PENDING below.
         await this.refunds
           .updateOne(
             { _id: refund._id, status: RefundStatus.Pending },
             {
               $set: {
                 status: RefundStatus.Failed,
-                failureReason:
-                  `${e.httpStatus} ${e.code ?? ''}: ${e.message}`.slice(0, 500),
+                // Stripe's code only: its text is never repeated (ADR-0003).
+                failureReason: `stripe:${e.code ?? 'unknown'}`,
               },
             },
           )
@@ -785,6 +786,20 @@ export class PaymentsService {
       );
     }
   }
+}
+
+/**
+ * Refund refusals that are about this charge, not our setup: sending the refund again can never succeed.
+ * Anything else (a revoked key, missing permissions, an outage) leaves the refund PENDING for the job.
+ */
+const TERMINAL_REFUND_CODES = new Set([
+  'charge_already_refunded',
+  'charge_disputed',
+  'charge_expired_for_capture',
+]);
+
+function isRefundTerminal(e: StripeApiError): boolean {
+  return e.code !== null && TERMINAL_REFUND_CODES.has(e.code);
 }
 
 /** Stripe failures a later attempt can get past. */
