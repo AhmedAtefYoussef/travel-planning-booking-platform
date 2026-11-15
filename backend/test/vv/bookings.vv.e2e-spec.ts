@@ -342,10 +342,8 @@ describe('Booking engine and payments (vv)', () => {
         const a = await theirs[i].set('Cookie', stranger.cookie);
         const b = await missing[i].set('Cookie', stranger.cookie);
         expect([i, a.status, a.body.code]).toEqual([i, 404, 'NOT_FOUND']);
-        // Same body as for an id that does not exist, apart from the request's own path and time.
-        // Routes 0 and 1 (GET booking by id) still word the message differently; fixed in #64, which
-        // tightens its own tests: compare the full body there.
-        if (i < 2) continue;
+        // Same body as for an id that does not exist, apart from the request's own path and time
+        // (all seven routes, including GET booking by id since #64).
         const strip = (body: Record<string, unknown>) => ({
           ...body,
           path: undefined,

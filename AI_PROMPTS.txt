@@ -1095,3 +1095,21 @@ updated the one report line that named an old branch. Through the Atlas connecto
 dangling references, seat inventory, account locks and the full index set of travel_platform and
 travel_vv read-only. I chose the naming approach.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-21 (TRVL-41), FLT-12 (TRVL-37), HTL-18 (TRVL-61)
+Prompt:
+Verify and validate my merged booking PRs (#57 to #61) against the workbook; fix confirmed defects in
+merged code in one separate fix PR.
+How the output was used:
+A spec-conformance review, confirmed by an independent verifier, found that a round-trip quote showed
+only the outbound infant fare, so the FLT-21 summary lines did not add up to the total when the two
+flights cost differently. Claude wrote a failing e2e test with unequal leg fares, then added each
+segment's own infant fare to the quote (not stored, since it derives from the stored fare). An
+acceptance check that compares whole 404 bodies then showed GET booking/reservation by id answered a
+stranger differently from an unknown id; the ownership helper now takes the caller's not-found message.
+It also corrected RTM rows whose cited evidence was weaker than claimed. I reviewed each diff.
+================================================

@@ -516,7 +516,16 @@ describe('Hotel room hold (e2e): HTL-16, HTL-18', () => {
       );
       const url = `/api/hotel-bookings/${res.body.id}`;
       await http().get(url).set('Cookie', owner.cookie).expect(200);
-      await http().get(url).set('Cookie', other.cookie).expect(404);
+      const theirs = await http()
+        .get(url)
+        .set('Cookie', other.cookie)
+        .expect(404);
+      // The same answer as for an id that does not exist, so a stranger cannot tell it exists (BOLA-1).
+      const unknown = await http()
+        .get(`/api/hotel-bookings/${new Types.ObjectId().toHexString()}`)
+        .set('Cookie', other.cookie)
+        .expect(404);
+      expect(theirs.body.message).toBe(unknown.body.message);
       await http().get(url).set('x-dev-user', 'ADMIN').expect(200);
       await expect(
         payable.getPayable(res.body.id as string, other.userId),

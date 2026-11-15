@@ -119,8 +119,10 @@ export class FlightBookingsService implements PayableBooking {
             {
               userId: new Types.ObjectId(user.id),
               tripType: quote.tripType,
+              // The infant fare is derived from the stored fare, so it is not stored on the segment.
               segments: quote.segments.map((s) => ({
                 ...s,
+                infantFareMinor: undefined,
                 flightId: new Types.ObjectId(s.flightId),
                 cabinId: new Types.ObjectId(s.cabinId),
                 airlineId: new Types.ObjectId(
@@ -154,6 +156,7 @@ export class FlightBookingsService implements PayableBooking {
     assertOwner(user, booking.userId, {
       bypassRoles: [Role.Admin],
       notFound: true,
+      notFoundMessage: notFound().message,
     });
     return toDto(booking);
   }
@@ -554,7 +557,7 @@ export class FlightBookingsService implements PayableBooking {
       seats,
       quote: {
         tripType: inbound ? TripType.RoundTrip : TripType.OneWay,
-        segments: legs.map((leg) => ({
+        segments: legs.map((leg, i) => ({
           flightId: leg.flightId,
           cabinId: leg.cabinId,
           cabinClass: leg.cabinClass,
@@ -565,6 +568,7 @@ export class FlightBookingsService implements PayableBooking {
           arrivalUtc: leg.arrivalUtc,
           seats,
           fareMinor: leg.fareMinor,
+          infantFareMinor: prices[i].infantFareMinor,
         })),
         passengers,
         fareMinor: outbound.fareMinor,

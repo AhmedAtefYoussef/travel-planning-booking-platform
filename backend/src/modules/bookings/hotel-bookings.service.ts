@@ -160,6 +160,7 @@ export class HotelBookingsService implements PayableBooking {
     assertOwner(user, reservation.userId, {
       bypassRoles: [Role.Admin],
       notFound: true,
+      notFoundMessage: notFound().message,
     });
     return toDto(reservation);
   }

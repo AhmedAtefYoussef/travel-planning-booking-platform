@@ -125,6 +125,16 @@ export class FlightSegmentDto {
   fareMinor!: number;
 }
 
+/** A quoted leg also shows its own infant fare (10% of that leg's fare), so the summary adds up. */
+export class FlightQuoteSegmentDto extends FlightSegmentDto {
+  @ApiProperty({
+    example: 10000,
+    description:
+      "This flight's fare per infant (10% of its fare, rounded down)",
+  })
+  infantFareMinor!: number;
+}
+
 export class PassengerDto {
   @ApiProperty({ enum: PASSENGER_TYPES }) type!: PassengerType;
   @ApiProperty() firstName!: string;
@@ -144,7 +154,12 @@ export class PassengerDto {
 /** FLT-21: what the user will pay for, before anything is held. */
 export class FlightQuoteDto {
   @ApiProperty({ enum: Object.values(TripType) }) tripType!: TripType;
-  @ApiProperty({ type: [FlightSegmentDto] }) segments!: FlightSegmentDto[];
+  @ApiProperty({
+    type: [FlightQuoteSegmentDto],
+    description:
+      'Each flight with its own seat and infant fare: the sum of fareMinor x seats and infantFareMinor x infants over the segments, plus extraBagsMinor, is totalMinor',
+  })
+  segments!: FlightQuoteSegmentDto[];
   @ApiProperty({ type: [PassengerDto] }) passengers!: PassengerDto[];
   @ApiProperty({
     example: 100000,
@@ -153,7 +168,8 @@ export class FlightQuoteDto {
   fareMinor!: number;
   @ApiProperty({
     example: 10000,
-    description: 'Outbound fare per infant (10%)',
+    description:
+      'Outbound fare per infant (10%); a round trip shows each leg in segments[].infantFareMinor',
   })
   infantFareMinor!: number;
   @ApiProperty({ example: 5000, description: 'All extra bags on all flights' })

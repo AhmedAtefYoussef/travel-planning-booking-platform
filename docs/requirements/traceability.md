@@ -32,7 +32,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-08 | Mandatory | PATCH /api/auth/change-password | Abdelrahman | TRVL-18 | #47 | Done |
 | ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
-| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46 | Done |
+| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46, #64 | Done |
 | ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57 | Partial: deactivation, password confirmation, logout everywhere and no login done; the upcoming-bookings block is active (UPCOMING_BOOKINGS provided by the bookings module, #57); hiding posts/itineraries and "Deleted user" for the blog, itineraries and reviews modules |
 | ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | #53, #55 | Done |
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
@@ -61,7 +61,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
 | FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Ahmed | TRVL-40 | #59, #63 | Done |
-| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Ahmed | TRVL-41 | #59 | Done |
+| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Ahmed | TRVL-41 | #59, #64 | Done |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
 | FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62 | Partial: the verified payment webhook confirms the booking with a unique FL- reference (#62); the confirmation notification and the e-ticket come with FLT-23 |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
