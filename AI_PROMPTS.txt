@@ -1113,3 +1113,21 @@ acceptance check that compares whole 404 bodies then showed GET booking/reservat
 stranger differently from an unknown id; the ownership helper now takes the caller's not-found message.
 It also corrected RTM rows whose cited evidence was weaker than claimed. I reviewed each diff.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-01 (TRVL-96)
+Prompt:
+Implement GEN-01 in-app notifications behind the existing NOTIFICATIONS_SERVICE contract: a notifications
+collection, a paginated owner-only list (10 per page, newest first, unread filter), an unread count, an
+idempotent mark-as-read and a mark-all-read, test-first, so the FLT-05 schedule notifier starts working.
+How the output was used:
+Claude wrote the failing e2e tests first (only my notifications newest first, 10 per page; unread count
+3 -> 2 -> 0; another user's id answers with the same 404 body as an unknown id; guest 401 on all four
+routes; notify in an aborted transaction leaves nothing), then the module, schema, service, controller
+and DTOs, plus unit tests that a bad producer input (empty title, link not starting with /) throws a
+plain Error. Because the real module now provides NOTIFICATIONS_SERVICE, the FLT-05 e2e swaps in its
+fake through a provider override instead of a second global module. I reviewed the diff.
+================================================

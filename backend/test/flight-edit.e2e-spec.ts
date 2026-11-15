@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { Global, INestApplication, Module } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
@@ -38,13 +38,6 @@ const notifications: NotificationsService = {
     return Promise.resolve();
   },
 };
-
-@Global()
-@Module({
-  providers: [{ provide: NOTIFICATIONS_SERVICE, useValue: notifications }],
-  exports: [NOTIFICATIONS_SERVICE],
-})
-class FakeNotificationsModule {}
 
 /** FLT-05 on its own airline (code FE, CDG -> FRA, both UTC+1 in December). */
 describe('Edit flights (e2e): FLT-05', () => {
@@ -85,11 +78,15 @@ describe('Edit flights (e2e): FLT-05', () => {
 
   beforeAll(async () => {
     app = await createTestApp(
-      [FakeNotificationsModule],
-      // The real bookings module provides FLIGHT_BOOKINGS_LOOKUP; replace it with the stand-in.
-      [{ provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup }],
+      [],
+      // The real bookings and notifications (GEN-01) modules provide these; replace them with stand-ins.
+      [
+        { provide: FLIGHT_BOOKINGS_LOOKUP, useValue: lookup },
+        { provide: NOTIFICATIONS_SERVICE, useValue: notifications },
+      ],
     );
     expect(app.get(FLIGHT_BOOKINGS_LOOKUP)).toBe(lookup);
+    expect(app.get(NOTIFICATIONS_SERVICE)).toBe(notifications);
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
     flights = app.get<Model<Flight>>(getModelToken(Flight.name));
     const airline = await http()

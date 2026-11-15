@@ -149,7 +149,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| GEN-01 | Mandatory | GET /api/notifications; PATCH /api/notifications/:id/read | Karim | TRVL-96 | - | Not started |
+| GEN-01 | Mandatory | GET /api/notifications; GET /api/notifications/unread-count; PATCH /api/notifications/:id/read; PATCH /api/notifications/read-all | Ahmed | TRVL-96 | - | In progress |
 | GEN-02 | Mandatory | global ValidationPipe + AllExceptionsFilter (all endpoints); demo: POST /api/diagnostics/validation, /api/diagnostics/records | Ahmed | TRVL-97 | #2, #3, #55 | Done |
 | GEN-03 | Mandatory | (frontend, Milestone 2) | Karim | TRVL-98 | - | Not started |
 | GEN-04 | Mandatory | (frontend, Milestone 2) | Sarah | TRVL-99 | - | Not started |
