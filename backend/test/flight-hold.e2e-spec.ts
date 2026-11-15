@@ -85,7 +85,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
     ...adult(),
     type: 'INFANT',
     firstName: 'Lina',
-    dateOfBirth: '2027-06-01',
+    dateOfBirth: '2026-06-01',
   };
 
   const hold = (who: LoggedIn | null, body: object) => {
@@ -157,7 +157,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         .set('Cookie', traveller.cookie)
         .send({
           outbound: small,
-          passengers: [adult({ extraBags: 1 }), infant],
+          passengers: [adult({ extraBags: 1, extraBagsWeightKg: 20 }), infant],
         })
         .expect(200);
       expect(res.body).toMatchObject({
@@ -172,8 +172,29 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         'ADULT',
         'INFANT',
       ]);
+      expect(res.body.passengers[0]).toMatchObject({
+        extraBags: 1,
+        extraBagsWeightKg: 20,
+      });
       expect(await seatsLeft(small.flightId)).toBe(5);
     });
+  });
+
+  describe('extra baggage weight validation (FLT-19)', () => {
+    it.each([0, -1, 1.5])(
+      'refuses extraBagsWeightKg %p with 400 on that field',
+      async (weight) => {
+        const res = await http()
+          .post('/api/flight-bookings/quote')
+          .set('Cookie', traveller.cookie)
+          .send({
+            outbound: small,
+            passengers: [adult({ extraBags: 1, extraBagsWeightKg: weight })],
+          })
+          .expect(400);
+        expect(fieldsOf(res.body)).toContain('passengers[0].extraBagsWeightKg');
+      },
+    );
   });
 
   describe('POST /api/flight-bookings/hold (FLT-22)', () => {
@@ -222,8 +243,32 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
       ],
       [
         'more extra bags than the airline allows',
-        [adult({ extraBags: 3 })],
+        [adult({ extraBags: 3, extraBagsWeightKg: 30 })],
         'passengers[0].extraBags',
+      ],
+      [
+        'extra bags heavier than the cabin allows (23 kg per bag)',
+        [adult({ extraBags: 1, extraBagsWeightKg: 24 })],
+        'passengers[0].extraBagsWeightKg',
+      ],
+      [
+        'extra bags without their weight',
+        [adult({ extraBags: 1 })],
+        'passengers[0].extraBagsWeightKg',
+      ],
+      [
+        'a date of birth after today (an unborn passenger)',
+        [
+          adult(),
+          {
+            ...infant,
+            documentNumber: 'U1234567',
+            dateOfBirth: new Date(Date.now() + 30 * 86_400_000)
+              .toISOString()
+              .slice(0, 10),
+          },
+        ],
+        'passengers[1].dateOfBirth',
       ],
       [
         'two passengers with the same document number',
@@ -279,7 +324,7 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
       const res = await hold(traveller, {
         outbound: small,
         return: back,
-        passengers: [adult({ extraBags: 1 })],
+        passengers: [adult({ extraBags: 1, extraBagsWeightKg: 23 })],
       }).expect(201);
       expect(res.body).toMatchObject({
         tripType: 'ROUND_TRIP',
@@ -313,13 +358,18 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
     it('shows the booking to its owner and an admin, and is 404 for anyone else', async () => {
       const created = await hold(traveller, {
         outbound: small,
-        passengers: [adult()],
+        passengers: [adult({ extraBags: 1, extraBagsWeightKg: 20 })],
       }).expect(201);
       const id = created.body.id as string;
-      await http()
+      const mine = await http()
         .get(`/api/flight-bookings/${id}`)
         .set('Cookie', traveller.cookie)
         .expect(200);
+      // FLT-19: the extra bags and their weight are read back from the stored booking.
+      expect(mine.body.passengers[0]).toMatchObject({
+        extraBags: 1,
+        extraBagsWeightKg: 20,
+      });
       await http()
         .get(`/api/flight-bookings/${id}`)
         .set('x-dev-user', 'ADMIN')
