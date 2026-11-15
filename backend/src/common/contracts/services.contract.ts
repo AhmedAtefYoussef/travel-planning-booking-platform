@@ -184,7 +184,7 @@ export interface AuditService {
 }
 
 /* ----------------------------------------------------------------------------------------------
- * Notifications (GEN-01, Karim). Register under NOTIFICATIONS_SERVICE.
+ * Notifications (GEN-01, Ahmed). Register under NOTIFICATIONS_SERVICE.
  * -------------------------------------------------------------------------------------------- */
 
 export enum NotificationType {

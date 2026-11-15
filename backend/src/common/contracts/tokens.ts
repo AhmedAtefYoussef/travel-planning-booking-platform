@@ -13,7 +13,7 @@
  *   CURRENCY_SERVICE (Ahmed)        ->  budgets (ITN-18)
  *   REFERENCE_SERVICE (Joudy)       ->  all
  *   AUDIT_SERVICE (Ahmed)           ->  admin, moderation
- *   NOTIFICATIONS_SERVICE (Karim)   ->  bookings, payments, admin, flights
+ *   NOTIFICATIONS_SERVICE (Ahmed)   ->  bookings, payments, admin, flights
  *   FLIGHT_BOOKINGS_LOOKUP (bookings) ->  flights (FLT-05 schedule-change notifications)
  *   UPLOADS_SERVICE (Ahmed)         ->  blog, itineraries, hotels, airlines
  *   SESSION_VALIDATOR (Abdelrahman) ->  common/auth AuthGuard (ACC-06 idle expiry, logout)

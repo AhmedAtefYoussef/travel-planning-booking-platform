@@ -512,6 +512,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       envelope: (body) => body.outbound as Record<string, unknown>,
     },
     { url: '/api/diagnostics/rows?' },
+    {
+      // GEN-01: the caller's own notifications.
+      url: '/api/notifications?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
