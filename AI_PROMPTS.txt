@@ -1131,3 +1131,19 @@ and DTOs, plus unit tests that a bad producer input (empty title, link not start
 plain Error. Because the real module now provides NOTIFICATIONS_SERVICE, the FLT-05 e2e swaps in its
 fake through a provider override instead of a second global module. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-08 (TRVL-103)
+Prompt:
+Implement GEN-08 image uploads: a shared uploads service and multipart interceptor (JPG/PNG by magic
+bytes, 5 MB each, 5 per post/activity/hotel, 1 airline logo), hotel image upload and delete, airline logo
+replace, static serving of /uploads with nosniff, test-first, with cleanup of written files on failure.
+How the output was used:
+Claude wrote failing unit and e2e tests first (5 MB boundary, sixth image, text renamed .png, traversal
+in deleteImage, two concurrent uploads past the limit, 403/401), then the UPLOADS_SERVICE on local disk
+with UUID file names, ImageFilesInterceptor, the hotel endpoints with a conditional $push that deletes the
+loser's files, the logo replace that deletes the old file, and the URL validators. I reviewed the diff.
+================================================
