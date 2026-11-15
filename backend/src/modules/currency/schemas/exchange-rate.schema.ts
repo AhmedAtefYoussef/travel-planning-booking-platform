@@ -31,3 +31,5 @@ export class ExchangeRate {
 export type ExchangeRateDocument = HydratedDocument<ExchangeRate>;
 export const ExchangeRateSchema = SchemaFactory.createForClass(ExchangeRate);
 ExchangeRateSchema.index({ base: 1, rateDate: 1 }, { unique: true });
+/** The daily job's staleness check: newest fetch per base. */
+ExchangeRateSchema.index({ base: 1, fetchedAt: -1 });

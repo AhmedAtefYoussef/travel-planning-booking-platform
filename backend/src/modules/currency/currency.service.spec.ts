@@ -123,6 +123,28 @@ describe('ExchangeRatesService.convert: ITN-18 / PAY-04 (TRVL-133)', () => {
     expect(error.getStatus()).toBe(400);
     expect(error.fieldErrors?.[0].field).toBe('amountMinor');
   });
+
+  it('503, never 0, when the rate data makes the result non-finite (denormal rate)', async () => {
+    const { service } = setup({
+      ...CACHED,
+      rates: { EGP: 5e-324, JPY: 150 },
+    });
+    const error = await caught(service.convert(1000, 'EGP', 'JPY'));
+    expect(error.getStatus()).toBe(503);
+    expect(error.code).toBe(ErrorCode.EXCHANGE_RATE_UNAVAILABLE);
+  });
+
+  it('0 converts to 0 (never -0) and tiny amounts round half away from zero', async () => {
+    const { service } = setup();
+    const zero = await service.convert(0, 'EGP', 'JPY');
+    expect(Object.is(zero.amountMinor, 0)).toBe(true);
+    // 0.01 EGP = 0.03 JPY -> 0 yen; -0.01 EGP -> 0, not -0
+    const negative = await service.convert(-1, 'EGP', 'JPY');
+    expect(Object.is(negative.amountMinor, 0)).toBe(true);
+    await expect(service.convert(-50, 'EGP', 'JPY')).resolves.toMatchObject({
+      amountMinor: -2,
+    });
+  });
 });
 
 describe('ExchangeRatesService rates and refresh: ITN-18 (TRVL-133)', () => {
@@ -184,12 +206,44 @@ describe('ExchangeRatesService rates and refresh: ITN-18 (TRVL-133)', () => {
     expect(model.updateOne).not.toHaveBeenCalled();
   });
 
-  it('is stale when nothing is cached or the newest day is before today (UTC)', async () => {
+  it('redacts FX_API_KEY from the logged error, raw or URL-encoded', async () => {
+    const log = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const key = 'k3y+with/special=chars';
+    const { service, fx } = setup();
+    const config = {
+      get: jest.fn((n: string) => (n === 'FX_API_KEY' ? key : 'USD')),
+    };
+    Object.assign(service, { config });
+    fx.latest.mockRejectedValue(
+      new Error(
+        `ETIMEDOUT https://x/latest?api_key=${encodeURIComponent(key)} raw ${key}`,
+      ),
+    );
+    await expect(service.refreshRates(now)).resolves.toBe(false);
+    const message = String(log.mock.calls[0][0]);
+    expect(message).toContain('ETIMEDOUT');
+    expect(message).not.toContain(key);
+    expect(message).not.toContain(encodeURIComponent(key));
+  });
+
+  it('is stale when nothing is cached or the newest fetch was before today (UTC), whatever the API date', async () => {
     await expect(setup(null).service.isStale(now)).resolves.toBe(true);
+    // fetched yesterday
     await expect(setup().service.isStale(now)).resolves.toBe(true);
+    // fetched today, even though the API reported yesterday's rateDate: no new fetch today
+    const lagging = setup({
+      ...CACHED,
+      rateDate: '2026-11-14',
+      fetchedAt: new Date('2026-11-15T00:30:00Z'),
+    });
+    await expect(lagging.service.isStale(now)).resolves.toBe(false);
+    expect(lagging.model.findOne).toHaveBeenCalledWith(
+      { base: 'USD' },
+      { _id: 0, fetchedAt: 1 },
+    );
     await expect(
-      setup({ ...CACHED, rateDate: '2026-11-15' }).service.isStale(now),
-    ).resolves.toBe(false);
+      lagging.service.isStale(new Date('2026-11-16T00:00:00Z')),
+    ).resolves.toBe(true);
     await expect(setup().service.hasCachedRates()).resolves.toBe(true);
     await expect(setup(null).service.hasCachedRates()).resolves.toBe(false);
   });

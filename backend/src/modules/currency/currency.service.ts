@@ -18,6 +18,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import {
   FX_RATES_CLIENT,
+  redactFxKey,
   validateFxRates,
   type FxRatesClient,
 } from './fx-rates.client';
@@ -101,8 +102,14 @@ export class ExchangeRatesService implements CurrencyService {
 
   /** True when nothing is cached or the newest rate day is before today's UTC date. */
   async isStale(now: Date): Promise<boolean> {
-    const cached = await this.latest();
-    return !cached || cached.rateDate < utcDay(now);
+    // Keyed on the platform's own fetch day, not the API-reported rateDate: an API date that lags
+    // (weekends, just after 00:00 UTC) must not cause a fetch every hour.
+    const newest = await this.model
+      .findOne({ base: this.base }, { _id: 0, fetchedAt: 1 })
+      .sort({ fetchedAt: -1 })
+      .lean<{ fetchedAt: Date }>()
+      .exec();
+    return !newest || utcDay(newest.fetchedAt) < utcDay(now);
   }
 
   /**
@@ -135,7 +142,10 @@ export class ExchangeRatesService implements CurrencyService {
       return true;
     } catch (e) {
       this.logger.error(
-        `Exchange-rate refresh failed; keeping the cached rates: ${e instanceof Error ? e.message : String(e)}`,
+        redactFxKey(
+          `Exchange-rate refresh failed; keeping the cached rates: ${e instanceof Error ? e.message : String(e)}`,
+          this.config.get('FX_API_KEY', { infer: true }),
+        ),
       );
       return false;
     }
@@ -184,8 +194,14 @@ export class ExchangeRatesService implements CurrencyService {
     const muFrom = currencies.get(fromCode)!.minorUnits;
     const muTo = currencies.get(toCode)!.minorUnits;
     const scaled = (amountMinor / 10 ** muFrom) * rate * 10 ** muTo;
+    // A non-finite result comes from the rate data (e.g. a denormal rate): never answer with 0 or NaN.
+    if (!Number.isFinite(rate) || !Number.isFinite(scaled))
+      throw this.unavailable(
+        `No usable exchange rate from ${fromCode} to ${toCode} is available (cached rates of ${cached.rateDate}); try again later`,
+      );
     // Half away from zero, and never -0.
-    const converted = Math.sign(scaled) * Math.round(Math.abs(scaled)) || 0;
+    const rounded = Math.sign(scaled) * Math.round(Math.abs(scaled));
+    const converted = Object.is(rounded, -0) ? 0 : rounded;
     if (!Number.isSafeInteger(converted))
       throw new ValidationFailedException([
         {

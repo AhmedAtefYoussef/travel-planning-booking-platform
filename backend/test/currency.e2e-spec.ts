@@ -1,5 +1,7 @@
+// Must stay the first import: sets a canary FX_API_KEY before the app's config is loaded.
+import { FX_CANARY_KEY, PREVIOUS_FX_API_KEY } from './support/fx-canary-env';
 import { join } from 'node:path';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, Logger } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
 import request from 'supertest';
@@ -20,10 +22,9 @@ import {
   ReferenceSeedService,
 } from '../src/modules/reference';
 import { createTestApp } from './support/create-test-app';
-import { TEST_ENV } from './support/test-env';
 
 const DATA_DIR = join(__dirname, '..', 'seed', 'data');
-const FX_KEY = TEST_ENV.FX_API_KEY;
+const FX_KEY = FX_CANARY_KEY;
 const TODAY = new Date('2026-11-15T09:00:00Z');
 const YESTERDAY = new Date('2026-11-14T09:00:00Z');
 
@@ -68,6 +69,7 @@ describe('Currency rates and conversion (e2e): ITN-18 / PAY-04 (TRVL-133)', () =
 
   afterAll(async () => {
     await app.close();
+    process.env.FX_API_KEY = PREVIOUS_FX_API_KEY;
   });
 
   it('asks the API for every seeded currency against the platform currency', async () => {
@@ -278,25 +280,72 @@ describe('Currency rates and conversion (e2e): ITN-18 / PAY-04 (TRVL-133)', () =
   });
 
   it('response never contains FX_API_KEY', async () => {
-    apiReturns('2026-11-15');
-    await exchange().refreshRates(TODAY);
-    const ok = [
-      await http().get('/api/currencies/rates').expect(200),
-      await http()
-        .get('/api/currencies/convert?amountMinor=1000&from=EGP&to=JPY')
-        .expect(200),
-    ];
-    await rates.deleteMany({});
-    const failed = [
-      await http().get('/api/currencies/rates').expect(503),
-      await http()
-        .get('/api/currencies/convert?amountMinor=1000&from=EGP&to=JPY')
-        .expect(503),
-    ];
-    for (const res of [...ok, ...failed]) {
-      expect(res.text).not.toContain(FX_KEY);
-      expect(JSON.stringify(res.headers)).not.toContain(FX_KEY);
+    const logged: string[] = [];
+    const capture = (...args: unknown[]) => {
+      logged.push(args.map(String).join(' '));
+    };
+    for (const level of ['log', 'error', 'warn', 'debug', 'verbose'] as const)
+      jest.spyOn(Logger.prototype, level).mockImplementation(capture);
+    try {
+      // The app really runs with the canary key.
+      expect(exchange()['config'].get('FX_API_KEY')).toBe(FX_KEY);
+
+      apiReturns('2026-11-15');
+      await exchange().refreshRates(TODAY);
+      const ok = [
+        await http().get('/api/currencies/rates').expect(200),
+        await http()
+          .get('/api/currencies/convert?amountMinor=1000&from=EGP&to=JPY')
+          .expect(200),
+      ];
+
+      // An outage whose error echoes the request URL, with the key raw and URL-encoded.
+      await rates.deleteMany({});
+      const url = `https://api.fxratesapi.com/latest?base=USD&currencies=EGP&api_key=${encodeURIComponent(FX_KEY)}`;
+      fx.latest.mockRejectedValue(
+        new Error(`connect ECONNREFUSED ${url} (key ${FX_KEY})`),
+      );
+      await expect(jobs().bootstrapRefresh(TODAY)).resolves.toBe(false);
+      const failed = [
+        await http().get('/api/currencies/rates').expect(503),
+        await http()
+          .get('/api/currencies/convert?amountMinor=1000&from=EGP&to=JPY')
+          .expect(503),
+      ];
+
+      expect(logged.join(' | ')).toContain('ECONNREFUSED');
+      const forms = [FX_KEY, encodeURIComponent(FX_KEY)];
+      for (const form of forms) {
+        expect(logged.join(' | ')).not.toContain(form);
+        for (const res of [...ok, ...failed]) {
+          expect(res.text).not.toContain(form);
+          expect(JSON.stringify(res.headers)).not.toContain(form);
+        }
+      }
+    } finally {
+      jest.restoreAllMocks();
     }
+  });
+
+  it('a lagging API date (yesterday) is fetched once per UTC day, not every hour', async () => {
+    // Just after midnight the API still reports yesterday's date.
+    apiReturns('2026-11-14');
+    await expect(jobs().tick(new Date('2026-11-15T00:30:00Z'))).resolves.toBe(
+      true,
+    );
+    for (const hour of ['01', '05', '12', '23'])
+      await expect(
+        jobs().tick(new Date(`2026-11-15T${hour}:30:00Z`)),
+      ).resolves.toBe(false);
+    expect(fx.latest).toHaveBeenCalledTimes(1);
+    const res = await http().get('/api/currencies/rates').expect(200);
+    expect(res.body.rateDate).toBe('2026-11-14');
+
+    apiReturns('2026-11-16');
+    await expect(jobs().tick(new Date('2026-11-16T00:30:00Z'))).resolves.toBe(
+      true,
+    );
+    expect(fx.latest).toHaveBeenCalledTimes(2);
   });
 
   it('the rate routes are public and do not shadow GET /api/currencies', async () => {

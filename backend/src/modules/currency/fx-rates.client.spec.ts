@@ -1,6 +1,7 @@
 import {
   FxRatesError,
   HttpFxRatesClient,
+  redactFxKey,
   validateFxRates,
 } from './fx-rates.client';
 
@@ -122,5 +123,54 @@ describe('validateFxRates: ITN-18 (TRVL-133)', () => {
     ['null', null],
   ])('rejects %s', (_label, payload) => {
     expect(() => validateFxRates(payload, ['EGP'])).toThrow(FxRatesError);
+  });
+});
+
+describe('redactFxKey: FX_API_KEY never in logs or errors (TRVL-133)', () => {
+  const key = 'k3y+with/special=chars&x';
+
+  it.each([
+    ['raw', `failed ${key} here`],
+    [
+      'encodeURIComponent',
+      `GET /latest?api_key=${encodeURIComponent(key)}&base=USD`,
+    ],
+    [
+      'URLSearchParams',
+      `GET /latest?${new URLSearchParams({ api_key: key }).toString()}`,
+    ],
+    ['encoded outside a query', `body ${encodeURIComponent(key)} end`],
+  ])('removes the %s form', (_label, text) => {
+    const out = redactFxKey(text, key);
+    expect(out).not.toContain(key);
+    expect(out).not.toContain(encodeURIComponent(key));
+    expect(out).not.toContain(
+      new URLSearchParams({ k: key }).toString().slice(2),
+    );
+    expect(out).toContain('[redacted]');
+  });
+
+  it('blanks any api_key query value even when the key is unknown', () => {
+    expect(
+      redactFxKey('https://h/latest?base=USD&api_key=abc%2Bdef&x=1', undefined),
+    ).toBe('https://h/latest?base=USD&api_key=[redacted]&x=1');
+  });
+
+  it('the client error redacts an encoded key echoed by fetch', async () => {
+    const special = new HttpFxRatesClient({
+      get: (n: string) =>
+        n === 'FX_API_KEY' ? key : 'https://api.fxratesapi.com',
+    } as never);
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValue(
+        new Error(`connect ECONNREFUSED ${encodeURIComponent(key)}`),
+      );
+    const error = (await special
+      .latest('USD', ['EGP'])
+      .catch((e: Error) => e)) as Error;
+    expect(error.message).not.toContain(encodeURIComponent(key));
+    expect(error.message).toContain('ECONNREFUSED');
+    jest.restoreAllMocks();
   });
 });

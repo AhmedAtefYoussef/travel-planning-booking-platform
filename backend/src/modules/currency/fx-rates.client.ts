@@ -22,6 +22,23 @@ export class FxRatesError extends Error {
 }
 
 const TIMEOUT_MS = 10_000;
+
+/**
+ * Removes FX_API_KEY from text that may be logged or thrown: the raw key, its URL-encoded forms, and the
+ * whole value of any `api_key=` query parameter whatever its encoding.
+ */
+export function redactFxKey(text: string, key: string | undefined): string {
+  let out = text.replace(/(api_key=)[^&\s"'<>)]*/gi, '$1[redacted]');
+  if (key) {
+    const forms = new Set([
+      key,
+      encodeURIComponent(key),
+      new URLSearchParams({ k: key }).toString().slice(2),
+    ]);
+    for (const form of forms) out = out.split(form).join('[redacted]');
+  }
+  return out;
+}
 const DAY = /^(\d{4})-(\d{2})-(\d{2})/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -94,8 +111,7 @@ export class HttpFxRatesClient implements FxRatesClient {
     url.searchParams.set('currencies', symbols.join(','));
     url.searchParams.set('api_key', key);
 
-    const redact = (text: string) =>
-      key ? text.split(key).join('[redacted]') : text;
+    const redact = (text: string) => redactFxKey(text, key);
     let res: Response;
     try {
       res = await fetch(url, {
