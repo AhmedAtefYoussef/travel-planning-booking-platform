@@ -17,6 +17,7 @@ coverage/
 # Uploads (GEN-08, served from UPLOAD_DIR)
 uploads/
 backend/uploads/
+uploads-test/
 
 # Generated API spec (CI artifact)
 backend/openapi.json

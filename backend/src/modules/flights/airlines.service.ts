@@ -1,4 +1,4 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
@@ -7,6 +7,11 @@ import {
   cancellationTierFieldErrors,
   selectCancellationTier,
 } from '../../common/contracts';
+import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
+import type {
+  UploadedFileLike,
+  UploadsService,
+} from '../../common/contracts/services.contract';
 import {
   AppException,
   ValidationFailedException,
@@ -20,7 +25,11 @@ import type {
   RefundPreviewDto,
   UpdateAirlineDto,
 } from './dto/airline.dto';
+import { localUploadUrlPattern } from '../../common/validation';
 import { Airline, AirlineDocument } from './schemas/airline.schema';
+
+/** A logo file this backend stored (GEN-08); other logos are external links. */
+const AIRLINE_UPLOAD_URL = localUploadUrlPattern(['airlines']);
 
 /**
  * Airline profiles (FLT-01). Rules live here, not in the controller, so they hold for every caller
@@ -31,6 +40,7 @@ import { Airline, AirlineDocument } from './schemas/airline.schema';
 export class AirlinesService {
   constructor(
     @InjectModel(Airline.name) private readonly airlines: Model<Airline>,
+    @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
   ) {}
 
   async create(dto: CreateAirlineDto): Promise<AirlineDto> {
@@ -69,6 +79,56 @@ export class AirlinesService {
     if (dto.logoUrl !== undefined) airline.logoUrl = dto.logoUrl;
     await airline.save();
     return toAirlineDto(airline);
+  }
+
+  /**
+   * GEN-08 / FLT-01: replaces the airline's logo with one uploaded JPG/PNG (one logo per airline). The
+   * new file is stored first and swapped in with one atomic update that returns the previous value, so
+   * even two concurrent replacements each delete exactly the logo they replaced. The previous file is
+   * deleted only when it was an upload that no other airline uses; an http(s) logo is left alone.
+   */
+  async setLogo(
+    user: AuthUser,
+    id: string,
+    files: UploadedFileLike[],
+  ): Promise<AirlineDto> {
+    const airline = await this.load(id);
+    assertProviderScope(user, ProviderType.Airline, airline._id, {
+      allowAdmin: true,
+    });
+    const [logo] = await this.uploads.saveImages(files, {
+      entityType: 'AIRLINE_LOGO',
+      entityId: id,
+      // Replacing: the current logo is removed below, so it does not count towards the limit of one.
+      existingCount: 0,
+    });
+    let previous: AirlineDocument | null;
+    try {
+      previous = await this.airlines
+        .findOneAndUpdate(
+          { _id: id },
+          { $set: { logoUrl: logo.url } },
+          { new: false },
+        )
+        .exec();
+    } catch (err) {
+      await this.uploads.deleteImage(logo.url);
+      throw err;
+    }
+    if (!previous) {
+      await this.uploads.deleteImage(logo.url);
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Airline not found',
+      );
+    }
+    const old = previous.logoUrl;
+    if (old && old !== logo.url && AIRLINE_UPLOAD_URL.test(old)) {
+      const stillUsed = await this.airlines.exists({ logoUrl: old }).exec();
+      if (!stillUsed) await this.uploads.deleteImage(old);
+    }
+    return this.findById(id);
   }
 
   /** FLT-08: set (or replace) the extra-baggage policy; only the airline's moderator. */

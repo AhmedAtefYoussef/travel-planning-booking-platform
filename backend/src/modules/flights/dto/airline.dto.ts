@@ -7,7 +7,6 @@ import {
   IsNumber,
   IsOptional,
   IsString,
-  IsUrl,
   Length,
   Matches,
   Max,
@@ -15,7 +14,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { IsWholeNumber, Omittable } from '../../../common/validation';
+import {
+  IsImageUrl,
+  IsWholeNumber,
+  Omittable,
+} from '../../../common/validation';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -37,19 +40,15 @@ const LogoUrlRules = () =>
   applyDecorators(
     IsString(),
     MaxLength(500),
-    IsUrl(
-      {
-        protocols: ['http', 'https'],
-        require_protocol: true,
-        require_tld: false,
-      },
-      { message: 'logoUrl must be an http(s) URL' },
-    ),
+    IsImageUrl('airlines', {
+      message:
+        'logoUrl must be an http(s) URL or a /uploads/airlines/ URL returned by the GEN-08 upload',
+    }),
   );
 const CODE_DESCRIPTION =
   'Airline designator: 2-3 letters or digits, unique, stored in capitals';
 const LOGO_DESCRIPTION =
-  'Logo URL. The GEN-08 upload endpoint will set this from an uploaded JPG/PNG; until then a link is accepted.';
+  'Logo URL: an http(s) link or the /uploads/airlines/<id>.jpg|png URL set by PUT /api/airlines/:id/logo (GEN-08).';
 
 /** FLT-01: an admin creates an airline profile. */
 export class CreateAirlineDto {

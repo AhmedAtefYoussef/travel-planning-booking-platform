@@ -1,6 +1,9 @@
 import { Types, type Model } from 'mongoose';
 import { AuthUser, ProviderType, Role } from '../../common/auth/auth.types';
-import type { ReferenceService } from '../../common/contracts/services.contract';
+import type {
+  ReferenceService,
+  UploadsService,
+} from '../../common/contracts/services.contract';
 import { HotelsService } from './hotels.service';
 import type { Hotel } from './schemas/hotel.schema';
 
@@ -63,6 +66,7 @@ function setup(stored: FakeHotel | null) {
     service: new HotelsService(
       model as unknown as Model<Hotel>,
       reference as unknown as ReferenceService,
+      {} as UploadsService,
     ),
   };
 }

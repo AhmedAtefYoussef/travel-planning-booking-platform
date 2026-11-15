@@ -12,6 +12,7 @@ import { HotelsModule } from './modules/hotels';
 import { NotificationsModule } from './modules/notifications';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
+import { UploadsModule } from './modules/uploads';
 import { UsersModule } from './modules/users';
 
 /**
@@ -28,6 +29,7 @@ import { UsersModule } from './modules/users';
     AuthModule,
     AuditModule,
     NotificationsModule,
+    UploadsModule,
     BookingsModule,
     PaymentsModule,
     ReferenceModule,

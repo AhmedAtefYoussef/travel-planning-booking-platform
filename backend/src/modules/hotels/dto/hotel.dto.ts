@@ -6,14 +6,17 @@ import {
   IsArray,
   IsOptional,
   IsString,
-  IsUrl,
   Length,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
 import { MAX_HOTEL_PHOTOS } from '../schemas/hotel.schema';
-import { IsWholeNumber, Omittable } from '../../../common/validation';
+import {
+  IsImageUrl,
+  IsWholeNumber,
+  Omittable,
+} from '../../../common/validation';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -56,14 +59,11 @@ const PhotosRules = () =>
   applyDecorators(
     IsArray(),
     ArrayMaxSize(MAX_HOTEL_PHOTOS),
-    IsUrl(
-      {
-        protocols: ['http', 'https'],
-        require_protocol: true,
-        require_tld: false,
-      },
-      { each: true, message: 'each photo must be an http(s) URL' },
-    ),
+    IsImageUrl('hotels', {
+      each: true,
+      message:
+        'each photo must be an http(s) URL or a /uploads/hotels/ URL returned by the GEN-08 upload',
+    }),
     MaxLength(500, { each: true }),
   );
 const AmenitiesRules = () =>
@@ -77,7 +77,7 @@ const AmenitiesRules = () =>
 
 const CITY_DESCRIPTION =
   'City id from the reference data (GET /api/cities). The country is taken from the city.';
-const PHOTOS_DESCRIPTION = `Up to ${MAX_HOTEL_PHOTOS} photo URLs. The GEN-08 upload endpoint will set these from uploaded JPG/PNG files; until then links are accepted. Sending the list replaces the current photos.`;
+const PHOTOS_DESCRIPTION = `Up to ${MAX_HOTEL_PHOTOS} photo URLs: http(s) links or /uploads/hotels/<id>.jpg|png URLs returned by POST /api/hotels/:id/images (GEN-08). Sending the list replaces the current photos (e.g. to reorder them); remove an uploaded photo with DELETE /api/hotels/:id/images/:imageId so its file is deleted too.`;
 
 /** HTL-01: an admin creates a hotel profile. */
 export class CreateHotelDto {

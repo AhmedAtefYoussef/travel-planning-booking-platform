@@ -7,9 +7,12 @@ import {
   Post,
   Put,
   Query,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -19,8 +22,13 @@ import {
 import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
+import {
+  UPLOAD_LIMITS,
+  type UploadedFileLike,
+} from '../../common/contracts/services.contract';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import { ImageFilesInterceptor } from '../uploads';
 import { AirlinesService } from './airlines.service';
 import {
   AirlineDto,
@@ -123,6 +131,38 @@ export class AirlinesController {
     @Body() dto: UpdateAirlineDto,
   ): Promise<AirlineDto> {
     return this.airlines.update(user, id, dto);
+  }
+
+  @Put(':id/logo')
+  @Roles(Role.Admin, Role.AirlineModerator)
+  @UseInterceptors(ImageFilesInterceptor('logo', UPLOAD_LIMITS.maxAirlineLogos))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'GEN-08 / FLT-01 Upload or replace the airline logo',
+    description:
+      'Send exactly one JPG or PNG file, at most 5 MB, in the multipart field "logo"; an airline has one logo. The type is read from the file content (a text file renamed .png is refused). A second file in the same request, a larger file or another type is 400 with fieldErrors on "logo" and nothing changes. The file is stored on the server under a new random name and logoUrl becomes /uploads/airlines/<id>.jpg|png (served without the /api prefix); the previous uploaded logo file is deleted. Allowed: an admin, or the moderator assigned to this airline (the moderator of another airline gets 403).',
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiBody({
+    description:
+      'multipart/form-data with one file in "logo" (JPG or PNG, 5 MB). Invalid: two files, a 5 MB + 1 byte file, a PDF or text file.',
+    schema: {
+      type: 'object',
+      required: ['logo'],
+      properties: { logo: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiOkResponse({
+    type: AirlineDto,
+    description: 'The airline with its new /uploads/airlines/... logoUrl',
+  })
+  @ApiErrorResponses(400, 404)
+  setLogo(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @UploadedFiles() files: UploadedFileLike[] | undefined,
+  ): Promise<AirlineDto> {
+    return this.airlines.setLogo(user, id, files ?? []);
   }
 
   @Put(':id/baggage-policy')
