@@ -101,13 +101,44 @@ PASS, FAIL, PARTIAL and BLOCKED count atomic rules. *Live* means the rule was al
 | GEN-05 | Ahmed | 4 | | | | yes | PASS |
 | GEN-13 | Ahmed | 6 | | | | yes | PASS (D-04 fixed in #55) |
 | PAY-01, PAY-03, PAY-04, GEN-07, GEN-11, HTL-10 | Ahmed / Sandra | 9 | | | 5 | | The schema-only parts claimed in traceability.md are verified |
-| GEN-11 (#57, #59, #60) | Ahmed | see [rtm-booking.md](rtm-booking.md) | | | 1 | | PARTIAL as declared: Confirmed -> Cancelled waits for the cancel stories |
-| FLT-12 (#58, #59) | Ahmed | see rtm-booking.md | | | 1 | | PARTIAL as declared: whole-trip cancellation with the outbound tier waits for FLT-26 |
-| FLT-19, FLT-21, FLT-22 (#59, #63) | Ahmed | see rtm-booking.md | | | | | PASS (Session 3: FLT-19 baggage weight and unborn passengers fixed in #63) |
-| HTL-16, HTL-18 (#60) | Ahmed | see rtm-booking.md | | | | | PASS |
-| PAY-02, PAY-04 (#61, #62) | Ahmed | see rtm-booking.md | | 1 | | | PARTIAL: no endpoint sets a hotel's times or tiers yet (HTL-09, HTL-10); refunds in the platform currency come with PAY-03 |
-| PAY-01 (#62) | Ahmed | see rtm-booking.md | | | | | PASS on automated tests (Session 3 fixes in #62); the live Stripe CLI run is recorded in rtm-booking.md |
+| GEN-11 (#57, #59, #60) | Ahmed | see [rtm-booking.md](rtm-booking.md) | | | 1 | yes | PARTIAL as declared: Confirmed -> Cancelled waits for the cancel stories |
+| FLT-12 (#58, #59) | Ahmed | see rtm-booking.md | | | 1 | yes | PARTIAL as declared: whole-trip cancellation with the outbound tier waits for FLT-26 |
+| FLT-19, FLT-21, FLT-22 (#59, #63, #64) | Ahmed | see rtm-booking.md | | | | yes | PASS (Session 3: FLT-19 baggage weight and unborn passengers fixed in #63) |
+| HTL-16, HTL-18 (#60) | Ahmed | see rtm-booking.md | | | | yes | PASS |
+| PAY-02, PAY-04 (#61, #62) | Ahmed | see rtm-booking.md | | 1 | | yes | PARTIAL: no endpoint sets a hotel's times or tiers yet (HTL-09, HTL-10); refunds in the platform currency come with PAY-03 |
+| PAY-01 (#62) | Ahmed | see rtm-booking.md | | | | yes | PASS on automated tests and live in Stripe test mode: paid, declined then retried, and expired (PaymentIntent cancelled) journeys, all webhooks answered 200 ([Session 4 live run](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/2f6ca93f15d01e63e0251696a4b84684a523e76b/session4/live-run.md)) |
 | Swagger (Jira DoD) | all | 6 | | | | yes | PASS (D-01 and D-05 fixed in #55) |
+
+## Session 4 live run (15 Nov 2026)
+
+Session 4 re-verified #57 to #64 after a compacted session:
+- a baseline gate on the combined branch;
+- four parallel read-only reviews (spec conformance, silent failures, security, rule-to-test traceability);
+- an adversarial verifier on every finding;
+- test-first fixes on #62 and #64.
+
+It then ran six journeys and two repeats live against a real server, through the Swagger page with real cookie sessions, in Stripe test mode with CLI confirmations and forwarded webhooks. The full transcript (103 calls) is on the never-merged evidence branch: [session4/live-run.md](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/2f6ca93f15d01e63e0251696a4b84684a523e76b/session4/live-run.md).
+
+| Journey | Requirements | Live result |
+|---|---|---|
+| J1 one-way flight | FLT-11, FLT-21, FLT-22, PAY-02, PAY-01, FLT-23 (part) | PASS: hold of 600 s minus 1 ms, one seat taken, pay before accept 409, timestamped acceptance, webhook-confirmed FL- reference |
+| J2 round trip | FLT-12, FLT-19, FLT-21 | PASS: one booking with two segments, infant without a seat, per-leg infant fares add up (#64), six invalid inputs 400 on the exact field |
+| J3 declined card | PAY-01, GEN-11 | PASS: FAILED with Stripe's reason, booking still Pending, retry on the same PaymentIntent, then confirmed |
+| J4 expiry | FLT-22, GEN-11, PAY-01 | PASS: EXPIRED 37 s after the hold ended, the seat released, 409 HOLD_EXPIRED, PaymentIntent cancelled at Stripe |
+| J5 hotel, two rooms | HTL-16, HTL-18, PAY-02 (partial), HTL-17 (part) | PASS: all-or-nothing hold, occupancy and past check-in refused, overlap 409 with nothing held, HT- reference |
+| J6 negatives | ACC-11, GEN-11, PAY-01 | PASS: four by-id routes give a stranger the same 404 body as an unknown id (#64), 401, 403, forged signature 400, 4th hold 409 (derived), paying a Confirmed booking 409 |
+| R1 and R5 repeats | consistency | PASS: same statuses and amounts, new unique references |
+
+**Findings from the live run:**
+- A webhook-secret mismatch was made visible by the new signature-failure log (#62).
+- A server process keeps the database it started with, so a run that edits `.env` needs a restart.
+- A repeat acceptance of the same policy version is idempotent, and `acceptedAt` is unchanged. This was refuted as a defect.
+
+**Fixed this session:**
+- #62: refund terminal states and back-off, create/retry answer 503/500 instead of a payment with no secret, logging, and the docs for the 500 and the successor payment.
+- #64: per-leg infant fare; identical 404 for a stranger.
+
+**Deferred, with reasons, in `rtm-booking.md`:** PAY-03 refund outcomes, rate limiting, and three Low items.
 
 ## Defect log
 
