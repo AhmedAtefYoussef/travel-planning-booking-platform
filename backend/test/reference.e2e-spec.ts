@@ -175,5 +175,21 @@ describe('Reference data (e2e): GEN-12', () => {
     expect(await reference.listAttractions('paris')).toEqual([
       { attractionId: 'att-5', name: 'Louvre Museum', cityId: 'paris' },
     ]);
+    // ITN-18 / PAY-04: the currency module reads minor units from here (JPY has none).
+    const currencies = await reference.listCurrencies();
+    expect(currencies.map((c) => c.code)).toEqual([
+      'AED',
+      'EGP',
+      'EUR',
+      'GBP',
+      'JPY',
+      'SAR',
+      'USD',
+    ]);
+    expect(currencies.find((c) => c.code === 'JPY')).toEqual({
+      code: 'JPY',
+      name: expect.any(String),
+      minorUnits: 0,
+    });
   });
 });
