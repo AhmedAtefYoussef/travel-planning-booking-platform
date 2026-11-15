@@ -8,7 +8,10 @@ import {
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { InAppNotificationsService } from './notifications.service';
-import type { Notification } from './schemas/notification.schema';
+import {
+  NotificationSchema,
+  type Notification,
+} from './schemas/notification.schema';
 
 const oid = () => new Types.ObjectId();
 
@@ -69,6 +72,15 @@ const doc = (overrides: Partial<Record<string, unknown>> = {}) => ({
   readAt: null,
   createdAt: new Date('2026-11-15T10:00:00Z'),
   ...overrides,
+});
+
+describe('notifications schema indexes (GEN-01)', () => {
+  it('indexes the unread queries and the newest-first list sort', () => {
+    expect(NotificationSchema.indexes().map(([keys]) => keys)).toEqual([
+      { userId: 1, readAt: 1, createdAt: -1 },
+      { userId: 1, createdAt: -1, _id: -1 },
+    ]);
+  });
 });
 
 describe('InAppNotificationsService (GEN-01)', () => {

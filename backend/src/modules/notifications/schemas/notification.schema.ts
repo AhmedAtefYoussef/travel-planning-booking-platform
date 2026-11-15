@@ -43,5 +43,7 @@ export class Notification {
 export type NotificationDocument = HydratedDocument<Notification>;
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 
-// Serves the list (newest first, optionally unread only) and the unread count for one user.
+// Serves the unread count, read-all and the unread=true list for one user.
 NotificationSchema.index({ userId: 1, readAt: 1, createdAt: -1 });
+// Serves the list's sort (createdAt, then _id as the tie-break) without an in-memory sort.
+NotificationSchema.index({ userId: 1, createdAt: -1, _id: -1 });

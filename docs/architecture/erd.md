@@ -65,6 +65,6 @@ erDiagram
 | `budget_entries`, `transport_costs` | Malak (TRVL-143) | itineraryId, dayId, category, amountMinor, currency | {itineraryId} |
 | `exchange_rates` | Ahmed (TRVL-133) | base, rateDate, rates{CODE: rate} | unique {base, rateDate} |
 | `posts`, `comments`, `likes`, `reports` | Malak (TRVL-142) | authorId, status DRAFT/PUBLISHED, tags, isHidden, likeCount, commentCount | unique {postId, userId} on likes; unique {reporterId, targetType, targetId} on reports |
-| `notifications` | Karim (TRVL-139) | userId, type, title, body, link, readAt | {userId, readAt, createdAt} |
+| `notifications` | Ahmed (TRVL-96), **implemented** | userId, type, title, body, link (frontend route starting with a single /), readAt (null until read) | {userId, readAt, createdAt} for unread count and read-all; {userId, createdAt:-1, _id:-1} for the newest-first list |
 | `audit_logs` | Ahmed (TRVL-162), **implemented** | actorId, actorRole, action, targetType, targetId, reason, metadata | {createdAt:-1}, {actorId, createdAt}, {targetType, targetId}; append-only |
 | `countries`, `cities`, `airports`, `attractions`, `currencies` | Joudy (GEN-12) | dataset ids (ISO code, city_id, IATA) | unique dataset ids; seeded from the official datasets |
