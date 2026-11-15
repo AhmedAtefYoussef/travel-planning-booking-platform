@@ -63,6 +63,14 @@ export interface RefundRecord {
   amountMinor: number;
 }
 
+/** The refund block on the booking details (PAY-03). */
+export interface RefundSummary {
+  id: string;
+  status: RefundStatus;
+  amountMinor: number;
+  currency: string;
+}
+
 /**
  * Implemented by Payments (Ahmed), consumed by flight/hotel cancellation (Karim) and flight
  * cancellation by the airline (FLT-06). Register under REFUNDS_SERVICE.
@@ -72,13 +80,24 @@ export interface RefundsService {
   quote(input: RefundQuoteInput): RefundQuote;
 
   /**
-   * Records the refund and issues it through the Stripe Refunds API when amountMinor > 0 (PAY-03).
-   * Status starts PENDING and is updated by the webhook; the user is notified.
+   * PAY-03: records the refund and issues it through the Stripe Refunds API.
+   * - Returns null when quote.amountMinor is 0: nothing is recorded (only positive amounts are refunds).
+   * - Throws a plain Error (a defect) when the quote is not in PLATFORM_CURRENCY (PAY-04), exceeds the
+   *   amount paid, or names a payment that is not this booking's succeeded payment.
+   * - Otherwise writes ONE PENDING refund per booking inside `session` (call it inside the cancellation
+   *   transaction) with a REFUND_ISSUED notification; a repeat call returns the existing record.
+   * - Stripe is called only after commit (transactional outbox); webhooks move it to REFUNDED/FAILED.
    */
   refundFor(
     request: RefundRequest,
     session?: ClientSession,
-  ): Promise<RefundRecord>;
+  ): Promise<RefundRecord | null>;
+
+  /** The booking's refund for its details page, or null when it has none (PAY-03). */
+  summaryFor(
+    bookingType: BookingType,
+    bookingId: string,
+  ): Promise<RefundSummary | null>;
 }
 
 /**

@@ -1,6 +1,6 @@
 # ADR-0003: Stripe PaymentIntents with webhook-verified confirmation
 
-- Status: Accepted. Schemas implemented (TRVL-161); PAY-01 implemented (#62); PAY-03 refunds to follow.
+- Status: Accepted. Schemas implemented (TRVL-161); PAY-01 implemented (#62); PAY-03 refunds implemented (amendment 2026-11-15, refunds).
 - Requirements: PAY-01, PAY-02, PAY-03, PAY-04, FLT-23, HTL-17. Brief section 6.4.
 
 ## Context
@@ -37,3 +37,12 @@ Card data must never reach the backend. A booking is confirmed only after the ba
   - anything else unsettled is retried with backoff, so it never blocks the batch.
 - **Late success.** If the booking can no longer be confirmed (the hold expired first), the webhook transaction still records the payment as SUCCEEDED, plus a PENDING refund with the new reason `HOLD_EXPIRED` (100%). After commit, the full refund is requested from Stripe. If that request fails, it is logged and the same minute job re-sends it (same idempotency key) until Stripe has it. A missing booking or an invalid state leads to the same refund. The captured amount and currency must match the payment.
 - **Notification.** The GEN-01 notification after confirmation comes with FLT-23/HTL-17, once the notifications module exists.
+
+## Amendment, 2026-11-15 (PAY-03 refunds, PAY-04; TRVL-69, TRVL-109)
+- **Refund outbox.** `REFUNDS_SERVICE.refundFor` (`RefundsServiceImpl`) never calls Stripe. Inside the caller's transaction it upserts ONE PENDING refund per booking (`one_refund_per_booking`) and writes the REFUND_ISSUED notification (GEN-01); a zero amount records nothing. One second later an unref'd timer runs the dispatcher, which reads only committed refunds, so an aborted cancellation never reaches Stripe. The 60 s payments job runs the same dispatcher (`dispatchPendingRefunds`, replacing `retryPendingRefunds`) for every reason, so a refund the kick missed (restart, Stripe outage) is still sent.
+- **Idempotency.** `late-refund:<paymentId>` for HOLD_EXPIRED (unchanged; still a full refund without an amount), `refund:<refundId>` otherwise. Stripe metadata is `{ refundId, paymentId, reason }`, except HOLD_EXPIRED, whose request stays exactly PAY-01's (`{ paymentId, reason }`) so a refund already in flight under its key never gets `idempotency_error`.
+- **Settling exactly once.** Stripe's synchronous answer and the `refund.created`, `refund.updated` and `refund.failed` webhooks map `succeeded` to REFUNDED and `failed`/`canceled` to FAILED; `pending`/`requires_action` stay PENDING. Every settlement is one conditional update on `{ _id, status: PENDING }` in a transaction with the REFUND_UPDATED notification, so whichever source arrives first settles the refund and the others change nothing and notify nobody. Webhook events are deduplicated by `stripe_events` as before.
+- **Out of order.** The webhook finds the refund by `stripeRefundId` or, when it beats the dispatcher saving that id, by `metadata.refundId` (only if that refund has no other Stripe id yet) or, for a late refund, by `metadata.paymentId`, and saves the id itself. A Stripe status that contradicts a refund already settled (e.g. failed after REFUNDED) leaves it unchanged and is logged as an error with the refund id, Stripe id and code, for a person to check. The dispatcher isolates each refund, so one failure never stops the batch.
+- **Failure reasons** are `stripe:<code>` (the refund's `failure_reason`, or the API error code); Stripe's text is never stored. Config errors and outages keep the refund PENDING with back-off (1 min doubling to 1 h); terminal codes close it as FAILED.
+- **PAY-04.** `refundFor` refuses (plain `Error`) a quote outside `PLATFORM_CURRENCY` or above the amount paid.
+- **Module wiring.** The payments module is `@Global()` and exports `REFUNDS_SERVICE`, so bookings reads refunds through the token without importing payments. `RefundsServiceImpl` depends on no booking contract, so there is no provider cycle (no `forwardRef`).

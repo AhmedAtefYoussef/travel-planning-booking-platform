@@ -14,6 +14,9 @@ import {
   type HotelInventory,
   type PayableBooking,
   type PayableSnapshot,
+  REFUNDS_SERVICE,
+  type RefundsService,
+  type RefundSummary,
 } from '../../common/contracts';
 import {
   AppException,
@@ -68,6 +71,7 @@ export class HotelBookingsService implements PayableBooking {
     @InjectConnection() private readonly connection: Connection,
     @Inject(HOTEL_INVENTORY) private readonly inventory: HotelInventory,
     private readonly config: ConfigService<EnvironmentVariables, true>,
+    @Inject(REFUNDS_SERVICE) private readonly refunds: RefundsService,
   ) {}
 
   /** HTL-16/HTL-18: holds every room for 10 minutes as one PENDING_PAYMENT reservation, or nothing. */
@@ -162,7 +166,14 @@ export class HotelBookingsService implements PayableBooking {
       notFound: true,
       notFoundMessage: notFound().message,
     });
-    return toDto(reservation);
+    // PAY-03: the refund block, read through REFUNDS_SERVICE (never the payments module).
+    return toDto(
+      reservation,
+      await this.refunds.summaryFor(
+        BookingType.Hotel,
+        reservation.id as string,
+      ),
+    );
   }
 
   /**
@@ -553,7 +564,10 @@ function notFound(): AppException {
   );
 }
 
-function toDto(r: HotelReservationDocument): HotelReservationDto {
+function toDto(
+  r: HotelReservationDocument,
+  refund: RefundSummary | null = null,
+): HotelReservationDto {
   return {
     id: r.id as string,
     status: r.status,
@@ -575,6 +589,7 @@ function toDto(r: HotelReservationDocument): HotelReservationDto {
     currency: r.currency,
     holdExpiresAt: r.holdExpiresAt,
     reference: r.reference,
+    refund,
     createdAt: r.createdAt,
   };
 }

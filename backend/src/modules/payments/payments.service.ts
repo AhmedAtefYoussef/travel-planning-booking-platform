@@ -8,8 +8,6 @@ import {
   BookingType,
   FLIGHT_PAYABLE_BOOKING,
   HOTEL_PAYABLE_BOOKING,
-  RefundReason,
-  RefundStatus,
   type PayableBooking,
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
@@ -22,7 +20,7 @@ import {
   PaymentStatus,
   type PaymentDocument,
 } from './schemas/payment.schema';
-import { Refund, type RefundDocument } from './schemas/refund.schema';
+import { REFUND_EVENTS, RefundsServiceImpl } from './refunds.service';
 import { StripeEvent } from './schemas/stripe-event.schema';
 import {
   STRIPE_GATEWAY,
@@ -57,8 +55,8 @@ class EventReplay extends Error {}
  * PAY-01 (ADR-0003): pay a Pending Payment booking within its hold with a Stripe PaymentIntent (card
  * details go from Stripe Elements straight to Stripe), confirm ONLY from a signature-verified webhook,
  * let the user retry after a failure until the hold expires, and cancel the PaymentIntent when it does.
- * A payment that Stripe captures when the booking can no longer be confirmed is refunded in full, and a
- * job keeps re-sending such refunds until Stripe has them.
+ * A payment that Stripe captures when the booking can no longer be confirmed is refunded in full. Refunds
+ * themselves (recording, the Stripe outbox and refund.* events) belong to RefundsServiceImpl (PAY-03).
  */
 @Injectable()
 export class PaymentsService {
@@ -66,13 +64,13 @@ export class PaymentsService {
 
   constructor(
     @InjectModel(Payment.name) private readonly payments: Model<Payment>,
-    @InjectModel(Refund.name) private readonly refunds: Model<Refund>,
     @InjectModel(StripeEvent.name) private readonly events: Model<StripeEvent>,
     @InjectConnection() private readonly connection: Connection,
     @Inject(STRIPE_GATEWAY) private readonly stripe: StripeGateway,
     @Inject(FLIGHT_PAYABLE_BOOKING) private readonly flights: PayableBooking,
     @Inject(HOTEL_PAYABLE_BOOKING) private readonly hotels: PayableBooking,
     private readonly config: ConfigService<EnvironmentVariables, true>,
+    private readonly refunds: RefundsServiceImpl,
   ) {}
 
   /* ------------------------------------- user endpoints ------------------------------------- */
@@ -312,6 +310,13 @@ export class PaymentsService {
               )
               .exec();
           });
+        case 'refund.created':
+        case 'refund.updated':
+        case 'refund.failed':
+          // PAY-03: settles a PENDING refund once; the event id is recorded in the same transaction.
+          return await this.inTransaction(event, (session) =>
+            this.refunds.applyRefundEvent(event, session),
+          );
         default:
           return await this.inTransaction(event, () => Promise.resolve());
       }
@@ -389,7 +394,7 @@ export class PaymentsService {
             ) {
               throw e;
             }
-            await this.recordLateRefund(payment, session);
+            await this.refunds.recordLateRefund(payment, session);
             return payment._id;
           }
         });
@@ -399,12 +404,8 @@ export class PaymentsService {
         if (!isReferenceCollision(e) || attempt === CONFIRM_ATTEMPTS) throw e;
       }
     }
-    if (refundFor) {
-      const refund = await this.refunds
-        .findOne({ paymentId: refundFor })
-        .exec();
-      if (refund) await this.requestRefund(refund);
-    }
+    // After commit (never inside the transaction); the refund job re-sends it if Stripe is down.
+    if (refundFor) await this.refunds.sendLateRefund(refundFor);
   }
 
   /**
@@ -481,133 +482,7 @@ export class PaymentsService {
     }
   }
 
-  /** The full refund owed for a payment whose booking can't be confirmed, keyed by the payment. */
-  private async recordLateRefund(
-    payment: PaymentDocument,
-    session: ClientSession,
-  ): Promise<void> {
-    await this.refunds
-      .updateOne(
-        { paymentId: payment._id },
-        {
-          $setOnInsert: {
-            bookingType: payment.bookingType,
-            bookingId: payment.bookingId,
-            userId: payment.userId,
-            amountMinor: payment.amountMinor,
-            currency: payment.currency,
-            refundPercent: 100,
-            tierApplied: null,
-            reason: RefundReason.HoldExpired,
-            status: RefundStatus.Pending,
-          },
-        },
-        { upsert: true, session },
-      )
-      .exec();
-  }
-
-  /**
-   * Asks Stripe for a recorded late refund (idempotent per payment). A refusal about the charge closes it
-   * as FAILED; any other failure leaves it PENDING without a Stripe id and backs it off, and
-   * `retryPendingRefunds` sends it again once `nextAttemptAt` has passed.
-   */
-  private async requestRefund(
-    refund: RefundDocument,
-    now: Date = new Date(),
-  ): Promise<boolean> {
-    const payment = await this.payments.findById(refund.paymentId).exec();
-    if (!payment) {
-      this.logger.error(
-        `Refund ${refund.id as string}: its payment is missing`,
-      );
-      return false;
-    }
-    let stripeRefundId: string;
-    try {
-      stripeRefundId = (
-        await this.stripe.createRefund({
-          paymentIntentId: payment.stripePaymentIntentId,
-          metadata: { paymentId: payment.id as string, reason: refund.reason },
-          idempotencyKey: `late-refund:${payment.id as string}`,
-        })
-      ).id;
-    } catch (e) {
-      if (e instanceof StripeApiError && isRefundTerminal(e)) {
-        // This charge can never be refunded this way (e.g. already refunded): close it as FAILED, once.
-        // A configuration error (revoked key, permissions) is not terminal: it stays PENDING below.
-        await this.refunds
-          .updateOne(
-            { _id: refund._id, status: RefundStatus.Pending },
-            {
-              $set: {
-                status: RefundStatus.Failed,
-                // Stripe's code only: its text is never repeated (ADR-0003).
-                failureReason: `stripe:${e.code ?? 'unknown'}`,
-              },
-            },
-          )
-          .exec();
-        this.logger.error(
-          `Refund ${refund.id as string} for payment ${payment.id as string} was refused by Stripe (${e.httpStatus} ${e.code ?? ''}): ${e.message}; marked FAILED`,
-        );
-        return false;
-      }
-      const attempts = refund.sendAttempts ?? 0;
-      const delay = Math.min(60_000 * 2 ** attempts, MAX_BACKOFF_MS);
-      await this.refunds
-        .updateOne(
-          { _id: refund._id, status: RefundStatus.Pending },
-          {
-            $set: { nextAttemptAt: new Date(now.getTime() + delay) },
-            $inc: { sendAttempts: 1 },
-          },
-        )
-        .exec();
-      this.logger.error(
-        `Refund ${refund.id as string} for payment ${payment.id as string} could not be requested; sent again in ${delay / 60_000} min`,
-        e instanceof Error ? e.stack : String(e),
-      );
-      return false;
-    }
-    const res = await this.refunds
-      .updateOne({ _id: refund._id }, { $set: { stripeRefundId } })
-      .exec();
-    if (res.matchedCount !== 1) {
-      this.logger.error(
-        `Stripe refund ${stripeRefundId} was created but refund ${refund.id as string} could not be updated`,
-      );
-      return false;
-    }
-    this.logger.warn(
-      `Payment ${payment.id as string} of ${payment.bookingType} booking ${payment.bookingId.toHexString()} could not confirm the booking; refunded in full (${stripeRefundId})`,
-    );
-    return true;
-  }
-
   /* ------------------------------------- jobs ------------------------------------- */
-
-  /** Re-sends late refunds that Stripe does not have yet (no Stripe id) once their back-off has passed. */
-  async retryPendingRefunds(now: Date = new Date()): Promise<number> {
-    const pending = await this.refunds
-      .find({
-        reason: RefundReason.HoldExpired,
-        status: RefundStatus.Pending,
-        stripeRefundId: { $exists: false },
-        $or: [
-          { nextAttemptAt: { $exists: false } },
-          { nextAttemptAt: { $lte: now } },
-        ],
-      })
-      .sort({ createdAt: 1 })
-      .limit(JOB_BATCH)
-      .exec();
-    let sent = 0;
-    for (const refund of pending) {
-      if (await this.requestRefund(refund, now)) sent += 1;
-    }
-    return sent;
-  }
 
   /**
    * PAY-01: when the hold has expired, its PaymentIntent is cancelled so it can no longer be paid.
@@ -807,20 +682,6 @@ export class PaymentsService {
   }
 }
 
-/**
- * Refund refusals that are about this charge, not our setup: sending the refund again can never succeed.
- * Anything else (a revoked key, missing permissions, an outage) leaves the refund PENDING for the job.
- */
-const TERMINAL_REFUND_CODES = new Set([
-  'charge_already_refunded',
-  'charge_disputed',
-  'charge_expired_for_capture',
-]);
-
-function isRefundTerminal(e: StripeApiError): boolean {
-  return e.code !== null && TERMINAL_REFUND_CODES.has(e.code);
-}
-
 /** Stripe failures a later attempt can get past. */
 function isRetryable(e: StripeApiError): boolean {
   return (
@@ -876,10 +737,13 @@ function parseEvent(rawBody: Buffer): StripeWebhookEvent {
     typeof event.type === 'string' &&
     typeof event.data?.object === 'object' &&
     event.data.object !== null &&
-    // Every payment_intent.* event must name its PaymentIntent.
+    // Every payment_intent.* event must name its PaymentIntent, and every refund event its refund.
     (!event.type.startsWith('payment_intent.') ||
       (typeof event.data.object.id === 'string' &&
-        event.data.object.id.startsWith('pi_')));
+        event.data.object.id.startsWith('pi_'))) &&
+    (!REFUND_EVENTS.includes(event.type) ||
+      (typeof event.data.object.id === 'string' &&
+        event.data.object.id.startsWith('re_')));
   if (!valid) {
     throw new AppException(
       HttpStatus.BAD_REQUEST,

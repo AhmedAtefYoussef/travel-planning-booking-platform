@@ -13,6 +13,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { BookingStatus } from '../../../common/contracts';
+import { BookingRefundDto } from './booking-refund.dto';
 import { IsWholeNumber } from '../../../common/validation';
 import { PassengerType, TripType } from '../schemas/flight-booking.schema';
 
@@ -202,5 +203,13 @@ export class FlightBookingDto {
     description: 'Assigned on confirmation (FLT-23)',
   })
   reference!: string | null;
+  @ApiProperty({
+    type: BookingRefundDto,
+    nullable: true,
+    example: null,
+    description:
+      'PAY-03: the refund issued when the booking was cancelled with a positive refund amount; null otherwise',
+  })
+  refund!: BookingRefundDto | null;
   @ApiProperty() createdAt!: Date;
 }

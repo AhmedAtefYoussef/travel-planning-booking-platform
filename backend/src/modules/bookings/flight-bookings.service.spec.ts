@@ -97,6 +97,7 @@ function setup(
     connection as never,
     inventory,
     config as never,
+    { summaryFor: jest.fn().mockResolvedValue(null) } as never,
   );
   return { service, inventory, model, session, stored, guards };
 }

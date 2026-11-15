@@ -96,13 +96,24 @@ export class HttpStripeGateway implements StripeGateway {
     for (const [k, v] of Object.entries(input.metadata)) {
       form[`metadata[${k}]`] = v;
     }
-    const body = await this.call<{ id: string; status: string }>(
-      'POST',
-      '/refunds',
-      form,
-      input.idempotencyKey,
-    );
-    return { id: body.id, status: body.status };
+    const body = await this.call<{
+      id: string;
+      status: string;
+      failure_reason?: string | null;
+    }>('POST', '/refunds', form, input.idempotencyKey);
+    if (typeof body?.id !== 'string' || typeof body.status !== 'string') {
+      // A 2xx whose body was cut off: retryable, and the idempotency key makes the retry safe.
+      throw new StripeApiError(
+        'Stripe answered without a refund',
+        502,
+        'network_error',
+      );
+    }
+    return {
+      id: body.id,
+      status: body.status,
+      failureReason: body.failure_reason ?? null,
+    };
   }
 
   private async call<T>(

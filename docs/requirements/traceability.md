@@ -103,8 +103,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 |---|---|---|---|---|---|---|
 | PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #62 | Done |
 | PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61, #62 | Partial: airline policies, the acceptance checkbox, the timestamp and the payment block are done (#61, #62); a hotel's check-in/check-out times and cancellation tiers show once HTL-09 and HTL-10 can set them |
-| PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
-| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61, #62 | Partial: PLATFORM_CURRENCY limited at startup to the seeded currencies (#61); bookings and payments use it through the payment gate (#61, #62); refunds with PAY-03 |
+| PAY-03 | Mandatory | GET /api/refunds/:id; refund block on GET /api/flight-bookings/:id and GET /api/hotel-bookings/:id; refund.* webhook events; REFUNDS_SERVICE.refundFor | Ahmed | TRVL-69 | #4, #67 | Done |
+| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61, #62, #67 | Done |
 
 ## Itineraries
 

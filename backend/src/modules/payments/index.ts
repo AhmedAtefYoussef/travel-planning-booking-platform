@@ -1,5 +1,6 @@
 export { PaymentsModule } from './payments.module';
 export { PaymentsService } from './payments.service';
+export { RefundsServiceImpl } from './refunds.service';
 export {
   Payment,
   PaymentSchema,
