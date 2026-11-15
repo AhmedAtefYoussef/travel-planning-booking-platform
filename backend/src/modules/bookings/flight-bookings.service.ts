@@ -437,6 +437,11 @@ export class FlightBookingsService implements PayableBooking {
             field: `passengers[${i}].dateOfBirth`,
             message: `A passenger cannot be older than ${MAX_AGE}; check the year of ${p.dateOfBirth}`,
           });
+        } else if (p.dateOfBirth > latestToday(now)) {
+          errors.push({
+            field: `passengers[${i}].dateOfBirth`,
+            message: `A date of birth cannot be in the future (${p.dateOfBirth})`,
+          });
         } else {
           // FLT-12 b: the type must hold on every flight of the trip, because seats and fares are the
           // same for the whole booking.
@@ -478,12 +483,42 @@ export class FlightBookingsService implements PayableBooking {
       else if (p.type === PassengerType.Child) counts.children++;
       else counts.infants++;
       const bags = p.extraBags ?? 0;
+      const weight = p.extraBagsWeightKg;
+      const weightField = `passengers[${i}].extraBagsWeightKg`;
+      if (bags === 0 && weight !== undefined) {
+        errors.push({
+          field: weightField,
+          message: 'Give extraBagsWeightKg only together with extraBags',
+        });
+      } else if (bags > 0 && weight === undefined) {
+        errors.push({
+          field: weightField,
+          message: 'Give the total weight in kg of the extra bags',
+        });
+      } else if (bags > 0 && weight !== undefined && weight < bags) {
+        errors.push({
+          field: weightField,
+          message: `${bags} extra bag(s) weigh at least ${bags} kg in total`,
+        });
+      }
       for (const leg of legs) {
         const max = leg.extraBaggage?.maxExtraBagsPerPassenger ?? 0;
         if (bags > max) {
           errors.push({
             field: `passengers[${i}].extraBags`,
             message: `Flight ${leg.flightNumber} allows at most ${max} extra bag(s) per passenger`,
+          });
+          break;
+        }
+        // FLT-08: each extra bag has the same weight limit as the cabin's free bags.
+        if (
+          bags > 0 &&
+          weight !== undefined &&
+          weight > bags * leg.maxKgPerBag
+        ) {
+          errors.push({
+            field: weightField,
+            message: `Flight ${leg.flightNumber} allows ${leg.maxKgPerBag} kg per bag, so at most ${bags * leg.maxKgPerBag} kg for ${bags} extra bag(s)`,
           });
           break;
         }
@@ -515,6 +550,7 @@ export class FlightBookingsService implements PayableBooking {
       dateOfBirth: p.dateOfBirth,
       documentNumber: p.documentNumber.toUpperCase(),
       extraBags: p.extraBags ?? 0,
+      extraBagsWeightKg: p.extraBagsWeightKg ?? null,
     }));
     return {
       legs,
@@ -546,6 +582,14 @@ export class FlightBookingsService implements PayableBooking {
       },
     };
   }
+}
+
+/**
+ * Today's date where it is latest on Earth (UTC+14), YYYY-MM-DD: a baby born today anywhere is never
+ * refused, while a date of birth still to come everywhere is.
+ */
+function latestToday(now: Date): string {
+  return new Date(now.getTime() + 14 * 3_600_000).toISOString().slice(0, 10);
 }
 
 function notFound(): AppException {
@@ -580,6 +624,7 @@ function toDto(b: FlightBookingDocument): FlightBookingDto {
       dateOfBirth: p.dateOfBirth,
       documentNumber: p.documentNumber,
       extraBags: p.extraBags,
+      extraBagsWeightKg: p.extraBagsWeightKg ?? null,
     })),
     totalMinor: b.totalMinor,
     currency: b.currency,

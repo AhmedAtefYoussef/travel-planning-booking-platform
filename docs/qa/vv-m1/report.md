@@ -101,7 +101,44 @@ PASS, FAIL, PARTIAL and BLOCKED count atomic rules. *Live* means the rule was al
 | GEN-05 | Ahmed | 4 | | | | yes | PASS |
 | GEN-13 | Ahmed | 6 | | | | yes | PASS (D-04 fixed in #55) |
 | PAY-01, PAY-03, PAY-04, GEN-07, GEN-11, HTL-10 | Ahmed / Sandra | 9 | | | 5 | | The schema-only parts claimed in traceability.md are verified |
+| GEN-11 (#57, #59, #60) | Ahmed | see [rtm-booking.md](rtm-booking.md) | | | 1 | yes | PARTIAL as declared: Confirmed -> Cancelled waits for the cancel stories |
+| FLT-12 (#58, #59) | Ahmed | see rtm-booking.md | | | 1 | yes | PARTIAL as declared: whole-trip cancellation with the outbound tier waits for FLT-26 |
+| FLT-19, FLT-21, FLT-22 (#59, #63, #64) | Ahmed | see rtm-booking.md | | | | yes | PASS (Session 3: FLT-19 baggage weight and unborn passengers fixed in #63) |
+| HTL-16, HTL-18 (#60) | Ahmed | see rtm-booking.md | | | | yes | PASS |
+| PAY-02, PAY-04 (#61, #62) | Ahmed | see rtm-booking.md | | 1 | | yes | PARTIAL: no endpoint sets a hotel's times or tiers yet (HTL-09, HTL-10); refunds in the platform currency come with PAY-03 |
+| PAY-01 (#62) | Ahmed | see rtm-booking.md | | | | yes | PASS on automated tests and live in Stripe test mode: paid, declined then retried, and expired (PaymentIntent cancelled) journeys, all webhooks answered 200 ([Session 4 live run](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/2f6ca93f15d01e63e0251696a4b84684a523e76b/session4/live-run.md)) |
 | Swagger (Jira DoD) | all | 6 | | | | yes | PASS (D-01 and D-05 fixed in #55) |
+
+## Session 4 live run (15 Nov 2026)
+
+Session 4 re-verified #57 to #64 after a compacted session:
+- a baseline gate on the combined branch;
+- four parallel read-only reviews (spec conformance, silent failures, security, rule-to-test traceability);
+- an adversarial verifier on every finding;
+- test-first fixes on #62 and #64.
+
+It then ran six journeys and two repeats live against a real server, through the Swagger page with real cookie sessions, in Stripe test mode with CLI confirmations and forwarded webhooks. The full transcript (103 calls) is on the never-merged evidence branch `docs/TRVL-136-session4-swagger-evidence`: [session4/live-run.md](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/2f6ca93f15d01e63e0251696a4b84684a523e76b/session4/live-run.md).
+
+| Journey | Requirements | Live result |
+|---|---|---|
+| J1 one-way flight | FLT-11, FLT-21, FLT-22, PAY-02, PAY-01, FLT-23 (part) | PASS: hold of 600 s minus 1 ms, one seat taken, pay before accept 409, timestamped acceptance, webhook-confirmed FL- reference |
+| J2 round trip | FLT-12, FLT-19, FLT-21 | PASS: one booking with two segments, infant without a seat, per-leg infant fares add up (#64), six invalid inputs 400 on the exact field |
+| J3 declined card | PAY-01, GEN-11 | PASS: FAILED with Stripe's reason, booking still Pending, retry on the same PaymentIntent, then confirmed |
+| J4 expiry | FLT-22, GEN-11, PAY-01 | PASS: EXPIRED 37 s after the hold ended, the seat released, 409 HOLD_EXPIRED, PaymentIntent cancelled at Stripe |
+| J5 hotel, two rooms | HTL-16, HTL-18, PAY-02 (partial), HTL-17 (part) | PASS: all-or-nothing hold, occupancy and past check-in refused, overlap 409 with nothing held, HT- reference |
+| J6 negatives | ACC-11, GEN-11, PAY-01 | PASS: four by-id routes give a stranger the same 404 body as an unknown id (#64), 401, 403, forged signature 400, 4th hold 409 (derived), paying a Confirmed booking 409 |
+| R1 and R5 repeats | consistency | PASS: same statuses and amounts, new unique references |
+
+**Findings from the live run:**
+- A webhook-secret mismatch was made visible by the new signature-failure log (#62).
+- A server process keeps the database it started with, so a run that edits `.env` needs a restart.
+- A repeat acceptance of the same policy version is idempotent, and `acceptedAt` is unchanged. This was refuted as a defect.
+
+**Fixed this session:**
+- #62: refund terminal states and back-off, create/retry answer 503/500 instead of a payment with no secret, logging, and the docs for the 500 and the successor payment.
+- #64: per-leg infant fare; identical 404 for a stranger.
+
+**Deferred, with reasons, in `rtm-booking.md`:** PAY-03 refund outcomes, rate limiting, and three Low items.
 
 ## Defect log
 
@@ -127,12 +164,18 @@ These items were raised as questions. Five (SQ-1 to SQ-5) had a clear fix that m
 | SQ-4 | ACC-05 | Simultaneous wrong logins can return 429 `TOO_MANY_REQUESTS`, which was explained but not listed as a response | **Fixed in #55** (`86c0fa8`): 429 is now documented on `POST /api/auth/login` (the workbook stays silent on it) |
 | SQ-5 | ACC-12 | The `DELETE /users/me` text promised the upcoming-bookings block, whose provider is unbound until the bookings module exists | **Fixed in #55** (`6f7e374`): the text says the block takes effect once FLT-22/HTL-18 provide `UPCOMING_BOOKINGS` |
 | SQ-6 | FLT-03 | The repeated autumn DST hour (e.g. LHR 2027-10-31 01:30) is rejected. The workbook is silent; the error message is clear | Open (TA question) |
-| SQ-7 | FLT-05 | Changing an airport keeps the old wall-clock time in the new zone instead of the UTC instant. Does a Cancelled or Expired booking still lock the airports? | Open (decide when FLT-22 lands) |
+| SQ-7 | FLT-05 | Changing an airport keeps the old wall-clock time in the new zone instead of the UTC instant. Does a Cancelled or Expired booking still lock the airports? | Partly answered once FLT-22 landed (#59): the lock follows seats taken by holds and bookings, so an expired hold, which gives its seats back, no longer locks the airports, and a cancellation (FLT-26) will do the same. The wall-clock question stays open |
 | SQ-8 | FLT-09, HTL-10 | "Days remaining" is counted in whole 24-hour periods, not calendar days in the provider's zone | Open (TA question) |
 | SQ-9 | GEN-05 | Arrays inside one resource (room availability ranges) are not paginated. Does "every list" cover them? | Open (TA question) |
-| SQ-10 | PAY-04 | `PLATFORM_CURRENCY` is validated but never read; payment and refund schemas accept any 3-letter code | Partly closed (#61): limited to the seeded currencies at startup, read by both booking types and enforced by the payment gate; PAY-01 and PAY-03 call the gate |
+| SQ-10 | PAY-04 | `PLATFORM_CURRENCY` is validated but never read; payment and refund schemas accept any 3-letter code | Closed for payments (#61, #62): limited to the seeded currencies at startup; every payment passes the gate, which refuses any other currency; refunds follow with PAY-03 |
 
 Each track's RTM lists its full spec questions.
+
+**Recorded in Session 3 (2026-11-15), booking engine:**
+- Flight holds are released by the minute job, so for up to 60 s after a hold ends its seats still count as held. Hotels clear stale holds inside the next hold's transaction.
+- A FLT-05 reschedule does not move a booking's `startsAt`/`endsAt` (R-FLT-22-10), so a moved trip completes at its old arrival time.
+- Extra bags are charged on each flight of a round trip.
+- A hotel whose city has no airport cannot be booked (503), because the hotel's zone comes from the city's airports. Every seeded city has one.
 
 ## PR #54 (HTL-05) pre-merge review
 
@@ -169,7 +212,7 @@ The live checks were also repeated where state allowed (for example, the login d
 
 ## Evidence
 
-Screenshots of Swagger UI against the live `travel_vv` server are on the never-merged branch `evidence/vv-swagger`, pinned at commit [`0631fb0`](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/tree/0631fb08f1c30c8ad777b15ebd2079445763a13f/vv-m1). The branch [README](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/0631fb08f1c30c8ad777b15ebd2079445763a13f/README.md) describes each file.
+Screenshots of Swagger UI against the live `travel_vv` server are on the never-merged branch `docs/TRVL-136-vv-m1-swagger-evidence`, pinned at commit [`0631fb0`](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/tree/0631fb08f1c30c8ad777b15ebd2079445763a13f/vv-m1). The branch [README](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/0631fb08f1c30c8ad777b15ebd2079445763a13f/README.md) describes each file.
 
 | # | Shows |
 |---|---|
@@ -192,7 +235,8 @@ Screenshots of Swagger UI against the live `travel_vv` server are on the never-m
 - [Flights, airlines and airports](rtm-flights.md): `backend/test/vv/flights.vv.e2e-spec.ts`
 - [Hotels and the PR #54 review](rtm-hotels.md): `backend/test/vv/hotels.vv.e2e-spec.ts`
 - [Foundation, reference data and the Swagger contract](rtm-foundation.md): `backend/test/vv/foundation.vv.e2e-spec.ts`
+- [Booking engine and payments (#57 to #63), with the Session 3 re-verification](rtm-booking.md): the specs named in each row
 
 ## CI
 
-`.github/scripts/check-test-traceability.mjs` runs as a non-blocking step in `pr-governance`. It lists every Done or Partial requirement with the e2e and unit specs whose `describe()` title cites it. At the time of this report it covers 38 of 38 implemented requirements.
+`.github/scripts/check-test-traceability.mjs` runs as a non-blocking step in `pr-governance`. It lists every Done or Partial requirement with the e2e and unit specs whose `describe()` title cites it. On 2026-11-13 it covered 38 of 38 implemented requirements; after the booking and payment stories (2026-11-15) it covers 47 of 47.

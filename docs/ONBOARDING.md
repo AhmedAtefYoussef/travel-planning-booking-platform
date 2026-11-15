@@ -45,7 +45,9 @@ npm run start:dev    # API on http://localhost:3000/api
 
 ## 4. Call a protected route in Swagger
 
-Real login (ACC-04, ACC-19) isn't built yet. Until it is, the backend accepts a **stub header** from localhost when `AUTH_STUB=true`:
+Real login is built (ACC-04, ACC-19): `POST /api/auth/login` sets httpOnly cookies that Swagger sends with every call, and the README's "Run the Milestone 1 demo in Swagger" walks through every role. Use it for evidence and demos, with `AUTH_STUB=false`, because the stub skips the suspended, deactivated, idle and forced-password-change checks.
+
+For quick local development only, the backend also accepts a **stub header** from localhost when `AUTH_STUB=true`:
 
 1. In Swagger, click **Authorize** and fill in **dev-user** with one of the values below.
 2. `<userId>` and `<providerId>` are any 24-character hex ids, e.g. `65a000000000000000000001`. For a moderator, use the `_id` of an airline or hotel that exists.

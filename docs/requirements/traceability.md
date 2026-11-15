@@ -33,7 +33,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
 | ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46, #64 | Done |
-| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55 | Partial: deactivation, password confirmation, logout everywhere and no login done; the upcoming-bookings block is active (UPCOMING_BOOKINGS provided by the bookings module, #57); hiding posts/itineraries and "Deleted user" for the blog, itineraries and reviews modules |
+| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57 | Partial: deactivation, password confirmation, logout everywhere and no login done; the upcoming-bookings block is active (UPCOMING_BOOKINGS provided by the bookings module, #57); hiding posts/itineraries and "Deleted user" for the blog, itineraries and reviews modules |
 | ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | #53, #55 | Done |
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
 | ACC-15 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate; provider deactivate/reactivate | Karim | TRVL-25 | - | Not started |
@@ -52,7 +52,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | Done |
 | FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10, #55 | Done |
 | FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | #11, #12 | Done |
-| FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | #18 | Partial: edits and airport lock done; FLIGHT_BOOKINGS_LOOKUP provided (#57); notifications wait for GEN-01 |
+| FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | #18, #57 | Partial: edits and airport lock done; FLIGHT_BOOKINGS_LOOKUP provided (#57); notifications wait for GEN-01 |
 | FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | - | Not started |
 | FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
 | FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
@@ -60,10 +60,10 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-12 | Mandatory | GET /api/flights/search; GET /api/flights/search/round-trip | Ahmed | TRVL-37 | #58, #59 | Partial: passenger types, cabin filter and round-trip search (#58); a round trip is held as one booking with two segments and passenger types are checked against the date of birth (#59); whole-trip cancellation with the outbound tier lands with the cancel stories |
 | FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
 | FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
-| FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Karim | TRVL-40 | #59 | Done |
-| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Karim | TRVL-41 | #59, #64 | Done |
+| FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Ahmed | TRVL-40 | #59, #63 | Done |
+| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Ahmed | TRVL-41 | #59, #64 | Done |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
-| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | - | Not started |
+| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62 | Partial: the verified payment webhook confirms the booking with a unique FL- reference (#62); the confirmation notification and the e-ticket come with FLT-23 |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
 | FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |
@@ -88,7 +88,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
 | HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | - | Not started |
 | HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60 | Done |
-| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60 | Partial: HOTEL_PAYABLE_BOOKING.markConfirmed sets Confirmed, the HT- reference and BOOKED nights in one transaction (#60); the payment webhook, notification and confirmation view come with PAY-01 and FLT-23 |
+| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60, #62 | Partial: the verified payment webhook confirms the reservation, its HT- reference and BOOKED nights in one transaction (#60, #62); the notification and confirmation view come with FLT-23/HTL-17 |
 | HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60 | Done |
 | HTL-20 | Mandatory | GET /api/hotel-bookings; GET /api/hotel-bookings/:id | Karim | TRVL-62 | - | Not started |
 | HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Karim | TRVL-63 | - | Not started |
@@ -101,10 +101,10 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4 | Partial: schemas |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61 | Partial: the airline or hotel policies are shown and accepted with a timestamp, a version check and a stored snapshot; the payment gate (assertPayable) refuses unaccepted bookings (#61); the gate is called by POST /api/payments with PAY-01 |
+| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #62 | Done |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61, #62 | Partial: airline policies, the acceptance checkbox, the timestamp and the payment block are done (#61, #62); a hotel's check-in/check-out times and cancellation tiers show once HTL-09 and HTL-10 can set them |
 | PAY-03 | Mandatory | GET /api/refunds/:id | Ahmed | TRVL-69 | #4 | Partial: schemas, refund quote |
-| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61 | Partial: money utils; PLATFORM_CURRENCY limited at startup to the seeded currencies; bookings are priced in it and the payment gate refuses any other currency (#61); payments and refunds use the gate with PAY-01 and PAY-03 |
+| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61, #62 | Partial: PLATFORM_CURRENCY limited at startup to the seeded currencies (#61); bookings and payments use it through the payment gate (#61, #62); refunds with PAY-03 |
 
 ## Itineraries
 

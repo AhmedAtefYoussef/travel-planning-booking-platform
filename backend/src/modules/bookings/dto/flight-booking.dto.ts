@@ -73,6 +73,16 @@ export class PassengerInputDto {
   @IsWholeNumber('extraBags must be a whole number')
   @Min(0, { message: 'extraBags must be 0 or more' })
   extraBags?: number;
+
+  @ApiPropertyOptional({
+    example: 20,
+    description:
+      "FLT-19: total weight in kg of this passenger's extra bags. Required with extraBags; at most extraBags x the cabin's kg per bag (FLT-08)",
+  })
+  @IsOptional()
+  @IsWholeNumber('extraBagsWeightKg must be a whole number of kg')
+  @Min(1, { message: 'extraBagsWeightKg must be at least 1 kg' })
+  extraBagsWeightKg?: number;
 }
 
 /** FLT-21 quote and FLT-22 hold share this body, so the summary is exactly what will be held. */
@@ -132,6 +142,13 @@ export class PassengerDto {
   @ApiProperty() dateOfBirth!: string;
   @ApiProperty() documentNumber!: string;
   @ApiProperty() extraBags!: number;
+  @ApiProperty({
+    type: Number,
+    nullable: true,
+    example: 20,
+    description: 'Total kg of the extra bags; null without extra bags',
+  })
+  extraBagsWeightKg!: number | null;
 }
 
 /** FLT-21: what the user will pay for, before anything is held. */
