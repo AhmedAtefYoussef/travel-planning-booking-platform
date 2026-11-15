@@ -194,7 +194,8 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         .send({
           outbound: small,
           return: dearer,
-          passengers: [adult({ extraBags: 1 }), infant],
+          // No extra bags: their weight rule (FLT-19) is not what this checks.
+          passengers: [adult(), infant],
         })
         .expect(200);
       const segments = res.body.segments as {
