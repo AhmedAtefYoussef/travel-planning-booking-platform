@@ -10,6 +10,11 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { UPLOADS_SERVICE } from '../src/common/contracts/tokens';
+import type {
+  StoredImage,
+  UploadsService,
+} from '../src/common/contracts/services.contract';
 import { Hotel } from '../src/modules/hotels';
 import {
   loadReferenceDataset,
@@ -228,6 +233,46 @@ describe('Image uploads (e2e): GEN-08', () => {
       // Only the winner's two files were added to the disk; the loser left nothing behind.
       const added = filesIn('hotels').filter((f) => !before.includes(f));
       expect(added.sort()).toEqual(photos.slice(3).map(fileOf).sort());
+    });
+
+    it('GEN-08 an upload that loses the race after its files were written gets 400 and its files are removed', async () => {
+      const hotelId = await newHotel();
+      const mod = hotelModeratorOf(hotelId);
+      await uploadHotel(hotelId, mod, [png(1), png(2), png(3)]).expect(201);
+
+      // Force the race deterministically: after this request has counted 3 photos and written its 2
+      // files, a competing writer fills the hotel to 5 before the conditional $push runs.
+      const uploads = app.get<UploadsService>(UPLOADS_SERVICE);
+      const original = uploads.saveImages.bind(uploads);
+      let written: StoredImage[] = [];
+      const competitor = [
+        'https://cdn.example.com/race-1.jpg',
+        'https://cdn.example.com/race-2.jpg',
+      ];
+      const spy = jest
+        .spyOn(uploads, 'saveImages')
+        .mockImplementationOnce(async (files, target) => {
+          written = await original(files, target);
+          await hotels().updateOne(
+            { _id: hotelId },
+            { $push: { photos: { $each: competitor } } },
+          );
+          return written;
+        });
+      try {
+        const res = await uploadHotel(hotelId, mod, [png(4), png(5)]).expect(
+          400,
+        );
+        expect(fieldsOf(res)).toEqual(['images']);
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(written).toHaveLength(2);
+      for (const { url } of written) expect(onDisk(url)).toBe(false);
+      const photos = (await hotels().findById(hotelId).lean())?.photos ?? [];
+      expect(photos).toHaveLength(5);
+      expect(photos.slice(3)).toEqual(competitor);
     });
 
     it("GEN-08 other hotel's moderator 403, guest 401", async () => {
