@@ -70,6 +70,13 @@ export class Refund {
   @Prop({ type: String, maxlength: 500 })
   failureReason?: string;
 
+  /** A refund Stripe did not take yet is sent again from this instant (1 min, doubling to 1 h). */
+  @Prop({ type: Date })
+  nextAttemptAt?: Date;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  sendAttempts!: number;
+
   createdAt!: Date;
   updatedAt!: Date;
 }

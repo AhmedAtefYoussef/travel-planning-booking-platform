@@ -120,6 +120,7 @@ describe('Contracts and schemas (e2e): TRVL-132, TRVL-161, TRVL-162', () => {
       stripePaymentIntentId: `pi_${oid().toHexString()}`,
       amountMinor: 12_500,
       currency: 'USD',
+      holdEndsAt: new Date(),
       ...overrides,
     });
 

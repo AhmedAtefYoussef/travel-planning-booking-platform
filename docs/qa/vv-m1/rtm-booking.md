@@ -183,11 +183,11 @@ The policies are read through the FLIGHT_INVENTORY and HOTEL_INVENTORY contracts
 | Rule | Source | Rule text | Technique | Code | Test | Verdict | Note |
 |---|---|---|---|---|---|---|---|
 | R-PAY-02-01 | workbook | Before payment the airline's cancellation and baggage policies are shown: each flight's cancellation tiers (FLT-09), extra-bag price and limit (FLT-08) and the booked cabin's free bags (FLT-04) | EP | modules/bookings/booking-policies.service.ts (`show`), flights/flight-inventory.service.ts (`getAirlinePolicy`) | test/booking-policies.e2e-spec.ts | PASS | One entry per flight, so a round trip shows both airlines |
-| R-PAY-02-02 | workbook | For a hotel, its cancellation tiers (HTL-10) and check-in/check-out times (HTL-09) are shown | EP | `show`, hotels/hotel-inventory.service.ts (`getHotelPolicy`) | booking-policies.e2e-spec.ts | PASS | Values set directly in the test until the HTL-09/HTL-10 endpoints land |
+| R-PAY-02-02 | workbook | For a hotel, its cancellation tiers (HTL-10) and check-in/check-out times (HTL-09) are shown | EP | `show`, hotels/hotel-inventory.service.ts (`getHotelPolicy`) | booking-policies.e2e-spec.ts | PARTIAL | The values are set directly in the test: on develop no endpoint sets a hotel's check-in/check-out times (HTL-09, #56 open) or its cancellation tiers (HTL-10). Live, a hotel shows `null` times and no tiers |
 | R-PAY-02-03 | workbook | Acceptance needs the checkbox: `accepted` must be true (400 on `accepted`) | EP | dto/booking-policies.dto.ts | booking-policies.e2e-spec.ts | PASS | |
 | R-PAY-02-04 | workbook | The acceptance is stored with a timestamp, together with a snapshot of the accepted terms; a repeat keeps the first time | EP, IDEM | `accept` (one conditional update) | booking-policies.e2e-spec.ts; booking-policies.service.spec.ts | PASS | PAY-03 refunds from the snapshot; closes the "typed policySnapshot" obligation |
 | R-PAY-02-05 | derived | Terms that changed after they were shown are not accepted: `version` must match the current terms (409, nothing stored) | ST | `policiesVersion`, `accept` | booking-policies.e2e-spec.ts; payment-gate.spec.ts | PASS | Key-order independent fingerprint |
-| R-PAY-02-06 | workbook | Payment is blocked until the policies are accepted (POLICIES_NOT_ACCEPTED), checked after the hold (an expired hold is HOLD_EXPIRED) | DT (status x hold x acceptance x currency) | common/contracts/payment-gate.ts (`assertPayable`) | payment-gate.spec.ts; booking-policies.e2e-spec.ts | PARTIAL | The gate passes its decision table; PAY-01's POST /api/payments must call it |
+| R-PAY-02-06 | workbook | Payment is blocked until the policies are accepted (POLICIES_NOT_ACCEPTED), checked after the hold (an expired hold is HOLD_EXPIRED) | DT (status x hold x acceptance x currency) | common/contracts/payment-gate.ts (`assertPayable`), payments.service.ts | payment-gate.spec.ts; booking-policies.e2e-spec.ts; payments.e2e-spec.ts | PASS | POST /api/payments calls the gate (#62) |
 | R-PAY-02-07 | ACC-11, GEN-11 | Only the owner sees or accepts (404 otherwise, wrong type included); only while PENDING_PAYMENT with time left (409 HOLD_EXPIRED / INVALID_STATE_TRANSITION); an unknown type is 400 on `type` | AUTHZ, ST | booking-policies.controller.ts, `load`, `assertAwaitingPayment` | booking-policies.e2e-spec.ts; booking-policies.service.spec.ts | PASS | |
 | R-PAY-04-01 | workbook, TRVL-109 | PLATFORM_CURRENCY must be one of the seeded currencies (Countries.currency: AED, EGP, EUR, GBP, JPY, SAR, USD); startup fails otherwise | EP (each seeded code; CHF, a real but unseeded code, refused) | config/env.validation.ts (`PLATFORM_CURRENCIES`) | config/env.validation.spec.ts | PASS | A test keeps the list equal to seed/data/Countries.csv |
 | R-PAY-04-02 | workbook | Bookings are priced and stored in PLATFORM_CURRENCY, and the payment gate refuses any other currency | DT | bookings services, `assertPayable` | payment-gate.spec.ts; booking-policies.e2e-spec.ts | PARTIAL | Payments and refunds go through the gate with PAY-01 and PAY-03 (SQ-10) |
@@ -211,3 +211,103 @@ Two reviewer subagents (TypeScript correctness, silent failures) checked the fir
 - *An airline or hotel without tiers is shown as "0% refund".* That is the defined rule (FLT-09, HTL-10: no tier means no refund on a user cancellation), and the empty list is shown explicitly before acceptance. Missing check-in/out times are shown as null until HTL-09 lands.
 - *Terms of an inactive provider.* ACC-15 keeps existing bookings valid, so a hold made before deactivation can still be paid on the terms shown.
 - *JPY has no minor unit.* `money.ts` uses each currency's ISO exponent, so JPY amounts are whole yen.
+
+## PAY-01 Stripe payment within the hold, webhook-verified confirmation (#62)
+
+Tests use an in-memory Stripe (no network) and the real signature check with events signed by the test secret. The live check is in Stripe test mode with the Stripe CLI (see the PR).
+
+| Rule | Source | Rule text | Technique | Code | Test | Verdict | Note |
+|---|---|---|---|---|---|---|---|
+| R-PAY-01-01 | workbook | A registered user pays a Pending Payment booking within its hold with a test-mode PaymentIntent; only the client secret is returned, so card details go from Stripe Elements to Stripe and never reach the backend | EP | modules/payments/payments.service.ts (`create`), http-stripe-gateway.ts | test/payments.e2e-spec.ts; http-stripe-gateway.spec.ts | PASS | Amount = the booking's server-side total; test-mode key enforced by env validation |
+| R-PAY-01-02 | workbook | The booking is confirmed only after a verified payment_intent.succeeded webhook: POST /api/payments leaves it Pending; a missing or forged signature is 400 and changes nothing | ST, EP | `handleWebhook`, stripe-signature.ts | payments.e2e-spec.ts; stripe-signature.spec.ts | PASS | HMAC over the raw body, constant-time, 5-minute tolerance (BVA at the edge) |
+| R-PAY-01-03 | ADR-0003 | The event id is recorded in the same transaction as its effects: a replay is acknowledged and ignored; a failure rolls the id back and answers 500, so Stripe's redelivery is processed | IDEM, fault injection | `inTransaction`, `onSucceeded` | payments.e2e-spec.ts (replay, rollback) | PASS | |
+| R-PAY-01-04 | workbook | On failure the error is recorded and shown (status FAILED, lastError); the user may retry with the same PaymentIntent until the hold expires (409 HOLD_EXPIRED after); if Stripe cancelled it meanwhile, a successor payment with a new id is returned | ST, BVA | `onFailed`, `retry` | payments.e2e-spec.ts | PASS | The booking stays Pending Payment while retrying |
+| R-PAY-01-05 | workbook | When the hold expires the PaymentIntent is cancelled | ST | `cancelExpiredIntents`, payments-jobs.service.ts | payments.e2e-spec.ts; payments.service.spec.ts | PASS | One failure does not stop the batch; an intent Stripe already captured is applied by the job itself as a succeeded event (`reconcileEvent`), so it is refunded. The cancel call carries no idempotency key (Session 3, P-3) |
+| R-PAY-01-06 | ADR-0003 | A payment captured after the hold expired does not confirm the booking and is refunded in full (refund reason HOLD_EXPIRED, 100%) | ST, fault injection | `onSucceeded`, `recordLateRefund`, `requestRefund` | payments.e2e-spec.ts | PASS | A transient or configuration refusal (outage, revoked key) leaves the refund PENDING and is logged; `retryPendingRefunds` re-sends it. A refusal about the charge itself (`charge_already_refunded`, `charge_disputed`, `charge_expired_for_capture`) closes it as FAILED with `failureReason` = Stripe's code (Session 4). Moving a sent refund to REFUNDED (refund webhooks) is PAY-03 |
+| R-PAY-01-07 | workbook | Only the Stripe payment id, amount, currency and status are stored; no card data, no client secret | EP | schemas/payment.schema.ts | payments.e2e-spec.ts (stored keys); contracts-schemas.e2e-spec.ts | PASS (declared deviation) | The test pins the exact stored keys. Besides the four the workbook names, the document keeps only operational fields, none of them card data: the booking link (`bookingType`, `bookingId`, `userId`), `attempts`, `lastError`, `holdEndsAt`, `attemptStartedAt` (ignores stale failures), and `nextCheckAt` / `checkAttempts` (cancel-job backoff) |
+| R-PAY-01-08 | ACC-11, derived | One payment per booking, even when "pay" is clicked twice at once; a payment is visible to its owner (with the client secret) and an admin (without it), 404 otherwise; the webhook is the only public route | CONC, AUTHZ | `create`, `load`, foundation.vv GEN-13 list | payments.e2e-spec.ts; foundation.vv.e2e-spec.ts | PASS | Same idempotency key gives the same PaymentIntent |
+| R-PAY-01-09 | derived | A Stripe outage is a 503 the user can retry, never a raw 500; a malformed event is 400 | EP | `gateway`, `parseEvent` | payments.service.spec.ts | PASS | |
+| R-FLT-23-01 | workbook (part) | After a successful payment the flight booking is Confirmed with a unique FL- reference | ST | `onSucceeded` -> FLIGHT_PAYABLE_BOOKING.markConfirmed | payments.e2e-spec.ts | PASS | Notification and e-ticket with FLT-23 |
+| R-HTL-17-03 | workbook (part) | After a successful payment the reservation is Confirmed and its nights are BOOKED | ST | `onSucceeded` -> HOTEL_PAYABLE_BOOKING.markConfirmed | payments.e2e-spec.ts | PASS | Notification and confirmation view with FLT-23/HTL-17 |
+| R-PAY-01-10 | review | A PaymentIntent cancelled while the hold is still valid does not block paying: a new one is created (the idempotency key includes the booking's payment count) | ST | `create`, `retry` | payments.e2e-spec.ts (review fixes) | PASS | |
+| R-PAY-01-11 | review | A payment_failed event created before the current attempt is ignored (Stripe does not guarantee order) | ST | `onFailed` (attemptStartedAt) | payments.e2e-spec.ts | PASS | Compared at Stripe's one-second precision |
+| R-PAY-01-12 | review | A late refund Stripe refused is re-sent by a job until Stripe has it; a capture whose webhook never came is applied by the cancel job | fault injection | `retryPendingRefunds`, `cancelExpiredIntents` | payments.e2e-spec.ts; payments.service.spec.ts | PASS | Same idempotency key, so a refund is never sent twice |
+| R-PAY-01-13 | review | The captured amount and currency must match the payment, or nothing is confirmed (5xx); an unrecorded PaymentIntent naming one of our bookings is a 5xx, not a silent 200 | fault injection | `assertSameAmount`, `onSucceeded` | payments.e2e-spec.ts | PASS | |
+
+### Independent review, 2026-11-14 (PAY-01, first commit 5232519)
+
+Three reviewer subagents (security, TypeScript correctness, silent failures) checked the first commit. The security review found no CRITICAL or HIGH issue: the signature check, owner-only access, the client-secret handling and the gateway's input handling were confirmed sound. The fixes are in the second commit.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| A late refund that Stripe refused, or that was lost in a crash, stayed PENDING forever (the event was already recorded) | CRITICAL | A job re-sends PENDING late refunds with no Stripe id (same idempotency key); the Stripe call and the database write fail separately and are logged separately |
+| The cancel job always took the oldest 100 open payments, so unsettled ones could stall it | CRITICAL | Backoff per payment (`nextCheckAt`, 1 min doubling to 1 h); a PaymentIntent Stripe no longer has is closed; a capture is applied as the webhook would |
+| A PaymentIntent cancelled while the hold was valid blocked the user (same idempotency key, dead client secret) | HIGH | The key includes the booking's payment count; a retry on a cancelled intent starts a new payment |
+| Success overwrote any status and did not check the amount; a missing booking left captured money unrefunded | HIGH | Amount and currency are checked; NOT_FOUND also leads to the full refund; a CANCELED payment that was captured anyway is logged |
+| Success for an unrecorded PaymentIntent was acknowledged silently | HIGH | A 5xx when it names one of our bookings (Stripe redelivers); a warning only for foreign intents |
+| The late refund was upserted per booking, so it could be lost | HIGH | Keyed by payment |
+| Stale or repeated payment_failed events | MEDIUM | Ignored when created before the current attempt; a repeat failure updates the record |
+| `findOne` swallowed every error, needed Stripe for a read, and gave the client secret after the hold ended | MEDIUM | Only NOT_FOUND is tolerated (logged); the secret only while the hold has time left; a Stripe outage omits it |
+| An intent created without its record (insert failure) | MEDIUM | Cancelled at once (best effort, logged) |
+| Closure variables narrowed to null/never | MEDIUM | The webhook transaction helper is generic and returns its result |
+| A payment_intent event without an intent id was accepted | MEDIUM | 400 |
+| The client secret could be cached | LOW | `Cache-Control: no-store` |
+| The fake Stripe ignored idempotency parameters and refund rules | LOW | It rejects a reused key with other parameters and a refund without a successful charge |
+
+**Deferred, with reasons:**
+- A captured-then-refunded payment keeps status SUCCEEDED. Stripe did capture it, and its refund record (reason HOLD_EXPIRED) shows the money going back. A REFUNDED payment status comes with PAY-03's refund views.
+- Throttling create, retry and the webhook. The app has no rate limiter yet, so this is a cross-cutting follow-up.
+- Comparing a delayed webhook with the event time instead of the processing time. Refunding is the fail-safe outcome.
+- `markPaymentFailed` runs after commit. It only logs; the payments collection is the record.
+
+### Session 3 re-verification, 2026-11-15 (PAY-01 fixes 553c32c and its review commit)
+
+Read-only audits of #57 to #62 against the workbook and the Jira acceptance criteria. An independent verifier then confirmed each finding against the code and Stripe's documentation before it was fixed, test first.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| PaymentIntents allowed redirect methods, so the documented `stripe payment_intents confirm <id> --payment-method pm_card_visa` fails without a `return_url` | HIGH | `automatic_payment_methods[allow_redirects]=never`: cards only, with 3-D Secure in a modal (http-stripe-gateway.spec.ts) |
+| When saving the payment failed after Stripe created the intent, the intent was cancelled; the next attempt then got it back under the same idempotency key and stored a cancelled intent as payable, blocking the user until the hold ended (found by the review) | HIGH | The orphan intent is left alone. Its secret never left the server, and the next attempt records it (payments.service.spec.ts). This reverses the 2026-11-14 "cancel at once" row above |
+| The PaymentIntent id was not in the response, so a Swagger demo had to cut it out of `clientSecret` | MEDIUM | `paymentIntentId` in PaymentDto. It is not a secret, and only the owner or an admin can read it (payments.e2e-spec.ts) |
+| The cancel call used a fixed idempotency key; Stripe replays a key's first error for 24 hours | MEDIUM | No key. A repeat cancel returns `payment_intent_unexpected_state`, which is handled (http-stripe-gateway.spec.ts) |
+| Every Stripe error became 503 "try again", including ones a retry can't fix | MEDIUM | Network, 429, 5xx and `idempotency_key_in_use` give 503. Any other rejection gives an explicit 500 INTERNAL_ERROR that never repeats Stripe's text (payments.service.spec.ts) |
+| Retry on a PaymentIntent Stripe no longer has failed with 500 every time and blocked the booking (found by the review) | MEDIUM | Handled like a cancelled intent: the payment is closed and a new one started (payments.e2e-spec.ts) |
+| The cancel job logged a rejection a retry can't fix (e.g. a revoked key) only as a warning (found by the review) | MEDIUM | Logged as an error with the payment and intent ids; the job still backs off (payments.service.spec.ts) |
+| A 2xx answer with an unreadable body became a TypeError (found by the review) | MEDIUM | A retryable StripeApiError, 502 `network_error` (http-stripe-gateway.spec.ts) |
+| Swagger did not list the 503 on create and retry, or the webhook's deliberate 500 | LOW | Documented |
+| PAY-02 marked Done although no endpoint sets a hotel's times or tiers | Doc | Traceability set to Partial; R-PAY-02-02 is PARTIAL |
+| ADR-0003 and R-PAY-01-05/06/07 described behaviour or names that don't exist | Doc | Corrected; the stored operational fields are listed as a declared deviation |
+
+**Rebutted or deferred, with reasons:**
+- The signature check rejects timestamps more than 5 minutes in the future as well as in the past. Stripe's libraries reject only old ones. Kept on purpose: `t` is inside the HMAC, so this costs nothing in security, and the spec asserts it.
+- A Stripe error the user can't fix is logged twice: once in the gateway, with Stripe's code, and once in the exception filter, with the stack. This is cosmetic.
+- Refunds that never leave PENDING (no `refund.*` webhook) belong to PAY-03, the next story.
+
+### Session 4 V&V, 2026-11-15 (#57 to #63 re-verified after a compacted session)
+
+**Method.** The baseline was `npm run verify` on develop with #62 and #63 merged: 815 unit and 686 e2e tests, all green. Four read-only reviewers then worked in parallel, each with its own lens: spec conformance, silent failures, security (OWASP API1/API5/API6) and rule-to-test traceability. An adversarial verifier re-read the code for each High or Medium claim and either confirmed or refuted it. Every confirmed defect got a failing test before its fix.
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| EH-2: A late refund that Stripe refuses permanently (e.g. `charge_already_refunded`) was re-sent every minute forever | MEDIUM | Only a refusal about the charge itself closes the refund as FAILED (logged once). An outage or a configuration error (401/403) stays PENDING so the refund is sent once fixed; the review of the first fix (R1, HIGH) caught that closing on every 4xx would strand money after a key rotation. `failureReason` stores Stripe's code, never its text (R2) (payments.service.spec.ts "EH-2", "R1") |
+| SEC-R1: after R1, a refund that keeps failing for a non-terminal reason was re-sent every minute, and enough of them could fill the job's batch of 100 and starve newer refunds (automated security review of 2a26112) | MEDIUM | Per-refund back-off: `nextAttemptAt`, 1 minute doubling to 1 hour, with a `sendAttempts` count; the job picks only refunds whose back-off has passed (payments.service.spec.ts "only picks refunds whose back-off has passed"; payments.e2e-spec.ts) |
+| EH-3: When Stripe could not return the open payment's client secret, `POST /api/payments` (201) and retry (200) answered without one, and the user could not pay | MEDIUM | Create and retry go through the gateway: 503 or 500. A plain `GET` still answers without the secret (payments.service.spec.ts "EH-3") |
+| EH-4: A capture the cancel job could not apply (our own error, e.g. a nights mismatch) was only a warning without a stack | MEDIUM | Logged as an error with the payment, intent and booking ids and the stack (payments.service.spec.ts "EH-4") |
+| EH-5: A refused webhook signature was not logged, so a wrong `STRIPE_WEBHOOK_SECRET` failed every confirmation silently | MEDIUM | A warning without secrets or the body (payments.service.spec.ts "EH-5") |
+| EH-6: Stripe failure logs named no operation, and a failed retry said the payment "could not be started" | LOW | The log names the operation and its ids; the 500 says the provider refused the request (payments.service.spec.ts "EH-6") |
+| SC-01: Swagger did not list the deliberate 500 on create and retry, and ADR-0003 said nothing about the 503/500 split | Doc | Both are documented (amendment 2026-11-15) |
+| SC-02: Swagger, ADR-0003 and R-PAY-01-04 said retry always reuses the same PaymentIntent, but a cancelled intent gets a successor payment with a new id | Doc | All three now describe the successor and tell clients to use the id returned by retry |
+| Acceptance gaps (pr-test-analyzer) | - | New black-box suite test/vv/bookings.vv.e2e-spec.ts (13 cases): age boundaries at exactly 2 and 12 on the travel date; 1 adult + 1 infant = 1 seat and 10%; an infant who turns 2 between legs; 30 vs 31 nights; hotel pay before accept; the cross-user 404 matrix over 7 routes compared with an unknown id; 5 parallel deliveries of one event; a capture in another currency |
+
+**Review of the fix commit (cdd4fca).** A reviewer subagent re-read only the fix: R1 (HIGH) and R2 are above. R3 corrected R-PAY-01-06. R4-R6 tightened the acceptance suite: a parallel-webhook loser is shown to be recoverable by a redelivery; the wrong-currency case asserts the deliberate 500 with nothing recorded or refunded; the ownership matrix compares whole bodies with those for an unknown id. That last check found **BOLA-1 (LOW)**: `GET /api/flight-bookings/:id` and `GET /api/hotel-bookings/:id` answer "Resource not found" for another user's id but "Booking not found" / "Reservation not found" for an unknown one, so a stranger can tell an id exists. This is merged code (#59, #60), fixed in #64; the other five routes return identical bodies.
+
+**Refuted or deferred, with reasons:**
+- R7: a retry of a payment still awaiting the card whose PaymentIntent Stripe has cancelled answers 500 (`resource_missing`) or an unusable secret. Only the FAILED branch starts a successor. This existed before Session 4, and the cancel job closes such payments, so it is deferred and documented here.
+- EH-4's amount-mismatch case cannot occur on the reconcile path: the synthetic event carries no amount. Comparing the amount there is SC-03 (Low), deferred.
+- EH-1, refund outcomes never leaving PENDING, is PAY-03 scope, as recorded above.
+- SEC-1, rate limiting, is cross-cutting, as recorded above.
+- SEC-2: an admin sees passenger documents through `GET /api/flight-bookings/:id`. This is intended by ACC-17 (read-only admin views).
+- SC-04: a second success for the same booking would hit the unique index. No normal path reaches it, so it is deferred.
+- SC-06: `lastError` shows Stripe's decline message, which PAY-01 requires to be shown.
+- 201 for a reused payment: documented, not changed.
+- SC-05 (a round-trip quote shows only the outbound infant fare) and the overclaimed rows R-FLT-22-13, R-HTL-18-03 and R-HTL-18-05 are in merged code. They are handled in the separate fix PR.
