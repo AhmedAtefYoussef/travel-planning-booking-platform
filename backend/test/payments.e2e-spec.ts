@@ -648,7 +648,10 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
       expect(pending).toMatchObject({ status: 'PENDING' });
       expect(pending?.stripeRefundId).toBeUndefined();
       await expect(
-        app.get(PaymentsService).retryPendingRefunds(),
+        // After the first back-off (1 minute).
+        app
+          .get(PaymentsService)
+          .retryPendingRefunds(new Date(Date.now() + 2 * 60_000)),
       ).resolves.toBeGreaterThanOrEqual(1);
       const sent = await refunds
         .findOne({ paymentId: new Types.ObjectId(paymentId) })

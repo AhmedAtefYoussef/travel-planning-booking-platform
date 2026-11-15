@@ -282,7 +282,14 @@ describe('PaymentsService (PAY-01)', () => {
           new StripeApiError('Invalid API Key provided', 401, null),
         );
         await expect(service.retryPendingRefunds()).resolves.toBe(0);
-        expect(refunds.updateOne).not.toHaveBeenCalled();
+        // Not closed: only pushed back, so it is sent once the key is fixed.
+        expect(refunds.updateOne).toHaveBeenCalledTimes(1);
+        expect(refunds.updateOne).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'PENDING' }),
+          expect.not.objectContaining({
+            $set: expect.objectContaining({ status: 'FAILED' }) as unknown,
+          }),
+        );
         expect(log.error).toHaveBeenCalled();
       });
 
@@ -296,8 +303,30 @@ describe('PaymentsService (PAY-01)', () => {
         stripe.createRefund.mockRejectedValue(
           new StripeApiError('down', 503, 'api_error'),
         );
-        await expect(service.retryPendingRefunds()).resolves.toBe(0);
-        expect(refunds.updateOne).not.toHaveBeenCalled();
+        const now = new Date('2028-01-01T00:00:00Z');
+        await expect(service.retryPendingRefunds(now)).resolves.toBe(0);
+        // Backed off (1 min, doubling to 1 h), so stuck refunds never fill the batch of newer ones.
+        expect(refunds.updateOne).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'PENDING' }),
+          {
+            $set: { nextAttemptAt: new Date(now.getTime() + 60_000) },
+            $inc: { sendAttempts: 1 },
+          },
+        );
+      });
+
+      it('only picks refunds whose back-off has passed', async () => {
+        const { service, refunds } = setup();
+        const now = new Date('2028-01-01T00:00:00Z');
+        await service.retryPendingRefunds(now);
+        expect(refunds.find).toHaveBeenCalledWith(
+          expect.objectContaining({
+            $or: [
+              { nextAttemptAt: { $exists: false } },
+              { nextAttemptAt: { $lte: now } },
+            ],
+          }),
+        );
       });
     });
   });

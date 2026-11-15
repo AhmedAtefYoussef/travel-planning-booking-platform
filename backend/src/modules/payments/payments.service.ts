@@ -508,10 +508,14 @@ export class PaymentsService {
   }
 
   /**
-   * Asks Stripe for a recorded late refund (idempotent per payment). Failures leave it PENDING without a
-   * Stripe id, and `retryPendingRefunds` sends it again.
+   * Asks Stripe for a recorded late refund (idempotent per payment). A refusal about the charge closes it
+   * as FAILED; any other failure leaves it PENDING without a Stripe id and backs it off, and
+   * `retryPendingRefunds` sends it again once `nextAttemptAt` has passed.
    */
-  private async requestRefund(refund: RefundDocument): Promise<boolean> {
+  private async requestRefund(
+    refund: RefundDocument,
+    now: Date = new Date(),
+  ): Promise<boolean> {
     const payment = await this.payments.findById(refund.paymentId).exec();
     if (!payment) {
       this.logger.error(
@@ -549,8 +553,19 @@ export class PaymentsService {
         );
         return false;
       }
+      const attempts = refund.sendAttempts ?? 0;
+      const delay = Math.min(60_000 * 2 ** attempts, MAX_BACKOFF_MS);
+      await this.refunds
+        .updateOne(
+          { _id: refund._id, status: RefundStatus.Pending },
+          {
+            $set: { nextAttemptAt: new Date(now.getTime() + delay) },
+            $inc: { sendAttempts: 1 },
+          },
+        )
+        .exec();
       this.logger.error(
-        `Refund ${refund.id as string} for payment ${payment.id as string} could not be requested; retried by the job`,
+        `Refund ${refund.id as string} for payment ${payment.id as string} could not be requested; sent again in ${delay / 60_000} min`,
         e instanceof Error ? e.stack : String(e),
       );
       return false;
@@ -572,20 +587,24 @@ export class PaymentsService {
 
   /* ------------------------------------- jobs ------------------------------------- */
 
-  /** Re-sends late refunds that Stripe does not have yet (no Stripe id). */
-  async retryPendingRefunds(): Promise<number> {
+  /** Re-sends late refunds that Stripe does not have yet (no Stripe id) once their back-off has passed. */
+  async retryPendingRefunds(now: Date = new Date()): Promise<number> {
     const pending = await this.refunds
       .find({
         reason: RefundReason.HoldExpired,
         status: RefundStatus.Pending,
         stripeRefundId: { $exists: false },
+        $or: [
+          { nextAttemptAt: { $exists: false } },
+          { nextAttemptAt: { $lte: now } },
+        ],
       })
       .sort({ createdAt: 1 })
       .limit(JOB_BATCH)
       .exec();
     let sent = 0;
     for (const refund of pending) {
-      if (await this.requestRefund(refund)) sent += 1;
+      if (await this.requestRefund(refund, now)) sent += 1;
     }
     return sent;
   }
