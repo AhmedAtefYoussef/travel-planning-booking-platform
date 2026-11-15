@@ -24,9 +24,15 @@ export interface PaymentIntentInfo {
   currency: string;
 }
 
+/**
+ * A Stripe refund (PAY-03). `status` is Stripe's: pending, requires_action, succeeded, failed or
+ * canceled (https://docs.stripe.com/api/refunds/object#refund_object-status); `failureReason` is
+ * Stripe's failure_reason CODE when it failed (never a free-text message).
+ */
 export interface RefundInfo {
   id: string;
   status: string;
+  failureReason?: string | null;
 }
 
 export interface StripeGateway {
@@ -75,6 +81,8 @@ export interface StripeWebhookEvent {
       amount_received?: number;
       currency?: string;
       last_payment_error?: { message?: string } | null;
+      /** refund.* events: Stripe's failure code (e.g. lost_or_stolen_card). */
+      failure_reason?: string | null;
       metadata?: Record<string, string>;
     };
   };

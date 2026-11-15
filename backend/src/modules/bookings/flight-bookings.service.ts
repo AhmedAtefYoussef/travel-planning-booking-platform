@@ -14,6 +14,9 @@ import {
   type FlightInventory,
   type PayableBooking,
   type PayableSnapshot,
+  REFUNDS_SERVICE,
+  type RefundsService,
+  type RefundSummary,
 } from '../../common/contracts';
 import {
   AppException,
@@ -74,6 +77,7 @@ export class FlightBookingsService implements PayableBooking {
     @InjectConnection() private readonly connection: Connection,
     @Inject(FLIGHT_INVENTORY) private readonly inventory: FlightInventory,
     private readonly config: ConfigService<EnvironmentVariables, true>,
+    @Inject(REFUNDS_SERVICE) private readonly refunds: RefundsService,
   ) {}
 
   /** FLT-21: the price and details of exactly what a hold would take; holds nothing. */
@@ -158,7 +162,11 @@ export class FlightBookingsService implements PayableBooking {
       notFound: true,
       notFoundMessage: notFound().message,
     });
-    return toDto(booking);
+    // PAY-03: the refund block, read through REFUNDS_SERVICE (never the payments module).
+    return toDto(
+      booking,
+      await this.refunds.summaryFor(BookingType.Flight, booking.id as string),
+    );
   }
 
   /**
@@ -600,7 +608,10 @@ function notFound(): AppException {
   );
 }
 
-function toDto(b: FlightBookingDocument): FlightBookingDto {
+function toDto(
+  b: FlightBookingDocument,
+  refund: RefundSummary | null = null,
+): FlightBookingDto {
   return {
     id: b.id as string,
     status: b.status,
@@ -630,6 +641,7 @@ function toDto(b: FlightBookingDocument): FlightBookingDto {
     currency: b.currency,
     holdExpiresAt: b.holdExpiresAt,
     reference: b.reference,
+    refund,
     createdAt: b.createdAt,
   };
 }

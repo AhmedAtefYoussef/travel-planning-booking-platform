@@ -11,6 +11,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { BookingStatus } from '../../../common/contracts';
+import { BookingRefundDto } from './booking-refund.dto';
 import { IsWholeNumber } from '../../../common/validation';
 import { IsCalendarDate, IsRangeEnd } from '../../hotels';
 
@@ -128,5 +129,13 @@ export class HotelReservationDto {
     description: 'HT-XXXXXXXX once confirmed (HTL-17)',
   })
   reference!: string | null;
+  @ApiProperty({
+    type: BookingRefundDto,
+    nullable: true,
+    example: null,
+    description:
+      'PAY-03: the refund issued when the booking was cancelled with a positive refund amount; null otherwise',
+  })
+  refund!: BookingRefundDto | null;
   @ApiProperty() createdAt!: Date;
 }

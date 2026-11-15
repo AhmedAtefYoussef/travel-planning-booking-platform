@@ -19,7 +19,11 @@ export class FakeStripe implements StripeGateway {
   readonly refunds: (RefundInfo & {
     paymentIntentId: string;
     amountMinor?: number;
+    metadata: Record<string, string>;
+    idempotencyKey: string;
   })[] = [];
+  /** The status Stripe gives a new refund (PAY-03); test-mode card refunds may also be 'succeeded' at once. */
+  refundStatus = 'pending';
   readonly calls: string[] = [];
   /** Stripe scopes idempotency keys per endpoint and rejects a reused key with other parameters. */
   private readonly intentKeys = new Map<
@@ -105,7 +109,11 @@ export class FakeStripe implements StripeGateway {
       (r) => r.id === this.refundKeys.get(input.idempotencyKey),
     );
     if (existing)
-      return Promise.resolve({ id: existing.id, status: existing.status });
+      return Promise.resolve({
+        id: existing.id,
+        status: existing.status,
+        failureReason: existing.failureReason ?? null,
+      });
     if (this.get(input.paymentIntentId).status !== 'succeeded') {
       return Promise.reject(
         new StripeApiError(
@@ -117,13 +125,43 @@ export class FakeStripe implements StripeGateway {
     }
     const refund = {
       id: `re_${randomBytes(12).toString('hex')}`,
-      status: 'pending',
+      status: this.refundStatus,
+      failureReason: null,
       paymentIntentId: input.paymentIntentId,
       amountMinor: input.amountMinor,
+      metadata: input.metadata,
+      idempotencyKey: input.idempotencyKey,
     };
     this.refunds.push(refund);
     this.refundKeys.set(input.idempotencyKey, refund.id);
-    return Promise.resolve({ id: refund.id, status: refund.status });
+    return Promise.resolve({
+      id: refund.id,
+      status: refund.status,
+      failureReason: null,
+    });
+  }
+
+  /** Stripe moves a refund on (e.g. succeeded, or failed with a failure_reason code). */
+  setRefundStatus(id: string, status: string, failureReason?: string): void {
+    const refund = this.refunds.find((r) => r.id === id);
+    if (!refund) throw new Error(`No such refund: ${id}`);
+    refund.status = status;
+    refund.failureReason = failureReason ?? null;
+  }
+
+  /** The data.object of a refund.created / refund.updated / refund.failed event for this refund. */
+  refundObject(id: string): Record<string, unknown> {
+    const refund = this.refunds.find((r) => r.id === id);
+    if (!refund) throw new Error(`No such refund: ${id}`);
+    return {
+      id: refund.id,
+      object: 'refund',
+      status: refund.status,
+      amount: refund.amountMinor,
+      payment_intent: refund.paymentIntentId,
+      failure_reason: refund.failureReason,
+      metadata: refund.metadata,
+    };
   }
 
   /** What a customer paying in Stripe Elements would cause. */

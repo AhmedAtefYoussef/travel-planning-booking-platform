@@ -10,13 +10,14 @@ import {
   type EnvironmentVariables,
 } from '../../config/env.validation';
 import { PaymentsService } from './payments.service';
+import { RefundsServiceImpl } from './refunds.service';
 
 /** How often expired holds' PaymentIntents are cancelled (same cadence as the hold expiry job). */
 export const PAYMENT_JOBS_INTERVAL_MS = 60_000;
 
 /**
- * PAY-01: cancels the PaymentIntent of every hold that expired, and re-sends full refunds of late
- * payments until Stripe has them. Same pattern as the booking lifecycle
+ * PAY-01: cancels the PaymentIntent of every hold that expired. PAY-03: dispatches every PENDING refund
+ * Stripe does not have yet (the outbox; any reason) once its back-off has passed. Same pattern as the booking lifecycle
  * jobs: an unref'd timer, not started in tests (which call the job with a fixed time).
  */
 @Injectable()
@@ -28,6 +29,7 @@ export class PaymentsJobsService
 
   constructor(
     private readonly payments: PaymentsService,
+    private readonly refunds: RefundsServiceImpl,
     private readonly config: ConfigService<EnvironmentVariables, true>,
   ) {}
 
@@ -45,8 +47,8 @@ export class PaymentsJobsService
         job('cancel expired PaymentIntents', () =>
           this.payments.cancelExpiredIntents(),
         ),
-        job('re-send pending refunds', () =>
-          this.payments.retryPendingRefunds(),
+        job('dispatch pending refunds', () =>
+          this.refunds.dispatchPendingRefunds(),
         ),
       ]);
     void run();

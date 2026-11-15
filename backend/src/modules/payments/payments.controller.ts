@@ -76,7 +76,7 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'PAY-01 Stripe webhook (signature-verified; confirms bookings)',
     description:
-      'Called by Stripe, not by users. The Stripe-Signature header is verified against the raw body with STRIPE_WEBHOOK_SECRET (400 otherwise). payment_intent.succeeded confirms the booking in the same transaction that records the event, so a replay is ignored and a failure (500) is redelivered by Stripe; a payment captured after the hold expired is refunded in full. payment_intent.payment_failed records the error so the user can retry.',
+      'Called by Stripe, not by users. The Stripe-Signature header is verified against the raw body with STRIPE_WEBHOOK_SECRET (400 otherwise). payment_intent.succeeded confirms the booking in the same transaction that records the event, so a replay is ignored and a failure (500) is redelivered by Stripe; a payment captured after the hold expired is refunded in full. payment_intent.payment_failed records the error so the user can retry. PAY-03: refund.created, refund.updated and refund.failed settle a PENDING refund to REFUNDED or FAILED (once, with one in-app notification), matched by the Stripe refund id or metadata.refundId. Handled events: payment_intent.succeeded, payment_intent.payment_failed, payment_intent.canceled, refund.created, refund.updated, refund.failed; any other event is acknowledged and ignored.',
   })
   @ApiHeader({ name: 'Stripe-Signature', required: true })
   @ApiOkResponse({ schema: { example: { received: true } } })

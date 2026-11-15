@@ -54,10 +54,9 @@ function setup(due: unknown[] = []) {
     create: jest.fn(),
   };
   const refunds = {
-    find: jest.fn(() => ({
-      sort: () => ({ limit: () => exec([] as unknown[]) }),
-    })),
-    updateOne: jest.fn(() => exec({ matchedCount: 1, modifiedCount: 1 })),
+    recordLateRefund: jest.fn(),
+    sendLateRefund: jest.fn(),
+    applyRefundEvent: jest.fn(),
   };
   const flights = { getPayable: jest.fn().mockResolvedValue(snapshot()) };
   const config = {
@@ -67,13 +66,13 @@ function setup(due: unknown[] = []) {
   };
   const service = new PaymentsService(
     payments as never,
-    refunds as never,
     {} as never,
     {} as never,
     stripe,
     flights as never,
     {} as never,
     config as never,
+    refunds as never,
   );
   const log = {
     error: jest
@@ -230,104 +229,6 @@ describe('PaymentsService (PAY-01)', () => {
       expect(log.warn).toHaveBeenCalledWith(
         expect.stringContaining('signature'),
       );
-    });
-
-    describe('EH-2: late refunds Stripe refuses for good', () => {
-      const pendingRefund = (paymentId: Types.ObjectId) => ({
-        _id: new Types.ObjectId(),
-        id: new Types.ObjectId().toHexString(),
-        paymentId,
-        reason: 'HOLD_EXPIRED',
-      });
-
-      it('marks the refund FAILED with the reason and stops re-sending it', async () => {
-        const { service, stripe, payments, refunds, log } = setup();
-        const payment = paymentDoc({ status: PaymentStatus.Succeeded });
-        const refund = pendingRefund(payment._id);
-        refunds.find.mockReturnValue({
-          sort: () => ({ limit: () => exec([refund]) }),
-        });
-        payments.findById.mockReturnValue(exec(payment) as never);
-        stripe.createRefund.mockRejectedValue(
-          new StripeApiError(
-            'Charge has already been refunded',
-            400,
-            'charge_already_refunded',
-          ),
-        );
-        await expect(service.retryPendingRefunds()).resolves.toBe(0);
-        expect(refunds.updateOne).toHaveBeenCalledWith(
-          { _id: refund._id, status: 'PENDING' },
-          {
-            $set: {
-              status: 'FAILED',
-              // R2: Stripe's code only, never its text (ADR-0003).
-              failureReason: 'stripe:charge_already_refunded',
-            },
-          },
-        );
-        expect(log.error).toHaveBeenCalledWith(
-          expect.stringContaining(refund.id),
-        );
-      });
-
-      it('R1: keeps the refund PENDING on a configuration error (revoked key), so it is sent once the key is fixed', async () => {
-        const { service, stripe, payments, refunds, log } = setup();
-        const payment = paymentDoc({ status: PaymentStatus.Succeeded });
-        refunds.find.mockReturnValue({
-          sort: () => ({ limit: () => exec([pendingRefund(payment._id)]) }),
-        });
-        payments.findById.mockReturnValue(exec(payment) as never);
-        stripe.createRefund.mockRejectedValue(
-          new StripeApiError('Invalid API Key provided', 401, null),
-        );
-        await expect(service.retryPendingRefunds()).resolves.toBe(0);
-        // Not closed: only pushed back, so it is sent once the key is fixed.
-        expect(refunds.updateOne).toHaveBeenCalledTimes(1);
-        expect(refunds.updateOne).toHaveBeenCalledWith(
-          expect.objectContaining({ status: 'PENDING' }),
-          expect.not.objectContaining({
-            $set: expect.objectContaining({ status: 'FAILED' }) as unknown,
-          }),
-        );
-        expect(log.error).toHaveBeenCalled();
-      });
-
-      it('keeps a refund PENDING (re-sent by the job) when Stripe is only unavailable', async () => {
-        const { service, stripe, payments, refunds } = setup();
-        const payment = paymentDoc({ status: PaymentStatus.Succeeded });
-        refunds.find.mockReturnValue({
-          sort: () => ({ limit: () => exec([pendingRefund(payment._id)]) }),
-        });
-        payments.findById.mockReturnValue(exec(payment) as never);
-        stripe.createRefund.mockRejectedValue(
-          new StripeApiError('down', 503, 'api_error'),
-        );
-        const now = new Date('2028-01-01T00:00:00Z');
-        await expect(service.retryPendingRefunds(now)).resolves.toBe(0);
-        // Backed off (1 min, doubling to 1 h), so stuck refunds never fill the batch of newer ones.
-        expect(refunds.updateOne).toHaveBeenCalledWith(
-          expect.objectContaining({ status: 'PENDING' }),
-          {
-            $set: { nextAttemptAt: new Date(now.getTime() + 60_000) },
-            $inc: { sendAttempts: 1 },
-          },
-        );
-      });
-
-      it('only picks refunds whose back-off has passed', async () => {
-        const { service, refunds } = setup();
-        const now = new Date('2028-01-01T00:00:00Z');
-        await service.retryPendingRefunds(now);
-        expect(refunds.find).toHaveBeenCalledWith(
-          expect.objectContaining({
-            $or: [
-              { nextAttemptAt: { $exists: false } },
-              { nextAttemptAt: { $lte: now } },
-            ],
-          }),
-        );
-      });
     });
   });
 

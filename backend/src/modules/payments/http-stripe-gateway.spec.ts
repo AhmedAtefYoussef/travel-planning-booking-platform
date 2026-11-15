@@ -84,7 +84,7 @@ describe('HttpStripeGateway (PAY-01, Stripe REST in test mode)', () => {
         metadata: {},
         idempotencyKey: 'k',
       }),
-    ).resolves.toEqual({ id: 're_1', status: 'pending' });
+    ).resolves.toEqual({ id: 're_1', status: 'pending', failureReason: null });
     const form = new URLSearchParams(refund.mock.calls[0][1]!.body as string);
     expect(form.get('payment_intent')).toBe('pi_1');
     expect(form.has('amount')).toBe(false);
@@ -109,6 +109,31 @@ describe('HttpStripeGateway (PAY-01, Stripe REST in test mode)', () => {
     respond(200, {});
     await expect(gateway.retrievePaymentIntent('pi_1')).rejects.toMatchObject({
       name: 'StripeApiError',
+      httpStatus: 502,
+      code: 'network_error',
+    });
+  });
+
+  it('PAY-03 reads a refund failure code, and treats a refund answer without an id as retryable', async () => {
+    respond(200, {
+      id: 're_2',
+      status: 'failed',
+      failure_reason: 'lost_or_stolen_card',
+    });
+    const input = {
+      paymentIntentId: 'pi_1',
+      amountMinor: 500,
+      metadata: { refundId: 'r1' },
+      idempotencyKey: 'refund:r1',
+    };
+    await expect(gateway.createRefund(input)).resolves.toEqual({
+      id: 're_2',
+      status: 'failed',
+      failureReason: 'lost_or_stolen_card',
+    });
+    jest.restoreAllMocks();
+    respond(200, {});
+    await expect(gateway.createRefund(input)).rejects.toMatchObject({
       httpStatus: 502,
       code: 'network_error',
     });
