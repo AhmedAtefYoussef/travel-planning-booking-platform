@@ -1166,3 +1166,22 @@ equal to unknown 404, refund block on flight and hotel details), then RefundsSer
 transactional outbox, the webhook cases, the controller and the booking DTO block. It moved the
 dispatcher out of PaymentsService to avoid a DI cycle and kept the late-refund key. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-18, PAY-04 (TRVL-133)
+Prompt:
+Implement the currency module: fetch FXRatesAPI rates once a day (and at startup when none are cached)
+with the platform currency as base, cache them in exchange_rates with their rate date, fall back to the
+last cached rates when the API fails, never expose FX_API_KEY, and convert minor-unit amounts with each
+currency's minor units, answering 503 EXCHANGE_RATE_UNAVAILABLE when a rate is missing, test-first.
+How the output was used:
+Claude wrote failing unit and e2e tests first (1000 EGP to JPY with minor units, same currency rate 1,
+API failure keeps yesterday's rates, empty cache and API down gives 503, XYZ gives 400 fieldErrors.to,
+startup fetch only when the cache is empty, negative or missing rates rejected, key never in a response),
+then the FXRatesAPI client behind FX_RATES_CLIENT, the exchange_rates schema, CURRENCY_SERVICE, the hourly
+stale-check job and GET /api/currencies/rates and /convert, plus listCurrencies on REFERENCE_SERVICE for
+the seeded minor units. I checked the live response shape and reviewed the diff.
+================================================

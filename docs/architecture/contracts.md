@@ -17,8 +17,8 @@ exports: [AUDIT_SERVICE],
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor`, `summaryFor` | payments (`RefundsServiceImpl`, PAY-03, **implemented**) | booking details (refund block), cancellations FLT-26/HTL-21 (Karim), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
-| `CURRENCY_SERVICE` | `CurrencyService.convert` | currency (Ahmed, TRVL-133) | budgets ITN-18 (Malak) |
-| `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions) | reference (Joudy, GEN-12) | everyone |
+| `CURRENCY_SERVICE` | `CurrencyService.convert`, `supportedCurrencies` | currency (`ExchangeRatesService`, Ahmed, TRVL-133), **implemented** | budgets ITN-18 (Malak) |
+| `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions, currencies with minor units) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
 | `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | bookings (`BookingQueriesService`, TRVL-139), **implemented** | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
@@ -41,6 +41,19 @@ exports: [AUDIT_SERVICE],
 - **Room availability (HTL-04, for HTL-08, HTL-15 and HTL-18):** `rooms.availability` is a list of half-open `{from, to}` ranges (`to` is the first night not included), sorted by `from`, at most `MAX_RANGES_PER_ROOM`. Ranges never overlap but **may touch**, and touching ranges are stored separately: `[01-10, 01-20)` and `[01-20, 02-01)` together make 01-10 to 01-31 bookable. A stay is bookable when every night of it lies inside some range, so treat touching ranges as one contiguous span; never require the whole stay to fit inside a single range.
 - **Room edits (HTL-05, for HTL-17 and HTL-18):** a moderator can change `priceMinor` and replace `availability` at any time. So that existing reservations are not affected, a hotel reservation must **store the price per night it was booked at** and never read the room's current price afterwards. Replacing availability refuses (409) to leave a BOOKED night, or a HELD night whose hold has not expired, from today on outside the new ranges. "Today" is the hotel's local date (the time zone of an airport in the hotel's city; UTC-12 when unknown), because `room_nights.date` is a local date. That check and the write run in one transaction that writes the room document, so the HTL-18 hold transaction must make a room write that **always changes it**: `$inc: { reservationVersion: 1 }` (alongside `$set: { everReserved: true }`). Setting `everReserved` alone is not enough: once it is already true the update changes nothing, MongoDB writes nothing and the two transactions no longer conflict. Do not rely on Mongoose timestamps, and do not use `doc.save()` for this write, because it skips documents with no changed field.
 - **Schemas:** spread `SCHEMA_OPTIONS` (timestamps, `id` in JSON). Reference fields **must** use `@Prop({ type: MongooseSchema.Types.ObjectId })` (`import { Schema as MongooseSchema } from 'mongoose'`). `Types.ObjectId` stores values but breaks query casting, so `find({ userId: '<hex>' })` silently matches nothing.
+
+## Currency conversion (ITN-18), for itinerary budgets
+Inject `@Inject(CURRENCY_SERVICE) private readonly currency: CurrencyService` (the module is global) and call
+`convert(amountMinor, from, to)`. It returns `{ amountMinor, rate, rateDate }`: the amount in minor units of `to`
+(each currency's seeded minor units, so JPY has 0 decimals), the rate used and the day of that rate, which the
+budget summary must show (ITN-18). Rates are fetched from FXRatesAPI once a day (and at startup when none are
+cached) and the newest cached day is always used, so an API outage falls back to the last cached rates.
+- Let the errors propagate: 400 `VALIDATION_FAILED` with `fieldErrors` `from`/`to` for a code that is not a seeded
+  currency, and 503 `EXCHANGE_RATE_UNAVAILABLE` when no cached rate exists for either currency. Never show a
+  converted total built without a rate (no 0, no NaN).
+- Same currency returns the amount unchanged with rate 1. `supportedCurrencies()` lists the seeded codes.
+- Display only: booking prices, payments and refunds are never converted (PAY-04).
+- `GET /api/currencies/rates` shows the cached rates and `rateDate`; `GET /api/currencies/convert` is the Swagger demo.
 
 ## Image uploads (GEN-08), for BLG-10 and ITN-12
 Posts and activities reuse the hotel/airline pattern (`hotels.service.ts` `addImages`/`removeImage`):
