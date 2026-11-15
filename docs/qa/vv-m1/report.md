@@ -117,7 +117,7 @@ Session 4 re-verified #57 to #64 after a compacted session:
 - an adversarial verifier on every finding;
 - test-first fixes on #62 and #64.
 
-It then ran six journeys and two repeats live against a real server, through the Swagger page with real cookie sessions, in Stripe test mode with CLI confirmations and forwarded webhooks. The full transcript (103 calls) is on the never-merged evidence branch: [session4/live-run.md](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/2f6ca93f15d01e63e0251696a4b84684a523e76b/session4/live-run.md).
+It then ran six journeys and two repeats live against a real server, through the Swagger page with real cookie sessions, in Stripe test mode with CLI confirmations and forwarded webhooks. The full transcript (103 calls) is on the never-merged evidence branch `docs/TRVL-136-session4-swagger-evidence`: [session4/live-run.md](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/2f6ca93f15d01e63e0251696a4b84684a523e76b/session4/live-run.md).
 
 | Journey | Requirements | Live result |
 |---|---|---|
@@ -212,7 +212,7 @@ The live checks were also repeated where state allowed (for example, the login d
 
 ## Evidence
 
-Screenshots of Swagger UI against the live `travel_vv` server are on the never-merged branch `evidence/vv-swagger`, pinned at commit [`0631fb0`](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/tree/0631fb08f1c30c8ad777b15ebd2079445763a13f/vv-m1). The branch [README](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/0631fb08f1c30c8ad777b15ebd2079445763a13f/README.md) describes each file.
+Screenshots of Swagger UI against the live `travel_vv` server are on the never-merged branch `docs/TRVL-136-vv-m1-swagger-evidence`, pinned at commit [`0631fb0`](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/tree/0631fb08f1c30c8ad777b15ebd2079445763a13f/vv-m1). The branch [README](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/blob/0631fb08f1c30c8ad777b15ebd2079445763a13f/README.md) describes each file.
 
 | # | Shows |
 |---|---|
