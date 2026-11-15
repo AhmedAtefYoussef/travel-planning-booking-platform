@@ -156,6 +156,7 @@ export class FlightBookingsService implements PayableBooking {
     assertOwner(user, booking.userId, {
       bypassRoles: [Role.Admin],
       notFound: true,
+      notFoundMessage: notFound().message,
     });
     return toDto(booking);
   }

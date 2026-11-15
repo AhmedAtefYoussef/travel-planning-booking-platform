@@ -29,6 +29,11 @@ export interface OwnershipOptions {
    * (ACC-11 allows 403 or 404). Use it for private itineraries and bookings looked up by id.
    */
   notFound?: boolean;
+  /**
+   * The 404 message: pass the one the caller uses for an id that does not exist, so a stranger gets the
+   * very same answer for an existing private resource and an unknown one.
+   */
+  notFoundMessage?: string;
 }
 
 /** True when `user` owns the resource or holds a bypass role. */
@@ -56,7 +61,7 @@ export function assertOwner(
     throw new AppException(
       HttpStatus.NOT_FOUND,
       ErrorCode.NOT_FOUND,
-      'Resource not found',
+      options.notFoundMessage ?? 'Resource not found',
     );
   }
   throw forbidden('You can only access your own resources');

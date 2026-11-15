@@ -1003,6 +1003,8 @@ How the output was used:
 A spec-conformance review, confirmed by an independent verifier, found that a round-trip quote showed
 only the outbound infant fare, so the FLT-21 summary lines did not add up to the total when the two
 flights cost differently. Claude wrote a failing e2e test with unequal leg fares, then added each
-segment's own infant fare to the quote (not stored, since it derives from the stored fare). It also
-corrected RTM rows whose cited evidence was weaker than claimed. I reviewed the finding and the diff.
+segment's own infant fare to the quote (not stored, since it derives from the stored fare). An
+acceptance check that compares whole 404 bodies then showed GET booking/reservation by id answered a
+stranger differently from an unknown id; the ownership helper now takes the caller's not-found message.
+It also corrected RTM rows whose cited evidence was weaker than claimed. I reviewed each diff.
 ================================================

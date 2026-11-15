@@ -364,10 +364,16 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
         .get(`/api/flight-bookings/${id}`)
         .set('x-dev-user', 'ADMIN')
         .expect(200);
-      await http()
+      const theirs = await http()
         .get(`/api/flight-bookings/${id}`)
         .set('Cookie', other.cookie)
         .expect(404);
+      // The same answer as for an id that does not exist, so a stranger cannot tell it exists (BOLA-1).
+      const unknown = await http()
+        .get(`/api/flight-bookings/${new Types.ObjectId().toHexString()}`)
+        .set('Cookie', other.cookie)
+        .expect(404);
+      expect(theirs.body.message).toBe(unknown.body.message);
       await http().get(`/api/flight-bookings/${id}`).expect(401);
     });
   });

@@ -32,7 +32,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-08 | Mandatory | PATCH /api/auth/change-password | Abdelrahman | TRVL-18 | #47 | Done |
 | ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
-| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46 | Done |
+| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46, #64 | Done |
 | ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55 | Partial: deactivation, password confirmation, logout everywhere and no login done; the upcoming-bookings block is active (UPCOMING_BOOKINGS provided by the bookings module, #57); hiding posts/itineraries and "Deleted user" for the blog, itineraries and reviews modules |
 | ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | #53, #55 | Done |
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
