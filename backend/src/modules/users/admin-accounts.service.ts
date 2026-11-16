@@ -23,7 +23,8 @@ import { SessionsService } from './sessions.service';
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
 /** Only what the list shows: the password hash and lockout counters are never read. */
-const SUMMARY_FIELDS = 'name email role status assignedProvider createdAt';
+export const ACCOUNT_SUMMARY_FIELDS =
+  'name email role status assignedProvider createdAt';
 
 /** Admin account management (ACC-14 list; ACC-07a reset and ACC-13 moderators follow). */
 @Injectable()
@@ -95,11 +96,11 @@ export class AdminAccountsService {
   async list(query: AccountListQueryDto): Promise<Page<AccountSummaryDto>> {
     const page = await paginate(this.users, this.filterFor(query), query.page, {
       sort: { createdAt: -1 },
-      projection: SUMMARY_FIELDS,
+      projection: ACCOUNT_SUMMARY_FIELDS,
     });
     // paginate() returns lean documents, which always carry _id.
-    const rows = page.items as unknown as UserRow[];
-    return { ...page, items: rows.map(toSummary) };
+    const rows = page.items as unknown as AccountRow[];
+    return { ...page, items: rows.map(toAccountSummary) };
   }
 
   filterFor(query: AccountListQueryDto): FilterQuery<User> {
@@ -114,12 +115,13 @@ export class AdminAccountsService {
   }
 }
 
-type UserRow = Pick<
+export type AccountRow = Pick<
   User,
   'name' | 'email' | 'role' | 'status' | 'assignedProvider' | 'createdAt'
 > & { _id: { toHexString(): string } };
 
-function toSummary(user: UserRow): AccountSummaryDto {
+/** The admin view of an account (ACC-14 list, ACC-15/16 suspend and reactivate). */
+export function toAccountSummary(user: AccountRow): AccountSummaryDto {
   return {
     id: user._id.toHexString(),
     name: user.name,

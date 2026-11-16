@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SESSION_VALIDATOR } from '../../common/contracts';
+import { AccountSuspensionService } from './account-suspension.service';
 import { AdminAccountsController } from './admin-accounts.controller';
 import { AdminAccountsService } from './admin-accounts.service';
 import { AdminSeedService } from './admin-seed.service';
@@ -35,6 +36,7 @@ import { UsersService } from './users.service';
     ProfileService,
     AdminAccountsService,
     ModeratorsService,
+    AccountSuspensionService,
     ProviderDirectoryService,
     DeactivationService,
     UsersService,
