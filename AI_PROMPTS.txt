@@ -1375,3 +1375,18 @@ decimals, duplicates, 20/21 tiers, access), then made the tier list a required p
 returned on every hotel response, and aligned the hotel refund precision with the airline tiers. The hotel page
 part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live Swagger run.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-02 (TRVL-48)
+Prompt:
+Implement HTL-02: a public GET /api/hotels/:id hotel details page with the profile, photos, amenities,
+check-in/check-out times, cancellation policy, average rating and reviews, and the available rooms when
+dates are given, using the same free-room rule as the HTL-18 hold so HTL-15 can reuse it.
+How the output was used:
+Claude added HotelDetailsService (visible-review rating and the 10 newest reviews, active rooms, and with
+dates only the rooms free every night with their stay total), the query DTO with date rules, the Swagger
+route, the reviewed public-route entry, and e2e tests. I agreed the design before it was written.
+================================================

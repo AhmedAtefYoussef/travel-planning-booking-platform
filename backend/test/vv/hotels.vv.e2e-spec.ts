@@ -311,11 +311,12 @@ describe('Hotel profile create and edit (vv): HTL-01', () => {
     expect(fields(res)).toEqual(['cityId']);
   });
 
-  it('HTL-02 is not started: GET /api/hotels/:id does not exist yet (discoverability gap, not a defect)', async () => {
+  it('HTL-02 makes the created hotel discoverable: GET /api/hotels/:id shows it to a traveller', async () => {
     const res = await http()
       .get(`/api/hotels/${hotelP}`)
-      .set('Cookie', travellerCookie);
-    expect(res.status).toBe(404);
+      .set('Cookie', travellerCookie)
+      .expect(200);
+    expect(res.body.hotel.id).toBe(hotelP);
   });
 });
 

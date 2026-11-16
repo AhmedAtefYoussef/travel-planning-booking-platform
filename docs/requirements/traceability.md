@@ -77,7 +77,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | HTL-01 | Mandatory | POST /api/hotels; PATCH /api/hotels/:id | Sandra | TRVL-47 | #22, #55 | Partial: photos are URLs until GEN-08 |
-| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | - | Not started |
+| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | - | In progress |
 | HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | #23 | Done |
 | HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | #24, #55 | Done |
 | HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |

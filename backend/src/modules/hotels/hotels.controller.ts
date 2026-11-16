@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   Patch,
   Post,
   Put,
+  Query,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
@@ -18,7 +20,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import {
@@ -30,6 +32,8 @@ import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator'
 import { ImageFilesInterceptor } from '../uploads';
 import { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
 import { SetHotelPoliciesDto } from './dto/hotel-policy.dto';
+import { HotelDetailsDto, HotelDetailsQueryDto } from './dto/hotel-details.dto';
+import { HotelDetailsService } from './hotel-details.service';
 import { HotelsService } from './hotels.service';
 
 /**
@@ -39,7 +43,10 @@ import { HotelsService } from './hotels.service';
 @ApiTags('Hotels')
 @Controller('hotels')
 export class HotelsController {
-  constructor(private readonly hotels: HotelsService) {}
+  constructor(
+    private readonly hotels: HotelsService,
+    private readonly hotelDetails: HotelDetailsService,
+  ) {}
 
   @Post()
   @Roles(Role.Admin)
@@ -249,5 +256,23 @@ export class HotelsController {
     @Body() dto: SetHotelPoliciesDto,
   ): Promise<HotelDto> {
     return this.hotels.setPolicies(user, id, dto);
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary:
+      'HTL-02 Hotel details page: profile, policies, rating, reviews and rooms',
+    description:
+      "Public (guests too). Returns the hotel profile with photos and amenities, its check-in/check-out times (HTL-09) and cancellation tiers (HTL-10), the average rating and count of visible reviews with the 10 newest (hidden reviews are left out, GEN-10), and its rooms. Without dates every active room is listed. With checkIn and checkOut (the hotel's local dates, checkOut after checkIn, at most 30 nights, checkIn not before today at the hotel; send both or neither) only the rooms free for every night are listed, each with its stayTotalMinor: a room is free when every night lies inside its bookable ranges and no night is booked, held or blocked. A deactivated hotel is 404, like an unknown one (ACC-15).",
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiOkResponse({ type: HotelDetailsDto })
+  @ApiErrorResponses(400, 404)
+  details(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: HotelDetailsQueryDto,
+  ): Promise<HotelDetailsDto> {
+    return this.hotelDetails.details(id, query);
   }
 }

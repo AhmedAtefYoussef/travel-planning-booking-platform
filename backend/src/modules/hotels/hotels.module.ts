@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { HOTEL_INVENTORY, HOTEL_STATUS } from '../../common/contracts';
 import { ReferenceModule } from '../reference';
+import { HotelDetailsService } from './hotel-details.service';
 import { HotelInventoryService } from './hotel-inventory.service';
 import { HotelStatusService } from './hotel-status.service';
 import { HotelsController } from './hotels.controller';
@@ -32,6 +33,7 @@ import { RoomsService } from './rooms.service';
   controllers: [HotelsController, RoomsController],
   providers: [
     HotelsService,
+    HotelDetailsService,
     RoomsService,
     HotelInventoryService,
     { provide: HOTEL_INVENTORY, useExisting: HotelInventoryService },
