@@ -20,6 +20,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 - The `airlines` and `flights` schemas (TRVL-138, Jira setup task, not a workbook ID) back FLT-01, FLT-03, FLT-04, FLT-08, FLT-09, FLT-22 and FLT-30. Each of those rows changes status when its own endpoints land.
 - The `users` and `sessions` schemas (TRVL-137, Jira setup task, not a workbook ID) back ACC-01, ACC-04 to ACC-09, ACC-11 to ACC-14 and ACC-19. Each of those rows changes status when its own endpoints land.
 - The `hotels`, `rooms`, `room_nights` and `reviews` schemas (TRVL-140, Jira setup task, not a workbook ID, PR #21) back the HTL requirements (HTL-01 to HTL-24). Each of those rows changes status when its own endpoints land.
+- The `posts`, `comments` and `likes` schemas (TRVL-142, Jira setup task, not a workbook ID, PR #75) back BLG-01 to BLG-12. Each of those rows changes status when its own endpoints land.
 
 ## Accounts & Admin
 
@@ -133,7 +134,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | - | Not started |
+| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75 | Done |
 | BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | - | Not started |
 | BLG-03 | Mandatory | GET /api/posts/mine | Malak | TRVL-87 | - | Not started |
 | BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | - | Not started |
