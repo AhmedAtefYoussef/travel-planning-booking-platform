@@ -1,7 +1,16 @@
-import { Body, Controller, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -14,6 +23,8 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import {
   AddAvailabilityDto,
+  BlockDatesDto,
+  BlockedNightsDto,
   CreateRoomDto,
   ReplaceAvailabilityDto,
   RoomDto,
@@ -122,9 +133,10 @@ export class RoomsController {
   @Patch(':roomId')
   @Roles(Role.HotelModerator)
   @ApiOperation({
-    summary: "HTL-05 Hotel moderator edits a room's beds, occupancy and price",
+    summary:
+      "HTL-05, HTL-06 Hotel moderator edits a room's beds, occupancy and price, or deactivates it",
     description:
-      'Send any of beds, maxOccupancy and priceMinor; a field left out stays as it is, null or an empty body is 400. Existing reservations keep the price they were booked at; the new price applies to new bookings only. Only the moderator assigned to this hotel may do this (403 otherwise, ACC-11), and not while the hotel is deactivated (ACC-15).',
+      'Send any of beds, maxOccupancy, priceMinor and isActive; a field left out stays as it is, null or an empty body is 400. Existing reservations keep the price they were booked at; the new price applies to new bookings only. HTL-06: isActive false deactivates the room, refused with 409 while it has a booked night or an unexpired payment hold from today on; a deactivated room is left out of search, the details page and free rooms. isActive true reactivates it. Only the moderator assigned to this hotel may do this (403 otherwise, ACC-11), and not while the hotel is deactivated (ACC-15).',
   })
   @ApiParam({ name: 'id', description: 'Hotel id' })
   @ApiParam({ name: 'roomId', description: 'Room id' })
@@ -193,5 +205,87 @@ export class RoomsController {
     @Body() dto: ReplaceAvailabilityDto,
   ): Promise<RoomDto> {
     return this.rooms.replaceAvailability(user, hotelId, roomId, dto);
+  }
+
+  @Post(':roomId/blocks')
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary: 'HTL-06 Hotel moderator blocks date ranges for a room',
+    description:
+      "Blocks the nights of each range ({from, to}, `to` exclusive, same rules as HTL-04) from today on at the hotel, so the room is not offered or bookable on them. Refused with 409, blocking nothing, when a night is booked (Confirmed), held for payment (Pending Payment) or already blocked. At most 366 nights per request. Returns the room's blocked ranges from today on. Only the moderator assigned to this hotel (403 otherwise, ACC-11).",
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiParam({ name: 'roomId', description: 'Room id' })
+  @ApiBody({
+    type: BlockDatesDto,
+    examples: {
+      valid: {
+        summary: 'Block 10-12 January (two nights)',
+        value: { ranges: [{ from: '2027-01-10', to: '2027-01-12' }] },
+      },
+      invalid: {
+        summary: 'Invalid: end before start',
+        value: { ranges: [{ from: '2027-01-12', to: '2027-01-10' }] },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: BlockedNightsDto })
+  @ApiErrorResponses(400, 404, 409)
+  block(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) hotelId: string,
+    @Param('roomId', ParseObjectIdPipe) roomId: string,
+    @Body() dto: BlockDatesDto,
+  ): Promise<BlockedNightsDto> {
+    return this.rooms.block(user, hotelId, roomId, dto);
+  }
+
+  @Delete(':roomId/blocks')
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary: 'HTL-06 Hotel moderator unblocks date ranges for a room',
+    description:
+      'Removes the blocks on the nights of each range; nights that are not blocked are left as they are, and booked or held nights are never touched. Returns the remaining blocked ranges from today on.',
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiParam({ name: 'roomId', description: 'Room id' })
+  @ApiBody({
+    type: BlockDatesDto,
+    examples: {
+      valid: {
+        summary: 'Unblock 11 January',
+        value: { ranges: [{ from: '2027-01-11', to: '2027-01-12' }] },
+      },
+    },
+  })
+  @ApiOkResponse({ type: BlockedNightsDto })
+  @ApiErrorResponses(400, 404)
+  unblock(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) hotelId: string,
+    @Param('roomId', ParseObjectIdPipe) roomId: string,
+    @Body() dto: BlockDatesDto,
+  ): Promise<BlockedNightsDto> {
+    return this.rooms.unblock(user, hotelId, roomId, dto);
+  }
+
+  @Delete(':roomId')
+  @HttpCode(204)
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary: 'HTL-06 Hotel moderator deletes a room that was never reserved',
+    description:
+      'Deletes the room and its blocked nights. A room that has ever been reserved keeps its history: 409, deactivate it instead (PATCH with isActive false). Only the moderator assigned to this hotel (403 otherwise, ACC-11).',
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiParam({ name: 'roomId', description: 'Room id' })
+  @ApiNoContentResponse({ description: 'Deleted' })
+  @ApiErrorResponses(400, 404, 409)
+  remove(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) hotelId: string,
+    @Param('roomId', ParseObjectIdPipe) roomId: string,
+  ): Promise<void> {
+    return this.rooms.remove(user, hotelId, roomId);
   }
 }
