@@ -26,6 +26,18 @@ async function main(): Promise<void> {
         ? `Demo data created or completed: ${result.created.join(', ')}`
         : 'Demo data already complete; nothing changed',
     );
+    console.log(
+      [
+        'Ids for Swagger (docs/api/demo-script.md):',
+        `  airline  Demo Air          ${result.airlineId}`,
+        ...result.flights.map(
+          (f) =>
+            `  flight   ${f.flightNumber}  ${f.id}  economy cabin ${f.cabinId}`,
+        ),
+        `  hotel    Demo Nile Hotel   ${result.hotelId}`,
+        ...result.rooms.map((r) => `  room     ${r.number}  ${r.id}`),
+      ].join(String.fromCharCode(10)),
+    );
   } finally {
     await app.close();
   }
