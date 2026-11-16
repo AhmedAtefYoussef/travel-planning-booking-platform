@@ -221,7 +221,7 @@ describe('HotelsService.setPolicies (HTL-09)', () => {
     expect(hotel).toMatchObject({ cancellationTiers: tiers });
   });
 
-  it('returns null times on a hotel that has none yet', async () => {
+  it('every hotel response carries the times, null until they are set (seen through an HTL-01 edit)', async () => {
     const { service } = setup(fakeHotel());
     const dto = await service.update(own(), id, { name: 'Renamed Hotel' });
     expect(dto).toMatchObject({ checkInTime: null, checkOutTime: null });
