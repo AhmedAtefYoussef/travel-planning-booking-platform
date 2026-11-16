@@ -170,6 +170,18 @@ export class HotelsService {
     );
   }
 
+  /**
+   * For read-only moderator views (HTL-08): 403 if `user` does not manage the hotel (checked before
+   * any read, ACC-11), then 404 if it does not exist. A deactivated hotel stays readable (ACC-15).
+   */
+  async loadInScope(
+    user: AuthUser,
+    id: string | Types.ObjectId,
+  ): Promise<HotelDocument> {
+    assertProviderScope(user, ProviderType.Hotel, id);
+    return this.load(id);
+  }
+
   /** Loads a hotel or throws 404; other hotel services reuse it. */
   async load(id: string | Types.ObjectId): Promise<HotelDocument> {
     const hotel = await this.hotels.findById(id).exec();

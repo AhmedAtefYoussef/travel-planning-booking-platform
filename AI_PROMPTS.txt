@@ -1902,3 +1902,18 @@ How the output was used:
 Claude removed the docs/qa/vv-m1 V&V reports and the two test comments that linked to them. The V&V test
 specs under backend/test/vv stay, because they still guard behaviour. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-08 (TRVL-53)
+Prompt:
+Implement HTL-08: the hotel moderator views each room's status for a chosen date range as Available,
+Booked (with reservation reference) or Blocked, through GET /api/hotels/:id/availability?from&to.
+How the output was used:
+Claude added RoomCalendarService (one status per room per night from the bookable ranges and room_nights:
+AVAILABLE, BOOKED with reference, HELD with the hold end, BLOCKED, NOT_BOOKABLE), the window DTO (at most
+62 nights, rooms paged by 10), loadInScope so a deactivated hotel stays readable, and unit and e2e tests.
+I agreed to show held and not-bookable nights explicitly rather than as available.
+================================================

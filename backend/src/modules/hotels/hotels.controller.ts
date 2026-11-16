@@ -42,6 +42,8 @@ import {
 } from './dto/hotel-search.dto';
 import { HotelDetailsService } from './hotel-details.service';
 import { HotelSearchService } from './hotel-search.service';
+import { RoomCalendarDto, RoomCalendarQueryDto } from './dto/room-calendar.dto';
+import { RoomCalendarService } from './room-calendar.service';
 import { HotelsService } from './hotels.service';
 
 /**
@@ -55,6 +57,7 @@ export class HotelsController {
     private readonly hotels: HotelsService,
     private readonly hotelDetails: HotelDetailsService,
     private readonly hotelSearch: HotelSearchService,
+    private readonly roomCalendar: RoomCalendarService,
   ) {}
 
   @Post()
@@ -297,5 +300,23 @@ export class HotelsController {
     @Query() query: HotelDetailsQueryDto,
   ): Promise<HotelDetailsDto> {
     return this.hotelDetails.details(id, query);
+  }
+
+  @Get(':id/availability')
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary: "HTL-08 Hotel moderator views each room's status per night",
+    description:
+      "For each room of the hotel (by number, 10 rooms per page, GEN-05), one entry per night from `from` up to the day before `to` (at most 62 nights): AVAILABLE (bookable and free), BOOKED with the reservation reference (Confirmed), HELD with holdExpiresAt (Pending Payment), BLOCKED (blocked by the moderator, HTL-06) or NOT_BOOKABLE (outside the room's bookable ranges, or the room is deactivated). Past dates are allowed. Only the moderator assigned to this hotel (403 otherwise, ACC-11); a deactivated hotel's calendar stays readable.",
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiPaginatedResponse(RoomCalendarDto)
+  @ApiErrorResponses(400, 404)
+  availability(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: RoomCalendarQueryDto,
+  ) {
+    return this.roomCalendar.calendar(user, id, query);
   }
 }
