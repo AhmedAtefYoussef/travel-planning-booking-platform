@@ -21,7 +21,11 @@ const SESSION = { id: 'tx' };
 
 function setup(
   target: { role: Role; status: AccountStatus } | null,
-  options: { raceLost?: boolean; notifyFails?: boolean } = {},
+  options: {
+    raceLost?: boolean;
+    notifyFails?: boolean;
+    revokeFails?: boolean;
+  } = {},
 ) {
   const id = new Types.ObjectId();
   const provider = new Types.ObjectId();
@@ -58,7 +62,11 @@ function setup(
   const connection = {
     transaction: jest.fn((fn: (s: unknown) => Promise<unknown>) => fn(SESSION)),
   };
-  const sessions = { revokeAllForUser: jest.fn().mockResolvedValue(undefined) };
+  const sessions = {
+    revokeAllForUser: options.revokeFails
+      ? jest.fn().mockRejectedValue(new Error('sessions down'))
+      : jest.fn().mockResolvedValue(undefined),
+  };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
   const notifications = {
     notify: options.notifyFails
@@ -225,5 +233,25 @@ describe('AccountSuspensionService (ACC-15, ACC-16)', () => {
       status: AccountStatus.Suspended,
     });
     expect(t.sessions.revokeAllForUser).toHaveBeenCalled();
+  });
+
+  it('still answers with the committed suspension when ending the sessions fails, and still notifies', async () => {
+    const t = setup(
+      { role: Role.User, status: AccountStatus.Active },
+      { revokeFails: true },
+    );
+    const error = jest
+      .spyOn(t.service['logger'], 'error')
+      .mockImplementation(() => undefined);
+    await expect(t.service.suspend(ADMIN, t.id)).resolves.toMatchObject({
+      status: AccountStatus.Suspended,
+    });
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining(t.id),
+      expect.any(String),
+    );
+    expect(t.notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({ type: NotificationType.AccountSuspended }),
+    );
   });
 });

@@ -1,7 +1,11 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Types, type Connection, type Model } from 'mongoose';
-import { ProviderType, type AuthUser } from '../../common/auth/auth.types';
+import {
+  ProviderType,
+  Role,
+  type AuthUser,
+} from '../../common/auth/auth.types';
 import {
   AUDIT_SERVICE,
   AuditAction,
@@ -18,7 +22,7 @@ import {
   ProviderDirectoryService,
   type ProviderSummary,
 } from './provider-directory.service';
-import { User } from './schemas/user.schema';
+import { AccountStatus, User } from './schemas/user.schema';
 
 const LABEL: Readonly<Record<ProviderType, string>> = {
   [ProviderType.Airline]: 'airline',
@@ -28,6 +32,11 @@ const LABEL: Readonly<Record<ProviderType, string>> = {
 const TARGET_TYPE: Readonly<Record<ProviderType, AuditTargetType>> = {
   [ProviderType.Airline]: AuditTargetType.Airline,
   [ProviderType.Hotel]: AuditTargetType.Hotel,
+};
+
+const MODERATOR_ROLE: Readonly<Record<ProviderType, Role>> = {
+  [ProviderType.Airline]: Role.AirlineModerator,
+  [ProviderType.Hotel]: Role.HotelModerator,
 };
 
 /** The moderator's home page for each provider type (ACC-04 homePath). */
@@ -129,6 +138,9 @@ export class ProviderStatusService {
     try {
       const moderators = await this.users
         .find({
+          // Live moderator accounts of this provider only; a self-deactivated one never reads it.
+          role: MODERATOR_ROLE[type],
+          status: { $ne: AccountStatus.Deactivated },
           'assignedProvider.type': type,
           'assignedProvider.providerId': new Types.ObjectId(provider.id),
         })

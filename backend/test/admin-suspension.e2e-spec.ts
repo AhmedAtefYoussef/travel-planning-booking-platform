@@ -376,6 +376,14 @@ describe('Admin suspends accounts and deactivates providers (e2e): ACC-15, ACC-1
       const moderator = await loginAs(app, Role.HotelModerator, {
         providerId: hotelId,
       });
+      // A moderator who deactivated their own account (ACC-12) is not told (M-2).
+      const gone = await loginAs(app, Role.HotelModerator, {
+        providerId: hotelId,
+      });
+      await users.updateOne(
+        { _id: gone.userId },
+        { $set: { status: AccountStatus.Deactivated } },
+      );
       const room = await http()
         .post(`/api/hotels/${hotelId}/rooms`)
         .set('x-dev-user', stubModerator)
@@ -423,6 +431,8 @@ describe('Admin suspends accounts and deactivates providers (e2e): ACC-15, ACC-1
       expect(await auditFor('DEACTIVATE_PROVIDER', hotelId)).toEqual([
         expect.objectContaining({ targetType: 'HOTEL' }),
       ]);
+
+      expect(await noticesOf(gone.userId, 'PROVIDER_DEACTIVATED')).toEqual([]);
 
       await reactivate('hotel', hotelId).expect(200);
       expect((await hold()).status).toBe(201);

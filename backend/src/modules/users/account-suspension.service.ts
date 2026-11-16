@@ -80,7 +80,7 @@ export class AccountSuspensionService {
 
   async suspend(actor: AuthUser, targetId: string): Promise<AccountSummaryDto> {
     const account = await this.change(actor, targetId, SUSPEND);
-    await this.sessions.revokeAllForUser(targetId);
+    await this.endSessions(targetId);
     await this.notify(targetId, SUSPEND);
     return account;
   }
@@ -155,6 +155,21 @@ export class AccountSuspensionService {
       );
       return toAccountSummary(updated);
     });
+  }
+
+  /**
+   * After the commit, so a failure never turns the committed suspension into a 500 (logged instead).
+   * Nothing is exposed meanwhile: the AuthGuard and refresh already refuse a SUSPENDED account.
+   */
+  private async endSessions(userId: string): Promise<void> {
+    try {
+      await this.sessions.revokeAllForUser(userId);
+    } catch (e) {
+      this.logger.error(
+        `Account ${userId} is suspended but its sessions could not be revoked; the guard still refuses them`,
+        e instanceof Error ? e.stack : String(e),
+      );
+    }
   }
 
   /**

@@ -14,7 +14,7 @@ import type {
   ProviderSummary,
 } from './provider-directory.service';
 import { ProviderStatusService } from './provider-status.service';
-import type { User } from './schemas/user.schema';
+import { AccountStatus, type User } from './schemas/user.schema';
 
 const ADMIN: AuthUser = {
   id: new Types.ObjectId().toHexString(),
@@ -111,7 +111,10 @@ describe('ProviderStatusService (ACC-15)', () => {
       },
       SESSION,
     );
+    // Only live moderator accounts of this provider (M-2): self-deactivated ones never read it.
     expect(t.users.find).toHaveBeenCalledWith({
+      role: Role.AirlineModerator,
+      status: { $ne: AccountStatus.Deactivated },
       'assignedProvider.type': ProviderType.Airline,
       'assignedProvider.providerId': new Types.ObjectId(t.id),
     });
