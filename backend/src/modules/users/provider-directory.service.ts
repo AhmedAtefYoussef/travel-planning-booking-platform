@@ -5,7 +5,7 @@ import { ProviderType } from '../../common/auth/auth.types';
 
 /**
  * Provider collections by their names in docs/architecture/erd.md (`airlines`: TRVL-138, `hotels`:
- * TRVL-140). Read-only and by name, so the users module never imports the flights or hotels modules.
+ * TRVL-140). Reached by name, so the users module never imports the flights or hotels modules.
  */
 export const PROVIDER_COLLECTIONS: Readonly<Record<ProviderType, string>> = {
   [ProviderType.Airline]: 'airlines',
@@ -18,7 +18,11 @@ export interface ProviderSummary {
   isActive: boolean;
 }
 
-/** ACC-13: checks that the airline or hotel a new moderator is linked to really exists. */
+/**
+ * ACC-13: checks that the airline or hotel a new moderator is linked to really exists.
+ * ACC-15: flips its `isActive` flag; the flights and hotels modules already hide and refuse inactive
+ * providers (search, inventory, moderator edits), so this flag is the whole switch.
+ */
 @Injectable()
 export class ProviderDirectoryService {
   constructor(@InjectConnection() private readonly connection: Connection) {}
@@ -41,5 +45,29 @@ export class ProviderDirectoryService {
       name: String(doc.name),
       isActive: doc.isActive !== false,
     };
+  }
+
+  /**
+   * Sets `isActive` only if it currently has the opposite value (a missing flag counts as active, as in
+   * find), so of two simultaneous calls only one changes it. False when nothing changed.
+   */
+  async setActive(
+    type: ProviderType,
+    id: string,
+    isActive: boolean,
+    session?: ClientSession,
+  ): Promise<boolean> {
+    const res = await this.connection
+      .collection(PROVIDER_COLLECTIONS[type])
+      .updateOne(
+        {
+          _id: new Types.ObjectId(id),
+          isActive: isActive ? false : { $ne: false },
+        },
+        // Native driver: Mongoose timestamps do not apply here.
+        { $set: { isActive, updatedAt: new Date() } },
+        { session },
+      );
+    return res.modifiedCount === 1;
   }
 }

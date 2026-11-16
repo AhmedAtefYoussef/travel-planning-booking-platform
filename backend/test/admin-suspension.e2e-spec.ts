@@ -215,4 +215,220 @@ describe('Admin suspends accounts and deactivates providers (e2e): ACC-15, ACC-1
       expect(await auditFor('SUSPEND_ACCOUNT', user.userId)).toHaveLength(1);
     });
   });
+
+  describe('PATCH /api/admin/providers/:type/:id/deactivate and /reactivate (ACC-15)', () => {
+    const deactivate = (type: string, id: string, cookie = admin.cookie) =>
+      patch(`/api/admin/providers/${type}/${id}/deactivate`, cookie);
+    const reactivate = (type: string, id: string, cookie = admin.cookie) =>
+      patch(`/api/admin/providers/${type}/${id}/reactivate`, cookie);
+
+    it('is admin-only: 401 for a guest, 403 for a user or moderator', async () => {
+      const user = await loginAs(app, Role.User);
+      const id = new Types.ObjectId().toHexString();
+      const moderator = await loginAs(app, Role.AirlineModerator, {
+        providerId: id,
+      });
+      for (const action of ['deactivate', 'reactivate']) {
+        const path = `/api/admin/providers/airline/${id}/${action}`;
+        await patch(path).expect(401);
+        await patch(path, user.cookie).expect(403);
+        await patch(path, moderator.cookie).expect(403);
+      }
+    });
+
+    it('answers 400 for an unknown type or malformed id, 404 for an unknown provider', async () => {
+      const id = new Types.ObjectId().toHexString();
+      const badType = await deactivate('ship', id).expect(400);
+      expect(badType.body.code).toBe('VALIDATION_FAILED');
+      expect(badType.body.fieldErrors).toEqual([
+        expect.objectContaining({ field: 'type' }),
+      ]);
+      await reactivate('ship', id).expect(400);
+      const badId = await deactivate('airline', 'nope').expect(400);
+      expect(badId.body.fieldErrors).toEqual([
+        expect.objectContaining({ field: 'id' }),
+      ]);
+      expect((await deactivate('airline', id).expect(404)).body.code).toBe(
+        'NOT_FOUND',
+      );
+      expect((await reactivate('hotel', id).expect(404)).body.code).toBe(
+        'NOT_FOUND',
+      );
+    });
+
+    it('a deactivated airline vanishes from search and cannot be booked; reactivation restores both', async () => {
+      const airline = await http()
+        .post('/api/airlines')
+        .set('Cookie', admin.cookie)
+        .send({ name: 'Suspend Test Air', code: 'SQ' })
+        .expect(201);
+      const airlineId = airline.body.id as string;
+      const stubModerator = `AIRLINE_MODERATOR:${new Types.ObjectId().toHexString()}:${airlineId}`;
+      const moderator = await loginAs(app, Role.AirlineModerator, {
+        providerId: airlineId,
+      });
+      const flight = await http()
+        .post('/api/flights')
+        .set('x-dev-user', stubModerator)
+        .send({
+          flightNumber: 'SQ700',
+          from: 'RUH',
+          to: 'LHR',
+          departureLocal: '2029-07-15T09:00',
+          arrivalLocal: '2029-07-15T13:00',
+        })
+        .expect(201);
+      const cabins = await http()
+        .post(`/api/flights/${flight.body.id}/cabins`)
+        .set('x-dev-user', stubModerator)
+        .send({
+          class: 'ECONOMY',
+          totalSeats: 10,
+          priceMinor: 40_000,
+          freeBags: 1,
+          maxKgPerBag: 23,
+        })
+        .expect(201);
+      const outbound = {
+        flightId: flight.body.id as string,
+        cabinId: (cabins.body.cabins as { id: string }[])[0].id,
+      };
+      const flightNumbers = async () =>
+        (
+          (
+            await http()
+              .get('/api/flights/search')
+              .query({
+                from: 'RUH',
+                to: 'LHR',
+                departureDate: '2029-07-15',
+                passengers: 1,
+              })
+              .expect(200)
+          ).body.items as { flightNumber: string }[]
+        ).map((i) => i.flightNumber);
+      let doc = 7_000_000;
+      const hold = async () =>
+        http()
+          .post('/api/flight-bookings/hold')
+          .set('Cookie', (await loginAs(app, Role.User)).cookie)
+          .send({
+            outbound,
+            passengers: [
+              {
+                type: 'ADULT',
+                firstName: 'Mona',
+                lastName: 'Adel',
+                dateOfBirth: '1990-05-01',
+                documentNumber: `S${doc++}`,
+              },
+            ],
+          });
+
+      expect(await flightNumbers()).toContain('SQ700');
+
+      const res = await deactivate('airline', airlineId).expect(200);
+      expect(res.body).toEqual({
+        id: airlineId,
+        type: 'AIRLINE',
+        name: 'Suspend Test Air',
+        isActive: false,
+      });
+      expect(await flightNumbers()).not.toContain('SQ700');
+      const refused = await hold();
+      expect(refused.status).toBe(409);
+      expect(refused.body.code).toBe('CONFLICT');
+      expect(
+        (await deactivate('airline', airlineId).expect(409)).body.code,
+      ).toBe('INVALID_STATE_TRANSITION');
+      expect(
+        await noticesOf(moderator.userId, 'PROVIDER_DEACTIVATED'),
+      ).toHaveLength(1);
+      expect(await auditFor('DEACTIVATE_PROVIDER', airlineId)).toEqual([
+        expect.objectContaining({ targetType: 'AIRLINE' }),
+      ]);
+
+      const back = await reactivate('AIRLINE', airlineId).expect(200);
+      expect(back.body).toMatchObject({ type: 'AIRLINE', isActive: true });
+      expect(await flightNumbers()).toContain('SQ700');
+      expect((await hold()).status).toBe(201);
+      expect(
+        (await reactivate('airline', airlineId).expect(409)).body.code,
+      ).toBe('INVALID_STATE_TRANSITION');
+      expect(
+        await noticesOf(moderator.userId, 'PROVIDER_REACTIVATED'),
+      ).toHaveLength(1);
+      expect(await auditFor('REACTIVATE_PROVIDER', airlineId)).toHaveLength(1);
+    });
+
+    it('a deactivated hotel cannot be booked; reactivation restores booking', async () => {
+      const hotel = await http()
+        .post('/api/hotels')
+        .set('x-dev-user', 'ADMIN')
+        .send({
+          name: 'Suspend Test Hotel',
+          address: '1 Nile street',
+          cityId: 'cairo',
+        })
+        .expect(201);
+      const hotelId = hotel.body.id as string;
+      const stubModerator = `HOTEL_MODERATOR:${new Types.ObjectId().toHexString()}:${hotelId}`;
+      const moderator = await loginAs(app, Role.HotelModerator, {
+        providerId: hotelId,
+      });
+      const room = await http()
+        .post(`/api/hotels/${hotelId}/rooms`)
+        .set('x-dev-user', stubModerator)
+        .send({
+          number: 'S1',
+          type: 'Double',
+          beds: 2,
+          maxOccupancy: 2,
+          priceMinor: 5_000,
+        })
+        .expect(201);
+      await http()
+        .post(`/api/hotels/${hotelId}/rooms/${room.body.id}/availability`)
+        .set('x-dev-user', stubModerator)
+        .send({ ranges: [{ from: '2029-09-01', to: '2029-09-30' }] })
+        .expect(201);
+      let day = 10;
+      const hold = async () => {
+        const checkIn = `2029-09-${day}`;
+        day += 2;
+        return http()
+          .post('/api/hotel-bookings')
+          .set('Cookie', (await loginAs(app, Role.User)).cookie)
+          .send({
+            hotelId,
+            checkIn,
+            checkOut: `2029-09-${day - 1}`,
+            rooms: [{ roomId: room.body.id as string, adults: 1 }],
+          });
+      };
+
+      const res = await deactivate('hotel', hotelId).expect(200);
+      expect(res.body).toEqual({
+        id: hotelId,
+        type: 'HOTEL',
+        name: 'Suspend Test Hotel',
+        isActive: false,
+      });
+      const refused = await hold();
+      expect(refused.status).toBe(409);
+      expect(refused.body.code).toBe('CONFLICT');
+      expect(
+        await noticesOf(moderator.userId, 'PROVIDER_DEACTIVATED'),
+      ).toHaveLength(1);
+      expect(await auditFor('DEACTIVATE_PROVIDER', hotelId)).toEqual([
+        expect.objectContaining({ targetType: 'HOTEL' }),
+      ]);
+
+      await reactivate('hotel', hotelId).expect(200);
+      expect((await hold()).status).toBe(201);
+      expect(
+        await noticesOf(moderator.userId, 'PROVIDER_REACTIVATED'),
+      ).toHaveLength(1);
+    });
+  });
 });

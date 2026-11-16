@@ -4,11 +4,13 @@ import { SESSION_VALIDATOR } from '../../common/contracts';
 import { AccountSuspensionService } from './account-suspension.service';
 import { AdminAccountsController } from './admin-accounts.controller';
 import { AdminAccountsService } from './admin-accounts.service';
+import { AdminProvidersController } from './admin-providers.controller';
 import { AdminSeedService } from './admin-seed.service';
 import { DeactivationService } from './deactivation.service';
 import { ModeratorsService } from './moderators.service';
 import { ProfileService } from './profile.service';
 import { ProviderDirectoryService } from './provider-directory.service';
+import { ProviderStatusService } from './provider-status.service';
 import { Session, SessionSchema } from './schemas/session.schema';
 import { User, UserSchema } from './schemas/user.schema';
 import { SessionValidatorService } from './session-validator.service';
@@ -30,7 +32,11 @@ import { UsersService } from './users.service';
       { name: Session.name, schema: SessionSchema },
     ]),
   ],
-  controllers: [UsersController, AdminAccountsController],
+  controllers: [
+    UsersController,
+    AdminAccountsController,
+    AdminProvidersController,
+  ],
   providers: [
     AdminSeedService,
     ProfileService,
@@ -38,6 +44,7 @@ import { UsersService } from './users.service';
     ModeratorsService,
     AccountSuspensionService,
     ProviderDirectoryService,
+    ProviderStatusService,
     DeactivationService,
     UsersService,
     SessionsService,
