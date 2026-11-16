@@ -146,8 +146,37 @@ describe('Demo seed (e2e): TRVL-135', () => {
     expect(JSON.stringify(result)).not.toContain(PASSWORD);
   });
 
-  it('refuses to adopt an airline or hotel that is not the demo one', async () => {
+  it('still recognises the demo airline and hotel after their moderators rename them', async () => {
     const airlines = app.get<Model<Airline>>(getModelToken(Airline.name));
+    const hotels = app.get<Model<Hotel>>(getModelToken(Hotel.name));
+    await airlines.updateOne(
+      { _id: ids.airlineId },
+      { $set: { name: 'Demo Air Express', code: 'DX' } },
+    );
+    await hotels.updateOne(
+      { _id: ids.hotelId },
+      { $set: { name: 'Demo Nile Palace', address: '2 New Street' } },
+    );
+    const again = await seedDemo(app, PASSWORD);
+    expect(again.created).toEqual([]);
+    expect(again.airlineId).toBe(ids.airlineId);
+    expect(again.hotelId).toBe(ids.hotelId);
+    expect(await count(Airline.name, { code: 'DM' })).toBe(0);
+    await airlines.updateOne(
+      { _id: ids.airlineId },
+      { $set: { name: 'Demo Air', code: 'DM' } },
+    );
+    await hotels.updateOne(
+      { _id: ids.hotelId },
+      { $set: { name: DEMO_HOTEL.name, address: DEMO_HOTEL.address } },
+    );
+  });
+
+  it('refuses to adopt an airline or hotel that is not the demo one', async () => {
+    // Without the demo moderator nothing marks the records as the seed's, so only an exact match is adopted.
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    const airlines = app.get<Model<Airline>>(getModelToken(Airline.name));
+    await users.deleteOne({ email: DEMO_ACCOUNTS.airlineModerator.email });
     await airlines.updateOne({ code: 'DM' }, { $set: { name: 'Other Air' } });
     await expect(seedDemo(app, PASSWORD)).rejects.toThrow(
       /airline with code DM is not the demo airline/,
@@ -155,6 +184,7 @@ describe('Demo seed (e2e): TRVL-135', () => {
     await airlines.updateOne({ code: 'DM' }, { $set: { name: 'Demo Air' } });
 
     const hotels = app.get<Model<Hotel>>(getModelToken(Hotel.name));
+    await users.deleteOne({ email: DEMO_ACCOUNTS.hotelModerator.email });
     await hotels.updateOne(
       { name: DEMO_HOTEL.name },
       { $set: { address: '9 Somewhere Else' } },
@@ -166,5 +196,12 @@ describe('Demo seed (e2e): TRVL-135', () => {
       { name: DEMO_HOTEL.name },
       { $set: { address: DEMO_HOTEL.address } },
     );
+    // With the exact records back, the seed re-creates the moderators it finds missing (the airline one
+    // was already restored by the run that refused the hotel).
+    const repaired = await seedDemo(app, PASSWORD);
+    expect(repaired.created).toContain('hotel moderator');
+    expect(
+      await count(User.name, { email: DEMO_ACCOUNTS.airlineModerator.email }),
+    ).toBe(1);
   });
 });
