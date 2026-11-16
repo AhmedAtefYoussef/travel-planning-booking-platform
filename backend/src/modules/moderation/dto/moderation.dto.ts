@@ -3,7 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional } from 'class-validator';
 import { ModeratableContentType } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
-import { ReportAction } from '../schemas/report.schema';
+import { ReportAction } from '../report.enums';
 import { CONTENT_TYPE_MESSAGE } from './report.dto';
 
 const upper = ({ value }: { value: unknown }) =>

@@ -8,11 +8,8 @@ import {
   MaxLength,
 } from 'class-validator';
 import { ModeratableContentType } from '../../../common/contracts';
-import {
-  REPORT_REASON_MAX,
-  ReportAction,
-  ReportStatus,
-} from '../schemas/report.schema';
+import { ReportAction, ReportStatus } from '../report.enums';
+import { REPORT_REASON_MAX } from '../schemas/report.schema';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
