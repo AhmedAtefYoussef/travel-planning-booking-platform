@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -16,11 +18,19 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import {
+  ApiErrorResponses,
+  ApiPaginatedResponse,
+} from '../../common/swagger/api-responses.decorator';
+import {
+  AvailableRoomsQueryDto,
+  HotelRoomSummaryDto,
+} from './dto/hotel-details.dto';
+import { HotelDetailsService } from './hotel-details.service';
 import {
   AddAvailabilityDto,
   BlockDatesDto,
@@ -39,7 +49,29 @@ import { RoomsService } from './rooms.service';
 @ApiTags('Hotels')
 @Controller('hotels/:id/rooms')
 export class RoomsController {
-  constructor(private readonly rooms: RoomsService) {}
+  constructor(
+    private readonly rooms: RoomsService,
+    private readonly hotelDetails: HotelDetailsService,
+  ) {}
+
+  // Declared before the :roomId routes so "available" is never read as a room id.
+  @Get('available')
+  @Public()
+  @ApiOperation({
+    summary:
+      "HTL-15 List a hotel's rooms free for the searched dates, with stay totals",
+    description:
+      "Public. checkIn and checkOut are required (the hotel's local dates: checkOut after checkIn, at most 30 nights, checkIn not before today at the hotel). Lists every active room free for every night of the stay (each night inside its bookable ranges and not booked, held or blocked), cheapest first, with type, beds, maximum occupancy, price per night and stayTotalMinor (nights x price), 10 per page (GEN-05). Pick one or more ids to book them (HTL-16, POST /api/hotel-bookings, roomId per room). An unknown or deactivated hotel is 404.",
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiPaginatedResponse(HotelRoomSummaryDto)
+  @ApiErrorResponses(400, 404)
+  available(
+    @Param('id', ParseObjectIdPipe) hotelId: string,
+    @Query() query: AvailableRoomsQueryDto,
+  ) {
+    return this.hotelDetails.availableRooms(hotelId, query);
+  }
 
   @Post()
   @Roles(Role.HotelModerator)

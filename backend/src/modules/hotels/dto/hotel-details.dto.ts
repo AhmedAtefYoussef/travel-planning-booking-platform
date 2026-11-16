@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { Omittable } from '../../../common/validation';
 import { HotelDto } from './hotel.dto';
 import { IsCalendarDate, IsRangeEnd } from './validators';
@@ -126,4 +127,23 @@ export class HotelDetailsDto {
       'Without dates: every active room. With dates: only the rooms free for every night (bookable, and not booked, held or blocked), with their stay total. Sorted by price, then number.',
   })
   rooms!: HotelRoomSummaryDto[];
+}
+
+/** HTL-15: the stay to price; both dates are required. Page size is fixed at 10 (GEN-05). */
+export class AvailableRoomsQueryDto extends PaginationQueryDto {
+  @ApiProperty({
+    example: '2027-01-10',
+    description:
+      "First night, the hotel's local date; not before today at the hotel",
+  })
+  @IsCalendarDate()
+  checkIn!: string;
+
+  @ApiProperty({
+    example: '2027-01-13',
+    description: `Day of departure (not a night), after checkIn and at most ${MAX_DETAILS_STAY_NIGHTS} nights later`,
+  })
+  @IsCalendarDate()
+  @IsRangeEnd('checkIn', MAX_DETAILS_STAY_NIGHTS)
+  checkOut!: string;
 }
