@@ -1236,3 +1236,19 @@ Claude wrote the failing unit and e2e tests first (one notification with the rig
 a replay or a refused confirmation), then injected NOTIFICATIONS_SERVICE into HotelBookingsService and
 built the text from the reservation snapshot so no lookup can block the confirmation. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-26 (TRVL-45), FLT-12, GEN-11
+Prompt:
+Implement FLT-26: GET /api/flight-bookings/:id/refund-quote and POST /api/flight-bookings/:id/cancel for
+the owner of a Confirmed booking. In one transaction move Confirmed -> Cancelled, return every non-infant
+seat on both segments, refund through REFUNDS_SERVICE with the outbound tier from the accepted policy
+snapshot, and notify the user. Block cancellation after departure (409), keep stranger 404 parity, test-first.
+How the output was used:
+Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund, after departure, stranger
+404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
+found no blocking issues. I reviewed the diff and ran the live check in Swagger.
+================================================
