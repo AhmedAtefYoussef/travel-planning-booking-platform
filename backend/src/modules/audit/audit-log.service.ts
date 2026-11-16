@@ -1,7 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { ClientSession, Model, Types } from 'mongoose';
+import { ClientSession, FilterQuery, Model, Types } from 'mongoose';
 import type { AuditEntry, AuditService } from '../../common/contracts';
+import { paginate, type Page } from '../../common/pagination/pagination';
+import type { AuditLogDto } from './dto/audit-log.dto';
+import {
+  parseTimestamp,
+  upperBound,
+  type ListAuditLogsQueryDto,
+} from './dto/list-audit-logs.query';
 import { AuditLog } from './schemas/audit-log.schema';
 
 // guard-rails: allow no-raw-card-data - redaction pattern that strips card-like keys from audit metadata
@@ -46,4 +53,40 @@ export class AuditLogService implements AuditService {
       { session },
     );
   }
+
+  /** GEN-07: newest first (createdAt, then _id), 10 per page; filters combine. */
+  async list(query: ListAuditLogsQueryDto): Promise<Page<AuditLogDto>> {
+    const filter: FilterQuery<AuditLog> = {};
+    if (query.action) filter.action = query.action;
+    if (query.targetType) filter.targetType = query.targetType;
+    if (query.actorId) filter.actorId = new Types.ObjectId(query.actorId);
+    if (query.from || query.to) {
+      const range: Record<string, Date> = {};
+      if (query.from) range.$gte = parseTimestamp(query.from)!;
+      if (query.to) {
+        const { op, at } = upperBound(query.to);
+        range[op] = at;
+      }
+      filter.createdAt = range;
+    }
+    const page = await paginate(this.model, filter, query.page, {
+      sort: { createdAt: -1 },
+    });
+    return { ...page, items: page.items.map(toDto) };
+  }
+}
+
+function toDto(doc: AuditLog & { _id: Types.ObjectId }): AuditLogDto {
+  return {
+    id: doc._id.toHexString(),
+    action: doc.action,
+    actor: { id: doc.actorId.toHexString(), role: doc.actorRole },
+    targetType: doc.targetType,
+    targetId: doc.targetId.toHexString(),
+    ...(doc.reason !== undefined && { reason: doc.reason }),
+    ...(doc.metadata != null && {
+      metadata: sanitizeMetadata(doc.metadata) as Record<string, unknown>,
+    }),
+    createdAt: doc.createdAt,
+  };
 }

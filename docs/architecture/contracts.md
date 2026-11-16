@@ -78,10 +78,13 @@ if (!updated) { for (const u of urls) await this.uploads.deleteImage(u); throw n
 - Delete files you drop with `deleteImage(url)` (it ignores anything that is not such a URL, and a missing file), and delete the files you saved whenever your own write afterwards fails or loses a race.
 
 ## Implemented in Sprint 0
-- `modules/audit`: `audit_logs` schema and `AuditLogService` (TRVL-162). The log is append-only at the model level (update/delete hooks throw). Secret-looking metadata keys are stripped. Entries join the caller's transaction when a session is passed.
+- `modules/audit`: `audit_logs` schema, `AuditLogService` (TRVL-162) and `GET /api/admin/audit-logs` (GEN-07, TRVL-102: admin only, newest first, 10 per page, filters `action`, `targetType`, `actorId`, `from`, `to`). The log is append-only at the model level (update/delete hooks throw). Secret-looking metadata keys are stripped. Entries join the caller's transaction when a session is passed.
 - `modules/payments`: `payments`, `refunds` and `stripe_events` schemas (TRVL-161) with these indexes:
   - unique PaymentIntent id
   - at most one SUCCEEDED payment per booking
   - one refund per booking
   - unique Stripe refund id when present
   - unique Stripe event id, kept for 30 days through a TTL index
+
+## Audit log: what ACC-15, ACC-16 and GEN-10 must record (GEN-07)
+`GET /api/admin/audit-logs` only shows what is recorded. Suspension and reactivation (ACC-15, ACC-16), content deletion (GEN-10) and the other admin actions must each call `AUDIT_SERVICE.record(entry, session)` **inside the same transaction** as the change, so the entry commits or aborts with it. Use the catalogue in `AuditAction` and `AuditTargetType` (`common/contracts/services.contract.ts`): `SUSPEND_ACCOUNT` / `REACTIVATE_ACCOUNT` on target `USER`, `DEACTIVATE_PROVIDER` / `REACTIVATE_PROVIDER` on `AIRLINE` or `HOTEL`, `RESOLVE_REPORT` on `REPORT`, `HIDE_CONTENT` / `DELETE_CONTENT` on `POST`, `COMMENT`, `REVIEW` or `ITINERARY`. Put the admin's `reason` in `reason` and a small before/after summary in `metadata`; keys that look like secrets are stripped.

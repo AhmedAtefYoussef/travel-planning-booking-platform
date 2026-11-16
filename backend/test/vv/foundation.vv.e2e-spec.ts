@@ -512,6 +512,7 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       envelope: (body) => body.outbound as Record<string, unknown>,
     },
     { url: '/api/diagnostics/rows?' },
+    { url: '/api/admin/audit-logs?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       // GEN-01: the caller's own notifications.
       url: '/api/notifications?',
