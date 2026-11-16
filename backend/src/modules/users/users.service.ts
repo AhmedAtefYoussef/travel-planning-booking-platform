@@ -192,6 +192,19 @@ export class UsersService {
     return users.map((u) => u._id.toHexString());
   }
 
+  /**
+   * BLG-09: ids of the accounts whose name matches `pattern`, at most `limit` of them, so the blog can
+   * search posts by author name without reading the users collection itself. Only ids leave this module.
+   */
+  async findIdsByName(pattern: RegExp, limit: number): Promise<string[]> {
+    const users = await this.users
+      .find({ name: pattern }, { _id: 1 })
+      .limit(limit)
+      .lean<{ _id: Types.ObjectId }[]>()
+      .exec();
+    return users.map((u) => u._id.toHexString());
+  }
+
   /** Upgrades a hash made with an older bcrypt cost after a successful login. */
   async replacePasswordHash(id: string, passwordHash: string): Promise<void> {
     await this.users.updateOne({ _id: id }, { $set: { passwordHash } });

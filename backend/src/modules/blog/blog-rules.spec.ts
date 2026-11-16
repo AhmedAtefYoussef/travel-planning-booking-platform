@@ -1,4 +1,9 @@
-import { EXCERPT_LENGTH, excerptOf, normalizeTags } from './blog-rules';
+import {
+  EXCERPT_LENGTH,
+  excerptOf,
+  keywordPattern,
+  normalizeTags,
+} from './blog-rules';
 
 describe('blog rules', () => {
   describe('normalizeTags (BLG-08)', () => {
@@ -34,6 +39,14 @@ describe('blog rules', () => {
       expect(excerptOf('x'.repeat(500))).toBe(
         `${'x'.repeat(EXCERPT_LENGTH)}...`,
       );
+    });
+  });
+
+  describe('keywordPattern (BLG-09)', () => {
+    it('matches the keyword literally, ignoring case', () => {
+      expect(keywordPattern('cairo').test('Three days in CAIRO')).toBe(true);
+      expect(keywordPattern('a.b').test('axb')).toBe(false);
+      expect(keywordPattern('(.*)').test('(.*) literal')).toBe(true);
     });
   });
 });
