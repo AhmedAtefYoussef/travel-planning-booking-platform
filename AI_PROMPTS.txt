@@ -1375,3 +1375,21 @@ decimals, duplicates, 20/21 tiers, access), then made the tier list a required p
 returned on every hotel response, and aligned the hotel refund precision with the airline tiers. The hotel page
 part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live Swagger run.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01
+Prompt:
+Read the project brief, my Jira tasks for the Blog & Community epic and the team conventions, then
+design the posts, comments and likes schemas and implement POST /api/posts (create a post as draft or
+published) with Swagger docs and e2e tests. Ahmed asked for one pull request per feature, so this PR
+holds only the schemas and BLG-01; the other blog features follow in their own PRs.
+How the output was used:
+Claude designed the schemas (unique {postId, userId} like index, likeCount, commentCount and an
+interactionScore for BLG-09), the create DTO with tag normalisation (lowercase, no repeats, at most 5 of
+30 characters) and the service and controller, following the hotels module patterns. It also ran the
+endpoint in Swagger UI and captured screenshots on docs/blog-swagger-evidence. I reviewed the diff and
+ran the checks locally.
+================================================
