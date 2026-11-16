@@ -1221,3 +1221,18 @@ notification and none on replay), then a pure view builder and renderer, the not
 markConfirmed, getETicket and the route. It confirmed that holds already count as booked seats, so
 confirming moves no seats. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet)
+Related Requirement: HTL-17 (TRVL-60)
+Prompt:
+Implement HTL-17 confirmation: after the payment webhook confirms a hotel reservation, send one in-app
+BOOKING_CONFIRMED notification with the hotel, hotel-local dates, rooms, guests and total, in the same
+transaction, never on a replayed webhook, test-first.
+How the output was used:
+Claude wrote the failing unit and e2e tests first (one notification with the right title and link, none on
+a replay or a refused confirmation), then injected NOTIFICATIONS_SERVICE into HotelBookingsService and
+built the text from the reservation snapshot so no lookup can block the confirmation. I reviewed the diff.
+================================================
