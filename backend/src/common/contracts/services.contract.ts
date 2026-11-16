@@ -387,6 +387,15 @@ export interface HotelInventory {
   getHotelPolicy(hotelId: string): Promise<HotelPolicySnapshot | null>;
   /** Deletes the reservation's HELD nights (expiry). Returns how many were released. */
   releaseNights(reservationId: string, session: ClientSession): Promise<number>;
+  /**
+   * HTL-21: deletes the reservation's BOOKED nights (a cancelled Confirmed reservation), so those rooms
+   * can be held again for those dates. Returns how many were released. Exactly-once is the caller's job
+   * (the status-conditioned CONFIRMED -> CANCELLED transition in the same transaction).
+   */
+  releaseBookedNights(
+    reservationId: string,
+    session: ClientSession,
+  ): Promise<number>;
 }
 
 /* ----------------------------------------------------------------------------------------------

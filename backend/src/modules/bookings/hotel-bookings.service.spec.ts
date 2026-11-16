@@ -2,6 +2,8 @@ import { Types } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
 import {
   BookingStatus,
+  computeRefundQuote,
+  RefundReason,
   type BookableStay,
   type HotelInventory,
 } from '../../common/contracts';
@@ -50,6 +52,7 @@ function setup(
     staleHolders: jest.fn().mockResolvedValue([]),
     bookNights: jest.fn().mockResolvedValue(opts.booked ?? 2),
     releaseNights: jest.fn().mockResolvedValue(2),
+    releaseBookedNights: jest.fn().mockResolvedValue(2),
     getHotelPolicy: jest.fn(),
   };
   const moved = [...(opts.moved ?? [1])];
@@ -95,13 +98,19 @@ function setup(
     notify: jest.fn().mockResolvedValue(undefined),
     notifyMany: jest.fn(),
   };
+  const refunds = {
+    // The real pure calculation, so tests see the tier the service asked for.
+    quote: jest.fn(computeRefundQuote),
+    refundFor: jest.fn().mockResolvedValue(null),
+    summaryFor: jest.fn().mockResolvedValue(null),
+  };
   const service = new HotelBookingsService(
     model as never,
     guards as never,
     connection as never,
     inventory,
     config as never,
-    { summaryFor: jest.fn().mockResolvedValue(null) } as never,
+    refunds,
     notifications,
   );
   return {
@@ -112,6 +121,7 @@ function setup(
     guards,
     connection,
     notifications,
+    refunds,
   };
 }
 
@@ -473,5 +483,299 @@ describe('HotelBookingsService payable contract (PAY-01, HTL-17)', () => {
         reason: 'x',
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('HotelBookingsService HTL-21 cancellation and refund quote', () => {
+  const ownerId = oid();
+  const owner = { id: ownerId, role: Role.User };
+  const TIERS = [
+    { daysBefore: 7, refundPercent: 50 },
+    { daysBefore: 60, refundPercent: 100 },
+  ];
+  // Check-in 2027-12-01 in Cairo (UTC+2) starts at 2027-11-30T22:00Z: NOW is 29 days and 14 hours before.
+  const CHECK_IN_START = new Date('2027-11-30T22:00:00Z');
+  /** A confirmed, paid 2-room, 3-night reservation whose accepted hotel tiers are TIERS. */
+  const paid = (over: object = {}) => {
+    const _id = new Types.ObjectId();
+    return {
+      _id,
+      id: _id.toHexString(),
+      userId: new Types.ObjectId(ownerId),
+      hotelId: new Types.ObjectId(),
+      hotelName: 'Nile View',
+      checkIn: '2027-12-01',
+      checkOut: '2027-12-04',
+      nights: 3,
+      timeZone: 'Africa/Cairo',
+      rooms: [
+        {
+          roomId: new Types.ObjectId(),
+          roomNumber: '101',
+          adults: 2,
+          childrenAges: [],
+          nightlyPriceMinor: 10_000,
+          subtotalMinor: 30_000,
+        },
+        {
+          roomId: new Types.ObjectId(),
+          roomNumber: '102',
+          adults: 1,
+          childrenAges: [5],
+          nightlyPriceMinor: 10_000,
+          subtotalMinor: 30_000,
+        },
+      ],
+      totalMinor: 60_000,
+      currency: 'EGP',
+      status: BookingStatus.Confirmed,
+      holdExpiresAt: NOW,
+      reference: 'HT-AB12CD34',
+      paymentId: new Types.ObjectId(),
+      policySnapshot: {
+        version: 'v1',
+        hotel: {
+          hotelId: oid(),
+          hotelName: 'Nile View',
+          cancellationTiers: TIERS,
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
+        },
+      },
+      createdAt: NOW,
+      ...over,
+    };
+  };
+  const reads = (doc: unknown) =>
+    jest.fn().mockReturnValue({
+      exec: () => Promise.resolve(doc),
+      lean: () => ({ exec: () => Promise.resolve(doc) }),
+    });
+
+  it('refundQuote uses hotel-local check-in midnight and the accepted snapshot tiers', async () => {
+    const { service, model, refunds, inventory } = setup();
+    const doc = paid();
+    model.findById = reads(doc);
+    await expect(service.refundQuote(owner, doc.id, NOW)).resolves.toEqual({
+      amountMinor: 30_000,
+      currency: 'EGP',
+      refundPercent: 50,
+      tierApplied: { daysBefore: 7, refundPercent: 50 },
+      daysBefore: 29,
+    });
+    expect(refunds.quote).toHaveBeenCalledWith({
+      paidMinor: 60_000,
+      currency: 'EGP',
+      eventStartUtc: CHECK_IN_START,
+      tiers: TIERS,
+      reason: RefundReason.UserCancellation,
+      now: NOW,
+    });
+    // The hotel's current policy is never consulted (brief 6.4).
+    expect(inventory.getHotelPolicy).not.toHaveBeenCalled();
+  });
+
+  it('refundQuote: 404 for unknown, malformed or someone else; 409 unless confirmed', async () => {
+    const { service, model } = setup();
+    model.findById = reads(null);
+    for (const id of [oid(), 'bad']) {
+      expect(await failure(service.refundQuote(owner, id, NOW))).toMatchObject({
+        status: 404,
+        code: 'NOT_FOUND',
+      });
+    }
+    model.findById = reads(paid());
+    expect(
+      await failure(
+        service.refundQuote({ id: oid(), role: Role.User }, oid(), NOW),
+      ),
+    ).toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    model.findById = reads(paid({ status: BookingStatus.PendingPayment }));
+    expect(await failure(service.refundQuote(owner, oid(), NOW))).toMatchObject(
+      { status: 409, code: 'BOOKING_NOT_CONFIRMED' },
+    );
+  });
+
+  it('the window closes exactly at local midnight of the check-in date', async () => {
+    const { service, model } = setup();
+    model.findById = reads(paid());
+    const justBefore = new Date(CHECK_IN_START.getTime() - 1);
+    await expect(
+      service.refundQuote(owner, oid(), justBefore),
+    ).resolves.toMatchObject({ daysBefore: 0 });
+    for (const at of [CHECK_IN_START, new Date('2027-12-02T08:00:00Z')]) {
+      expect(
+        await failure(service.refundQuote(owner, oid(), at)),
+      ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+    }
+  });
+
+  it('cancel moves CONFIRMED -> CANCELLED, releases the booked nights, refunds and notifies in one transaction', async () => {
+    const { service, model, inventory, refunds, notifications, session } =
+      setup(stay(), { moved: [1, 1] });
+    const doc = paid();
+    model.findById = reads(doc);
+    inventory.releaseBookedNights.mockResolvedValue(6);
+    const refundId = oid();
+    refunds.refundFor.mockResolvedValue({
+      refundId,
+      status: 'PENDING',
+      amountMinor: 30_000,
+    });
+    await expect(service.cancel(owner, doc.id, NOW)).resolves.toMatchObject({
+      id: doc.id,
+    });
+
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(model.updateOne).toHaveBeenNthCalledWith(
+      1,
+      {
+        checkIn: '2027-12-01',
+        timeZone: 'Africa/Cairo',
+        _id: doc.id,
+        status: BookingStatus.Confirmed,
+      },
+      {
+        $set: {
+          cancelledAt: NOW,
+          cancelledBy: 'USER',
+          status: BookingStatus.Cancelled,
+        },
+      },
+      { session },
+    );
+    expect(inventory.releaseBookedNights).toHaveBeenCalledWith(doc.id, session);
+    expect(inventory.releaseNights).not.toHaveBeenCalled();
+    expect(refunds.refundFor).toHaveBeenCalledWith(
+      {
+        bookingType: 'HOTEL',
+        bookingId: doc.id,
+        userId: ownerId,
+        paymentId: doc.paymentId.toHexString(),
+        quote: expect.objectContaining({
+          amountMinor: 30_000,
+          refundPercent: 50,
+        }) as unknown,
+        reason: RefundReason.UserCancellation,
+      },
+      session,
+    );
+    expect(model.updateOne).toHaveBeenNthCalledWith(
+      2,
+      { _id: doc.id },
+      { $set: { refundId: new Types.ObjectId(refundId) } },
+      { session },
+    );
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      {
+        userId: ownerId,
+        type: 'BOOKING_CANCELLED',
+        title: 'Hotel reservation HT-AB12CD34 cancelled',
+        body: 'Nile View: check-in Dec 1, 2027, check-out Dec 4, 2027, 2 rooms (101, 102), is cancelled and its rooms are released. Refund: 300.00 EGP (50%).',
+        link: `/bookings/hotels/${doc.id}`,
+      },
+      session,
+    );
+  });
+
+  it('a reservation with no tiers refunds 0%, still cancels, and refundFor may answer null', async () => {
+    const { service, model, refunds, notifications, inventory } = setup(
+      stay(),
+      { moved: [1] },
+    );
+    const doc = paid({
+      policySnapshot: {
+        version: 'v1',
+        hotel: {
+          hotelId: oid(),
+          hotelName: 'Nile View',
+          cancellationTiers: [],
+          checkInTime: null,
+          checkOutTime: null,
+        },
+      },
+    });
+    model.findById = reads(doc);
+    inventory.releaseBookedNights.mockResolvedValue(6);
+    await expect(service.cancel(owner, doc.id, NOW)).resolves.toMatchObject({
+      id: doc.id,
+      refund: null,
+    });
+    expect(refunds.refundFor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quote: expect.objectContaining({
+          amountMinor: 0,
+          refundPercent: 0,
+          tierApplied: null,
+        }) as unknown,
+      }),
+      expect.anything(),
+    );
+    // Only the transition wrote to the reservation: there is no refund to link.
+    expect(model.updateOne).toHaveBeenCalledTimes(1);
+    expect(notifications.notify.mock.calls[0][0]).toMatchObject({
+      body: expect.stringContaining(
+        'No refund applies under the cancellation policy you accepted.',
+      ) as unknown,
+    });
+  });
+
+  it('logs when fewer nights are released than rooms x nights, but still cancels', async () => {
+    const { service, model, inventory } = setup(stay(), { moved: [1] });
+    model.findById = reads(paid());
+    inventory.releaseBookedNights.mockResolvedValue(4);
+    const error = jest
+      .spyOn(service['logger'], 'error')
+      .mockImplementation(() => undefined);
+    await service.cancel(owner, oid(), NOW);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('released 4 of 6'),
+    );
+  });
+
+  it('a concurrent cancel that loses the transition is 409 and releases, refunds and notifies nothing', async () => {
+    const { service, model, inventory, refunds, notifications } = setup(
+      stay(),
+      { moved: [0] },
+    );
+    model.findById = reads(paid());
+    expect(await failure(service.cancel(owner, oid(), NOW))).toMatchObject({
+      status: 409,
+      code: 'BOOKING_NOT_CONFIRMED',
+    });
+    expect(inventory.releaseBookedNights).not.toHaveBeenCalled();
+    expect(refunds.refundFor).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('cancelConfirmed re-checks the check-in window inside the transaction', async () => {
+    const { service, model, refunds, session } = setup(stay(), { moved: [1] });
+    model.findById = reads(paid());
+    expect(
+      await failure(
+        service.cancelConfirmed(
+          oid(),
+          { reason: RefundReason.UserCancellation },
+          CHECK_IN_START,
+        ),
+      ),
+    ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(refunds.refundFor).not.toHaveBeenCalled();
+  });
+
+  it('a Confirmed reservation without a hotel policy snapshot is a defect (500), never a silent 0% refund', async () => {
+    for (const policySnapshot of [null, { version: 'v1' }]) {
+      const { service, model, refunds } = setup(stay(), { moved: [1] });
+      model.findById = reads(paid({ policySnapshot }));
+      const e = await failure(service.cancel(owner, oid(), NOW));
+      expect(e).toBeInstanceOf(Error);
+      expect(e.status).toBeUndefined();
+      expect((e as Error).message).toContain('accepted hotel policy snapshot');
+      expect(model.updateOne).not.toHaveBeenCalled();
+      expect(refunds.refundFor).not.toHaveBeenCalled();
+    }
   });
 });

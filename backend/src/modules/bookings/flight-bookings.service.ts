@@ -38,7 +38,7 @@ import {
   generateBookingReference,
   isReferenceCollision,
 } from '../../common/utils/booking-reference';
-import { formatMinor, multiplyMinor, sumMinor } from '../../common/utils/money';
+import { multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { partyErrors, priceParty } from '../flights';
 import { UsersService } from '../users';
@@ -52,6 +52,7 @@ import { canPrint, renderETicket } from './e-ticket/e-ticket.renderer';
 import { formatLocal, toETicketView } from './e-ticket/e-ticket.view';
 import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
 import { ageOn, passengerTypeOn } from './passenger-age';
+import { refundLine } from './refund-line';
 import { CancelledBy } from './schemas/booking-fields';
 import { HoldGuard } from './schemas/hold-guard.schema';
 import {
@@ -908,13 +909,6 @@ function trip(segments: readonly FlightSegment[]): string {
   const route = [segments[0].from, ...segments.map((s) => s.to)].join(' -> ');
   const flights = segments.map((s) => s.flightNumber).join(' / ');
   return `${route}, flight${segments.length > 1 ? 's' : ''} ${flights}`;
-}
-
-/** The refund sentence of the BOOKING_CANCELLED notice (amounts in the platform currency, PAY-04). */
-function refundLine(quote: RefundQuote): string {
-  return quote.amountMinor > 0
-    ? `Refund: ${formatMinor(quote.amountMinor, quote.currency)} ${quote.currency} (${quote.refundPercent}%).`
-    : 'No refund applies under the cancellation policy you accepted.';
 }
 
 /**

@@ -20,6 +20,8 @@ import {
   type PayableBooking,
   type PayableSnapshot,
   REFUNDS_SERVICE,
+  RefundReason,
+  type RefundQuote,
   type RefundsService,
   type RefundSummary,
 } from '../../common/contracts';
@@ -42,6 +44,8 @@ import type {
   HotelReservationDto,
 } from './dto/hotel-booking.dto';
 import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
+import { refundLine } from './refund-line';
+import { CancelledBy } from './schemas/booking-fields';
 import { HoldGuard } from './schemas/hold-guard.schema';
 import {
   HotelReservation,
@@ -58,8 +62,8 @@ interface Plan {
 
 /**
  * Hotel reservations: HTL-16 multi-room booking with guests per room, HTL-18 all-or-nothing 10-minute
- * hold and expiry, and the HOTEL_PAYABLE_BOOKING contract that PAY-01 confirms through (HTL-17 books
- * the nights).
+ * hold and expiry, HTL-21 whole-reservation cancellation with a tier-based refund, and the
+ * HOTEL_PAYABLE_BOOKING contract that PAY-01 confirms through (HTL-17 books the nights).
  *
  * Nights are taken through HOTEL_INVENTORY inside ONE transaction with the reservation insert, so
  * every room is held or none is (ADR-0002).
@@ -224,6 +228,183 @@ export class HotelBookingsService implements PayableBooking {
     }
     if (expired) this.logger.log(`Expired ${expired} hotel hold(s)`);
     return expired;
+  }
+
+  /* ------------------------------- HTL-21 cancellation (GEN-11) ------------------------------- */
+
+  /**
+   * HTL-21: what cancelling now would refund: the full paid total times the hotel tier accepted with the
+   * reservation (PAY-02 snapshot, never the hotel's current policy), counted to the start of the check-in
+   * date at the hotel. Owner only (anyone else: the unknown-id 404, ACC-11); 409 BOOKING_NOT_CONFIRMED
+   * unless CONFIRMED, 409 CANCELLATION_WINDOW_CLOSED once the check-in date has started.
+   */
+  async refundQuote(
+    user: AuthUser,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<RefundQuote> {
+    const reservation = await this.ownReservation(user, id);
+    assertCancellable(reservation, now, true);
+    return this.cancellationQuote(
+      reservation,
+      RefundReason.UserCancellation,
+      now,
+    );
+  }
+
+  /** HTL-21: the owner cancels the whole reservation; answers its details with the refund block (PAY-03). */
+  async cancel(
+    user: AuthUser,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<HotelReservationDto> {
+    // Strangers and wrong states fail here; cancelConfirmed checks again inside its transaction.
+    assertCancellable(await this.ownReservation(user, id), now, true);
+    await this.cancelConfirmed(
+      id,
+      { reason: RefundReason.UserCancellation },
+      now,
+    );
+    return this.findOne(user, id);
+  }
+
+  /**
+   * GEN-11 CONFIRMED -> CANCELLED for a whole reservation (there is no partial cancellation). Ownership
+   * is the caller's job. In ONE transaction:
+   * - the status-conditioned transition: of two concurrent cancels exactly one wins, the other is 409
+   *   and releases, refunds and notifies nothing;
+   * - a user cancellation is re-checked against the start of the check-in date (409
+   *   CANCELLATION_WINDOW_CLOSED);
+   * - every BOOKED night of every room is deleted, so the rooms can be held again for those dates;
+   * - the refund through REFUNDS_SERVICE (none is recorded for 0%), linked as refundId;
+   * - the owner's BOOKING_CANCELLED notice.
+   */
+  async cancelConfirmed(
+    reservationId: string,
+    options: { reason: RefundReason },
+    now: Date = new Date(),
+  ): Promise<void> {
+    const byUser = options.reason === RefundReason.UserCancellation;
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const r = Types.ObjectId.isValid(reservationId)
+          ? await this.reservations
+              .findById(reservationId, null, { session })
+              .lean()
+              .exec()
+          : null;
+        if (!r) throw notFound();
+        assertCancellable(r, now, byUser);
+        const quote = this.cancellationQuote(r, options.reason, now);
+        if (!r.paymentId) {
+          throw new Error(
+            `Confirmed hotel reservation ${reservationId} has no payment to refund`,
+          );
+        }
+        const moved = await transitionBooking(
+          this.reservations,
+          reservationId,
+          BookingStatus.Confirmed,
+          BookingStatus.Cancelled,
+          {
+            // The window was judged on these local dates; a changed stay must not slip through.
+            where: { checkIn: r.checkIn, timeZone: r.timeZone },
+            set: {
+              cancelledAt: now,
+              cancelledBy: byUser ? CancelledBy.User : CancelledBy.Provider,
+            },
+            session,
+          },
+        );
+        if (!moved) {
+          throw new AppException(
+            HttpStatus.CONFLICT,
+            ErrorCode.BOOKING_NOT_CONFIRMED,
+            'This reservation was changed by another request and is no longer confirmed',
+          );
+        }
+        const expected = r.nights * r.rooms.length;
+        const released = await this.inventory.releaseBookedNights(
+          reservationId,
+          session,
+        );
+        if (released !== expected) {
+          // Fewer nights to free than booked is a data defect, not a reason to refuse the cancellation.
+          this.logger.error(
+            `Cancelled hotel reservation ${reservationId}: released ${released} of ${expected} booked nights`,
+          );
+        }
+        const refund = await this.refunds.refundFor(
+          {
+            bookingType: BookingType.Hotel,
+            bookingId: reservationId,
+            userId: r.userId.toHexString(),
+            paymentId: r.paymentId.toHexString(),
+            quote,
+            reason: options.reason,
+          },
+          session,
+        );
+        if (refund) {
+          await this.reservations
+            .updateOne(
+              { _id: reservationId },
+              { $set: { refundId: new Types.ObjectId(refund.refundId) } },
+              { session },
+            )
+            .exec();
+        }
+        await this.notifications.notify(
+          cancelledNotice(reservationId, r, quote),
+          session,
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  /**
+   * The refund for cancelling now: the full paid total, the start of the check-in date in the hotel's
+   * zone, and the hotel tiers as accepted (PAY-02 snapshot). A Confirmed reservation always has a
+   * snapshot (payment is blocked until acceptance), so a missing one is a defect (500), never a 0%.
+   */
+  private cancellationQuote(
+    r: Pick<
+      HotelReservation,
+      'checkIn' | 'timeZone' | 'policySnapshot' | 'totalMinor' | 'currency'
+    > & { _id: Types.ObjectId },
+    reason: RefundReason,
+    now: Date,
+  ): RefundQuote {
+    const accepted = r.policySnapshot?.hotel;
+    if (!accepted) {
+      throw new Error(
+        `Confirmed hotel reservation ${r._id.toHexString()} has no accepted hotel policy snapshot (PAY-02)`,
+      );
+    }
+    return this.refunds.quote({
+      paidMinor: r.totalMinor,
+      currency: r.currency,
+      eventStartUtc: checkInStart(r),
+      tiers: accepted.cancellationTiers,
+      reason,
+      now,
+    });
+  }
+
+  /** ACC-11: the caller's own reservation; anyone else's is the same 404 as an unknown id. */
+  private async ownReservation(user: AuthUser, id: string) {
+    const r = Types.ObjectId.isValid(id)
+      ? await this.reservations.findById(id).lean().exec()
+      : null;
+    if (!r) throw notFound();
+    assertOwner(user, r.userId, {
+      notFound: true,
+      notFoundMessage: notFound().message,
+    });
+    return r;
   }
 
   /* ----------------------------- HOTEL_PAYABLE_BOOKING (PAY-01) ----------------------------- */
@@ -584,6 +765,36 @@ function notFound(): AppException {
   );
 }
 
+/** HTL-21: the start of the check-in date at the hotel (local midnight), in UTC. */
+function checkInStart(r: Pick<HotelReservation, 'checkIn' | 'timeZone'>): Date {
+  return localDayRangeUtc(r.checkIn, r.timeZone).start;
+}
+
+/**
+ * HTL-21, GEN-11: only a CONFIRMED reservation can be cancelled (409 BOOKING_NOT_CONFIRMED), and a user
+ * only before the check-in date starts at the hotel (409 CANCELLATION_WINDOW_CLOSED at or after it).
+ */
+function assertCancellable(
+  r: Pick<HotelReservation, 'status' | 'checkIn' | 'timeZone'>,
+  now: Date,
+  beforeCheckIn: boolean,
+): void {
+  if (r.status !== BookingStatus.Confirmed) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.BOOKING_NOT_CONFIRMED,
+      `This reservation is ${r.status}; only a confirmed reservation can be cancelled`,
+    );
+  }
+  if (beforeCheckIn && checkInStart(r).getTime() <= now.getTime()) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.CANCELLATION_WINDOW_CLOSED,
+      'The check-in date has started, so this reservation can no longer be cancelled',
+    );
+  }
+}
+
 function toDto(
   r: HotelReservationDocument,
   refund: RefundSummary | null = null,
@@ -646,5 +857,27 @@ function confirmedNotice(
       `${plural(r.rooms.length, 'room')}, ${guests}. ` +
       `Total ${formatMinor(r.totalMinor, r.currency)} ${r.currency}.`,
     link: `/bookings/hotels/${bookingId}`,
+  };
+}
+
+/**
+ * HTL-21: the in-app cancellation notice, from the reservation's own snapshot (hotel name, hotel-local
+ * dates, room numbers) and the refund just computed, following the HTL-17 confirmation notice.
+ */
+function cancelledNotice(
+  reservationId: string,
+  r: HotelReservation,
+  quote: RefundQuote,
+): NotificationInput {
+  const numbers = r.rooms.map((room) => room.roomNumber).join(', ');
+  return {
+    userId: r.userId.toHexString(),
+    type: NotificationType.BookingCancelled,
+    title: `Hotel reservation ${r.reference ?? reservationId} cancelled`,
+    body:
+      `${r.hotelName}: check-in ${localDate(r.checkIn)}, check-out ${localDate(r.checkOut)}, ` +
+      `${plural(r.rooms.length, 'room')} (${numbers}), is cancelled and its rooms are released. ` +
+      refundLine(quote),
+    link: `/bookings/hotels/${reservationId}`,
   };
 }

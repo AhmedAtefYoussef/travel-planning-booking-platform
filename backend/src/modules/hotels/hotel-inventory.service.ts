@@ -239,12 +239,25 @@ export class HotelInventoryService implements HotelInventory {
   ): Promise<number> {
     // Exactly-once is the caller's job: bookings release inside the same transaction as the
     // status-conditioned PENDING_PAYMENT -> EXPIRED transition.
+    return this.release(reservationId, RoomNightKind.HELD, session);
+  }
+
+  async releaseBookedNights(
+    reservationId: string,
+    session: ClientSession,
+  ): Promise<number> {
+    // HTL-21: inside the same transaction as the status-conditioned CONFIRMED -> CANCELLED transition.
+    return this.release(reservationId, RoomNightKind.BOOKED, session);
+  }
+
+  private async release(
+    reservationId: string,
+    kind: RoomNightKind.HELD | RoomNightKind.BOOKED,
+    session: ClientSession,
+  ): Promise<number> {
     const res = await this.nights
       .deleteMany(
-        {
-          reservationId: new Types.ObjectId(reservationId),
-          kind: RoomNightKind.HELD,
-        },
+        { reservationId: new Types.ObjectId(reservationId), kind },
         { session },
       )
       .exec();
