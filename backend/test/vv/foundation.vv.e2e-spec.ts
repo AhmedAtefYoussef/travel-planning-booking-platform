@@ -43,6 +43,9 @@ import { createTestApp } from '../support/create-test-app';
 
 const BACKEND = join(__dirname, '..', '..');
 const DATA_DIR = join(BACKEND, 'seed', 'data');
+/** Fixed blog fixture for the paginated-list checks (GEN-05). */
+const VV_AUTHOR = '6af0f1c2c77901aa9f2287a1';
+const VV_POST = '6af0f1c2c77901aa9f2287a2';
 
 /** The official mock records (brief section 5.1), exactly as published. */
 const COUNTRIES = [
@@ -497,6 +500,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     headers?: Record<string, string>;
     /** Where the page envelope is, when it is not the whole body (FLT-12 round trip). */
     envelope?: (body: Record<string, unknown>) => Record<string, unknown>;
+    /** The OpenAPI path, when the URL fills in a path parameter. */
+    docPath?: string;
   }[] = [
     { url: '/api/countries?' },
     { url: '/api/cities?' },
@@ -518,7 +523,26 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/notifications?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
+    // Blog (BLG-02, BLG-03, BLG-05, BLG-08, BLG-09, BLG-12); VV_AUTHOR and VV_POST are inserted in beforeAll.
+    { url: '/api/posts?' },
+    {
+      url: '/api/posts/mine?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
+      url: `/api/posts/${VV_POST}/comments?`,
+      docPath: '/api/posts/{id}/comments',
+    },
+    { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
+    {
+      // BLG-12: the author's posts are the page; `page` pages them.
+      url: `/api/authors/${VV_AUTHOR}?`,
+      docPath: '/api/authors/{id}',
+      envelope: (body) => body.posts as Record<string, unknown>,
+    },
   ];
+  const docPathOf = (l: (typeof LISTS)[number]) =>
+    l.docPath ?? l.url.split('?')[0];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
     http().get(url).set(headers);
@@ -526,6 +550,32 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   beforeAll(async () => {
     app = await createTestApp();
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    await users.collection.insertOne({
+      _id: new Types.ObjectId(VV_AUTHOR),
+      name: 'VV Author',
+      email: `vv.author.${VV_AUTHOR}@example.com`,
+      passwordHash: 'x',
+      role: Role.User,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await users.db.collection('posts').insertOne({
+      _id: new Types.ObjectId(VV_POST),
+      authorId: new Types.ObjectId(VV_AUTHOR),
+      title: 'VV post',
+      body: 'VV body',
+      tags: ['egypt'],
+      images: [],
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+      isHidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      interactionScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   });
 
   afterAll(async () => {
@@ -542,7 +592,7 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       )
       .map(([path]) => path)
       .sort();
-    expect(paginated).toEqual(LISTS.map((l) => l.url.split('?')[0]).sort());
+    expect(paginated).toEqual(LISTS.map(docPathOf).sort());
   });
 
   async function expectTwoPages(
@@ -747,6 +797,12 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
+        // Blog (BLG-02, BLG-05, BLG-08, BLG-09, BLG-12): guests read published posts (brief section 4).
+        'GET /api/posts',
+        'GET /api/posts/:id',
+        'GET /api/posts/:id/comments',
+        'GET /api/tags/:tag/posts',
+        'GET /api/authors/:id',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',
