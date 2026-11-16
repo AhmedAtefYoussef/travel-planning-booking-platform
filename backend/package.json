@@ -43,6 +43,7 @@
     "luxon": "^3.7.2",
     "mongoose": "^8.24.8",
     "multer": "^2.5.0",
+    "pdfkit": "^0.20.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -59,6 +60,7 @@
     "@types/luxon": "^3.7.6",
     "@types/multer": "^2.3.0",
     "@types/node": "^24.0.0",
+    "@types/pdfkit": "^0.17.7",
     "@types/supertest": "^7.0.0",
     "dependency-cruiser": "^16.10.4",
     "eslint": "^9.18.0",
