@@ -12,6 +12,7 @@ import {
   HotelReservation,
 } from '../src/modules/bookings';
 import { RoomNight, RoomNightKind } from '../src/modules/hotels';
+import { Notification } from '../src/modules/notifications';
 import {
   Payment,
   PaymentsService,
@@ -48,6 +49,7 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
   let flightBookings: Model<FlightBooking>;
   let reservations: Model<HotelReservation>;
   let nights: Model<RoomNight>;
+  let notifications: Model<Notification>;
   let flight: { flightId: string; cabinId: string };
   let hotelId: string;
   let roomId: string;
@@ -174,6 +176,7 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
     flightBookings = app.get(getModelToken(FlightBooking.name));
     reservations = app.get(getModelToken(HotelReservation.name));
     nights = app.get(getModelToken(RoomNight.name));
+    notifications = app.get(getModelToken(Notification.name));
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
 
     const airline = await http()
@@ -375,6 +378,50 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
         .find({ reservationId: new Types.ObjectId(bookingId) })
         .lean();
       expect(held.map((n) => n.kind)).toEqual([RoomNightKind.BOOKED]);
+    });
+
+    it('HTL-17 webhook confirms all rooms, sets HT- reference and notifies once', async () => {
+      const bookingId = await holdHotel(owner);
+      await acceptPolicies(owner, 'hotel', bookingId);
+      const res = await pay(owner, 'HOTEL', bookingId).expect(201);
+      const doc = await payments.findById(res.body.id).lean();
+      await succeeded(doc!.stripePaymentIntentId).expect(200);
+      const r = await reservations.findById(bookingId).lean();
+      expect(r?.status).toBe(BookingStatus.Confirmed);
+      expect(r?.reference).toMatch(/^HT-[0-9A-Z]{8}$/);
+      const link = `/bookings/hotels/${bookingId}`;
+      const sent = await notifications
+        .find({ userId: new Types.ObjectId(owner.userId), link })
+        .lean();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({
+        type: 'BOOKING_CONFIRMED',
+        title: `Hotel reservation ${r!.reference} confirmed`,
+      });
+      expect(sent[0].body).toContain(r!.hotelName);
+      expect(sent[0].body).toContain('1 room');
+    });
+
+    it('HTL-17 replayed webhook sends no second notification', async () => {
+      const bookingId = await holdHotel(owner);
+      await acceptPolicies(owner, 'hotel', bookingId);
+      const res = await pay(owner, 'HOTEL', bookingId).expect(201);
+      const doc = await payments.findById(res.body.id).lean();
+      await succeeded(doc!.stripePaymentIntentId).expect(200);
+      // A new event id for the same payment: it reaches markConfirmed again and must be a no-op.
+      await succeeded(
+        doc!.stripePaymentIntentId,
+        `evt_htl17_${Date.now()}`,
+      ).expect(200);
+      await succeeded(
+        doc!.stripePaymentIntentId,
+        `evt_htl17_${Date.now()}`,
+      ).expect(200);
+      expect(
+        await notifications.countDocuments({
+          link: `/bookings/hotels/${bookingId}`,
+        }),
+      ).toBe(1);
     });
 
     it('rejects a bad or missing signature with 400 and changes nothing', async () => {
