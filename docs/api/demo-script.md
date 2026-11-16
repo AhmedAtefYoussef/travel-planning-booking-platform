@@ -28,21 +28,34 @@ npm run start:dev
    (both from `backend/.env`). Emails are in the README, "Seeded accounts".
 4. Stripe: for the payment step run `stripe listen` as described in the README, "Stripe test mode".
 
-Ids (`{id}`, `{airlineId}`, ...) come from the response of the step that created the record. Money is in minor
-units (`25000` = 250.00 USD). Dates are `YYYY-MM-DD`; flight times are local airport time, `YYYY-MM-DDTHH:mm`.
+### Where the ids come from
+
+- **Demo provider ids** (`{airlineId}` = Demo Air, `{hotelId}` = Demo Nile Hotel): `npm run seed:demo` prints them,
+  with the flight, cabin and room ids (it prints ids again on every run and never a password). You can also read them
+  after logging in as a demo moderator: `GET /api/auth/me` returns `assignedProvider.providerId`.
+- **Flight and cabin ids** (`{flightId}`, `{cabinId}`): the `flight` and `economy cabin` ids printed by the seed for DM101
+  and DM102, or from the response of the step that created them.
+- **Room ids**: `{room101Id}` and `{room102Id}` are printed by the seed. `{roomId}` in Part 3 is the id returned by that
+  part's own `POST .../rooms` (there is no list endpoint for rooms).
+- **Alternative path B** (no seed needed for Parts 1 to 3): Admin steps 4 to 6 create your own provider pair,
+  `{walkAirlineId}` and `{walkHotelId}`, with moderators `walk.airline@example.com` and `walk.hotel@example.com`. In
+  Parts 2 and 3 substitute those ids and log in as those moderators. Part 4 always uses the seeded demo records: only
+  they have flights on the searched dates and a hotel with check-in/out times and cancellation tiers.
+
+Money is in minor units (`25000` = 250.00 USD). Dates are `YYYY-MM-DD`; flight times are local airport time, `YYYY-MM-DDTHH:mm`.
 
 ## 1. Administrator
 
-Log in as `ADMIN_SEED_EMAIL`.
+Log in as `ADMIN_SEED_EMAIL`. Steps 4 to 6 are alternative path B (your own provider pair); with `seed:demo` you can skip them.
 
 | # | Call | Body or query | Expect |
 |---|---|---|---|
 | 1 | `POST /api/auth/login` | `{"email":"<ADMIN_SEED_EMAIL>","password":"<ADMIN_SEED_PASSWORD>"}` | 200, cookies set, `homePath` for admins |
 | 2 | `GET /api/auth/me` | | 200, role `ADMIN` |
 | 3 | `GET /api/airports`, `GET /api/cities`, `GET /api/countries`, `GET /api/currencies` | `?page=1` | 200, the seeded reference data (GEN-12) |
-| 4 | `POST /api/airlines` | `{"name":"Walkthrough Air","code":"WA"}` | 201, keep `id` as `{airlineId}`; repeating it gives 409 `DUPLICATE_KEY` |
-| 5 | `POST /api/hotels` | `{"name":"Walkthrough Hotel","address":"5 Nile Street","cityId":"cairo"}` | 201, keep `id` as `{hotelId}` |
-| 6 | `POST /api/admin/moderators` | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{airlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"role":"HOTEL_MODERATOR"` and `{hotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
+| 4 | `POST /api/airlines` (path B) | `{"name":"Walkthrough Air","code":"WA"}` | 201, keep `id` as `{walkAirlineId}`; repeating it gives 409 `DUPLICATE_KEY` |
+| 5 | `POST /api/hotels` (path B) | `{"name":"Walkthrough Hotel","address":"5 Nile Street","cityId":"cairo"}` | 201, keep `id` as `{walkHotelId}` |
+| 6 | `POST /api/admin/moderators` (path B) | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{walkAirlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"name":"Walk Hotel Mod"`, `"email":"walk.hotel@example.com"`, `"role":"HOTEL_MODERATOR"` and `{walkHotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
 | 7 | `GET /api/admin/accounts` | `?q=demo&role=USER&status=ACTIVE` | 200, paginated, 10 per page (ACC-14) |
 | 8 | `POST /api/admin/users/{id}/reset-password` | `{"temporaryPassword":"Temp2026x"}` | 204; the user must change it at next login (ACC-07a) |
 | 9 | `PATCH /api/admin/accounts/{id}/suspend` **(PR #76)** | no body; a user or moderator id | 200, status `SUSPENDED`; the account can no longer log in and is notified (ACC-16) |
@@ -61,7 +74,9 @@ Error cases worth showing: step 4 as a traveller gives 403 `FORBIDDEN`; any admi
 
 ## 2. Airline moderator
 
-Log in as `demo.airline@example.com` (seeded, no forced password change) or as the moderator from Admin step 6.
+Log in as `demo.airline@example.com` (seeded, no forced password change). Here `{airlineId}` is Demo Air's id from the
+seed output, or `assignedProvider.providerId` from `GET /api/auth/me` after step 1. (Path B: log in as
+`walk.airline@example.com`, change the password as in step 2, and use `{walkAirlineId}`.) Another airline's id gives 403.
 
 | # | Call | Body or query | Expect |
 |---|---|---|---|
@@ -84,7 +99,10 @@ gives 403; reducing `totalSeats` below the seats already booked gives 409.
 
 ## 3. Hotel moderator
 
-Log in as `demo.hotel@example.com` (or the moderator from Admin step 6, changing the password first).
+Log in as `demo.hotel@example.com` (seeded). `{hotelId}` is Demo Nile Hotel's id from the seed output, or
+`assignedProvider.providerId` from `GET /api/auth/me` after step 1. (Path B: `walk.hotel@example.com` and
+`{walkHotelId}`, changing the password first.) Step 4 creates room 201 and returns its `{roomId}`; the seeded rooms 101
+and 102 already have availability and are the ones the traveller books in Part 4.
 
 | # | Call | Body or query | Expect |
 |---|---|---|---|
@@ -97,8 +115,9 @@ Log in as `demo.hotel@example.com` (or the moderator from Admin step 6, changing
 | 7 | `PATCH /api/hotels/{hotelId}/rooms/{roomId}/availability` | `{"ranges":[{"from":"2028-03-01","to":"2028-05-01"}]}` | 200, replaces all ranges (HTL-05) |
 | 8 | `GET /api/notifications` | | 200 |
 
-Check-in and check-out times and the hotel cancellation tiers (HTL-09, HTL-10) are on the hotel document and are
-shown in the policies a traveller sees (Part 4, step 11); the demo hotel has them from `npm run seed:demo`.
+Check-in and check-out times and the hotel cancellation tiers (HTL-09, HTL-10) have no endpoint yet: only the demo hotel
+has them, set by `npm run seed:demo`. A hotel you create yourself (path B) has none, so its policies step and any
+hotel cancellation would show no tiers. That is why Part 4 uses the demo hotel.
 
 ## 4. Traveller
 
@@ -107,11 +126,11 @@ shown in the policies a traveller sees (Part 4, step 11); the demo hotel has the
 | 1 | `POST /api/auth/register` | `{"name":"Mona Hassan","email":"mona@example.com","password":"Travel2026","acceptTerms":true}` | 201; a repeat gives 409 `EMAIL_ALREADY_REGISTERED`. Or skip and use `demo.traveller@example.com` |
 | 2 | `POST /api/auth/login` | `{"email":"mona@example.com","password":"Travel2026"}` | 200 |
 | 3 | `PATCH /api/users/me` | `{"phone":"+201001234567","preferredCurrency":"EGP"}` | 200 (ACC-09) |
-| 4 | `GET /api/flights/search` | `?from=CAI&to=LHR&departureDate=2028-03-15&adults=1&cabinClass=ECONOMY&sort=price` | 200, keep `flightId` and `cabinId` (FLT-11) |
+| 4 | `GET /api/flights/search` | `?from=CAI&to=LHR&departureDate=2028-03-15&adults=1&cabinClass=ECONOMY&sort=price` | 200, finds Demo Air DM101; keep its `flightId` and economy `cabinId` (same ids as the seed output) (FLT-11) |
 | 5 | `GET /api/flights/search/round-trip` | `?from=CAI&to=LHR&departureDate=2028-03-15&returnDate=2028-03-22&adults=1` | 200, outbound and return options (FLT-12) |
 | 6 | `POST /api/flight-bookings/quote` | `{"outbound":{"flightId":"{flightId}","cabinId":"{cabinId}"},"passengers":[{"type":"ADULT","firstName":"Mona","lastName":"Adel","dateOfBirth":"1990-05-01","documentNumber":"A1234567"}]}` | 200, price summary, nothing is held (FLT-21) |
 | 7 | `POST /api/flight-bookings/hold` | the same body | 201, `PENDING_PAYMENT`, seats held 10 minutes (FLT-22); keep `id` as `{bookingId}` |
-| 8 | `POST /api/hotel-bookings` | `{"hotelId":"{hotelId}","checkIn":"2028-03-10","checkOut":"2028-03-13","rooms":[{"roomId":"{roomId}","adults":2}]}` | 201, rooms held 10 minutes (HTL-16, HTL-18); keep `id` as `{reservationId}` |
+| 8 | `POST /api/hotel-bookings` | `{"hotelId":"{hotelId}","checkIn":"2028-03-10","checkOut":"2028-03-13","rooms":[{"roomId":"{room101Id}","adults":2}]}` (the demo hotel and room 101) | 201, rooms held 10 minutes (HTL-16, HTL-18); keep `id` as `{reservationId}` |
 | 9 | `GET /api/flight-bookings/{bookingId}`, `GET /api/hotel-bookings/{reservationId}` | | 200; someone else's id gives the same 404 as an unknown id (ACC-11) |
 | 10 | `GET /api/bookings/flight/{bookingId}/policies` | (`hotel` and `{reservationId}` for a hotel) | 200, baggage, cancellation tiers, check-in and check-out; keep `version` (PAY-02) |
 | 11 | `POST /api/bookings/flight/{bookingId}/accept-policies` | `{"accepted":true,"version":"<version>"}` | 200; paying before this gives 409 |

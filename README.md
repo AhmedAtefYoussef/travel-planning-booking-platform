@@ -55,7 +55,9 @@ first and writes nothing if a rule fails. Records are upserted by their dataset 
 
 `npm run seed:demo` (run `seed` first) adds "Demo Air" with two flights and its moderator, "Demo Nile Hotel" with two
 rooms and its moderator, and one traveller. It goes through the same services as the API, needs `DEMO_PASSWORD`, and
-running it again changes nothing.
+running it again changes nothing. It prints the ids of the demo airline, flights, cabins, hotel and rooms (never a
+password) for the Swagger demo script; the demo flights and hotel dates are in March 2028, so bump them in
+`backend/scripts/demo-data.ts` after that.
 
 `backend/.env` is gitignored. Never commit it, and never paste the connection string into chat, issues or AI tools.
 
@@ -118,7 +120,8 @@ stripe listen --events payment_intent.succeeded,payment_intent.payment_failed,pa
 ```
 
 It prints a `whsec_...` signing secret. Use it as `STRIPE_WEBHOOK_SECRET`, either in `backend/.env` or as an override
-for one run (`STRIPE_WEBHOOK_SECRET=whsec_... npm run start:dev`), and restart the API. Then, with the
+for one run (Git Bash or Linux: `STRIPE_WEBHOOK_SECRET=whsec_... npm run start:dev`; PowerShell:
+`$env:STRIPE_WEBHOOK_SECRET='whsec_...'; npm run start:dev`), and restart the API. Then, with the
 `paymentIntentId` from `POST /api/payments`:
 
 ```bash
