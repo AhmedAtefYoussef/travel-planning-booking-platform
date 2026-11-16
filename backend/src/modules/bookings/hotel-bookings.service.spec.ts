@@ -66,7 +66,19 @@ function setup(
     ),
     updateOne: jest.fn(() => exec({ modifiedCount: moved.shift() ?? 0 })),
     findById: jest.fn(() => ({
-      lean: () => exec(opts.found ?? { nights: 2, rooms: [{}] }),
+      lean: () =>
+        exec(
+          opts.found ?? {
+            userId: new Types.ObjectId(user.id),
+            hotelName: 'Nile View',
+            checkIn: '2027-12-10',
+            checkOut: '2027-12-12',
+            nights: 2,
+            rooms: [{ adults: 2, childrenAges: [4] }],
+            totalMinor: 123_456,
+            currency: 'EGP',
+          },
+        ),
       exec: () => Promise.resolve(opts.found ?? null),
     })),
     find: jest.fn(),
@@ -79,6 +91,10 @@ function setup(
   const connection = { startSession: jest.fn().mockResolvedValue(session) };
   const config = { get: jest.fn().mockReturnValue('EGP') };
   const guards = { updateOne: jest.fn(() => exec({})) };
+  const notifications = {
+    notify: jest.fn().mockResolvedValue(undefined),
+    notifyMany: jest.fn(),
+  };
   const service = new HotelBookingsService(
     model as never,
     guards as never,
@@ -86,13 +102,24 @@ function setup(
     inventory,
     config as never,
     { summaryFor: jest.fn().mockResolvedValue(null) } as never,
+    notifications,
   );
-  return { service, inventory, model, session, guards, connection };
+  return {
+    service,
+    inventory,
+    model,
+    session,
+    guards,
+    connection,
+    notifications,
+  };
 }
 
 const request = (
   s: BookableStay,
-  rooms: { adults: number; childrenAges?: number[] }[] = [{ adults: 1 }],
+  rooms: { adults: number; childrenAges?: number[] }[] = [
+    { adults: 1, childrenAges: [] },
+  ],
   checkIn = '2027-12-10',
   checkOut = '2027-12-13',
 ): HotelBookingRequestDto => ({
@@ -275,6 +302,66 @@ describe('HotelBookingsService payable contract (PAY-01, HTL-17)', () => {
       expect.stringMatching(/^HT-/),
       expect.anything(),
     );
+  });
+
+  it('HTL-17 notifies the owner once, in the same session, with the reservation details', async () => {
+    const { service, notifications } = setup(stay(), {
+      booked: 4,
+      found: {
+        userId: new Types.ObjectId(user.id),
+        hotelName: 'Nile View',
+        checkIn: '2027-12-10',
+        checkOut: '2027-12-12',
+        nights: 2,
+        rooms: [
+          { adults: 2, childrenAges: [4] },
+          { adults: 1, childrenAges: [] },
+        ],
+        totalMinor: 123_456,
+        currency: 'EGP',
+      },
+    });
+    const session = {} as never;
+    await service.markConfirmed(id, { paymentId }, session, NOW);
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    const [input, used] = notifications.notify.mock.calls[0] as [
+      Record<string, string>,
+      unknown,
+    ];
+    expect(used).toBe(session);
+    expect(input).toMatchObject({
+      userId: user.id,
+      type: 'BOOKING_CONFIRMED',
+      link: `/bookings/hotels/${id}`,
+    });
+    expect(input.title).toMatch(/^Hotel reservation HT-[0-9A-Z]{8} confirmed$/);
+    expect(input.body).toContain('Nile View');
+    expect(input.body).toContain('Dec 10, 2027');
+    expect(input.body).toContain('Dec 12, 2027');
+    expect(input.body).toContain('2 rooms');
+    expect(input.body).toContain('3 adults, 1 child');
+    expect(input.body).toContain('1234.56 EGP');
+  });
+
+  it('HTL-17 sends no notification for a replayed webhook or a refused confirmation', async () => {
+    const replay = setup(stay(), {
+      moved: [0],
+      found: {
+        status: BookingStatus.Confirmed,
+        paymentId: new Types.ObjectId(paymentId),
+      },
+    });
+    await replay.service.markConfirmed(id, { paymentId }, undefined, NOW);
+    expect(replay.notifications.notify).not.toHaveBeenCalled();
+
+    const late = setup(stay(), {
+      moved: [0],
+      found: { status: BookingStatus.PendingPayment, holdExpiresAt: NOW },
+    });
+    await expect(
+      late.service.markConfirmed(id, { paymentId }, undefined, NOW),
+    ).rejects.toMatchObject({ code: 'HOLD_EXPIRED' });
+    expect(late.notifications.notify).not.toHaveBeenCalled();
   });
 
   it('refuses to confirm unless every held night (rooms x nights) is booked, and logs it', async () => {

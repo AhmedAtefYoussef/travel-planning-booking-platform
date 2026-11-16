@@ -1,6 +1,7 @@
 import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { DateTime } from 'luxon';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { assertOwner } from '../../common/auth/access';
 import { AuthUser, Role } from '../../common/auth/auth.types';
@@ -9,9 +10,13 @@ import {
   BookingType,
   HOLD_DURATION_MS,
   HOTEL_INVENTORY,
+  NOTIFICATIONS_SERVICE,
+  NotificationType,
   transitionBooking,
   type BookableStay,
   type HotelInventory,
+  type NotificationInput,
+  type NotificationsService,
   type PayableBooking,
   type PayableSnapshot,
   REFUNDS_SERVICE,
@@ -29,7 +34,7 @@ import {
   isReferenceCollision,
 } from '../../common/utils/booking-reference';
 import { eachNight, localDayRangeUtc } from '../../common/utils/dates';
-import { multiplyMinor, sumMinor } from '../../common/utils/money';
+import { formatMinor, multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { todayIn } from '../hotels';
 import type {
@@ -72,6 +77,8 @@ export class HotelBookingsService implements PayableBooking {
     @Inject(HOTEL_INVENTORY) private readonly inventory: HotelInventory,
     private readonly config: ConfigService<EnvironmentVariables, true>,
     @Inject(REFUNDS_SERVICE) private readonly refunds: RefundsService,
+    @Inject(NOTIFICATIONS_SERVICE)
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** HTL-16/HTL-18: holds every room for 10 minutes as one PENDING_PAYMENT reservation, or nothing. */
@@ -353,7 +360,15 @@ export class HotelBookingsService implements PayableBooking {
       },
     );
     if (!moved) return false;
-    const expected = await this.expectedNights(bookingId, session);
+    const reservation = await this.reservations
+      .findById(bookingId, null, { session })
+      .lean()
+      .exec();
+    if (!reservation)
+      throw new Error(
+        `Hotel reservation ${bookingId} disappeared mid-transaction`,
+      );
+    const expected = reservation.nights * reservation.rooms.length;
     const booked = await this.inventory.bookNights(
       bookingId,
       reference,
@@ -368,6 +383,11 @@ export class HotelBookingsService implements PayableBooking {
         `Hotel reservation ${bookingId} has ${booked} of its ${expected} nights held; not confirmed`,
       );
     }
+    // HTL-17: in the same transaction, and only on a real transition (a replay never reaches here).
+    await this.notifications.notify(
+      confirmedNotice(bookingId, reference, reservation),
+      session,
+    );
     return true;
   }
 
@@ -591,5 +611,40 @@ function toDto(
     reference: r.reference,
     refund,
     createdAt: r.createdAt,
+  };
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** A hotel-local YYYY-MM-DD as "Dec 10, 2027" (locale pinned so the text never depends on the server). */
+function localDate(day: string): string {
+  const d = DateTime.fromISO(day, { zone: 'utc', locale: 'en-US' });
+  return d.isValid ? d.toFormat('LLL d, yyyy') : day;
+}
+
+/**
+ * HTL-17: the in-app confirmation. Built only from the reservation's own snapshot (hotel name, hotel-local
+ * dates, prices), so no lookup can fail and block the confirmation.
+ */
+function confirmedNotice(
+  bookingId: string,
+  reference: string,
+  r: HotelReservation,
+): NotificationInput {
+  const adults = r.rooms.reduce((n, room) => n + room.adults, 0);
+  const children = r.rooms.reduce((n, room) => n + room.childrenAges.length, 0);
+  const guests =
+    children > 0
+      ? `${plural(adults, 'adult')}, ${children} ${children === 1 ? 'child' : 'children'}`
+      : plural(adults, 'adult');
+  return {
+    userId: r.userId.toHexString(),
+    type: NotificationType.BookingConfirmed,
+    title: `Hotel reservation ${reference} confirmed`,
+    body:
+      `${r.hotelName}: check-in ${localDate(r.checkIn)}, check-out ${localDate(r.checkOut)}, ` +
+      `${plural(r.rooms.length, 'room')}, ${guests}. ` +
+      `Total ${formatMinor(r.totalMinor, r.currency)} ${r.currency}.`,
+    link: `/bookings/hotels/${bookingId}`,
   };
 }
