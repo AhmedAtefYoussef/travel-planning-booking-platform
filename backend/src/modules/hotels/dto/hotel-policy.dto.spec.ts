@@ -13,6 +13,16 @@ describe('SetHotelPoliciesDto (HTL-09)', () => {
     expect(fields({ checkInTime: '00:00', checkOutTime: '23:59' })).toEqual([]);
   });
 
+  it('gives one message per missing or malformed time (GEN-02)', () => {
+    const errors = validateSync(
+      plainToInstance(SetHotelPoliciesDto, { checkInTime: '14:00' }),
+    );
+    expect(errors).toHaveLength(1);
+    expect(Object.values(errors[0].constraints ?? {})).toEqual([
+      'checkOutTime must be a 24-hour time HH:mm from 00:00 to 23:59',
+    ]);
+  });
+
   it('requires both times', () => {
     expect(fields({})).toEqual(['checkInTime', 'checkOutTime']);
     expect(fields({ checkInTime: '14:00' })).toEqual(['checkOutTime']);
