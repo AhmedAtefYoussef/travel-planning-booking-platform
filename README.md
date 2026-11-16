@@ -20,7 +20,7 @@ backend/            NestJS API (Milestone 1)
 frontend/           Next.js app (Milestone 2)
 docs/requirements/  requirements.json (from the official workbook) and traceability.md
 docs/architecture/  ERD and architecture decision records (ADRs)
-docs/api/           API conventions every module follows
+docs/api/           API conventions, the Swagger demo script and the exported openapi.json
 docs/setup/         environment and MongoDB Atlas setup
 docs/process/       review checklist
 docs/ONBOARDING.md  first day: clone to first merged PR
@@ -32,57 +32,93 @@ AI_PROMPTS.txt      mandatory AI prompt log (brief section 11.1)
 
 New to the team? Follow [docs/ONBOARDING.md](docs/ONBOARDING.md): it covers access, `.env`, `db:check`, the Swagger `dev-user` stub and your first PR. The short version:
 
-Prerequisites: Node.js 22 LTS or newer, npm, and access to the team MongoDB Atlas cluster.
+Prerequisites: Node.js 22 LTS or newer, npm, Git, a MongoDB connection string for the team Atlas cluster (a replica
+set: payments and bookings use transactions) and, for the payment demo, a Stripe account in test mode with the
+[Stripe CLI](https://docs.stripe.com/stripe-cli) logged in.
 
 ```bash
+git clone https://github.com/AhmedAtefYoussef/travel-planning-booking-platform.git
+cd travel-planning-booking-platform
 npm install                     # repo tooling: git hooks and commit linting
 cd backend && npm install
 cp ../.env.example .env         # then fill in MONGODB_URI and the secrets you were given privately
-npm run seed                    # load the official reference data (GEN-12); safe to run again
+npm run seed                    # reference data (GEN-12) and the admin account (ACC-18); safe to run again
+npm run seed:demo               # optional: demo airline, hotel, flights, rooms and accounts; safe to run again
 npm run start:dev               # http://localhost:3000/api, Swagger at http://localhost:3000/api/docs
 ```
 
 `npm run seed` loads the official reference datasets from `backend/seed/data` (Countries, Cities, Airports and
 Attractions CSVs, brief section 5.1) and derives the supported currencies from Countries.csv. It validates the files
 first and writes nothing if a rule fails. Records are upserted by their dataset ids (country `code`, `city_id`,
-`iata_code`, `attraction_id`), so running it again never creates duplicates.
+`iata_code`, `attraction_id`), so running it again never creates duplicates. It also creates the admin from
+`ADMIN_SEED_EMAIL` / `ADMIN_SEED_PASSWORD` (an existing admin is left unchanged).
+
+`npm run seed:demo` (run `seed` first) adds "Demo Air" with two flights and its moderator, "Demo Nile Hotel" with two
+rooms and its moderator, and one traveller. It goes through the same services as the API, needs `DEMO_PASSWORD`, and
+running it again changes nothing.
 
 `backend/.env` is gitignored. Never commit it, and never paste the connection string into chat, issues or AI tools.
+
+### Environment variables
+
+Copy `.env.example` to `backend/.env`. The API validates it at startup and refuses to boot on a missing or malformed
+required variable, naming it. The file holds placeholders only.
+
+| Variable | Required | Meaning and example |
+|---|---|---|
+| `NODE_ENV` | yes | `development`, `test` or `production` |
+| `PORT` | no (3000) | HTTP port |
+| `CORS_ORIGINS` | no | Comma-separated origins allowed to send cookies, e.g. `http://localhost:3001` |
+| `MONGODB_URI` | yes | `mongodb+srv://<user>:<password>@<cluster>.mongodb.net/travel_platform?...`; the path must be `/travel_platform` |
+| `JWT_SECRET` | yes | 32 or more random characters |
+| `JWT_ACCESS_TTL`, `JWT_REFRESH_TTL` | yes | Token lifetimes, e.g. `15m`, `7d` |
+| `SESSION_IDLE_MINUTES` | yes | Idle minutes before a session ends, e.g. `30` |
+| `COOKIE_SECURE` | yes | `true` behind HTTPS, `false` for local http |
+| `AUTH_STUB` | no (false) | `true` accepts the `x-dev-user` header (local development only); set `false` for the demo and any shared environment |
+| `PLATFORM_CURRENCY` | yes | The one currency of every price, e.g. `USD` (one of AED, EGP, EUR, GBP, JPY, SAR, USD) |
+| `STRIPE_SECRET_KEY` | yes | Stripe test key, `sk_test_...` (live keys are refused) |
+| `STRIPE_WEBHOOK_SECRET` | yes | The `whsec_...` that `stripe listen` prints (see below) |
+| `FX_API_KEY`, `FX_API_BASE_URL` | yes | Exchange-rate service key and URL (ITN-18); server-side only |
+| `UPLOAD_DIR` | yes | Where uploaded images are stored, e.g. `./uploads` |
+| `ADMIN_SEED_EMAIL`, `ADMIN_SEED_PASSWORD` | yes | The administrator `npm run seed` creates |
+| `DEMO_PASSWORD` | only for `seed:demo` | The password of the demo moderators and traveller |
+
+Password rules (everywhere a password is set, including both seed passwords): at least 8 characters, at least one
+letter and one digit, at most 72 bytes.
+
+### Seeded accounts
+
+| Role | Email | Password | Created by |
+|---|---|---|---|
+| Administrator | `ADMIN_SEED_EMAIL` (`admin@example.com` in `.env.example`) | `ADMIN_SEED_PASSWORD` | `npm run seed` |
+| Airline moderator (Demo Air) | `demo.airline@example.com` | `DEMO_PASSWORD` | `npm run seed:demo` |
+| Hotel moderator (Demo Nile Hotel) | `demo.hotel@example.com` | `DEMO_PASSWORD` | `npm run seed:demo` |
+| Traveller | `demo.traveller@example.com` | `DEMO_PASSWORD` | `npm run seed:demo` |
+
+The demo moderators are not forced to change their password at first login. Moderators an admin creates through
+`POST /api/admin/moderators` are (ACC-13); any traveller can sign up with `POST /api/auth/register`.
 
 ## Run the Milestone 1 demo in Swagger
 
 Swagger is at http://localhost:3000/api/docs. Sign in with real cookies: `POST /api/auth/login` sets httpOnly
 cookies, and Swagger sends them with every later call. For this, set `AUTH_STUB=false` in `backend/.env`; the
-`x-dev-user` stub is only a development shortcut. The seed loads the reference data and one administrator
-(`ADMIN_SEED_EMAIL`), but no airlines, flights, hotels or rooms, so the demo creates them in this order:
+`x-dev-user` stub is only a development shortcut.
 
-1. **Administrator** (`POST /api/auth/login` with the seeded admin):
-   - `POST /api/airlines` and `POST /api/hotels` (city from `GET /api/cities`). Keep the ids.
-   - `POST /api/admin/moderators` once for the airline and once for the hotel, each with a `temporaryPassword`
-     you choose.
-2. **Airline moderator** (log in, then `PATCH /api/auth/change-password`, which the temporary password requires):
-   - `POST /api/flights` (airports from `GET /api/airports`, local times), then `POST /api/flights/{id}/cabins`.
-   - `PUT /api/airlines/{id}/baggage-policy` and `PUT /api/airlines/{id}/cancellation-policy`.
-3. **Hotel moderator** (log in and change the password the same way):
-   - `POST /api/hotels/{id}/rooms`, then `POST /api/hotels/{id}/rooms/{roomId}/availability`.
-4. **Traveller** (`POST /api/auth/register`, then log in):
-   - `GET /api/flights/search` (or `/search/round-trip`), `POST /api/flight-bookings/quote`, then
-     `POST /api/flight-bookings/hold`: a 10-minute Pending Payment booking.
-   - `POST /api/hotel-bookings` holds the selected rooms the same way.
-   - `GET /api/bookings/{type}/{id}/policies`, then `POST /api/bookings/{type}/{id}/accept-policies`.
-   - `POST /api/payments` (PAY-01, from #62) returns a `paymentIntentId`; pay it with the Stripe CLI (below), then
-     `GET /api/flight-bookings/{id}` shows CONFIRMED with an `FL-` reference (`HT-` for hotels).
+The step-by-step call order per role (Administrator, Airline moderator, Hotel moderator, Traveller), with request
+bodies and expected statuses, is in **[docs/api/demo-script.md](docs/api/demo-script.md)**. The exported
+specification is [docs/api/openapi.json](docs/api/openapi.json) (refresh with `npm run openapi:export`).
 
 ### Stripe test mode
 
-`STRIPE_SECRET_KEY` must be a test key (`sk_test_...`); the backend refuses any other. With the
-[Stripe CLI](https://docs.stripe.com/stripe-cli) logged in to the same test account:
+`STRIPE_SECRET_KEY` must be a test key (`sk_test_...`); the backend refuses any other. With the Stripe CLI (1.55 or
+newer) logged in to the same test account, forward the events the API handles (one line):
 
 ```bash
-stripe listen --forward-to localhost:3000/api/payments/webhook
+stripe listen --events payment_intent.succeeded,payment_intent.payment_failed,payment_intent.canceled,refund.created,refund.updated,refund.failed --forward-to localhost:3000/api/payments/webhook
 ```
 
-It prints a `whsec_...` signing secret: put it in `STRIPE_WEBHOOK_SECRET` and restart the API. Then, with the
+It prints a `whsec_...` signing secret. Use it as `STRIPE_WEBHOOK_SECRET`, either in `backend/.env` or as an override
+for one run (`STRIPE_WEBHOOK_SECRET=whsec_... npm run start:dev`), and restart the API. Then, with the
 `paymentIntentId` from `POST /api/payments`:
 
 ```bash
@@ -91,6 +127,28 @@ stripe payment_intents confirm <paymentIntentId> --payment-method pm_card_visa
 
 `pm_card_chargeDeclined` makes the attempt fail (`POST /api/payments/{id}/retry` then tries again until the hold
 ends). Only the signature-verified webhook confirms a booking; card details never reach this API.
+
+## Feature map
+
+Each module, its Swagger tag and the requirements it covers (status per requirement is in
+[docs/requirements/traceability.md](docs/requirements/traceability.md)). Marks: (PR #76) and (PR #77) are open
+pull requests, (in review) is work in progress.
+
+| Module (`backend/src/modules/`) | Swagger tag | Requirements |
+|---|---|---|
+| `auth` | Auth | ACC-01, ACC-04, ACC-05, ACC-06, ACC-08, ACC-19 |
+| `users` | Users, Admin: accounts | ACC-07a, ACC-09, ACC-11, ACC-12, ACC-13, ACC-14, ACC-15 and ACC-16 (PR #76) |
+| `audit` | Admin: audit log | GEN-07 |
+| `notifications` | notifications | GEN-01 |
+| `flights` | Airlines, Flights | FLT-01, FLT-03, FLT-04, FLT-05, FLT-08, FLT-09, FLT-11, FLT-12, FLT-15, FLT-17 |
+| `bookings` | flight-bookings, hotel-bookings, booking-policies | FLT-19 to FLT-23, FLT-26, HTL-16 to HTL-18, HTL-21 (PR #77), PAY-02 |
+| `hotels` | Hotels | HTL-01, HTL-03, HTL-04, HTL-05 |
+| `payments` | payments, refunds | PAY-01, PAY-03 |
+| `currency` | currency | ITN-18, PAY-04 |
+| `reference` | Reference data | GEN-12, FLT-02 |
+| `uploads` | (inside Airlines and Hotels) | GEN-08 |
+| moderation | (reports, admin content) | GEN-09, GEN-10 (in review) |
+| `health`, `diagnostics` | Health, Diagnostics (dev only) | TRVL-128, GEN-02, GEN-05, GEN-13 |
 
 ## Quality gate
 
