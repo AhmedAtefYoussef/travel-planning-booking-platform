@@ -1459,6 +1459,8 @@ Claude wrote the DTOs, the ItinerariesService, the controller, the itinerary det
 ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. Deleting an itinerary removes
 its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
 verify and tried every endpoint in Swagger.
+=========================================================================================
+
 ================================================
 
 ================================================
@@ -1500,4 +1502,17 @@ Apply the last nit from Ahmed's re-review of PR #75 (raised by Sarah): extend th
 in the traceability matrix to say images come through BLG-10 (GEN-08).
 How the output was used:
 Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
+=======
+Date: 2026-11-16
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-11 (TRVL-56)
+Prompt:
+Implement HTL-11: public GET /api/hotels/search by city or country, check-in, check-out, guests and rooms
+(default 1), listing active hotels with that many rooms free for the whole stay whose combined occupancy
+covers the guests; check-out after check-in, check-in not in the past. Also provide HOTELS_SEARCH (ITN-25).
+How the output was used:
+Claude added HotelSearchService (batched free-room and visible-rating queries shared with HTL-02, the
+largest-rooms fit rule, cheapest first, GEN-05 pages), the query DTO, the route before GET :id, the
+HOTELS_SEARCH provider, V&V list entries and unit and e2e tests. I agreed the design before it was written.
 ================================================
