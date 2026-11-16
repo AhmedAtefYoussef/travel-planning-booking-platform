@@ -80,6 +80,21 @@ export interface ETicketInput {
   /** Airline terms per segment (same order), from the accepted snapshot or the live airline. */
   airlines: readonly (AirlinePolicySnapshot | null)[];
   now: Date;
+  /**
+   * Whether the PDF font can print this text (the renderer's canPrint). Names it cannot print get a
+   * safe fallback instead of garbage glyphs. Defaults to "everything prints".
+   */
+  canPrint?: (text: string) => boolean;
+}
+
+/** Ticket and notification dates are always English, whatever the host locale is. */
+export const TICKET_LOCALE = 'en-US';
+const TIME_INDENT = '      ';
+export const BOOKER_FALLBACK = 'Account holder';
+
+/** The text printed for passenger `n` (1-based) whose name the font cannot print. */
+export function passengerFallback(n: number): string {
+  return `Passenger ${n} (name as booked)`;
 }
 
 const MASK = '****';
@@ -95,7 +110,7 @@ export function maskDocument(documentNumber: string): string {
  */
 export function formatLocal(instant: Date, zone: string): string {
   const z = isValidTimeZone(zone) ? zone : 'UTC';
-  const dt = DateTime.fromJSDate(instant, { zone: z });
+  const dt = DateTime.fromJSDate(instant, { zone: z }).setLocale(TICKET_LOCALE);
   return `${dt.toFormat("ccc d LLL yyyy, HH:mm '(UTC'ZZ")}, ${z})`;
 }
 
@@ -103,16 +118,18 @@ function stop(
   iataCode: string,
   instant: Date,
   airports: ReadonlyMap<string, Airport>,
+  canPrint: (text: string) => boolean,
 ): ETicketStop {
   const airport = airports.get(iataCode);
   return {
     iataCode,
-    airportName: airport?.name ?? iataCode,
+    airportName:
+      airport?.name && canPrint(airport.name) ? airport.name : iataCode,
     localTime: formatLocal(instant, airport?.timeZone ?? 'UTC'),
   };
 }
 
-function tiersNote(airline: AirlinePolicySnapshot): string {
+function tiersNote(airline: AirlinePolicySnapshot, name: string): string {
   const tiers = [...airline.cancellationTiers].sort(
     (a, b) => b.daysBefore - a.daysBefore,
   );
@@ -124,25 +141,29 @@ function tiersNote(airline: AirlinePolicySnapshot): string {
         )
         .join('; ')
     : 'no refund on cancellation';
-  return `${airline.airlineName} (${airline.flightNumber}): ${rules}.`;
+  return `${name} (${airline.flightNumber}): ${rules}.`;
 }
 
 /** Builds the e-ticket view (pure: no I/O, `now` given). */
 export function toETicketView(input: ETicketInput): ETicketView {
   const { booking, airports, airlines } = input;
+  const canPrint = input.canPrint ?? (() => true);
+  const airlineName = (a: AirlinePolicySnapshot | null, flight: string) =>
+    a?.airlineName && canPrint(a.airlineName)
+      ? a.airlineName
+      : `Airline ${a?.airlineCode ?? flight.slice(0, 2)}`;
   const segments = booking.segments.map((s, i) => ({
-    airline:
-      airlines[i]?.airlineName ?? `Airline ${s.flightNumber.slice(0, 2)}`,
+    airline: airlineName(airlines[i], s.flightNumber),
     flightNumber: s.flightNumber,
     cabinClass: s.cabinClass,
-    departure: stop(s.from, s.departureUtc, airports),
-    arrival: stop(s.to, s.arrivalUtc, airports),
+    departure: stop(s.from, s.departureUtc, airports, canPrint),
+    arrival: stop(s.to, s.arrivalUtc, airports, canPrint),
   }));
   // FLT-04: free bags are the same for every passenger of a cabin; take the first leg's allowance.
   const freeBags = airlines[0]?.freeBags ?? 0;
   const known = airlines.filter((a): a is AirlinePolicySnapshot => !!a);
   const policyNotes = [
-    ...known.map(tiersNote),
+    ...known.map((a) => tiersNote(a, airlineName(a, a.flightNumber))),
     ...(booking.policySnapshot
       ? [
           `Terms version ${booking.policySnapshot.version} were accepted before payment (PAY-02).`,
@@ -152,13 +173,17 @@ export function toETicketView(input: ETicketInput): ETicketView {
   ];
   return {
     reference: booking.reference,
-    booker: input.booker,
+    booker: canPrint(input.booker) ? input.booker : BOOKER_FALLBACK,
     issuedAt: DateTime.fromJSDate(booking.confirmedAt ?? input.now, {
       zone: 'utc',
-    }).toFormat("d LLL yyyy, HH:mm 'UTC'"),
+    })
+      .setLocale(TICKET_LOCALE)
+      .toFormat("d LLL yyyy, HH:mm 'UTC'"),
     segments,
-    passengers: booking.passengers.map((p) => ({
-      name: `${p.firstName} ${p.lastName}`,
+    passengers: booking.passengers.map((p, i) => ({
+      name: canPrint(`${p.firstName} ${p.lastName}`)
+        ? `${p.firstName} ${p.lastName}`
+        : passengerFallback(i + 1),
       type: p.type,
       document: maskDocument(p.documentNumber),
       freeBags,
@@ -196,12 +221,11 @@ export function eTicketLines(view: ETicketView): ETicketLine[] {
         text: `${i + 1}. ${s.airline} ${s.flightNumber} - ${s.cabinClass}`,
         style: 'strong',
       },
-      body(
-        `   Depart ${s.departure.airportName} (${s.departure.iataCode}): ${s.departure.localTime}`,
-      ),
-      body(
-        `   Arrive ${s.arrival.airportName} (${s.arrival.iataCode}): ${s.arrival.localTime}`,
-      ),
+      // Airport and time on separate lines, so neither wraps mid-zone on A4.
+      body(`   Depart ${s.departure.airportName} (${s.departure.iataCode})`),
+      body(`${TIME_INDENT}${s.departure.localTime}`),
+      body(`   Arrive ${s.arrival.airportName} (${s.arrival.iataCode})`),
+      body(`${TIME_INDENT}${s.arrival.localTime}`),
     );
   });
   lines.push(gap, { text: 'Passengers', style: 'heading' });

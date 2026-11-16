@@ -918,4 +918,15 @@ describe('FlightBookingsService FLT-23 confirmation notice and e-ticket', () => 
     expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
     expect(inventory.getAirlinePolicy).not.toHaveBeenCalled();
   });
+
+  it('a failing airport lookup does not block the confirmation: the notice falls back to UTC', async () => {
+    const { service, reference, notifications } = setup({}, { moved: [1] });
+    reference.getAirport.mockRejectedValue(new Error('reference down'));
+    await expect(
+      service.markConfirmed(oid(), { paymentId: oid() }, {} as never, NOW),
+    ).resolves.toBeUndefined();
+    expect(notifications.notify.mock.calls[0][0]).toMatchObject({
+      body: 'CDG -> HND, flight HQ100, departs Wed 1 Dec 2027, 10:00 (UTC+00:00, UTC); 1 passenger.',
+    });
+  });
 });

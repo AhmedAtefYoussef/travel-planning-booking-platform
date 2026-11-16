@@ -40,28 +40,30 @@ describe('Flight e-ticket (e2e): FLT-23, GEN-06', () => {
   let owner: LoggedIn;
   let stranger: LoggedIn;
 
-  const hold = async (who: LoggedIn, documentNumber = 'A1234567') =>
+  type Names = { firstName: string; lastName: string; documentNumber: string };
+  const MONA: Names = {
+    firstName: 'Mona',
+    lastName: 'Adel',
+    documentNumber: 'A1234567',
+  };
+  const hold = async (who: LoggedIn, people: Names[] = [MONA]) =>
     (
       await http()
         .post('/api/flight-bookings/hold')
         .set('Cookie', who.cookie)
         .send({
           outbound: flight,
-          passengers: [
-            {
-              type: 'ADULT',
-              firstName: 'Mona',
-              lastName: 'Adel',
-              dateOfBirth: '1990-05-01',
-              documentNumber,
-            },
-          ],
+          passengers: people.map((p) => ({
+            type: 'ADULT',
+            dateOfBirth: '1990-05-01',
+            ...p,
+          })),
         })
         .expect(201)
     ).body.id as string;
 
-  const ready = async (who: LoggedIn) => {
-    const bookingId = await hold(who);
+  const ready = async (who: LoggedIn, people?: Names[]) => {
+    const bookingId = await hold(who, people);
     const shown = await http()
       .get(`/api/bookings/flight/${bookingId}/policies`)
       .set('Cookie', who.cookie)
@@ -103,8 +105,8 @@ describe('Flight e-ticket (e2e): FLT-23, GEN-06', () => {
       .expect(200);
   };
 
-  const confirmed = async (who: LoggedIn) => {
-    const { bookingId, pi } = await ready(who);
+  const confirmed = async (who: LoggedIn, people?: Names[]) => {
+    const { bookingId, pi } = await ready(who, people);
     await succeeded(pi);
     return bookingId;
   };
@@ -199,10 +201,10 @@ describe('Flight e-ticket (e2e): FLT-23, GEN-06', () => {
     expect(text).toContain('1. Ticket Air TK230 - ECONOMY');
     // GEN-06: each airport's own wall time and zone.
     expect(text).toContain(
-      'Depart Cairo International Airport (CAI): Thu 10 Aug 2028, 09:15 (UTC+03:00, Africa/Cairo)',
+      'Depart Cairo International Airport (CAI)\n      Thu 10 Aug 2028, 09:15 (UTC+03:00, Africa/Cairo)',
     );
     expect(text).toContain(
-      'Arrive Heathrow Airport (LHR): Thu 10 Aug 2028, 13:05 (UTC+01:00, Europe/London)',
+      'Arrive Heathrow Airport (LHR)\n      Thu 10 Aug 2028, 13:05 (UTC+01:00, Europe/London)',
     );
     expect(text).toContain(
       'Mona Adel (ADULT) - document ****4567 - 2 free bag(s), no extra bags',
@@ -213,6 +215,20 @@ describe('Flight e-ticket (e2e): FLT-23, GEN-06', () => {
     // PII: the full passport number is never in the file.
     expect(text).not.toContain('A1234567');
     expect(pdf.toString('latin1')).not.toContain('A1234567');
+  });
+
+  it('FLT-23 e-ticket prints a Latin Extended name and replaces an Arabic one with a safe fallback', async () => {
+    const id = await confirmed(owner, [
+      { firstName: 'Łukasz', lastName: 'Żółć', documentNumber: 'PL998877' },
+      { firstName: 'منى', lastName: 'عادل', documentNumber: 'EG554433' },
+    ]);
+    const res = await eTicket(owner, id).expect(200);
+    const text = pdfText(res.body as Buffer);
+    expect(text).toContain('1. Łukasz Żółć (ADULT) - document ****8877');
+    expect(text).toContain(
+      '2. Passenger 2 (name as booked) (ADULT) - document ****4433',
+    );
+    expect(text).not.toContain('\uFFFD');
   });
 
   it('FLT-23 pending booking e-ticket is 409 BOOKING_NOT_CONFIRMED', async () => {

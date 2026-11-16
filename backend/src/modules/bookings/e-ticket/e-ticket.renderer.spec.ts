@@ -1,6 +1,7 @@
 import type { Airport, AirlinePolicySnapshot } from '../../../common/contracts';
 import { pdfText } from '../../../../test/support/pdf-text';
-import { renderETicket } from './e-ticket.renderer';
+import { Settings } from 'luxon';
+import { canPrint, renderETicket } from './e-ticket.renderer';
 import {
   eTicketLines,
   formatLocal,
@@ -107,10 +108,10 @@ describe('FLT-23 e-ticket (GEN-06 local times, passport masking)', () => {
     );
     const text = pdfText(await renderETicket(v));
     expect(text).toContain(
-      'Depart Cairo International Airport (CAI): Tue 1 Dec 2026, 10:00 (UTC+02:00, Africa/Cairo)',
+      'Depart Cairo International Airport (CAI)\n      Tue 1 Dec 2026, 10:00 (UTC+02:00, Africa/Cairo)',
     );
     expect(text).toContain(
-      'Arrive London Heathrow Airport (LHR): Tue 1 Dec 2026, 12:30 (UTC+00:00, Europe/London)',
+      'Arrive London Heathrow Airport (LHR)\n      Tue 1 Dec 2026, 12:30 (UTC+00:00, Europe/London)',
     );
   });
 
@@ -202,9 +203,72 @@ describe('FLT-23 e-ticket (GEN-06 local times, passport masking)', () => {
     });
     const lines = eTicketLines(v).map((l) => l.text);
     expect(lines).toContain('2. Nile Air NA778 - ECONOMY');
-    expect(lines).toContain(
-      '   Depart London Heathrow Airport (LHR): Thu 10 Dec 2026, 08:00 (UTC+00:00, Europe/London)',
+    const depart = lines.indexOf('   Depart London Heathrow Airport (LHR)');
+    expect(depart).toBeGreaterThan(0);
+    expect(lines[depart + 1]).toBe(
+      '      Thu 10 Dec 2026, 08:00 (UTC+00:00, Europe/London)',
     );
     expect(lines).toContain('Nile Air (NA778): no refund on cancellation.');
+  });
+
+  it('prints Latin Extended, Greek and Cyrillic names with the embedded font; Arabic gets the fallback', async () => {
+    expect(canPrint('Łukasz Żółć')).toBe(true);
+    expect(canPrint('Νίκος Παπαδόπουλος')).toBe(true);
+    expect(canPrint('Иван Петров')).toBe(true);
+    expect(canPrint('Mona Adel')).toBe(true);
+    expect(canPrint('منى عادل')).toBe(false);
+    expect(canPrint('Mona\u0000')).toBe(false);
+
+    const base = booking();
+    const v = toETicketView({
+      booking: {
+        ...base,
+        passengers: [
+          { ...base.passengers[0], firstName: 'Łukasz', lastName: 'Żółć' },
+          { ...base.passengers[1], firstName: 'منى', lastName: 'عادل' },
+          {
+            ...base.passengers[0],
+            firstName: 'Mona',
+            lastName: 'Adel',
+            documentNumber: 'C1112222',
+          },
+        ],
+      },
+      booker: 'منى عادل',
+      airports,
+      airlines: [{ ...airline, airlineName: 'طيران النيل' }],
+      now: new Date('2026-11-16T10:00:00Z'),
+      canPrint,
+    });
+    expect(v.passengers.map((p) => p.name)).toEqual([
+      'Łukasz Żółć',
+      'Passenger 2 (name as booked)',
+      'Mona Adel',
+    ]);
+    expect(v.booker).toBe('Account holder');
+    expect(v.segments[0].airline).toBe('Airline NA');
+    expect(v.policyNotes[0]).toMatch(/^Airline NA \(NA777\)/);
+
+    const pdf = await renderETicket(v);
+    const text = pdfText(pdf);
+    expect(text).toContain('1. Łukasz Żółć (ADULT)');
+    expect(text).toContain('2. Passenger 2 (name as booked) (INFANT)');
+    expect(text).toContain('Booked by: Account holder');
+    expect(text).not.toContain('\uFFFD');
+    // The Title stays ASCII: "E-ticket <reference>" as a plain (non-UTF-16) literal string.
+    expect(pdf.toString('latin1')).toContain('(E-ticket FL-AB12CD34)');
+  });
+
+  it('formats dates in English whatever the host locale is', () => {
+    const before = Settings.defaultLocale;
+    Settings.defaultLocale = 'ar-EG';
+    try {
+      expect(
+        formatLocal(new Date('2026-12-01T08:00:00Z'), 'Africa/Cairo'),
+      ).toBe('Tue 1 Dec 2026, 10:00 (UTC+02:00, Africa/Cairo)');
+      expect(view().issuedAt).toBe('16 Nov 2026, 09:30 UTC');
+    } finally {
+      Settings.defaultLocale = before;
+    }
   });
 });

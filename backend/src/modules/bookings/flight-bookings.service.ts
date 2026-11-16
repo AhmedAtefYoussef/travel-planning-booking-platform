@@ -46,7 +46,7 @@ import type {
   FlightQuoteDto,
   PassengerDto,
 } from './dto/flight-booking.dto';
-import { renderETicket } from './e-ticket/e-ticket.renderer';
+import { canPrint, renderETicket } from './e-ticket/e-ticket.renderer';
 import { formatLocal, toETicketView } from './e-ticket/e-ticket.view';
 import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
 import { ageOn, passengerTypeOn } from './passenger-age';
@@ -371,7 +371,15 @@ export class FlightBookingsService implements PayableBooking {
       .exec();
     if (!b) throw new Error(`Confirmed flight booking ${bookingId} vanished`);
     const first = b.segments[0];
-    const airport = await this.reference.getAirport(first.from);
+    // Reference data only decorates the notice: a lookup failure must not abort the confirmation.
+    let airport: Airport | null = null;
+    try {
+      airport = await this.reference.getAirport(first.from);
+    } catch (e) {
+      this.logger.warn(
+        `Booking ${bookingId}: airport ${first.from} lookup failed (${e instanceof Error ? e.message : String(e)}); the confirmation notice shows UTC`,
+      );
+    }
     const route = [first.from, ...b.segments.map((s) => s.to)].join(' -> ');
     const flights = b.segments.map((s) => s.flightNumber).join(' / ');
     const people = b.passengers.length;
@@ -448,6 +456,7 @@ export class FlightBookingsService implements PayableBooking {
         airports,
         airlines,
         now,
+        canPrint,
       }),
     );
     return { filename: `e-ticket-${booking.reference}.pdf`, pdf };
