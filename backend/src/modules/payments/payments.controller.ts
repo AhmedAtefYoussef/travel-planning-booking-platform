@@ -31,7 +31,7 @@ import { CreatePaymentDto, PaymentDto } from './dto/payment.dto';
 import { PaymentsService } from './payments.service';
 
 const HOW_TO_PAY =
-  'In test mode, pay the returned PaymentIntent with Stripe Elements, or from the Stripe CLI: `stripe payment_intents confirm <paymentIntentId> --payment-method pm_card_visa` (pm_card_chargeDeclined to fail). Run `stripe listen --forward-to localhost:3000/api/payments/webhook` so the webhook confirms the booking.';
+  'In test mode, pay the returned PaymentIntent with Stripe Elements, or from the Stripe CLI: `stripe payment_intents confirm <paymentIntentId> --payment-method pm_card_visa` (pm_card_chargeDeclined to fail). Run `stripe listen --events payment_intent.succeeded,payment_intent.payment_failed,payment_intent.canceled,refund.created,refund.updated,refund.failed --forward-to localhost:3000/api/payments/webhook` (Stripe CLI 1.55+ needs --events) so the webhook confirms the booking.';
 
 /** Payments (PAY-01, ADR-0003). */
 @ApiTags('payments')
