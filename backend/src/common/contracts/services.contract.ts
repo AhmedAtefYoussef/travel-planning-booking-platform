@@ -130,6 +130,12 @@ export interface Attraction {
   name: string;
   cityId: string;
 }
+/** A seeded currency (GEN-12) with its minor-unit digits (USD 2, JPY 0), used by ITN-18 conversion. */
+export interface CurrencyInfo {
+  code: string;
+  name: string;
+  minorUnits: number;
+}
 
 export interface ReferenceService {
   getAirport(iataCode: string): Promise<Airport | null>;
@@ -139,6 +145,8 @@ export interface ReferenceService {
   listCities(countryCode?: string): Promise<City[]>;
   listCountries(): Promise<Country[]>;
   listAttractions(cityId: string): Promise<Attraction[]>;
+  /** Seeded currencies sorted by code (ITN-18, PAY-04). */
+  listCurrencies(): Promise<CurrencyInfo[]>;
 }
 
 /* ----------------------------------------------------------------------------------------------

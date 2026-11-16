@@ -738,6 +738,9 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/cities',
         'GET /api/airports',
         'GET /api/currencies',
+        // ITN-18 / PAY-04 (TRVL-133): cached exchange rates and the conversion demo, public like the list.
+        'GET /api/currencies/rates',
+        'GET /api/currencies/convert',
         'GET /api/airlines/:id',
         'GET /api/airlines/:id/cancellation-policy/refund-preview',
         'GET /api/flights/search',

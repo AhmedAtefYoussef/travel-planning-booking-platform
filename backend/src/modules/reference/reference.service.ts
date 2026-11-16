@@ -6,6 +6,7 @@ import type {
   Attraction as AttractionInfo,
   City as CityInfo,
   Country as CountryInfo,
+  CurrencyInfo,
   ReferenceService,
 } from '../../common/contracts';
 import { Page, paginate } from '../../common/pagination/pagination';
@@ -101,6 +102,14 @@ export class ReferenceDataService implements ReferenceService {
       .find({ cityId: cityId.trim() }, ATTRACTION_FIELDS)
       .sort({ name: 1 })
       .lean<AttractionInfo[]>()
+      .exec();
+  }
+
+  async listCurrencies(): Promise<CurrencyInfo[]> {
+    return this.currencies
+      .find({}, CURRENCY_FIELDS)
+      .sort({ code: 1 })
+      .lean<CurrencyInfo[]>()
       .exec();
   }
 
