@@ -52,6 +52,46 @@ const infant = {
   dateOfBirth: '2027-01-01',
 };
 
+/** A confirmed one-way CDG -> HND booking as stored (FLT-23). */
+function confirmedDoc(over: object = {}) {
+  return {
+    _id: new Types.ObjectId(),
+    userId: new Types.ObjectId(),
+    status: BookingStatus.Confirmed,
+    reference: 'FL-AB12CD34',
+    totalMinor: 100_000,
+    currency: 'EGP',
+    confirmedAt: NOW,
+    policySnapshot: null,
+    segments: [
+      {
+        flightId: new Types.ObjectId(),
+        cabinId: new Types.ObjectId(),
+        cabinClass: 'ECONOMY',
+        flightNumber: 'HQ100',
+        from: 'CDG',
+        to: 'HND',
+        departureUtc: new Date('2027-12-01T10:00:00Z'),
+        arrivalUtc: new Date('2027-12-02T06:00:00Z'),
+        seats: 1,
+        fareMinor: 100_000,
+      },
+    ],
+    passengers: [
+      {
+        type: PassengerType.Adult,
+        firstName: 'Mona',
+        lastName: 'Adel',
+        dateOfBirth: '1990-05-01',
+        documentNumber: 'A1234567',
+        extraBags: 0,
+        extraBagsWeightKg: null,
+      },
+    ],
+    ...over,
+  };
+}
+
 function setup(
   legs: Record<string, BookableCabin | null> = {},
   opts: { reserve?: boolean; moved?: number[] } = {},
@@ -77,7 +117,10 @@ function setup(
     updateOne: jest.fn(() => ({
       exec: () => Promise.resolve({ modifiedCount: moved.shift() ?? 0 }),
     })),
-    findById: jest.fn(),
+    // What markConfirmed reads back after it confirmed (FLT-23 notification).
+    findById: jest.fn().mockReturnValue({
+      lean: () => ({ exec: () => Promise.resolve(confirmedDoc()) }),
+    }),
     find: jest.fn(),
     exists: jest.fn(),
     countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(0) })),
@@ -91,6 +134,28 @@ function setup(
   const guards = {
     updateOne: jest.fn(() => ({ exec: () => Promise.resolve({}) })),
   };
+  const notifications = {
+    notify: jest.fn().mockResolvedValue(undefined),
+    notifyMany: jest.fn(),
+  };
+  const reference = {
+    getAirport: jest.fn((code: string) =>
+      Promise.resolve(
+        code === 'CDG'
+          ? {
+              iataCode: 'CDG',
+              name: 'Paris Charles de Gaulle Airport',
+              cityId: 'paris',
+              countryCode: 'FR',
+              timeZone: 'Europe/Paris',
+            }
+          : null,
+      ),
+    ),
+  };
+  const users = {
+    findProfile: jest.fn().mockResolvedValue({ name: 'Mona Adel' }),
+  };
   const service = new FlightBookingsService(
     model as never,
     guards as never,
@@ -98,8 +163,21 @@ function setup(
     inventory,
     config as never,
     { summaryFor: jest.fn().mockResolvedValue(null) } as never,
+    notifications,
+    reference as never,
+    users as never,
   );
-  return { service, inventory, model, session, stored, guards };
+  return {
+    service,
+    inventory,
+    model,
+    session,
+    stored,
+    guards,
+    notifications,
+    reference,
+    users,
+  };
 }
 
 const request = (
@@ -721,5 +799,134 @@ describe('FlightBookingsService.hold guards (review)', () => {
       code: 'CONFLICT',
     });
     expect(await run(out)).toMatchObject({ code: 'INSUFFICIENT_INVENTORY' });
+  });
+});
+
+describe('FlightBookingsService FLT-23 confirmation notice and e-ticket', () => {
+  const lean = (doc: unknown) =>
+    jest.fn().mockReturnValue({
+      lean: () => ({ exec: () => Promise.resolve(doc) }),
+    });
+
+  it('notifies BOOKING_CONFIRMED once, in the confirming session, with route, flight, local time and passengers', async () => {
+    const { service, notifications } = setup({}, { moved: [1] });
+    const id = oid();
+    const session = {} as never;
+    await service.markConfirmed(id, { paymentId: oid() }, session, NOW);
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'BOOKING_CONFIRMED',
+        title: 'Flight booking FL-AB12CD34 confirmed',
+        body: 'CDG -> HND, flight HQ100, departs Wed 1 Dec 2027, 11:00 (UTC+01:00, Europe/Paris); 1 passenger.',
+        link: `/bookings/flights/${id}`,
+      }),
+      session,
+    );
+  });
+
+  it('a replayed confirmation sends no notice', async () => {
+    const paymentId = oid();
+    const { service, model, notifications } = setup({}, { moved: [0] });
+    model.findById = lean(
+      confirmedDoc({ paymentId: new Types.ObjectId(paymentId) }),
+    );
+    await service.markConfirmed(oid(), { paymentId }, undefined, NOW);
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('a round trip notice names both flights and counts every passenger (airport unknown: UTC)', async () => {
+    const { service, model, notifications } = setup({}, { moved: [1] });
+    const doc = confirmedDoc();
+    model.findById = lean({
+      ...doc,
+      segments: [
+        { ...doc.segments[0], from: 'XXX', to: 'HND' },
+        { ...doc.segments[0], flightNumber: 'HQ101', from: 'HND', to: 'XXX' },
+      ],
+      passengers: [doc.passengers[0], doc.passengers[0]],
+    });
+    await service.markConfirmed(oid(), { paymentId: oid() }, undefined, NOW);
+    expect(notifications.notify.mock.calls[0][0]).toMatchObject({
+      body: 'XXX -> HND -> XXX, flights HQ100 / HQ101, departs Wed 1 Dec 2027, 10:00 (UTC+00:00, UTC); 2 passengers.',
+    });
+  });
+
+  it('getETicket: 404 for unknown, malformed or someone else, 409 unless confirmed or completed, else the PDF', async () => {
+    const owner = { id: oid(), role: Role.User };
+    const { service, model, inventory } = setup();
+    model.findById = lean(null);
+    for (const id of [oid(), 'bad']) {
+      expect(await failure(service.getETicket(owner, id))).toMatchObject({
+        status: 404,
+        message: 'Booking not found',
+      });
+    }
+    const mine = confirmedDoc({ userId: new Types.ObjectId(owner.id) });
+    model.findById = lean(mine);
+    expect(
+      await failure(service.getETicket({ id: oid(), role: Role.User }, oid())),
+    ).toMatchObject({ status: 404, message: 'Booking not found' });
+    for (const status of [
+      BookingStatus.PendingPayment,
+      BookingStatus.Expired,
+      BookingStatus.Cancelled,
+    ]) {
+      model.findById = lean({ ...mine, status });
+      expect(await failure(service.getETicket(owner, oid()))).toMatchObject({
+        status: 409,
+        code: 'BOOKING_NOT_CONFIRMED',
+      });
+    }
+    inventory.getAirlinePolicy.mockResolvedValue(null);
+    for (const status of [BookingStatus.Confirmed, BookingStatus.Completed]) {
+      model.findById = lean({ ...mine, status });
+      const { filename, pdf } = await service.getETicket(owner, oid());
+      expect(filename).toBe('e-ticket-FL-AB12CD34.pdf');
+      expect(pdf.toString('latin1')).toContain('E-ticket FL-AB12CD34');
+    }
+    // No accepted snapshot: the airline's live terms are read instead.
+    expect(inventory.getAirlinePolicy).toHaveBeenCalled();
+  });
+
+  it('getETicket prefers the accepted airline snapshot and falls back for a missing booker', async () => {
+    const owner = { id: oid(), role: Role.User };
+    const { service, model, inventory, users } = setup();
+    users.findProfile.mockResolvedValue(null);
+    model.findById = lean(
+      confirmedDoc({
+        userId: new Types.ObjectId(owner.id),
+        policySnapshot: {
+          version: 'v1',
+          airlines: [
+            {
+              airlineId: oid(),
+              airlineName: 'Hop Air',
+              airlineCode: 'HQ',
+              flightNumber: 'HQ100',
+              cabinClass: 'ECONOMY',
+              freeBags: 1,
+              maxKgPerBag: 23,
+              cancellationTiers: [],
+              extraBaggage: null,
+            },
+          ],
+        },
+      }),
+    );
+    const { pdf } = await service.getETicket(owner, oid());
+    expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+    expect(inventory.getAirlinePolicy).not.toHaveBeenCalled();
+  });
+
+  it('a failing airport lookup does not block the confirmation: the notice falls back to UTC', async () => {
+    const { service, reference, notifications } = setup({}, { moved: [1] });
+    reference.getAirport.mockRejectedValue(new Error('reference down'));
+    await expect(
+      service.markConfirmed(oid(), { paymentId: oid() }, {} as never, NOW),
+    ).resolves.toBeUndefined();
+    expect(notifications.notify.mock.calls[0][0]).toMatchObject({
+      body: 'CDG -> HND, flight HQ100, departs Wed 1 Dec 2027, 10:00 (UTC+00:00, UTC); 1 passenger.',
+    });
   });
 });

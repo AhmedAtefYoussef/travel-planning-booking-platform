@@ -9,7 +9,12 @@ import {
   BookingType,
   FLIGHT_INVENTORY,
   HOLD_DURATION_MS,
+  NOTIFICATIONS_SERVICE,
+  NotificationType,
+  REFERENCE_SERVICE,
   transitionBooking,
+  type Airport,
+  type AirlinePolicySnapshot,
   type BookableCabin,
   type FlightInventory,
   type PayableBooking,
@@ -17,6 +22,8 @@ import {
   REFUNDS_SERVICE,
   type RefundsService,
   type RefundSummary,
+  type NotificationsService,
+  type ReferenceService,
 } from '../../common/contracts';
 import {
   AppException,
@@ -32,12 +39,15 @@ import {
 import { multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { partyErrors, priceParty } from '../flights';
+import { UsersService } from '../users';
 import type {
   FlightBookingDto,
   FlightBookingRequestDto,
   FlightQuoteDto,
   PassengerDto,
 } from './dto/flight-booking.dto';
+import { canPrint, renderETicket } from './e-ticket/e-ticket.renderer';
+import { formatLocal, toETicketView } from './e-ticket/e-ticket.view';
 import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
 import { ageOn, passengerTypeOn } from './passenger-age';
 import { HoldGuard } from './schemas/hold-guard.schema';
@@ -78,6 +88,10 @@ export class FlightBookingsService implements PayableBooking {
     @Inject(FLIGHT_INVENTORY) private readonly inventory: FlightInventory,
     private readonly config: ConfigService<EnvironmentVariables, true>,
     @Inject(REFUNDS_SERVICE) private readonly refunds: RefundsService,
+    @Inject(NOTIFICATIONS_SERVICE)
+    private readonly notifications: NotificationsService,
+    @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
+    private readonly users: UsersService,
   ) {}
 
   /** FLT-21: the price and details of exactly what a hold would take; holds nothing. */
@@ -315,7 +329,13 @@ export class FlightBookingsService implements PayableBooking {
         }
       }
     }
-    if (moved) return;
+    if (moved) {
+      // FLT-23: only the call that actually confirmed notifies (a replay returns below without one).
+      // Seats need no move: a hold already took them from seatsAvailable (= total - booked - held,
+      // one counter, ADR-0002), so a confirmed hold simply keeps them as booked seats.
+      await this.notifyConfirmed(bookingId, session);
+      return;
+    }
     const current = await this.bookings
       .findById(bookingId, null, { session })
       .lean()
@@ -338,6 +358,108 @@ export class FlightBookingsService implements PayableBooking {
         ? 'The 10-minute hold on this booking has expired'
         : `This booking is ${current.status} and cannot be confirmed`,
     );
+  }
+
+  /** FLT-23: the in-app BOOKING_CONFIRMED notice, written in the confirming transaction. */
+  private async notifyConfirmed(
+    bookingId: string,
+    session?: ClientSession,
+  ): Promise<void> {
+    const b = await this.bookings
+      .findById(bookingId, null, { session })
+      .lean()
+      .exec();
+    if (!b) throw new Error(`Confirmed flight booking ${bookingId} vanished`);
+    const first = b.segments[0];
+    // Reference data only decorates the notice: a lookup failure must not abort the confirmation.
+    let airport: Airport | null = null;
+    try {
+      airport = await this.reference.getAirport(first.from);
+    } catch (e) {
+      this.logger.warn(
+        `Booking ${bookingId}: airport ${first.from} lookup failed (${e instanceof Error ? e.message : String(e)}); the confirmation notice shows UTC`,
+      );
+    }
+    const route = [first.from, ...b.segments.map((s) => s.to)].join(' -> ');
+    const flights = b.segments.map((s) => s.flightNumber).join(' / ');
+    const people = b.passengers.length;
+    await this.notifications.notify(
+      {
+        userId: b.userId.toHexString(),
+        type: NotificationType.BookingConfirmed,
+        title: `Flight booking ${b.reference} confirmed`,
+        body: `${route}, flight${b.segments.length > 1 ? 's' : ''} ${flights}, departs ${formatLocal(first.departureUtc, airport?.timeZone ?? 'UTC')}; ${people} passenger${people === 1 ? '' : 's'}.`,
+        link: `/bookings/flights/${bookingId}`,
+      },
+      session,
+    );
+  }
+
+  /**
+   * FLT-23: the owner's e-ticket PDF. Someone else's booking is 404 exactly like an unknown id (ACC-11);
+   * only CONFIRMED or COMPLETED bookings have one (409 BOOKING_NOT_CONFIRMED otherwise).
+   */
+  async getETicket(
+    user: AuthUser,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<{ filename: string; pdf: Buffer }> {
+    const booking = Types.ObjectId.isValid(id)
+      ? await this.bookings.findById(id).lean().exec()
+      : null;
+    if (!booking) throw notFound();
+    assertOwner(user, booking.userId, {
+      notFound: true,
+      notFoundMessage: notFound().message,
+    });
+    const ticketed =
+      booking.status === BookingStatus.Confirmed ||
+      booking.status === BookingStatus.Completed;
+    if (!ticketed || !booking.reference) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.BOOKING_NOT_CONFIRMED,
+        `This booking is ${booking.status}; an e-ticket exists only once it is confirmed`,
+      );
+    }
+    const airports = new Map<string, Airport>();
+    for (const code of new Set(
+      booking.segments.flatMap((s) => [s.from, s.to]),
+    )) {
+      const airport = await this.reference.getAirport(code);
+      if (airport) airports.set(code, airport);
+      else
+        this.logger.warn(
+          `E-ticket ${id}: airport ${code} not in reference data`,
+        );
+    }
+    const accepted = booking.policySnapshot?.airlines ?? [];
+    const airlines: (AirlinePolicySnapshot | null)[] = [];
+    for (const [i, s] of booking.segments.entries()) {
+      const snap =
+        accepted[i]?.flightNumber === s.flightNumber
+          ? accepted[i]
+          : accepted.find((a) => a.flightNumber === s.flightNumber);
+      airlines.push(
+        snap ??
+          (await this.inventory.getAirlinePolicy(
+            s.flightId.toHexString(),
+            s.cabinId.toHexString(),
+          )),
+      );
+    }
+    const profile = await this.users.findProfile(booking.userId.toHexString());
+    const pdf = await renderETicket(
+      toETicketView({
+        booking: { ...booking, reference: booking.reference },
+        booker: profile?.name ?? 'Account holder',
+        airports,
+        airlines,
+        now,
+        canPrint,
+      }),
+    );
+    return { filename: `e-ticket-${booking.reference}.pdf`, pdf };
   }
 
   /**
