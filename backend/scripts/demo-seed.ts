@@ -39,8 +39,11 @@ import {
 export interface DemoSeedResult {
   /** What this run created or completed; empty when everything already existed. */
   created: string[];
+  /** Ids of the demo records, created or reused, for Swagger. Never a password. */
   airlineId: string;
   hotelId: string;
+  flights: { flightNumber: string; id: string; cabinId: string }[];
+  rooms: { number: string; id: string }[];
 }
 
 interface Account {
@@ -79,6 +82,8 @@ export async function seedDemo(
   const passwords = get(PasswordService);
   const travellers = get(UsersService);
   const created: string[] = [];
+  const flightIds: DemoSeedResult['flights'] = [];
+  const roomIds: DemoSeedResult['rooms'] = [];
   const done = (what: string) => {
     if (!created.includes(what)) created.push(what);
   };
@@ -140,6 +145,13 @@ export async function seedDemo(
     done('airline');
   }
   if (!airline) throw new Error('The demo airline could not be created');
+  // An airline that happens to use code DM is not ours to attach a moderator or policies to.
+  if (airline.name !== DEMO_AIRLINE.name) {
+    throw new Error(
+      `The airline with code ${DEMO_AIRLINE.code} is not the demo airline (its name is "${airline.name}", expected "${DEMO_AIRLINE.name}"); ` +
+        'rename or remove it, then run the demo seed again',
+    );
+  }
   const airlineId = airline._id;
   const airlineModeratorId = await ensureAccount(
     DEMO_ACCOUNTS.airlineModerator,
@@ -187,6 +199,15 @@ export async function seedDemo(
       });
       done('flights');
     }
+    const cabin = (await flightModel.findById(flight?._id).lean())?.cabins.find(
+      (c) => c.class === DEMO_CABIN.class,
+    );
+    if (!flight || !cabin) throw new Error(`${plan.flightNumber} has no cabin`);
+    flightIds.push({
+      flightNumber: plan.flightNumber,
+      id: flight._id.toHexString(),
+      cabinId: String((cabin as { _id?: unknown })._id),
+    });
   }
 
   // --- Hotel, its moderator, policies, rooms and availability ---
@@ -205,6 +226,12 @@ export async function seedDemo(
     done('hotel');
   }
   if (!hotel) throw new Error('The demo hotel could not be created');
+  if (hotel.address !== DEMO_HOTEL.address) {
+    throw new Error(
+      `The hotel named "${DEMO_HOTEL.name}" in ${DEMO_HOTEL.cityId} is not the demo hotel (a different address); ` +
+        'rename or remove it, then run the demo seed again',
+    );
+  }
   const hotelId = hotel._id;
   const hotelModeratorId = await ensureAccount(
     DEMO_ACCOUNTS.hotelModerator,
@@ -250,6 +277,7 @@ export async function seedDemo(
       );
       done('rooms');
     }
+    if (room) roomIds.push({ number: plan.number, id: room._id.toHexString() });
   }
 
   await ensureAccount(DEMO_ACCOUNTS.traveller, Role.User);
@@ -258,5 +286,7 @@ export async function seedDemo(
     created,
     airlineId: airlineId.toHexString(),
     hotelId: hotelId.toHexString(),
+    flights: flightIds,
+    rooms: roomIds,
   };
 }

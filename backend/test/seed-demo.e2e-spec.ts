@@ -122,5 +122,49 @@ describe('Demo seed (e2e): TRVL-135', () => {
     await expect(seedDemo(app, PASSWORD)).rejects.toThrow(
       /demo\.traveller@example\.com.*already belongs/,
     );
+    await app
+      .get<Model<User>>(getModelToken(User.name))
+      .updateOne(
+        { email: DEMO_ACCOUNTS.traveller.email },
+        { $set: { role: 'USER' } },
+      );
+  });
+
+  it('reports the ids it created or reused, and never a password', async () => {
+    const result = await seedDemo(app, PASSWORD);
+    expect(result.airlineId).toBe(ids.airlineId);
+    expect(result.hotelId).toBe(ids.hotelId);
+    expect(result.flights.map((f) => f.flightNumber)).toEqual([
+      'DM101',
+      'DM102',
+    ]);
+    for (const f of result.flights) {
+      expect(f.id).toMatch(/^[a-f0-9]{24}$/);
+      expect(f.cabinId).toMatch(/^[a-f0-9]{24}$/);
+    }
+    expect(result.rooms.map((r) => r.number)).toEqual(['101', '102']);
+    expect(JSON.stringify(result)).not.toContain(PASSWORD);
+  });
+
+  it('refuses to adopt an airline or hotel that is not the demo one', async () => {
+    const airlines = app.get<Model<Airline>>(getModelToken(Airline.name));
+    await airlines.updateOne({ code: 'DM' }, { $set: { name: 'Other Air' } });
+    await expect(seedDemo(app, PASSWORD)).rejects.toThrow(
+      /airline with code DM is not the demo airline/,
+    );
+    await airlines.updateOne({ code: 'DM' }, { $set: { name: 'Demo Air' } });
+
+    const hotels = app.get<Model<Hotel>>(getModelToken(Hotel.name));
+    await hotels.updateOne(
+      { name: DEMO_HOTEL.name },
+      { $set: { address: '9 Somewhere Else' } },
+    );
+    await expect(seedDemo(app, PASSWORD)).rejects.toThrow(
+      /hotel named .* is not the demo hotel/,
+    );
+    await hotels.updateOne(
+      { name: DEMO_HOTEL.name },
+      { $set: { address: DEMO_HOTEL.address } },
+    );
   });
 });

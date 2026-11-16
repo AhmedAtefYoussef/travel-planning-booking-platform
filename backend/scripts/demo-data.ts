@@ -53,7 +53,7 @@ export const DEMO_AIRLINE = {
   ],
 } as const;
 
-/** Flights in March 2028, local airport times; far enough ahead that the demo stays bookable. */
+/** Flights in March 2028, local airport times. They must stay in the future: move these (and the room availability below) forward once that date has passed. */
 export const DEMO_FLIGHTS = [
   {
     flightNumber: 'DM101',
