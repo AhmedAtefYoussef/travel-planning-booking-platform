@@ -1460,3 +1460,19 @@ ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. 
 its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
 verify and tried every endpoint in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-143, ITN-16
+Prompt:
+Build the itinerary budgets on top of the TRVL-141 itinerary schemas, one pull request per feature as
+Ahmed asked: this one holds the budget_entries and transport_costs schemas (TRVL-143) and ITN-16, add,
+edit and delete an intercity transport cost (mode, from-city, to-city, amount, currency, day).
+How the output was used:
+Claude wrote both schemas and the transport-cost DTOs, service, controller and Swagger docs: owner only
+(404 for anyone else on a private itinerary), the day must belong to the itinerary, both cities must be
+reference cities and differ, the currency must be a seeded one, and e2e tests. I reviewed the diff and
+ran the checks locally.
+================================================
