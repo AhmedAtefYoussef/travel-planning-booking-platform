@@ -1251,6 +1251,12 @@ How the output was used:
 Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund, after departure, stranger
 404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
 found no blocking issues. I reviewed the diff and ran the live check in Swagger.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
 Related Requirement: ACC-15 (TRVL-25), ACC-16 (TRVL-26), GEN-07
 Prompt:
 Implement ACC-15 and ACC-16: PATCH /api/admin/accounts/:id/suspend|reactivate for users and moderators
