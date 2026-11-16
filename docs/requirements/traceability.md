@@ -110,14 +110,14 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | - | Not started |
-| ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | - | Not started |
-| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | - | Not started |
+| ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | #73 | Partial: itinerary schema and private default implemented; create/edit/delete API pending |
+| ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | #73 | Partial: itinerary schema supports list/detail fields; list/detail API pending |
+| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73 | Partial: embedded day schema validates sequential order and 60-day cap; date helper derives startDate + order - 1; day API pending |
 | ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | - | Not started |
 | ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | - | Not started |
-| ITN-09 | Mandatory | day city + grouping in itinerary responses | Sarah | TRVL-75 | - | Not started |
-| ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | - | Not started |
-| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | - | Not started |
+| ITN-09 | Mandatory | day city + grouping in itinerary responses | Sarah | TRVL-75 | #73 | Partial: consecutive-city grouping helper preserves day order; response grouping, day counts and budget subtotals pending |
+| ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73 | Partial: activity schema fields implemented; activity CRUD API pending |
+| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Partial: activity image URL array and five-image limit implemented; upload/remove API pending |
 | ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | - | Not started |
 | ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id | Malak | TRVL-79 | - | Not started |
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68 | Partial: rates, cache and convert in place (TRVL-133); itinerary budget conversion pending |
