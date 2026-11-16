@@ -1251,4 +1251,15 @@ How the output was used:
 Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund, after departure, stranger
 404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
 found no blocking issues. I reviewed the diff and ran the live check in Swagger.
+Related Requirement: ACC-15 (TRVL-25), ACC-16 (TRVL-26), GEN-07
+Prompt:
+Implement ACC-15 and ACC-16: PATCH /api/admin/accounts/:id/suspend|reactivate for users and moderators
+(never admins) and PATCH /api/admin/providers/:type/:id/deactivate|reactivate for airlines and hotels.
+Race-safe status changes, refresh sessions revoked on suspension, notifications to the affected account or
+the provider's moderators, an audit entry for every action, test-first.
+How the output was used:
+Claude wrote failing unit and e2e tests, then the suspension and provider services and controllers. The
+independent review found that a hold made before deactivation could still be paid; the fix blocks payment
+creation (409 PROVIDER_INACTIVE) and refunds a payment captured after deactivation instead of confirming.
+I reviewed both rounds and ran the live check in Swagger.
 ================================================
