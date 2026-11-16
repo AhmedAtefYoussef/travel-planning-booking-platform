@@ -10,6 +10,7 @@ import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
 import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
 import { HotelsModule } from './modules/hotels';
+import { ModerationModule } from './modules/moderation';
 import { NotificationsModule } from './modules/notifications';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
@@ -30,6 +31,7 @@ import { UsersModule } from './modules/users';
     AuthModule,
     AuditModule,
     NotificationsModule,
+    ModerationModule,
     UploadsModule,
     BookingsModule,
     PaymentsModule,
