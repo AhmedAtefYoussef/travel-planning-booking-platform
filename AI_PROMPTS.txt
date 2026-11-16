@@ -1643,3 +1643,31 @@ CommentsService answer 404 to listing or adding comments when the post's author 
 through UsersService.findProfile. An ACC-12 e2e test and CommentsService unit tests were added (the
 src/modules/ branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-07
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-07 on its own
+branch from the BLG-05 comments work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added PATCH and DELETE /api/comments/:id for the comment's author only (403 for anyone else), the
+post's commentCount lowered in the same transaction as the delete, and e2e tests.
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-07
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: bring BLG-07 up to date so its pull
+request can open as soon as BLG-05 (#97) merges.
+How the output was used:
+Claude rebuilt BLG-07 on the reviewed BLG-05 branch (develop merged, ACC-12 rule kept), re-applied only the
+edit and delete comment endpoints, and added CommentsService unit tests for them (the src/modules/
+branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
+================================================

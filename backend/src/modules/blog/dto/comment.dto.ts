@@ -7,7 +7,7 @@ import { AuthorRefDto } from './post.dto';
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
 
-/** BLG-05: the comment text. */
+/** BLG-05 (add) and BLG-07 (edit): the comment text. */
 export class CommentBodyDto {
   @ApiProperty({
     example: 'Great tips, thanks!',
