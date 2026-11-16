@@ -21,6 +21,7 @@ const PASSWORD = 'Demo2028pass';
 /** TRVL-135: `npm run seed:demo` builds the demo data once and is safe to run again. */
 describe('Demo seed (e2e): TRVL-135', () => {
   let app: INestApplication<App>;
+  let ids: { airlineId: string; hotelId: string };
   const count = <T>(token: string, filter = {}) =>
     app.get<Model<T>>(getModelToken(token)).countDocuments(filter);
 
@@ -35,13 +36,14 @@ describe('Demo seed (e2e): TRVL-135', () => {
 
   it('creates the airline, hotel, flights, rooms and accounts', async () => {
     const first = await seedDemo(app, PASSWORD);
+    ids = first;
     expect(first.created).toEqual(
       expect.arrayContaining(['airline', 'hotel', 'flights', 'rooms']),
     );
     expect(await count(Airline.name, { code: DEMO_AIRLINE.code })).toBe(1);
     expect(await count(Hotel.name, { name: DEMO_HOTEL.name })).toBe(1);
-    expect(await count(Flight.name)).toBe(2);
-    expect(await count(Room.name)).toBe(2);
+    expect(await count(Flight.name, { airlineId: ids.airlineId })).toBe(2);
+    expect(await count(Room.name, { hotelId: ids.hotelId })).toBe(2);
     expect(
       await count(User.name, {
         email: {
@@ -60,7 +62,7 @@ describe('Demo seed (e2e): TRVL-135', () => {
     expect(airline?.policy?.cancellationTiers).toHaveLength(3);
     const flights = await app
       .get<Model<Flight>>(getModelToken(Flight.name))
-      .find()
+      .find({ airlineId: ids.airlineId })
       .lean();
     expect(flights.every((f) => f.status === FlightStatus.Scheduled)).toBe(
       true,
@@ -77,7 +79,7 @@ describe('Demo seed (e2e): TRVL-135', () => {
     expect(hotel?.cancellationTiers).toHaveLength(2);
     const rooms = await app
       .get<Model<Room>>(getModelToken(Room.name))
-      .find()
+      .find({ hotelId: ids.hotelId })
       .lean();
     expect(rooms.every((r) => r.availability.length === 1)).toBe(true);
   });
@@ -99,10 +101,10 @@ describe('Demo seed (e2e): TRVL-135', () => {
   it('running it again creates nothing new', async () => {
     const second = await seedDemo(app, PASSWORD);
     expect(second.created).toEqual([]);
-    expect(await count(Airline.name)).toBe(1);
-    expect(await count(Hotel.name)).toBe(1);
-    expect(await count(Flight.name)).toBe(2);
-    expect(await count(Room.name)).toBe(2);
+    expect(await count(Airline.name, { code: DEMO_AIRLINE.code })).toBe(1);
+    expect(await count(Hotel.name, { name: DEMO_HOTEL.name })).toBe(1);
+    expect(await count(Flight.name, { airlineId: ids.airlineId })).toBe(2);
+    expect(await count(Room.name, { hotelId: ids.hotelId })).toBe(2);
     expect(
       await count(User.name, {
         email: { $in: Object.values(DEMO_ACCOUNTS).map((a) => a.email) },
