@@ -60,11 +60,15 @@ erDiagram
 | `payments` | Ahmed (TRVL-161), **implemented** | bookingType, bookingId, userId, stripePaymentIntentId, amountMinor, currency, status, attempts | unique `stripePaymentIntentId`; unique {bookingType, bookingId} where SUCCEEDED |
 | `refunds` | Ahmed (TRVL-161), **implemented** | paymentId, booking ref, amountMinor, refundPercent, tierApplied, reason, status, stripeRefundId | unique {bookingType, bookingId}; unique `stripeRefundId` when present |
 | `stripe_events` | Ahmed (TRVL-161), **implemented** | stripeEventId, type, processedAt | unique `stripeEventId`; TTL 30 days |
-| `itineraries` | Sarah (TRVL-141) | ownerId, title, countries, startDate, visibility, days[{order, cityId, notes}], clonedFrom{itineraryId, authorId}, isHidden | {ownerId, updatedAt}; text index for public search |
-| `activities` | Sarah (TRVL-141) | itineraryId, dayId, name, time, costMinor, images | {itineraryId, dayId} |
+| `itineraries` | Sarah (TRVL-141), **implemented** | ownerId, title (max 100), countries (seeded ISO codes), startDate (YYYY-MM-DD), visibility PUBLIC/PRIVATE (private by default), days[{_id, order, cityId, notes}] (1..60), clonedFrom{itineraryId, authorId, authorName}, isHidden | {ownerId, updatedAt}; text index for public search |
+| `activities` | Sarah (TRVL-141), **implemented** | itineraryId, dayId (embedded day's `_id`), name, description, optional time (HH:mm), optional costMinor/currency, images (URLs) | {itineraryId, dayId}; max 5 images |
 | `budget_entries`, `transport_costs` | Malak (TRVL-143) | itineraryId, dayId, category, amountMinor, currency | {itineraryId} |
 | `exchange_rates` | Ahmed (TRVL-133), **implemented** | base (PLATFORM_CURRENCY), rateDate (YYYY-MM-DD, UTC day from the API), rates{CODE: rate per 1 base, finite > 0; base itself implicit 1}, fetchedAt. One document per day; old days kept as the fallback cache (ITN-18) | unique {base, rateDate} |
 | `posts`, `comments`, `likes`, `reports` | Malak (TRVL-142) | authorId, status DRAFT/PUBLISHED, tags, isHidden, likeCount, commentCount | unique {postId, userId} on likes; unique {reporterId, targetType, targetId} on reports |
 | `notifications` | Ahmed (TRVL-96), **implemented** | userId, type, title, body, link (frontend route starting with a single /), readAt (null until read) | {userId, readAt, createdAt} for unread count and read-all; {userId, createdAt:-1, _id:-1} for the newest-first list |
 | `audit_logs` | Ahmed (TRVL-162), **implemented** | actorId, actorRole, action, targetType, targetId, reason, metadata | {createdAt:-1}, {actorId, createdAt}, {targetType, targetId}; append-only |
 | `countries`, `cities`, `airports`, `attractions`, `currencies` | Joudy (GEN-12) | dataset ids (ISO code, city_id, IATA) | unique dataset ids; seeded from the official datasets |
+
+### Itinerary day rules (TRVL-141)
+
+Days are embedded in their itinerary and numbered sequentially from 1, with no gaps or duplicates and a maximum of 60 days. A day's calendar date is derived with `addDays(startDate, order - 1)`; it is not stored separately. Consecutive days with the same seeded `cityId` form one city group in day order. A later return to a city starts a separate group. Activity `dayId` stores the embedded day's MongoDB `_id`.
