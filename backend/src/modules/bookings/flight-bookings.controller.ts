@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
   Post,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -13,6 +15,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
@@ -134,5 +137,43 @@ export class FlightBookingsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<FlightBookingDto> {
     return this.bookings.findOne(user, id);
+  }
+
+  @Get(':id/e-ticket')
+  @Roles(Role.User)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOperation({
+    summary: 'FLT-23 Download the e-ticket (PDF) of a confirmed flight booking',
+    description:
+      'Owner only: anyone else gets the same 404 as an unknown id (ACC-11). Only CONFIRMED or COMPLETED bookings have an e-ticket; any other status is 409 BOOKING_NOT_CONFIRMED. The PDF shows the booking reference, booker, every flight (airline, flight number, cabin, airport names and IATA codes, departure and arrival in each airport local time with its zone, GEN-06), every passenger with the passport or ID number masked to its last 4 characters, free and extra bags, the total paid in the platform currency and the accepted policies. Confirmation (PAY-01 webhook) also sends one in-app BOOKING_CONFIRMED notification; seats taken by the hold already count as booked (seatsAvailable = total - booked - held), so confirming moves no seats. Sent as an attachment named e-ticket-<reference>.pdf, never cached.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Flight booking id',
+    examples: {
+      valid: {
+        summary: 'A confirmed booking of yours',
+        value: '6af0eaaec77901aa9f228658',
+      },
+      invalid: { summary: 'Invalid: not an id (400)', value: 'not-an-id' },
+    },
+  })
+  @ApiProduces('application/pdf')
+  @ApiOkResponse({
+    description: 'The e-ticket PDF',
+    content: {
+      'application/pdf': { schema: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiErrorResponses(400, 404, 409)
+  async eTicket(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<StreamableFile> {
+    const { filename, pdf } = await this.bookings.getETicket(user, id);
+    return new StreamableFile(pdf, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${filename}"`,
+    });
   }
 }
