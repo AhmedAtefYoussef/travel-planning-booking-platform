@@ -63,7 +63,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Ahmed | TRVL-40 | #59, #63 | Done |
 | FLT-21 | Mandatory | POST /api/flight-bookings/quote | Ahmed | TRVL-41 | #59, #64 | Done |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
-| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62 | Partial: the verified payment webhook confirms the booking with a unique FL- reference (#62); the confirmation notification and the e-ticket come with FLT-23 |
+| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62 | In progress |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | POST /api/flight-bookings/:id/cancel | Karim | TRVL-45 | - | Not started |
 | FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |

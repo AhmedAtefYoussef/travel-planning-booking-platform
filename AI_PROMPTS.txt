@@ -1203,3 +1203,21 @@ moderators, 401 for guests, 11 entries paginate 10 + 1), then AuditLogService.li
 response DTOs and the controller, and added the route to the paginated-route list in the foundation V&V
 suite. I reviewed the diff and the traceability and contracts notes.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-23 (TRVL-43)
+Prompt:
+Implement the rest of FLT-23: when the verified payment webhook confirms a flight booking, send one
+in-app BOOKING_CONFIRMED notification in the same transaction (never again on a replay), and add
+GET /api/flight-bookings/:id/e-ticket returning a PDF (pdfkit, built-in fonts) with local times per
+airport (GEN-06) and passports masked to the last 4 characters, owner only, test-first.
+How the output was used:
+Claude wrote the failing renderer unit tests (Cairo and London local times, DST, masking) and e2e tests
+(PDF download with headers and Title, 409 BOOKING_NOT_CONFIRMED, stranger 404 equal to unknown 404, one
+notification and none on replay), then a pure view builder and renderer, the notification in
+markConfirmed, getETicket and the route. It confirmed that holds already count as booked seats, so
+confirming moves no seats. I reviewed the diff.
+================================================
