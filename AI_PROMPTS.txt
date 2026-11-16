@@ -1252,3 +1252,19 @@ Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund
 404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
 found no blocking issues. I reviewed the diff and ran the live check in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-21 (TRVL-63), GEN-11
+Prompt:
+Implement HTL-21 like FLT-26: GET /api/hotel-bookings/:id/refund-quote and POST /api/hotel-bookings/:id/cancel
+for the owner of a Confirmed reservation, whole reservation only, before the hotel-local check-in date. In one
+transaction move Confirmed -> Cancelled, free every booked room-night, refund the snapshot tier on the full
+total through REFUNDS_SERVICE and notify the guest, test-first.
+How the output was used:
+Claude wrote failing unit and e2e tests (2 rooms x 3 nights, rooms holdable again, window closed at local
+midnight, stranger 404, two cancels racing), then a releaseBookedNights inventory seam and the cancel core.
+An independent review found no blocking issues. I reviewed the diff and ran the live check in Swagger.
+================================================
