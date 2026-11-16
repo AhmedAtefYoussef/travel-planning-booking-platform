@@ -1236,3 +1236,21 @@ Claude wrote the failing unit and e2e tests first (one notification with the rig
 a replay or a refused confirmation), then injected NOTIFICATIONS_SERVICE into HotelBookingsService and
 built the text from the reservation snapshot so no lookup can block the confirmation. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01, BLG-02, BLG-03, BLG-04, BLG-05, BLG-06, BLG-07, BLG-08, BLG-09, BLG-10, BLG-12
+Prompt:
+Read the project brief, my Jira tasks for the Blog & Community epic and the team conventions
+(CONTRIBUTING.md, docs/api/conventions.md, docs/architecture/contracts.md), then implement the blog
+module: posts, comments and likes schemas, and the endpoints for create, browse, search, my posts,
+edit/delete, tags, comments, likes, image uploads and the author page, with e2e tests.
+How the output was used:
+Claude designed the posts/comments/likes schemas (unique {postId, userId} like index, counters and an
+interaction score updated in the same transaction as each like or comment), wrote the services,
+controllers and Swagger docs following the hotels module patterns (GEN-08 uploads, ownership checks,
+fixed page size), and an e2e suite covering each rule including concurrent likes. I reviewed the diff
+and ran the checks locally.
+================================================
