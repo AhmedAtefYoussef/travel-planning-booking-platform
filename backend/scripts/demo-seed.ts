@@ -88,6 +88,23 @@ export async function seedDemo(
     if (!created.includes(what)) created.push(what);
   };
 
+  /** The provider a demo moderator is assigned to, or null when that moderator does not exist yet. */
+  const moderatorOf = async (
+    account: Account,
+    type: ProviderType,
+  ): Promise<{ providerId: Types.ObjectId } | null> => {
+    const email = account.email.toLowerCase();
+    const existing = await users.findOne({ email }).lean();
+    if (!existing) return null;
+    if (existing.assignedProvider?.type !== type) {
+      throw new Error(
+        `${email} already belongs to a ${existing.role} account that is not the demo ${type.toLowerCase()} moderator; ` +
+          'rename or remove it, then run the demo seed again',
+      );
+    }
+    return { providerId: existing.assignedProvider.providerId };
+  };
+
   const ensureAccount = async (
     account: Account,
     role: Role,
@@ -138,20 +155,27 @@ export async function seedDemo(
   };
 
   // --- Airline, its moderator, policies, flights and cabins ---
-  let airline = await airlineModel.findOne({ code: DEMO_AIRLINE.code }).lean();
+  // The demo moderator's email is the marker no API call can change (moderators rename their airline,
+  // even its code). Once that moderator exists, the airline is the one it is assigned to.
+  const airlineMod = await moderatorOf(
+    DEMO_ACCOUNTS.airlineModerator,
+    ProviderType.Airline,
+  );
+  let airline = airlineMod
+    ? await airlineModel.findById(airlineMod.providerId).lean()
+    : await airlineModel.findOne({ code: DEMO_AIRLINE.code }).lean();
   if (!airline) {
     await airlines.create({ name: DEMO_AIRLINE.name, code: DEMO_AIRLINE.code });
     airline = await airlineModel.findOne({ code: DEMO_AIRLINE.code }).lean();
     done('airline');
-  }
-  if (!airline) throw new Error('The demo airline could not be created');
-  // An airline that happens to use code DM is not ours to attach a moderator or policies to.
-  if (airline.name !== DEMO_AIRLINE.name) {
+  } else if (!airlineMod && airline.name !== DEMO_AIRLINE.name) {
+    // No demo moderator yet: an airline that merely uses code DM is not ours to attach one or policies to.
     throw new Error(
       `The airline with code ${DEMO_AIRLINE.code} is not the demo airline (its name is "${airline.name}", expected "${DEMO_AIRLINE.name}"); ` +
         'rename or remove it, then run the demo seed again',
     );
   }
+  if (!airline) throw new Error('The demo airline could not be created');
   const airlineId = airline._id;
   const airlineModeratorId = await ensureAccount(
     DEMO_ACCOUNTS.airlineModerator,
@@ -212,7 +236,13 @@ export async function seedDemo(
 
   // --- Hotel, its moderator, policies, rooms and availability ---
   const hotelFilter = { name: DEMO_HOTEL.name, cityId: DEMO_HOTEL.cityId };
-  let hotel = await hotelModel.findOne(hotelFilter).lean();
+  const hotelMod = await moderatorOf(
+    DEMO_ACCOUNTS.hotelModerator,
+    ProviderType.Hotel,
+  );
+  let hotel = hotelMod
+    ? await hotelModel.findById(hotelMod.providerId).lean()
+    : await hotelModel.findOne(hotelFilter).lean();
   if (!hotel) {
     await hotels.create({
       name: DEMO_HOTEL.name,
@@ -224,14 +254,13 @@ export async function seedDemo(
     });
     hotel = await hotelModel.findOne(hotelFilter).lean();
     done('hotel');
-  }
-  if (!hotel) throw new Error('The demo hotel could not be created');
-  if (hotel.address !== DEMO_HOTEL.address) {
+  } else if (!hotelMod && hotel.address !== DEMO_HOTEL.address) {
     throw new Error(
       `The hotel named "${DEMO_HOTEL.name}" in ${DEMO_HOTEL.cityId} is not the demo hotel (a different address); ` +
         'rename or remove it, then run the demo seed again',
     );
   }
+  if (!hotel) throw new Error('The demo hotel could not be created');
   const hotelId = hotel._id;
   const hotelModeratorId = await ensureAccount(
     DEMO_ACCOUNTS.hotelModerator,
