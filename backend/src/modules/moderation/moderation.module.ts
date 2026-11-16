@@ -1,7 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CONTENT_MODERATION_REGISTRY } from '../../common/contracts';
+import { AdminModerationController } from './admin-moderation.controller';
 import { ContentRegistryService } from './content-registry.service';
+import { ModerationService } from './moderation.service';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 import { Report, ReportSchema } from './schemas/report.schema';
@@ -16,10 +18,11 @@ import { Report, ReportSchema } from './schemas/report.schema';
   imports: [
     MongooseModule.forFeature([{ name: Report.name, schema: ReportSchema }]),
   ],
-  controllers: [ReportsController],
+  controllers: [ReportsController, AdminModerationController],
   providers: [
     ContentRegistryService,
     ReportsService,
+    ModerationService,
     {
       provide: CONTENT_MODERATION_REGISTRY,
       useExisting: ContentRegistryService,

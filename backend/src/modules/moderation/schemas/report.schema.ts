@@ -1,23 +1,12 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { ModeratableContentType } from '../../../common/contracts';
+import { ReportAction, ReportStatus } from '../report.enums';
+
+export { ReportAction, ReportStatus };
 
 export const REPORTS_COLLECTION = 'reports';
 export const REPORT_REASON_MAX = 500;
-
-export enum ReportStatus {
-  Open = 'OPEN',
-  /** An admin dismissed this report; the content was left alone. */
-  Dismissed = 'DISMISSED',
-  /** The content was hidden or deleted (through this report, another one, or directly). */
-  Actioned = 'ACTIONED',
-}
-
-export enum ReportAction {
-  Dismiss = 'DISMISS',
-  Hide = 'HIDE',
-  Delete = 'DELETE',
-}
 
 @Schema({ _id: false })
 export class ReportResolution {

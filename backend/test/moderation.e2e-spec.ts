@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Role } from '../src/common/auth/auth.types';
+import { Report } from '../src/modules/moderation';
 import { loginAs, type LoggedIn } from './support/auth';
 import { createTestApp } from './support/create-test-app';
 import { TestContent, TestContentModule } from './support/test-content.module';
@@ -26,6 +27,7 @@ describe('Content reports and moderation (e2e): GEN-09, GEN-10', () => {
   let app: INestApplication<App>;
   const http = () => request(app.getHttpServer());
   let items: Model<TestContent>;
+  let reports: Model<Report>;
   let admin: LoggedIn;
 
   const newContent = async (
@@ -49,6 +51,7 @@ describe('Content reports and moderation (e2e): GEN-09, GEN-10', () => {
   beforeAll(async () => {
     app = await createTestApp([TestContentModule]);
     items = app.get(getModelToken(TestContent.name));
+    reports = app.get(getModelToken(Report.name));
     admin = await loginAs(app, Role.Admin);
   });
 
@@ -183,6 +186,359 @@ describe('Content reports and moderation (e2e): GEN-09, GEN-10', () => {
           reason: 'Posted by mistake',
         }).expect(201);
       }
+    });
+  });
+  describe('Admin moderation (GEN-10)', () => {
+    let author: LoggedIn;
+    const reporters: LoggedIn[] = [];
+
+    const asAdmin = (req: request.Test, who: LoggedIn | null = admin) =>
+      who ? req.set('Cookie', who.cookie) : req;
+    const resolve = (
+      id: string,
+      action: unknown,
+      who: LoggedIn | null = admin,
+    ) =>
+      asAdmin(http().patch(`/api/admin/reports/${id}`), who).send({ action });
+    const hide = (type: string, id: string, who: LoggedIn | null = admin) =>
+      asAdmin(http().patch(`/api/admin/content/${type}/${id}/hide`), who);
+    const remove = (type: string, id: string, who: LoggedIn | null = admin) =>
+      asAdmin(http().delete(`/api/admin/content/${type}/${id}`), who);
+    const list = (query: Record<string, unknown> = {}) =>
+      asAdmin(http().get('/api/admin/reports').query(query));
+    /** Reports `targetId` once by each of the first `n` reporters; returns the report ids. */
+    const reportedBy = async (
+      n: number,
+      targetType: 'POST' | 'COMMENT',
+      targetId: string,
+    ) => {
+      const ids: string[] = [];
+      for (const who of reporters.slice(0, n)) {
+        const res = await report(who, {
+          targetType,
+          targetId,
+          reason: 'Inappropriate',
+        }).expect(201);
+        ids.push(res.body.id as string);
+      }
+      return ids;
+    };
+    const statusOf = async (id: string) =>
+      (await reports.findById(id).lean())!.status;
+    const auditFor = async (action: string, targetId: string) => {
+      const res = await http()
+        .get('/api/admin/audit-logs')
+        .query({ action })
+        .set('Cookie', admin.cookie)
+        .expect(200);
+      return (
+        res.body.items as {
+          targetId: string;
+          targetType: string;
+          actor: { id: string };
+          metadata?: Record<string, unknown>;
+        }[]
+      ).filter((e) => e.targetId === targetId);
+    };
+
+    beforeAll(async () => {
+      author = await loginAs(app, Role.User);
+      for (let i = 0; i < 3; i++) reporters.push(await loginAs(app, Role.User));
+    });
+
+    it('is admin-only: 401 for a guest, 403 for a user or moderator', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const [reportId] = await reportedBy(1, 'POST', targetId);
+      const moderator = await loginAs(app, Role.AirlineModerator);
+      const calls = (who: LoggedIn | null) => [
+        asAdmin(http().get('/api/admin/reports'), who),
+        resolve(reportId, 'DISMISS', who),
+        hide('post', targetId, who),
+        remove('post', targetId, who),
+      ];
+      for (const call of calls(null)) {
+        expect((await call.expect(401)).body.code).toBe('UNAUTHENTICATED');
+      }
+      for (const who of [author, moderator]) {
+        for (const call of calls(who)) {
+          expect((await call.expect(403)).body.code).toBe('FORBIDDEN');
+        }
+      }
+      expect(await statusOf(reportId)).toBe('OPEN');
+      expect((await items.findById(targetId).lean())!.hidden).toBe(false);
+    });
+
+    it('lists open reports newest first, 10 per page, filtered by type', async () => {
+      await reports.deleteMany({});
+      const posts: string[] = [];
+      for (let i = 0; i < 11; i++) {
+        const targetId = await newContent('POST', author.userId);
+        posts.push((await reportedBy(1, 'POST', targetId))[0]);
+      }
+      const comment = (
+        await reportedBy(
+          1,
+          'COMMENT',
+          await newContent('COMMENT', author.userId),
+        )
+      )[0];
+      const dismissed = (
+        await reportedBy(1, 'POST', await newContent('POST', author.userId))
+      )[0];
+      await resolve(dismissed, 'DISMISS').expect(200);
+
+      const first = await list().expect(200);
+      expect(first.body).toMatchObject({
+        page: 1,
+        limit: 10,
+        total: 12,
+        totalPages: 2,
+      });
+      const ids = (first.body.items as { id: string }[]).map((r) => r.id);
+      expect(ids).toEqual([comment, ...posts.slice(2).reverse()]);
+      expect(first.body.items[0]).toMatchObject({
+        targetType: 'COMMENT',
+        status: 'OPEN',
+        resolution: null,
+      });
+      const second = await list({ page: 2 }).expect(200);
+      expect((second.body.items as { id: string }[]).map((r) => r.id)).toEqual([
+        posts[1],
+        posts[0],
+      ]);
+
+      const comments = await list({ targetType: 'comment' }).expect(200);
+      expect(comments.body.total).toBe(1);
+      expect(comments.body.items[0].id).toBe(comment);
+
+      const bad = await list({ targetType: 'BLOG' }).expect(400);
+      expect(bad.body.fieldErrors).toEqual([
+        expect.objectContaining({ field: 'targetType' }),
+      ]);
+      await list({ limit: 50 }).expect(400);
+    });
+
+    it('validates the report id and action, and answers 404 for an unknown report', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const [reportId] = await reportedBy(1, 'POST', targetId);
+      expect(
+        (await resolve('not-an-id', 'DISMISS').expect(400)).body.fieldErrors,
+      ).toEqual([expect.objectContaining({ field: 'id' })]);
+      expect(
+        (await resolve(reportId, 'BAN').expect(400)).body.fieldErrors,
+      ).toEqual([expect.objectContaining({ field: 'action' })]);
+      await resolve(reportId, undefined).expect(400);
+      const unknown = await resolve(
+        new Types.ObjectId().toHexString(),
+        'DISMISS',
+      ).expect(404);
+      expect(unknown.body).toMatchObject({
+        code: 'NOT_FOUND',
+        message: 'Report not found',
+      });
+    });
+
+    it('DISMISS closes only that report and leaves the content alone', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const [first, second] = await reportedBy(2, 'POST', targetId);
+      const res = await resolve(first, 'dismiss').expect(200);
+      expect(res.body).toMatchObject({
+        id: first,
+        status: 'DISMISSED',
+        resolution: {
+          action: 'DISMISS',
+          adminId: admin.userId,
+          at: expect.any(String),
+        },
+      });
+      expect(await statusOf(second)).toBe('OPEN');
+      expect((await items.findById(targetId).lean())!.hidden).toBe(false);
+
+      expect((await resolve(first, 'HIDE').expect(409)).body).toMatchObject({
+        code: 'INVALID_STATE_TRANSITION',
+        message: 'This report is already resolved',
+      });
+      expect(await auditFor('RESOLVE_REPORT', first)).toEqual([
+        expect.objectContaining({
+          targetType: 'REPORT',
+          actor: expect.objectContaining({ id: admin.userId }),
+          metadata: { action: 'DISMISS' },
+        }),
+      ]);
+      expect(await auditFor('HIDE_CONTENT', targetId)).toHaveLength(0);
+    });
+
+    it('HIDE hides the content and closes every open report on it, audited', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const [first, second, third] = await reportedBy(3, 'POST', targetId);
+      await resolve(third, 'DISMISS').expect(200);
+
+      const res = await resolve(first, 'HIDE').expect(200);
+      expect(res.body).toMatchObject({
+        id: first,
+        status: 'ACTIONED',
+        resolution: { action: 'HIDE', adminId: admin.userId },
+      });
+      expect((await items.findById(targetId).lean())!.hidden).toBe(true);
+      expect(await statusOf(second)).toBe('ACTIONED');
+      expect(await statusOf(third)).toBe('DISMISSED');
+      expect((await resolve(second, 'DISMISS').expect(409)).body.code).toBe(
+        'INVALID_STATE_TRANSITION',
+      );
+
+      expect(await auditFor('RESOLVE_REPORT', first)).toEqual([
+        expect.objectContaining({ metadata: { action: 'HIDE' } }),
+      ]);
+      expect(await auditFor('HIDE_CONTENT', targetId)).toEqual([
+        expect.objectContaining({
+          targetType: 'POST',
+          actor: expect.objectContaining({ id: admin.userId }),
+          metadata: {
+            contentType: 'POST',
+            ownerId: author.userId,
+            reportId: first,
+          },
+        }),
+      ]);
+      // Hidden from everyone but its author and admins: another user can no longer report it.
+      const late = await loginAs(app, Role.User);
+      await report(late, {
+        targetType: 'POST',
+        targetId,
+        reason: 'Spam',
+      }).expect(404);
+    });
+
+    it('DELETE deletes the content and closes every open report on it, audited', async () => {
+      const targetId = await newContent('COMMENT', author.userId);
+      const [first, second] = await reportedBy(2, 'COMMENT', targetId);
+      const res = await resolve(first, 'DELETE').expect(200);
+      expect(res.body).toMatchObject({
+        status: 'ACTIONED',
+        resolution: { action: 'DELETE' },
+      });
+      expect(await items.findById(targetId).lean()).toBeNull();
+      expect(await statusOf(second)).toBe('ACTIONED');
+      expect(await auditFor('DELETE_CONTENT', targetId)).toEqual([
+        expect.objectContaining({
+          targetType: 'COMMENT',
+          metadata: {
+            contentType: 'COMMENT',
+            ownerId: author.userId,
+            reportId: first,
+          },
+        }),
+      ]);
+      expect(await auditFor('RESOLVE_REPORT', first)).toEqual([
+        expect.objectContaining({ metadata: { action: 'DELETE' } }),
+      ]);
+    });
+
+    it('HIDE and DELETE are 409 when the content is gone; DISMISS still works', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const [reportId] = await reportedBy(1, 'POST', targetId);
+      await items.deleteOne({ _id: targetId });
+      for (const action of ['HIDE', 'DELETE']) {
+        expect(
+          (await resolve(reportId, action).expect(409)).body,
+        ).toMatchObject({
+          code: 'INVALID_STATE_TRANSITION',
+          message:
+            'The reported content no longer exists; dismiss the report instead',
+        });
+      }
+      // The failed attempts rolled back: the report is still OPEN and nothing was audited.
+      expect(await statusOf(reportId)).toBe('OPEN');
+      expect(await auditFor('RESOLVE_REPORT', reportId)).toHaveLength(0);
+      await resolve(reportId, 'DISMISS').expect(200);
+    });
+
+    it('lets only one of two simultaneous resolutions win', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const [reportId] = await reportedBy(1, 'POST', targetId);
+      const other = await loginAs(app, Role.Admin);
+      const results = await Promise.all([
+        resolve(reportId, 'HIDE'),
+        resolve(reportId, 'DISMISS', other),
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+      expect(await auditFor('RESOLVE_REPORT', reportId)).toHaveLength(1);
+    });
+
+    it('hides content directly: closes its open reports, 409 when already hidden', async () => {
+      const targetId = await newContent('POST', author.userId);
+      const reportIds = await reportedBy(2, 'POST', targetId);
+
+      const res = await hide('Post', targetId).expect(200);
+      expect(res.body).toEqual({
+        contentType: 'POST',
+        contentId: targetId,
+        action: 'HIDE',
+        resolvedReports: 2,
+      });
+      expect((await items.findById(targetId).lean())!.hidden).toBe(true);
+      for (const id of reportIds) expect(await statusOf(id)).toBe('ACTIONED');
+      expect(
+        (await reports.findById(reportIds[0]).lean())!.resolution,
+      ).toMatchObject({ action: 'HIDE' });
+
+      expect((await hide('post', targetId).expect(409)).body).toMatchObject({
+        code: 'INVALID_STATE_TRANSITION',
+        message: 'This content is already hidden',
+      });
+      expect(await auditFor('HIDE_CONTENT', targetId)).toEqual([
+        expect.objectContaining({
+          targetType: 'POST',
+          metadata: { contentType: 'POST', ownerId: author.userId },
+        }),
+      ]);
+    });
+
+    it('deletes content directly and closes its open reports', async () => {
+      const targetId = await newContent('COMMENT', author.userId);
+      const [reportId] = await reportedBy(1, 'COMMENT', targetId);
+      const res = await remove('comment', targetId).expect(200);
+      expect(res.body).toEqual({
+        contentType: 'COMMENT',
+        contentId: targetId,
+        action: 'DELETE',
+        resolvedReports: 1,
+      });
+      expect(await items.findById(targetId).lean()).toBeNull();
+      expect(await statusOf(reportId)).toBe('ACTIONED');
+      expect((await remove('comment', targetId).expect(404)).body.code).toBe(
+        'NOT_FOUND',
+      );
+      expect(await auditFor('DELETE_CONTENT', targetId)).toEqual([
+        expect.objectContaining({
+          targetType: 'COMMENT',
+          metadata: { contentType: 'COMMENT', ownerId: author.userId },
+        }),
+      ]);
+    });
+
+    it('validates :type and :id, and answers 404 for an unregistered type or unknown item', async () => {
+      const postId = await newContent('POST', author.userId);
+      for (const call of [hide, remove]) {
+        expect(
+          (await call('blog', postId).expect(400)).body.fieldErrors,
+        ).toEqual([expect.objectContaining({ field: 'type' })]);
+        expect(
+          (await call('post', 'not-an-id').expect(400)).body.fieldErrors,
+        ).toEqual([expect.objectContaining({ field: 'id' })]);
+        for (const [type, id] of [
+          ['review', postId],
+          ['itinerary', postId],
+          ['post', new Types.ObjectId().toHexString()],
+          ['comment', postId],
+        ]) {
+          expect((await call(type, id).expect(404)).body).toMatchObject({
+            code: 'NOT_FOUND',
+            message: 'Content not found',
+          });
+        }
+      }
+      expect((await items.findById(postId).lean())!.hidden).toBe(false);
     });
   });
 });
