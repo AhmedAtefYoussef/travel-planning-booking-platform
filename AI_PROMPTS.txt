@@ -1252,3 +1252,20 @@ Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund
 404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
 found no blocking issues. I reviewed the diff and ran the live check in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet)
+Related Requirement: GEN-12 (TRVL-135 documentation)
+Prompt:
+Finish TRVL-135: README with clone, env table, seeded accounts per role and the Stripe CLI 1.55 command; an
+idempotent npm run seed:demo that creates a demo airline, hotel, moderators, flights, rooms and a traveller
+through the production services; npm run openapi:export writing docs/api/openapi.json; and
+docs/api/demo-script.md with the Swagger call order per role.
+How the output was used:
+Claude wrote failing seed tests, then the seed, the export script and the docs, and checked a fresh clone.
+Two review rounds made the walkthrough followable literally (ids printed by the seed and read from
+/api/auth/me, the demo hotel used for policies) and stopped the seed relying on an editable name. I
+reviewed the docs and the diff.
+================================================
