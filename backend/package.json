@@ -29,6 +29,7 @@
     "seed": "ts-node --transpile-only scripts/seed.ts"
   },
   "dependencies": {
+    "@fontsource/dejavu-sans": "^5.3.0",
     "@nestjs/common": "^11.2.8",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.2.8",
@@ -40,6 +41,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
     "cookie-parser": "^1.4.7",
+    "fontkit": "^2.0.4",
     "luxon": "^3.7.2",
     "mongoose": "^8.24.8",
     "multer": "^2.5.0",
@@ -56,6 +58,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
+    "@types/fontkit": "^2.0.9",
     "@types/jest": "^30.0.0",
     "@types/luxon": "^3.7.6",
     "@types/multer": "^2.3.0",
