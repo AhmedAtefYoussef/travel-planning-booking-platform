@@ -3,7 +3,8 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { Role } from '../src/common/auth/auth.types';
+import { Role, type AuthUser } from '../src/common/auth/auth.types';
+import { withVisibility } from '../src/common/contracts';
 import { Report } from '../src/modules/moderation';
 import { loginAs, type LoggedIn } from './support/auth';
 import { createTestApp } from './support/create-test-app';
@@ -539,6 +540,29 @@ describe('Content reports and moderation (e2e): GEN-09, GEN-10', () => {
         }
       }
       expect((await items.findById(postId).lean())!.hidden).toBe(false);
+    });
+  });
+  describe('withVisibility against a real collection (GEN-10 read rule)', () => {
+    it('keeps others’ hidden items out even when the caller query has its own $or', async () => {
+      const me = new Types.ObjectId().toHexString();
+      const other = new Types.ObjectId().toHexString();
+      const mineHidden = await newContent('POST', me, true);
+      const othersHidden = await newContent('POST', other, true);
+      const othersVisible = await newContent('POST', other);
+      const ids = [mineHidden, othersHidden, othersVisible];
+      const search = { kind: 'POST', $or: ids.map((_id) => ({ _id })) };
+      const visibleTo = async (viewer: AuthUser | null) =>
+        (await items.find(withVisibility(viewer, search)).lean())
+          .map((d) => d._id.toHexString())
+          .sort();
+
+      expect(await visibleTo({ id: me, role: Role.User })).toEqual(
+        [mineHidden, othersVisible].sort(),
+      );
+      expect(await visibleTo(null)).toEqual([othersVisible]);
+      expect(await visibleTo({ id: me, role: Role.Admin })).toEqual(
+        [...ids].sort(),
+      );
     });
   });
 });

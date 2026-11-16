@@ -4,6 +4,7 @@ import {
   CONTENT_MODERATION_REGISTRY,
   ModeratableContentType,
   visibilityFilter,
+  withVisibility,
 } from './index';
 
 const ownerId = new Types.ObjectId().toHexString();
@@ -48,6 +49,55 @@ describe('content moderation port (GEN-10)', () => {
     it('falls back to the guest filter when the viewer id is not an ObjectId', () => {
       expect(visibilityFilter({ id: 'not-an-id', role: Role.User })).toEqual({
         hidden: { $ne: true },
+      });
+    });
+  });
+
+  describe('withVisibility: composes the visibility rule with a caller query', () => {
+    const viewer: AuthUser = { id: ownerId, role: Role.User };
+    const search = {
+      $or: [{ title: /nile/i }, { body: /nile/i }],
+      cityId: 'CAI',
+    };
+
+    it('keeps a caller $or and the visibility $or side by side under $and', () => {
+      const filter = withVisibility(viewer, search);
+      expect(filter).toEqual({
+        $and: [
+          {
+            $or: [
+              { hidden: { $ne: true } },
+              { authorId: new Types.ObjectId(ownerId) },
+            ],
+          },
+          search,
+        ],
+      });
+    });
+
+    it('keeps a guest’s hidden rule even when the caller filters on hidden', () => {
+      expect(withVisibility(null, { hidden: true })).toEqual({
+        $and: [{ hidden: { $ne: true } }, { hidden: true }],
+      });
+    });
+
+    it('leaves the query unchanged for an admin', () => {
+      expect(withVisibility({ id: ownerId, role: Role.Admin }, search)).toBe(
+        search,
+      );
+    });
+
+    it('uses the given owner field', () => {
+      expect(withVisibility(viewer, {}, 'ownerId')).toEqual({
+        $and: [
+          {
+            $or: [
+              { hidden: { $ne: true } },
+              { ownerId: new Types.ObjectId(ownerId) },
+            ],
+          },
+          {},
+        ],
       });
     });
   });
