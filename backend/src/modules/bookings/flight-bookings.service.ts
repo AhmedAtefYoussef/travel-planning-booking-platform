@@ -290,7 +290,19 @@ export class FlightBookingsService implements PayableBooking {
       policiesAcceptedAt: booking.policiesAcceptedAt,
       policiesVersion: booking.policySnapshot?.version ?? null,
       reference: booking.reference,
+      providerActive: await this.airlinesActive(booking.segments),
     };
+  }
+
+  /** ACC-15: every airline of the booking still takes bookings. */
+  private async airlinesActive(
+    segments: { airlineId: Types.ObjectId }[],
+  ): Promise<boolean> {
+    const ids = new Set(segments.map((s) => s.airlineId.toHexString()));
+    for (const id of ids) {
+      if (!(await this.inventory.isAirlineActive(id))) return false;
+    }
+    return true;
   }
 
   /**

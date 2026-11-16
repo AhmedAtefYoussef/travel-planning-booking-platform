@@ -51,6 +51,7 @@ function setup(
     bookNights: jest.fn().mockResolvedValue(opts.booked ?? 2),
     releaseNights: jest.fn().mockResolvedValue(2),
     getHotelPolicy: jest.fn(),
+    isHotelActive: jest.fn().mockResolvedValue(true),
   };
   const moved = [...(opts.moved ?? [1])];
   const model = {
@@ -473,5 +474,32 @@ describe('HotelBookingsService payable contract (PAY-01, HTL-17)', () => {
         reason: 'x',
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('HotelBookingsService getPayable (ACC-15)', () => {
+  it('reports whether the hotel still takes bookings', async () => {
+    const hotelId = new Types.ObjectId();
+    const reservation = {
+      userId: new Types.ObjectId(user.id),
+      hotelId,
+      status: BookingStatus.PendingPayment,
+      totalMinor: 10_000,
+      currency: 'EGP',
+      holdExpiresAt: new Date(NOW.getTime() + 60_000),
+      policiesAcceptedAt: null,
+      reference: null,
+    };
+    const { service, inventory } = setup(stay(), { found: reservation });
+    const id = oid();
+    await expect(service.getPayable(id, user.id)).resolves.toMatchObject({
+      bookingType: 'HOTEL',
+      providerActive: true,
+    });
+    inventory.isHotelActive.mockResolvedValue(false);
+    await expect(service.getPayable(id, user.id)).resolves.toMatchObject({
+      providerActive: false,
+    });
+    expect(inventory.isHotelActive).toHaveBeenCalledWith(hotelId.toHexString());
   });
 });

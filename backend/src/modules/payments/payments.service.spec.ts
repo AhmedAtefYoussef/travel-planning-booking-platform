@@ -32,6 +32,7 @@ function snapshot(over: Partial<PayableSnapshot> = {}): PayableSnapshot {
     policiesAcceptedAt: new Date(),
     policiesVersion: '0123456789abcdef',
     reference: null,
+    providerActive: true,
     ...over,
   };
 }
@@ -168,6 +169,25 @@ describe('PaymentsService (PAY-01)', () => {
       service.create(user, { bookingType: BookingType.Flight, bookingId }),
     ).rejects.toThrow('db down');
     expect(stripe.cancelPaymentIntent).not.toHaveBeenCalled();
+  });
+
+  it('refuses to start or retry a payment once the provider is deactivated (409 PROVIDER_INACTIVE, ACC-15)', async () => {
+    const { service, stripe, payments } = setup();
+    const flights = service['flights'] as unknown as {
+      getPayable: jest.Mock;
+    };
+    flights.getPayable.mockResolvedValue(snapshot({ providerActive: false }));
+    await expect(
+      service.create(user, { bookingType: BookingType.Flight, bookingId }),
+    ).rejects.toMatchObject({ status: 409, code: 'PROVIDER_INACTIVE' });
+    payments.findById.mockReturnValue(
+      exec(paymentDoc({ status: PaymentStatus.Failed })) as never,
+    );
+    await expect(
+      service.retry(user, new Types.ObjectId().toHexString()),
+    ).rejects.toMatchObject({ status: 409, code: 'PROVIDER_INACTIVE' });
+    expect(stripe.createPaymentIntent).not.toHaveBeenCalled();
+    expect(stripe.retrievePaymentIntent).not.toHaveBeenCalled();
   });
 
   it('refuses a malformed event with 400 even when correctly signed', async () => {

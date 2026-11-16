@@ -106,6 +106,7 @@ function setup(
     reserveSeats: jest.fn().mockResolvedValue(opts.reserve ?? true),
     releaseSeats: jest.fn().mockResolvedValue(undefined),
     getAirlinePolicy: jest.fn(),
+    isAirlineActive: jest.fn().mockResolvedValue(true),
   };
   const moved = [...(opts.moved ?? [1])];
   const stored: Record<string, unknown>[] = [];
@@ -509,7 +510,21 @@ describe('FlightBookingsService ownership and PayableBooking (ACC-11, PAY-01)', 
       bookingType: 'FLIGHT',
       amountMinor: 100_000,
       status: BookingStatus.PendingPayment,
+      providerActive: true,
     });
+  });
+
+  it('getPayable: providerActive is false once an airline of the booking is deactivated (ACC-15)', async () => {
+    const { service, model, inventory } = setup();
+    const airlineId = new Types.ObjectId();
+    model.findById = found(booking({ segments: [{ airlineId }] }));
+    inventory.isAirlineActive.mockResolvedValue(false);
+    await expect(service.getPayable(oid(), ownerId)).resolves.toMatchObject({
+      providerActive: false,
+    });
+    expect(inventory.isAirlineActive).toHaveBeenCalledWith(
+      airlineId.toHexString(),
+    );
   });
 
   it('findOne: the owner and an admin see it, anyone else gets 404', async () => {

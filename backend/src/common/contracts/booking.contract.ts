@@ -54,6 +54,11 @@ export interface PayableSnapshot {
   /** Version of the accepted terms stored on the booking (PAY-02); null when no terms are stored. */
   policiesVersion: string | null;
   reference: string | null;
+  /**
+   * False once the booking's airline (any segment) or hotel was deactivated by an admin (ACC-15): it
+   * can no longer be paid, and a payment captured anyway is refunded instead of confirming.
+   */
+  providerActive: boolean;
 }
 
 /**

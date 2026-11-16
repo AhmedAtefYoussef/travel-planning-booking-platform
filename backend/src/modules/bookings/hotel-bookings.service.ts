@@ -248,6 +248,9 @@ export class HotelBookingsService implements PayableBooking {
       policiesAcceptedAt: r.policiesAcceptedAt,
       policiesVersion: r.policySnapshot?.version ?? null,
       reference: r.reference,
+      providerActive: await this.inventory.isHotelActive(
+        r.hotelId.toHexString(),
+      ),
     };
   }
 

@@ -5,9 +5,11 @@ import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { AuthUser, Role } from '../../common/auth/auth.types';
 import {
   assertPayable,
+  BookingStatus,
   BookingType,
   FLIGHT_PAYABLE_BOOKING,
   HOTEL_PAYABLE_BOOKING,
+  providerInactive,
   type PayableBooking,
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
@@ -41,11 +43,15 @@ const MAX_BACKOFF_MS = 60 * 60_000;
 
 const OPEN = [PaymentStatus.RequiresPayment, PaymentStatus.Failed];
 
-/** A paid booking that can no longer be confirmed is refunded in full (ADR-0003). */
+/**
+ * A paid booking that can no longer be confirmed is refunded in full (ADR-0003). PROVIDER_INACTIVE:
+ * its airline or hotel was deactivated during the hold (ACC-15 "cannot be booked").
+ */
 const REFUNDABLE_CODES: readonly string[] = [
   ErrorCode.HOLD_EXPIRED,
   ErrorCode.INVALID_STATE_TRANSITION,
   ErrorCode.NOT_FOUND,
+  ErrorCode.PROVIDER_INACTIVE,
 ];
 
 /** Thrown inside a webhook transaction when the event id is already recorded (a replay). */
@@ -381,6 +387,7 @@ export class PaymentsService {
               .exec();
           }
           try {
+            await this.assertProviderActive(payment);
             await this.payable(payment.bookingType).markConfirmed(
               payment.bookingId.toHexString(),
               { paymentId: payment.id as string },
@@ -406,6 +413,24 @@ export class PaymentsService {
     }
     // After commit (never inside the transaction); the refund job re-sends it if Stripe is down.
     if (refundFor) await this.refunds.sendLateRefund(refundFor);
+  }
+
+  /**
+   * ACC-15: a booking still waiting for its payment whose airline or hotel was deactivated meanwhile is
+   * not confirmed; the caller refunds it like any other booking that can no longer be confirmed. An
+   * already confirmed booking (a replay) is left to markConfirmed, which treats it as a no-op.
+   */
+  private async assertProviderActive(payment: PaymentDocument): Promise<void> {
+    const booking = await this.payable(payment.bookingType).getPayable(
+      payment.bookingId.toHexString(),
+      payment.userId.toHexString(),
+    );
+    if (
+      booking.status === BookingStatus.PendingPayment &&
+      !booking.providerActive
+    ) {
+      throw providerInactive(payment.bookingType);
+    }
   }
 
   /**

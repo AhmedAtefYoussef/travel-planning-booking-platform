@@ -158,4 +158,17 @@ export class FlightInventoryService implements FlightInventory {
       .exec();
     return res.matchedCount === 1;
   }
+
+  /** ACC-15: the same rule as getBookableCabin (a missing or inactive airline takes no bookings). */
+  async isAirlineActive(
+    airlineId: string,
+    session?: ClientSession,
+  ): Promise<boolean> {
+    if (!Types.ObjectId.isValid(airlineId)) return false;
+    const airline = await this.airlines
+      .findById(airlineId, { isActive: 1 }, { session })
+      .lean()
+      .exec();
+    return airline?.isActive === true;
+  }
 }

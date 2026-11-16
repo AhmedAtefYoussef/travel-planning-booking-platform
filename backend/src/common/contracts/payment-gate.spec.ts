@@ -20,6 +20,7 @@ function snapshot(over: Partial<PayableSnapshot> = {}): PayableSnapshot {
     policiesAcceptedAt: new Date(NOW.getTime() - 1_000),
     policiesVersion: '0123456789abcdef',
     reference: null,
+    providerActive: true,
     ...over,
   };
 }
@@ -79,6 +80,19 @@ describe('assertPayable (decision table): PAY-02, PAY-04', () => {
     for (const amountMinor of [0, -1, 1.5, Number.NaN]) {
       expect(outcome(snapshot({ amountMinor }))).toBe('DEFECT');
     }
+  });
+
+  it('refuses a booking whose airline or hotel was deactivated during the hold (ACC-15)', () => {
+    expect(outcome(snapshot({ providerActive: false }))).toBe(
+      'PROVIDER_INACTIVE',
+    );
+    expect(
+      outcome(snapshot({ providerActive: false, policiesAcceptedAt: null })),
+    ).toBe('PROVIDER_INACTIVE');
+    // An expired hold still says so first.
+    expect(
+      outcome(snapshot({ providerActive: false, holdExpiresAt: NOW })),
+    ).toBe('HOLD_EXPIRED');
   });
 
   it('checks the hold before the policies, so an expired hold never asks for acceptance', () => {

@@ -309,6 +309,8 @@ export interface FlightInventory {
     seats: number,
     session?: ClientSession,
   ): Promise<boolean>;
+  /** ACC-15: true only while the airline exists and is active (takes bookings). */
+  isAirlineActive(airlineId: string, session?: ClientSession): Promise<boolean>;
 }
 
 /* ----------------------------------------------------------------------------------------------
@@ -387,6 +389,8 @@ export interface HotelInventory {
   getHotelPolicy(hotelId: string): Promise<HotelPolicySnapshot | null>;
   /** Deletes the reservation's HELD nights (expiry). Returns how many were released. */
   releaseNights(reservationId: string, session: ClientSession): Promise<number>;
+  /** ACC-15: true only while the hotel exists and is active (takes bookings). */
+  isHotelActive(hotelId: string, session?: ClientSession): Promise<boolean>;
 }
 
 /* ----------------------------------------------------------------------------------------------

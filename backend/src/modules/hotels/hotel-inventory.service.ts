@@ -233,6 +233,19 @@ export class HotelInventoryService implements HotelInventory {
     };
   }
 
+  /** ACC-15: the same rule as holdNights (a missing or inactive hotel takes no bookings). */
+  async isHotelActive(
+    hotelId: string,
+    session?: ClientSession,
+  ): Promise<boolean> {
+    if (!Types.ObjectId.isValid(hotelId)) return false;
+    const hotel = await this.hotelModel
+      .findById(hotelId, { isActive: 1 }, { session })
+      .lean()
+      .exec();
+    return hotel?.isActive === true;
+  }
+
   async releaseNights(
     reservationId: string,
     session: ClientSession,

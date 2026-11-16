@@ -44,6 +44,7 @@ export class AdminProvidersController {
     description:
       'Admins only. The provider is marked inactive: its flights or rooms disappear from search and cannot be held or booked, ' +
       'and its moderators can no longer edit them. Existing Confirmed bookings are untouched and remain valid. ' +
+      'Holds still awaiting payment can no longer be paid (409 PROVIDER_INACTIVE), and a payment Stripe captures anyway is refunded in full instead of confirming (ADR-0003). ' +
       'Every moderator assigned to the provider gets an in-app notification (GEN-01) and the action is recorded in the audit log (GEN-07). ' +
       'An unknown type is 400; an unknown id is 404; an already inactive provider is 409 INVALID_STATE_TRANSITION. ' +
       'Note: hotel search (HTL-11) is not built yet; hotel holds are already refused.',
