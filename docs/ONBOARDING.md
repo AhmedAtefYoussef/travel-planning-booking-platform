@@ -27,7 +27,7 @@ Open `backend/.env` and set:
 |---|---|
 | `MONGODB_URI` | The string you were given. **It must end in `/travel_platform`** (before any `?`). Without that you write to a database called `test`. |
 | `JWT_SECRET` | Any random string of 32 or more characters, e.g. the output of `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
-| `ADMIN_SEED_PASSWORD` | Any password of 12 or more characters. Don't reuse a real one. |
+| `ADMIN_SEED_PASSWORD` | Any password that meets the rules: at least 8 characters with a letter and a digit (at most 72 bytes). Don't reuse a real one. |
 
 Leave the rest as it is. The Stripe and FX placeholders are fine until you work on PAY-01 or ITN-18.
 
