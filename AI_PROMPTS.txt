@@ -1296,3 +1296,14 @@ whose ToUnicode target has two characters; the test reader skipped it and shifte
 test reader changed, plus a unit test with an "ff" version that fails on the old reader. I checked 400 random
 renders (21 bad before, 0 after) before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Sarah Eldahaby
+Tool: ChatGPT Codex
+Related Requirement: ITN-01, ITN-03, ITN-05, ITN-09, ITN-10, ITN-12 (TRVL-141)
+Prompt:
+Implement TRVL-141 itinerary and activity schemas, including day ordering, date calculation, consecutive-city grouping rules, focused tests and architecture documentation.
+How the output was used:
+Codex implemented the itinerary and activity schemas, rule helpers, module registration, tests and ERD documentation. I reviewed the implementation and requested an explicit duplicate-day-order test, which was added and passed.
+================================================
