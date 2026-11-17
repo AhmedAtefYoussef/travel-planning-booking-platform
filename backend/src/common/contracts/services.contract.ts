@@ -3,7 +3,7 @@ import type {
   AirlinePolicySnapshot,
   HotelPolicySnapshot,
 } from './policies.contract';
-import type { AuthUser, Role } from '../auth/auth.types';
+import type { AuthUser, ProviderType, Role } from '../auth/auth.types';
 import type { Page } from '../pagination/pagination';
 
 /* ----------------------------------------------------------------------------------------------
@@ -488,4 +488,74 @@ export interface UpcomingBookings {
    * be confirmed by the webhook. Throws on a malformed id (fail closed).
    */
   countUpcomingConfirmed(userId: string, now: Date): Promise<number>;
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Account administration (ACC-15, ACC-16). The users module owns accounts and sessions and provides
+ * this under ACCOUNT_ADMIN. The admin module suspends and reactivates through it inside its own
+ * transaction, so the status change, the session revocation, the audit entry (GEN-07) and the
+ * notification (GEN-01) commit together or not at all.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface AdministeredAccount {
+  id: string;
+  name: string;
+  role: Role;
+  status: SessionAccountStatus;
+}
+
+export interface AccountAdmin {
+  /** The account, or null when no account has this id. */
+  find(
+    userId: string,
+    session?: ClientSession,
+  ): Promise<AdministeredAccount | null>;
+  /**
+   * Status-conditioned update (`{ _id, status: from }`). Returns false, changing nothing, when the
+   * account is no longer in `from` (another admin changed it first).
+   */
+  changeStatus(
+    userId: string,
+    from: SessionAccountStatus,
+    to: SessionAccountStatus,
+    session: ClientSession,
+  ): Promise<boolean>;
+  /** Ends every open session of the account: its cookies and refresh tokens stop working at once. */
+  revokeAllSessions(userId: string, session: ClientSession): Promise<void>;
+  /** Ids of the moderators assigned to this airline or hotel (ACC-13), whatever their status. */
+  moderatorsOf(
+    type: ProviderType,
+    providerId: string,
+    session?: ClientSession,
+  ): Promise<string[]>;
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Provider status (ACC-15). The flights module provides it for airlines under AIRLINE_STATUS and the
+ * hotels module for hotels under HOTEL_STATUS. Deactivation only flips `isActive`: search and booking
+ * already read it (ACTIVE_PROVIDER_FILTER, FLIGHT_INVENTORY, HOTEL_INVENTORY), and Confirmed bookings
+ * are never touched.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface ProviderState {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface ProviderStatus {
+  /** The provider, or null when none of this type has the id (also for a malformed id). */
+  find(
+    providerId: string,
+    session?: ClientSession,
+  ): Promise<ProviderState | null>;
+  /**
+   * Sets `isActive` only if it currently has the other value (one conditional update). Returns false,
+   * changing nothing, when it already had that value or does not exist.
+   */
+  setActive(
+    providerId: string,
+    active: boolean,
+    session: ClientSession,
+  ): Promise<boolean>;
 }

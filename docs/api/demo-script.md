@@ -5,9 +5,8 @@ Airline moderator, then Hotel moderator, then Traveller. Each step is one call: 
 that works, and the status to expect. Error cases at the end of each part show the shared error envelope
 (`docs/api/conventions.md`).
 
-The script lists only what is merged on `develop`. Steps for stories that are still open (suspensions and
-provider deactivation ACC-15/16, booking cancellations FLT-26/HTL-21, reports and moderation GEN-09/10, blog and
-itineraries) are added here when they merge; their status is in `docs/requirements/traceability.md`.
+The script lists only what is merged on `develop`. Steps for stories that are still open (booking cancellations
+FLT-26/HTL-21, reports and moderation GEN-09/10, blog and itineraries) are added here when they merge; their status is in `docs/requirements/traceability.md`.
 
 ## 0. Before you start
 
@@ -56,7 +55,7 @@ Log in as `ADMIN_SEED_EMAIL`. Steps 4 to 6 are alternative path B (your own prov
 | 6 | `POST /api/admin/moderators` (path B) | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{walkAirlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"name":"Walk Hotel Mod"`, `"email":"walk.hotel@example.com"`, `"role":"HOTEL_MODERATOR"` and `{walkHotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
 | 7 | `GET /api/admin/accounts` | `?q=demo&role=USER&status=ACTIVE` | 200, paginated, 10 per page (ACC-14) |
 | 8 | `POST /api/admin/users/{id}/reset-password` | `{"temporaryPassword":"Temp2026x"}` | 204; the user must change it at next login (ACC-07a) |
-| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): the moderators created in step 6 and the reset in step 8. The seeded demo moderators are not admin actions, so with the seed alone the list is empty. Suspensions and moderation actions are recorded once ACC-15/16 and GEN-10 merge |
+| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): the moderators created in step 6 and the reset in step 8. The seeded demo moderators are not admin actions, so with the seed alone the list is empty. Part 5 adds the suspension and deactivation entries; moderation actions are recorded once GEN-10 merges |
 | 10 | `GET /api/currencies/rates`, `GET /api/currencies/convert` | `?amountMinor=10000&from=USD&to=EUR` | 200 (ITN-18); 503 if the exchange-rate service is unreachable |
 
 Error cases worth showing: step 4 as a traveller gives 403 `FORBIDDEN`; any admin call without logging in gives
@@ -141,7 +140,26 @@ hold expires on its own and the seats return to the inventory.
 Error cases: a hold for more seats than are left gives 409; a missing field
 gives 400 `VALIDATION_FAILED` with one `fieldErrors` entry per field.
 
-## 5. Not part of the script
+## 5. Suspensions and provider deactivation (ACC-15, ACC-16)
+
+Run this after Part 4, so the traveller has a Confirmed booking. Keep the traveller logged in in a private window to
+watch the session end, and log in as the admin in the main window. `{travellerId}` is the traveller's `id` from
+`GET /api/admin/accounts?q=mona`.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `PATCH /api/admin/accounts/{travellerId}/suspend` | `{"reason":"Abusive comments"}` | 200, `status` `SUSPENDED` (ACC-16). In the private window `GET /api/auth/me` now gives 401, and logging in again gives 403 `ACCOUNT_SUSPENDED` |
+| 2 | `GET /api/flight-bookings/{bookingId}` (as admin) | | 200, still `CONFIRMED`: bookings stay valid |
+| 3 | `PATCH /api/admin/accounts/{travellerId}/suspend` again | | 409 `CONFLICT`; your own id or another admin's gives 403 |
+| 4 | `PATCH /api/admin/accounts/{travellerId}/reactivate` | `{}` | 200, `ACTIVE`; the traveller can log in again and sees both notices in `GET /api/notifications` |
+| 5 | `PATCH /api/admin/providers/airline/{airlineId}/deactivate` | `{"reason":"Licence expired"}` | 200, `isActive` false (ACC-15). Part 4 step 4's search no longer lists DM101, a new hold on it gives 409 `PROVIDER_INACTIVE`, and `demo.airline@example.com` gets a `PROVIDER_DEACTIVATED` notice |
+| 6 | `PATCH /api/admin/providers/airline/{airlineId}/reactivate` | | 200, `isActive` true, and DM101 is back in search. `hotel/{hotelId}` works the same way for Demo Nile Hotel |
+| 7 | `GET /api/admin/audit-logs` | `?targetType=USER`, then `?targetType=AIRLINE` | 200: `SUSPEND_ACCOUNT` and `REACTIVATE_ACCOUNT`, then `DEACTIVATE_PROVIDER` and `REACTIVATE_PROVIDER`, with the reasons (GEN-07) |
+
+Error cases: `PATCH /api/admin/providers/train/{id}/deactivate` gives 400 on `type`; any of these calls as a traveller
+or a moderator gives 403.
+
+## 6. Not part of the script
 
 `GET /api/health` is the liveness check. The `Diagnostics (dev only)` Swagger tag (`/api/diagnostics/*`) exists
 only outside production, to exercise the shared validation, pagination and error rules; it is not a feature.

@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { HOTEL_INVENTORY } from '../../common/contracts';
+import { HOTEL_INVENTORY, HOTEL_STATUS } from '../../common/contracts';
 import { ReferenceModule } from '../reference';
 import { HotelInventoryService } from './hotel-inventory.service';
+import { HotelStatusService } from './hotel-status.service';
 import { HotelsController } from './hotels.controller';
 import { HotelsService } from './hotels.service';
 import { Hotel, HotelSchema } from './schemas/hotel.schema';
@@ -34,7 +35,9 @@ import { RoomsService } from './rooms.service';
     RoomsService,
     HotelInventoryService,
     { provide: HOTEL_INVENTORY, useExisting: HotelInventoryService },
+    HotelStatusService,
+    { provide: HOTEL_STATUS, useExisting: HotelStatusService },
   ],
-  exports: [MongooseModule, HotelsService, HOTEL_INVENTORY],
+  exports: [MongooseModule, HotelsService, HOTEL_INVENTORY, HOTEL_STATUS],
 })
 export class HotelsModule {}
