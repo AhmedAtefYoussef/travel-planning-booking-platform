@@ -56,7 +56,7 @@ Log in as `ADMIN_SEED_EMAIL`. Steps 4 to 6 are alternative path B (your own prov
 | 6 | `POST /api/admin/moderators` (path B) | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{walkAirlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"name":"Walk Hotel Mod"`, `"email":"walk.hotel@example.com"`, `"role":"HOTEL_MODERATOR"` and `{walkHotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
 | 7 | `GET /api/admin/accounts` | `?q=demo&role=USER&status=ACTIVE` | 200, paginated, 10 per page (ACC-14) |
 | 8 | `POST /api/admin/users/{id}/reset-password` | `{"temporaryPassword":"Temp2026x"}` | 204; the user must change it at next login (ACC-07a) |
-| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): moderator creations and password resets (suspensions and moderation actions are recorded once ACC-15/16 and GEN-10 merge) |
+| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): the moderators created in step 6 and the reset in step 8. The seeded demo moderators are not admin actions, so with the seed alone the list is empty. Suspensions and moderation actions are recorded once ACC-15/16 and GEN-10 merge |
 | 10 | `GET /api/currencies/rates`, `GET /api/currencies/convert` | `?amountMinor=10000&from=USD&to=EUR` | 200 (ITN-18); 503 if the exchange-rate service is unreachable |
 
 Error cases worth showing: step 4 as a traveller gives 403 `FORBIDDEN`; any admin call without logging in gives
