@@ -88,13 +88,22 @@ describe('ItinerarySchema', () => {
     expect(clone.clonedFrom?.itineraryId).toBeInstanceOf(Types.ObjectId);
   });
 
-  it('declares owner/update and public text-search indexes', () => {
-    const keys = ItinerarySchema.indexes().map(([fields]) => fields);
-    expect(keys).toContainEqual({ ownerId: 1, updatedAt: -1 });
-    expect(keys).toContainEqual({
-      title: 'text',
-      countries: 'text',
-      'days.cityId': 'text',
-    });
+ it('declares owner/update and public browsing indexes', () => {
+  const keys = ItinerarySchema.indexes().map(([fields]) => fields);
+
+  expect(keys).toContainEqual({
+    ownerId: 1,
+    updatedAt: -1,
   });
+
+  expect(keys).toContainEqual({
+    visibility: 1,
+    isHidden: 1,
+    updatedAt: -1,
+  });
+
+  expect(
+    keys.some((index) => Object.values(index).includes('text')),
+  ).toBe(false);
+});
 });

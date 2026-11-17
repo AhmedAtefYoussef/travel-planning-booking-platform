@@ -1,10 +1,16 @@
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { SCHEMA_OPTIONS } from '../../../common/contracts';
-import { LOCAL_TIME_HH_MM, safeInteger } from '../../../common/validation';
+import { SCHEMA_OPTIONS, UPLOAD_LIMITS } from '../../../common/contracts';
+import {
+  LOCAL_TIME_HH_MM,
+  localUploadUrlPattern,
+  safeInteger,
+} from '../../../common/validation';
 
 export const ACTIVITIES_COLLECTION = 'activities';
-export const MAX_ACTIVITY_IMAGES = 5;
+
+const ACTIVITY_UPLOAD_URL = localUploadUrlPattern(['activities']);
 
 @Schema({ ...SCHEMA_OPTIONS, collection: ACTIVITIES_COLLECTION })
 export class Activity {
@@ -29,8 +35,12 @@ export class Activity {
   @Prop({ type: String, match: LOCAL_TIME_HH_MM })
   time?: string;
 
-  /** Integer minor units (ADR-0004); itinerary costs may use a selected currency. */
-  @Prop({ type: Number, min: 0, validate: safeInteger('costMinor') })
+  /** Integer minor units (ADR-0004); must be provided together with currency. */
+  @Prop({
+    type: Number,
+    min: 0,
+    validate: safeInteger('costMinor'),
+  })
   costMinor?: number;
 
   /** Uppercase ISO 4217 code; seeded-currency membership is checked by service logic. */
@@ -41,10 +51,20 @@ export class Activity {
   @Prop({
     type: [String],
     default: [],
-    validate: {
-      validator: (images: string[]) => images.length <= MAX_ACTIVITY_IMAGES,
-      message: `An activity can have at most ${MAX_ACTIVITY_IMAGES} images`,
-    },
+    validate: [
+      {
+        validator: (images: string[]) =>
+          Array.isArray(images) &&
+          images.length <= UPLOAD_LIMITS.maxImagesPerEntity,
+        message: `An activity can have at most ${UPLOAD_LIMITS.maxImagesPerEntity} images`,
+      },
+      {
+        validator: (images: string[]) =>
+          Array.isArray(images) &&
+          images.every((url) => ACTIVITY_UPLOAD_URL.test(url)),
+        message: 'Activity images must be valid local activity upload URLs',
+      },
+    ],
   })
   images!: string[];
 
@@ -56,3 +76,15 @@ export type ActivityDocument = HydratedDocument<Activity>;
 export const ActivitySchema = SchemaFactory.createForClass(Activity);
 
 ActivitySchema.index({ itineraryId: 1, dayId: 1 });
+
+ActivitySchema.pre('validate', function () {
+  const hasCost = this.costMinor != null;
+  const hasCurrency = this.currency != null;
+
+  if (hasCost !== hasCurrency) {
+    this.invalidate(
+      hasCost ? 'currency' : 'costMinor',
+      'costMinor and currency must be provided together',
+    );
+  }
+});

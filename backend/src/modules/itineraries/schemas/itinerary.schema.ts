@@ -1,3 +1,4 @@
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { SCHEMA_OPTIONS } from '../../../common/contracts';
@@ -29,7 +30,7 @@ export class ItineraryDay {
   @Prop({ type: String, required: true, trim: true })
   cityId!: string;
 
-  @Prop({ type: String, default: '', trim: true })
+  @Prop({ type: String, default: '', trim: true, maxlength: 2000 })
   notes!: string;
 }
 export const ItineraryDaySchema = SchemaFactory.createForClass(ItineraryDay);
@@ -72,13 +73,16 @@ export class Itinerary {
 
   /** ISO 3166-1 alpha-2 country codes from reference.countries. */
   @Prop({
-    type: [String],
+    type: [{ type: String, trim: true, uppercase: true }],
     required: true,
     validate: {
       validator: (countries: string[]) =>
+        Array.isArray(countries) &&
         countries.length > 0 &&
-        countries.every((code) => /^[A-Z]{2}$/.test(code)),
-      message: 'countries must contain one or more seeded country codes',
+        countries.every((code) => /^[A-Z]{2}$/.test(code)) &&
+        new Set(countries).size === countries.length,
+      message:
+        'countries must contain unique, valid seeded country codes',
     },
   })
   countries!: string[];
@@ -92,7 +96,6 @@ export class Itinerary {
     enum: Object.values(ItineraryVisibility),
     required: true,
     default: ItineraryVisibility.Private,
-    index: true,
   })
   visibility!: ItineraryVisibility;
 
@@ -109,7 +112,7 @@ export class Itinerary {
   @Prop({ type: ItineraryCloneAttributionSchema, default: undefined })
   clonedFrom?: ItineraryCloneAttribution;
 
-  @Prop({ type: Boolean, default: false, index: true })
+  @Prop({ type: Boolean, default: false })
   isHidden!: boolean;
 
   createdAt!: Date;
@@ -121,7 +124,7 @@ export const ItinerarySchema = SchemaFactory.createForClass(Itinerary);
 
 ItinerarySchema.index({ ownerId: 1, updatedAt: -1 });
 ItinerarySchema.index({
-  title: 'text',
-  countries: 'text',
-  'days.cityId': 'text',
+  visibility: 1,
+  isHidden: 1,
+  updatedAt: -1,
 });
