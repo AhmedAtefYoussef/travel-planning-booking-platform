@@ -1265,3 +1265,18 @@ Claude closed the unmerged PRs and reverted merge #72 (FLT-26 code, tests and tr
 git revert. The earlier FLT-26 entry in this log stays, because the log is append-only and the work did
 happen. I review and merge the revert.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-23
+Prompt:
+The FLT-23 e-ticket e2e test fails at random in CI ("PA?-02" in the extracted text). Find the root cause and
+fix it without changing the e-ticket itself.
+How the output was used:
+Claude rendered hundreds of e-tickets and found that a policy version containing "ff" is drawn as a ligature
+whose ToUnicode target has two characters; the test reader skipped it and shifted every later glyph. Only the
+test reader changed, plus a unit test with an "ff" version that fails on the old reader. I checked 400 random
+renders (21 bad before, 0 after) before opening the pull request.
+================================================
