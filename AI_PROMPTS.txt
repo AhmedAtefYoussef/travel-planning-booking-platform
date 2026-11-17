@@ -1281,3 +1281,18 @@ unmerged or reverted stories (FLT-26, HTL-21, ACC-15/16, GEN-09/10), re-exported
 (61 paths), made the demo seed also fill hotel times stored as null, and re-ran the quality gate. I reviewed the
 README and the demo script against Swagger before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-23
+Prompt:
+The FLT-23 e-ticket e2e test fails at random in CI ("PA?-02" in the extracted text). Find the root cause and
+fix it without changing the e-ticket itself.
+How the output was used:
+Claude rendered hundreds of e-tickets and found that a policy version containing "ff" is drawn as a ligature
+whose ToUnicode target has two characters; the test reader skipped it and shifted every later glyph. Only the
+test reader changed, plus a unit test with an "ff" version that fails on the old reader. I checked 400 random
+renders (21 bad before, 0 after) before opening the pull request.
+================================================
