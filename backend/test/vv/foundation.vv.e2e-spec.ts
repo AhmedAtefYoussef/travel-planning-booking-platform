@@ -1042,7 +1042,7 @@ describe('Swagger contract as an evaluator sees it (vv): GEN-02', () => {
         accepted.push(`${ex.operation} [${ex.name}]`);
     }
     // These pass the DTO on purpose: the service rejects them (FLT-03, FLT-05, FLT-09, FLT-12/FLT-19, HTL-04,
-    // HTL-05, ACC-04).
+    // HTL-05, HTL-10, ACC-04).
     expect(accepted.sort()).toEqual(
       [
         'PATCH /api/flights/{id} [invalid]',
@@ -1056,6 +1056,7 @@ describe('Swagger contract as an evaluator sees it (vv): GEN-02', () => {
         'POST /api/flights [unknownAirport]',
         'POST /api/hotels/{id}/rooms/{roomId}/availability [overlapping]',
         'PUT /api/airlines/{id}/cancellation-policy [duplicate]',
+        'PUT /api/hotels/{id}/policies [duplicateThreshold]',
       ].sort(),
     );
   });

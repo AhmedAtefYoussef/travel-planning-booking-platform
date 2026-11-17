@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType, Role } from '../../common/auth/auth.types';
 import { ACTIVE_PROVIDER_FILTER } from '../../common/contracts';
+import { cancellationTierFieldErrors } from '../../common/contracts/policies.contract';
 import {
   REFERENCE_SERVICE,
   UPLOADS_SERVICE,
@@ -20,7 +21,10 @@ import {
 import { ErrorCode } from '../../common/errors/error-codes';
 import { localUploadUrlPattern } from '../../common/validation';
 import type { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
-import type { SetHotelPoliciesDto } from './dto/hotel-policy.dto';
+import {
+  MAX_HOTEL_CANCELLATION_TIERS,
+  type SetHotelPoliciesDto,
+} from './dto/hotel-policy.dto';
 import { Hotel, HotelDocument, MAX_HOTEL_PHOTOS } from './schemas/hotel.schema';
 
 /** A hotel photo this backend stored (GEN-08); group 2 is its image id. */
@@ -110,9 +114,12 @@ export class HotelsService {
   }
 
   /**
-   * HTL-09: the assigned moderator sets the standard check-in and check-out times (hotel local time).
-   * Same order and atomicity as `update`: scope first, then one validated write that only matches an
-   * active hotel. Only the two times are set, so the HTL-10 cancellation tiers are never touched.
+   * HTL-09 + HTL-10: the assigned moderator replaces the hotel's policy: the standard check-in and
+   * check-out times (hotel local time) and the cancellation tiers.
+   * Same order and atomicity as `update`: scope first (403 before any read), then the tier rules shared
+   * with FLT-09 (unique thresholds, 400 with fieldErrors), then one validated write that only matches
+   * an active hotel. Tiers are stored sorted by threshold. Existing reservations keep the tiers they
+   * accepted (PAY-02 snapshot), so a change only affects future bookings.
    */
   async setPolicies(
     user: AuthUser,
@@ -120,6 +127,26 @@ export class HotelsService {
     dto: SetHotelPoliciesDto,
   ): Promise<HotelDto> {
     assertProviderScope(user, ProviderType.Hotel, id);
+    // Checked here rather than with @ArrayMaxSize, so a missing list gives one field error (GEN-02).
+    if (dto.cancellationTiers.length > MAX_HOTEL_CANCELLATION_TIERS) {
+      throw new ValidationFailedException([
+        {
+          field: 'cancellationTiers',
+          message: `cancellationTiers can hold at most ${MAX_HOTEL_CANCELLATION_TIERS} tiers`,
+        },
+      ]);
+    }
+    const errors = cancellationTierFieldErrors(
+      dto.cancellationTiers,
+      'cancellationTiers',
+    );
+    if (errors.length) throw new ValidationFailedException(errors);
+    const cancellationTiers = [...dto.cancellationTiers]
+      .sort((a, b) => a.daysBefore - b.daysBefore)
+      .map((t) => ({
+        daysBefore: t.daysBefore,
+        refundPercent: t.refundPercent,
+      }));
     const hotel = await this.hotels
       .findOneAndUpdate(
         { _id: id, ...ACTIVE_PROVIDER_FILTER },
@@ -127,6 +154,7 @@ export class HotelsService {
           $set: {
             checkInTime: dto.checkInTime,
             checkOutTime: dto.checkOutTime,
+            cancellationTiers,
           },
         },
         { new: true, runValidators: true },
@@ -319,6 +347,10 @@ export function toHotelDto(hotel: HotelDocument): HotelDto {
     amenities: [...hotel.amenities],
     checkInTime: hotel.checkInTime ?? null,
     checkOutTime: hotel.checkOutTime ?? null,
+    cancellationTiers: (hotel.cancellationTiers ?? []).map((t) => ({
+      daysBefore: t.daysBefore,
+      refundPercent: t.refundPercent,
+    })),
     isActive: hotel.isActive,
     createdAt: hotel.createdAt,
     updatedAt: hotel.updatedAt,

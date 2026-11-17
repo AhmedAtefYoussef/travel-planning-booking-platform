@@ -12,6 +12,7 @@ import {
   Min,
 } from 'class-validator';
 import { MAX_HOTEL_PHOTOS } from '../schemas/hotel.schema';
+import { HotelCancellationTierDto } from './hotel-policy.dto';
 import {
   IsImageUrl,
   IsWholeNumber,
@@ -217,6 +218,17 @@ export class HotelDto {
       'Standard check-out time, hotel local HH:mm (HTL-09); null until set',
   })
   checkOutTime!: string | null;
+
+  @ApiProperty({
+    type: [HotelCancellationTierDto],
+    example: [
+      { daysBefore: 2, refundPercent: 50 },
+      { daysBefore: 7, refundPercent: 100 },
+    ],
+    description:
+      'Cancellation tiers sorted by threshold (HTL-10); [] until set, meaning cancellations refund 0%',
+  })
+  cancellationTiers!: HotelCancellationTierDto[];
 
   @ApiProperty({ example: true })
   isActive!: boolean;

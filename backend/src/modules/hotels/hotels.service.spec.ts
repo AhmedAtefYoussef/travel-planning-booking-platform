@@ -204,27 +204,104 @@ describe('HotelsService (HTL-01)', () => {
   });
 });
 
-describe('HotelsService.setPolicies (HTL-09)', () => {
+describe('HotelsService.setPolicies: HTL-09, HTL-10', () => {
+  const tiers = [{ daysBefore: 7, refundPercent: 50 }];
   const times = { checkInTime: '14:00', checkOutTime: '12:00' };
+  const policy = { ...times, cancellationTiers: tiers };
 
-  it('sets only the two times, in one validated atomic update of an active hotel', async () => {
-    const tiers = [{ daysBefore: 7, refundPercent: 50 }];
-    const hotel = fakeHotel({ cancellationTiers: tiers });
+  it('replaces the times and the tiers in one validated atomic update of an active hotel', async () => {
+    const hotel = fakeHotel({
+      cancellationTiers: [{ daysBefore: 1, refundPercent: 10 }],
+    });
     const { service, model } = setup(hotel);
-    const dto = await service.setPolicies(own(), id, times);
+    const dto = await service.setPolicies(own(), id, policy);
     expect(model.findOneAndUpdate).toHaveBeenCalledWith(
       { _id: id, isActive: true },
-      { $set: times },
+      { $set: policy },
       { new: true, runValidators: true },
     );
-    expect(dto).toMatchObject(times);
-    expect(hotel).toMatchObject({ cancellationTiers: tiers });
+    expect(dto).toMatchObject(policy);
   });
 
-  it('every hotel response carries the times, null until they are set (seen through an HTL-01 edit)', async () => {
+  it('stores the tiers sorted by threshold, keeping decimal refunds (HTL-10)', async () => {
+    const hotel = fakeHotel();
+    const { service } = setup(hotel);
+    const dto = await service.setPolicies(own(), id, {
+      ...times,
+      cancellationTiers: [
+        { daysBefore: 30, refundPercent: 100 },
+        { daysBefore: 0, refundPercent: 0 },
+        { daysBefore: 7, refundPercent: 62.5 },
+      ],
+    });
+    expect(dto.cancellationTiers).toEqual([
+      { daysBefore: 0, refundPercent: 0 },
+      { daysBefore: 7, refundPercent: 62.5 },
+      { daysBefore: 30, refundPercent: 100 },
+    ]);
+  });
+
+  it('an empty list clears the tiers, so a cancellation refunds 0% (HTL-10)', async () => {
+    const hotel = fakeHotel({ cancellationTiers: tiers });
+    const dto = await setup(hotel).service.setPolicies(own(), id, {
+      ...times,
+      cancellationTiers: [],
+    });
+    expect(dto.cancellationTiers).toEqual([]);
+  });
+
+  it('caps the list at 20 tiers with one field error, writing nothing (BVA 20/21)', async () => {
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        daysBefore: i,
+        refundPercent: 10,
+      }));
+    const { service, model } = setup(fakeHotel());
+    await expect(
+      service.setPolicies(own(), id, { ...times, cancellationTiers: many(21) }),
+    ).rejects.toMatchObject({
+      status: 400,
+      fieldErrors: [{ field: 'cancellationTiers' }],
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+    const dto = await service.setPolicies(own(), id, {
+      ...times,
+      cancellationTiers: many(20),
+    });
+    expect(dto.cancellationTiers).toHaveLength(20);
+  });
+
+  it('rejects duplicate thresholds with a 400 naming each duplicate, writing nothing (HTL-10)', async () => {
+    const { service, model } = setup(fakeHotel());
+    await expect(
+      service.setPolicies(own(), id, {
+        ...times,
+        cancellationTiers: [
+          { daysBefore: 7, refundPercent: 50 },
+          { daysBefore: 3, refundPercent: 20 },
+          { daysBefore: 7, refundPercent: 80 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      fieldErrors: [
+        {
+          field: 'cancellationTiers[2].daysBefore',
+          message: 'daysBefore 7 is duplicated',
+        },
+      ],
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('every hotel response carries the times and tiers, null/empty until set (seen through an HTL-01 edit)', async () => {
     const { service } = setup(fakeHotel());
     const dto = await service.update(own(), id, { name: 'Renamed Hotel' });
-    expect(dto).toMatchObject({ checkInTime: null, checkOutTime: null });
+    expect(dto).toMatchObject({
+      checkInTime: null,
+      checkOutTime: null,
+      cancellationTiers: [],
+    });
   });
 
   it("refuses another hotel's moderator, an admin and a traveller with 403 before reading", async () => {
@@ -234,10 +311,12 @@ describe('HotelsService.setPolicies (HTL-09)', () => {
       { id: new Types.ObjectId().toHexString(), role: Role.Admin },
       { id: new Types.ObjectId().toHexString(), role: Role.User },
     ] as AuthUser[]) {
-      await expect(service.setPolicies(user, id, times)).rejects.toMatchObject({
-        status: 403,
-        message: expect.stringContaining('assigned') as string,
-      });
+      await expect(service.setPolicies(user, id, policy)).rejects.toMatchObject(
+        {
+          status: 403,
+          message: expect.stringContaining('assigned') as string,
+        },
+      );
     }
     expect(model.findById).not.toHaveBeenCalled();
     expect(model.findOneAndUpdate).not.toHaveBeenCalled();
@@ -245,11 +324,11 @@ describe('HotelsService.setPolicies (HTL-09)', () => {
 
   it('gives 404 for an unknown hotel and 403 for a deactivated one, changing nothing', async () => {
     await expect(
-      setup(null).service.setPolicies(own(), id, times),
+      setup(null).service.setPolicies(own(), id, policy),
     ).rejects.toMatchObject({ status: 404 });
     const closed = fakeHotel({ isActive: false });
     await expect(
-      setup(closed).service.setPolicies(own(), id, times),
+      setup(closed).service.setPolicies(own(), id, policy),
     ).rejects.toMatchObject({
       status: 403,
       message: expect.stringContaining('deactivated') as string,

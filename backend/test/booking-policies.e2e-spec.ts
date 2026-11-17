@@ -13,7 +13,6 @@ import {
   type PayableBooking,
 } from '../src/common/contracts';
 import { FlightBooking, HotelReservation } from '../src/modules/bookings';
-import { Hotel } from '../src/modules/hotels';
 import {
   loadReferenceDataset,
   ReferenceSeedService,
@@ -161,17 +160,16 @@ describe('Booking policies (e2e): PAY-02, PAY-04', () => {
         .expect(201)
     ).body.id as string;
     hotelMod = `HOTEL_MODERATOR:${new Types.ObjectId().toHexString()}:${hotelId}`;
-    // HTL-09/HTL-10 have no endpoints on develop yet, so their stored values are set directly.
-    await app.get<Model<Hotel>>(getModelToken(Hotel.name)).updateOne(
-      { _id: hotelId },
-      {
-        $set: {
-          checkInTime: '14:00',
-          checkOutTime: '12:00',
-          cancellationTiers: [{ daysBefore: 3, refundPercent: 80 }],
-        },
-      },
-    );
+    // The hotel moderator sets the terms the traveller sees before paying (HTL-09, HTL-10).
+    await http()
+      .put(`/api/hotels/${hotelId}/policies`)
+      .set('x-dev-user', hotelMod)
+      .send({
+        checkInTime: '14:00',
+        checkOutTime: '12:00',
+        cancellationTiers: [{ daysBefore: 3, refundPercent: 80 }],
+      })
+      .expect(200);
     roomId = (
       await http()
         .post(`/api/hotels/${hotelId}/rooms`)
