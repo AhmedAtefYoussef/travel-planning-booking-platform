@@ -22,11 +22,13 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "openapi:generate": "ts-node --transpile-only scripts/generate-openapi.ts openapi.json",
+    "openapi:export": "ts-node --transpile-only scripts/generate-openapi.ts ../docs/api/openapi.json",
     "openapi:check": "ts-node --transpile-only scripts/check-openapi.ts openapi.json",
     "arch:check": "depcruise src --config .dependency-cruiser.cjs --output-type err-long",
     "verify": "npm run format:check && npm run lint:ci && npm run typecheck && npm run test:cov && npm run test:e2e && npm run build && npm run openapi:generate && npm run openapi:check && npm run arch:check",
     "db:check": "ts-node --transpile-only scripts/db-check.ts",
-    "seed": "ts-node --transpile-only scripts/seed.ts"
+    "seed": "ts-node --transpile-only scripts/seed.ts",
+    "seed:demo": "ts-node --transpile-only scripts/seed-demo.ts"
   },
   "dependencies": {
     "@fontsource/dejavu-sans": "^5.3.0",
