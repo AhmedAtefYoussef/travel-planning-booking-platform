@@ -102,7 +102,7 @@ PASS, FAIL, PARTIAL and BLOCKED count atomic rules. *Live* means the rule was al
 | GEN-13 | Ahmed | 6 | | | | yes | PASS (D-04 fixed in #55) |
 | PAY-01, PAY-03, PAY-04, GEN-07, GEN-11, HTL-10 | Ahmed / Sandra | 9 | | | 5 | | The schema-only parts claimed in traceability.md are verified |
 | GEN-11 (#57, #59, #60) | Ahmed | see [rtm-booking.md](rtm-booking.md) | | | 1 | yes | PARTIAL as declared: Confirmed -> Cancelled waits for the cancel stories |
-| FLT-12 (#58, #59, #72, #PR) | Ahmed | see rtm-booking.md | | | | yes | PASS: whole-trip cancellation with the outbound tier (R-FLT-12-10) landed with FLT-26 |
+| FLT-12 (#58, #59, #72, #85) | Ahmed | see rtm-booking.md | | | | yes | PASS: whole-trip cancellation with the outbound tier (R-FLT-12-10) landed with FLT-26 |
 | FLT-19, FLT-21, FLT-22 (#59, #63, #64) | Ahmed | see rtm-booking.md | | | | yes | PASS (Session 3: FLT-19 baggage weight and unborn passengers fixed in #63) |
 | HTL-16, HTL-18 (#60) | Ahmed | see rtm-booking.md | | | | yes | PASS |
 | PAY-02, PAY-04 (#61, #62) | Ahmed | see rtm-booking.md | | 1 | | yes | PARTIAL: no endpoint sets a hotel's times or tiers yet (HTL-09, HTL-10); refunds in the platform currency come with PAY-03 |
