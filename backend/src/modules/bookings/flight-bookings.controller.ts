@@ -16,12 +16,16 @@ import {
   ApiOperation,
   ApiParam,
   ApiProduces,
+  ApiResponse,
   ApiTags,
+  type ApiResponseOptions,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
+import { ErrorResponseDto } from '../../common/errors/error-response.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import { RefundQuoteDto } from './dto/booking-refund.dto';
 import {
   FlightBookingDto,
   FlightBookingRequestDto,
@@ -85,7 +89,62 @@ const BODY_EXAMPLES = {
 const RULES =
   'Passenger types follow FLT-12: adults 12+, children 2-11, infants under 2 on the departure date (local date at the departure airport); the declared type must match the date of birth (FLT-19). At least one adult, no more infants than adults. Adults and children pay the fare and take a seat; infants pay 10% and take no seat. Extra bags (FLT-08) are limited per passenger by the airline and charged on each flight. A round trip must be the reverse route and leave after the outbound lands. All amounts are minor units of the platform currency (PAY-04).';
 
-/** Flight bookings for registered users (FLT-19, FLT-21, FLT-22; ACC-11 ownership). */
+const CANCEL_RULES =
+  'Owner only (USER role): anyone else gets the same 404 as an unknown id (ACC-11). Only a CONFIRMED booking can be cancelled (409 BOOKING_NOT_CONFIRMED otherwise, including one already cancelled), and only before the outbound departure (409 CANCELLATION_WINDOW_CLOSED at or after it). The refund is the amount paid times the airline tier accepted with the booking (PAY-02 snapshot, never the current policy): the tier with the highest daysBefore not exceeding the whole days left before departure, 0% when none applies (FLT-09), rounded down to minor units of the platform currency. A round trip is one booking, cancelled as a whole using the OUTBOUND flight and its airline tier (FLT-12 a).';
+
+const CANCEL_ID_PARAM = {
+  name: 'id',
+  description: 'Flight booking id',
+  examples: {
+    valid: {
+      summary: 'A confirmed booking of yours',
+      value: '6af0eaaec77901aa9f228658',
+    },
+    invalid: { summary: 'Invalid: not an id (400)', value: 'not-an-id' },
+  },
+};
+
+const errorExample = (statusCode: number, code: string, message: string) => ({
+  statusCode,
+  error: statusCode === 404 ? 'Not Found' : 'Conflict',
+  code,
+  message,
+  path: '/api/flight-bookings/6af0eaaec77901aa9f228658/cancel',
+  timestamp: '2026-11-16T10:15:30.000Z',
+});
+
+const CANCEL_404: ApiResponseOptions = {
+  status: 404,
+  description: "Unknown booking, or someone else's (identical body, ACC-11)",
+  type: ErrorResponseDto,
+  example: errorExample(404, 'NOT_FOUND', 'Booking not found'),
+};
+
+const CANCEL_409: ApiResponseOptions = {
+  status: 409,
+  description: 'Not confirmed, or the flight has already departed',
+  type: ErrorResponseDto,
+  examples: {
+    notConfirmed: {
+      summary: 'The booking is not CONFIRMED (pending, expired, cancelled…)',
+      value: errorExample(
+        409,
+        'BOOKING_NOT_CONFIRMED',
+        'This booking is CANCELLED; only a confirmed booking can be cancelled',
+      ),
+    },
+    departed: {
+      summary: 'The outbound flight has left',
+      value: errorExample(
+        409,
+        'CANCELLATION_WINDOW_CLOSED',
+        'The flight has already departed, so this booking can no longer be cancelled',
+      ),
+    },
+  },
+};
+
+/** Flight bookings for registered users (FLT-19, FLT-21, FLT-22, FLT-23, FLT-26; ACC-11 ownership). */
 @ApiTags('flight-bookings')
 @Controller('flight-bookings')
 export class FlightBookingsController {
@@ -137,6 +196,49 @@ export class FlightBookingsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<FlightBookingDto> {
     return this.bookings.findOne(user, id);
+  }
+
+  @Get(':id/refund-quote')
+  @Roles(Role.User)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOperation({
+    summary:
+      'FLT-26 See the refund before cancelling a confirmed flight booking',
+    description: `Shows what POST .../cancel would refund right now; changes nothing. ${CANCEL_RULES}`,
+  })
+  @ApiParam(CANCEL_ID_PARAM)
+  @ApiOkResponse({ type: RefundQuoteDto })
+  @ApiErrorResponses(400)
+  @ApiResponse(CANCEL_404)
+  @ApiResponse(CANCEL_409)
+  refundQuote(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<RefundQuoteDto> {
+    return this.bookings.refundQuote(user, id);
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'FLT-26 Cancel a confirmed flight booking with a tier refund',
+    description: `No body: call GET .../refund-quote first and show the amount for the user to confirm. In one transaction the booking becomes CANCELLED (GEN-11), every segment's seats (adults and children; infants take none) return to the cabin inventory, a PENDING refund is recorded when the amount is positive (PAY-03: Stripe is asked after commit and the refund block on the booking moves to REFUNDED or FAILED; the user gets REFUND_ISSUED), and the owner gets a BOOKING_CANCELLED notification. Of two simultaneous cancels exactly one succeeds; the other is 409. Answers the updated booking details. ${CANCEL_RULES}`,
+  })
+  @ApiParam(CANCEL_ID_PARAM)
+  @ApiOkResponse({
+    type: FlightBookingDto,
+    description:
+      'The cancelled booking; `refund` is null when no tier applied (0%)',
+  })
+  @ApiErrorResponses(400)
+  @ApiResponse(CANCEL_404)
+  @ApiResponse(CANCEL_409)
+  cancel(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<FlightBookingDto> {
+    return this.bookings.cancel(user, id);
   }
 
   @Get(':id/e-ticket')

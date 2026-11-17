@@ -2,6 +2,8 @@ import { Types } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
 import {
   BookingStatus,
+  computeRefundQuote,
+  RefundReason,
   type BookableCabin,
   type FlightInventory,
 } from '../../common/contracts';
@@ -166,13 +168,19 @@ function setup(
     ),
     setActive: jest.fn(),
   };
+  const refunds = {
+    // The real pure calculation, so tests see the tier the service asked for.
+    quote: jest.fn(computeRefundQuote),
+    refundFor: jest.fn().mockResolvedValue(null),
+    summaryFor: jest.fn().mockResolvedValue(null),
+  };
   const service = new FlightBookingsService(
     model as never,
     guards as never,
     connection as never,
     inventory,
     config as never,
-    { summaryFor: jest.fn().mockResolvedValue(null) } as never,
+    refunds,
     notifications,
     reference as never,
     users as never,
@@ -188,6 +196,7 @@ function setup(
     notifications,
     reference,
     users,
+    refunds,
   };
 }
 
@@ -955,5 +964,372 @@ describe('FlightBookingsService FLT-23 confirmation notice and e-ticket', () => 
     expect(notifications.notify.mock.calls[0][0]).toMatchObject({
       body: 'CDG -> HND, flight HQ100, departs Wed 1 Dec 2027, 10:00 (UTC+00:00, UTC); 1 passenger.',
     });
+  });
+});
+
+describe('FlightBookingsService cancellation and refund quote: FLT-26', () => {
+  const ownerId = oid();
+  const owner = { id: ownerId, role: Role.User };
+  const OUT_TIERS = [
+    { daysBefore: 7, refundPercent: 50 },
+    { daysBefore: 60, refundPercent: 100 },
+  ];
+  const airline = (flightNumber: string, tiers: object[]) => ({
+    airlineId: oid(),
+    airlineName: 'Hop Air',
+    airlineCode: 'HQ',
+    flightNumber,
+    cabinClass: 'ECONOMY',
+    freeBags: 1,
+    maxKgPerBag: 23,
+    cancellationTiers: tiers,
+    extraBaggage: null,
+  });
+  /** A confirmed, paid one-way booking (NOW is 30 days before its 2027-12-01T10:00Z departure). */
+  const paid = (over: object = {}) => {
+    const base = confirmedDoc({
+      userId: new Types.ObjectId(ownerId),
+      tripType: 'ONE_WAY',
+      createdAt: NOW,
+      startsAt: new Date('2027-12-01T10:00:00Z'),
+      policySnapshot: {
+        version: 'v1',
+        airlines: [airline('HQ100', OUT_TIERS)],
+      },
+    });
+    return {
+      ...base,
+      id: base._id.toHexString(),
+      paymentId: new Types.ObjectId(),
+      ...over,
+    };
+  };
+  /** The same booking as a round trip whose return airline refunds 100% (it must not be used). */
+  const roundTrip = () => {
+    const doc = paid();
+    return {
+      ...doc,
+      tripType: 'ROUND_TRIP',
+      segments: [
+        { ...doc.segments[0], seats: 2 },
+        {
+          ...doc.segments[0],
+          flightId: new Types.ObjectId(),
+          cabinId: new Types.ObjectId(),
+          flightNumber: 'ZZ200',
+          from: 'HND',
+          to: 'CDG',
+          departureUtc: new Date('2027-12-10T10:00:00Z'),
+          arrivalUtc: new Date('2027-12-10T22:00:00Z'),
+          seats: 2,
+        },
+      ],
+      policySnapshot: {
+        version: 'v1',
+        airlines: [
+          airline('HQ100', OUT_TIERS),
+          airline('ZZ200', [{ daysBefore: 0, refundPercent: 100 }]),
+        ],
+      },
+    };
+  };
+  const reads = (doc: unknown) =>
+    jest.fn().mockReturnValue({
+      exec: () => Promise.resolve(doc),
+      lean: () => ({ exec: () => Promise.resolve(doc) }),
+    });
+
+  it('refundQuote uses the outbound departure and the accepted snapshot tiers', async () => {
+    const { service, model, refunds, inventory } = setup();
+    const doc = paid();
+    model.findById = reads(doc);
+    await expect(service.refundQuote(owner, doc.id, NOW)).resolves.toEqual({
+      amountMinor: 50_000,
+      currency: 'EGP',
+      refundPercent: 50,
+      tierApplied: { daysBefore: 7, refundPercent: 50 },
+      daysBefore: 30,
+    });
+    expect(refunds.quote).toHaveBeenCalledWith({
+      paidMinor: 100_000,
+      currency: 'EGP',
+      eventStartUtc: new Date('2027-12-01T10:00:00Z'),
+      tiers: OUT_TIERS,
+      reason: RefundReason.UserCancellation,
+      now: NOW,
+    });
+    // The provider's current policy is never consulted (brief 6.4).
+    expect(inventory.getAirlinePolicy).not.toHaveBeenCalled();
+  });
+
+  describe('round trip cancelled as a whole on the outbound tier: FLT-12', () => {
+    it('a round trip is quoted as a whole with the outbound tier (FLT-12 a)', async () => {
+      const { service, model } = setup();
+      const doc = roundTrip();
+      model.findById = reads(doc);
+      await expect(
+        service.refundQuote(owner, doc.id, NOW),
+      ).resolves.toMatchObject({ refundPercent: 50, amountMinor: 50_000 });
+    });
+
+    it('finds the outbound terms even when the snapshot lists the return airline first', async () => {
+      const { service, model, refunds } = setup();
+      const doc = roundTrip();
+      doc.policySnapshot.airlines.reverse();
+      model.findById = reads(doc);
+      await expect(
+        service.refundQuote(owner, doc.id, NOW),
+      ).resolves.toMatchObject({ refundPercent: 50 });
+      expect(refunds.quote).toHaveBeenCalledWith(
+        expect.objectContaining({ tiers: OUT_TIERS }),
+      );
+    });
+  });
+
+  describe('refund tiers at their boundaries: FLT-26', () => {
+    const DEPARTURE = new Date('2027-12-01T10:00:00Z');
+    const DAY = 86_400_000;
+    const at = (msBefore: number) => new Date(DEPARTURE.getTime() - msBefore);
+    const withTiers = (tiers: object[]) =>
+      paid({
+        policySnapshot: { version: 'v1', airlines: [airline('HQ100', tiers)] },
+      });
+
+    it('exactly at a threshold the tier applies; one millisecond later it does not', async () => {
+      const { service, model } = setup();
+      model.findById = reads(paid());
+      await expect(
+        service.refundQuote(owner, oid(), at(7 * DAY)),
+      ).resolves.toEqual({
+        amountMinor: 50_000,
+        currency: 'EGP',
+        refundPercent: 50,
+        tierApplied: { daysBefore: 7, refundPercent: 50 },
+        daysBefore: 7,
+      });
+      await expect(
+        service.refundQuote(owner, oid(), at(7 * DAY - 1)),
+      ).resolves.toEqual({
+        amountMinor: 0,
+        currency: 'EGP',
+        refundPercent: 0,
+        tierApplied: null,
+        daysBefore: 6,
+      });
+      await expect(
+        service.refundQuote(owner, oid(), at(60 * DAY)),
+      ).resolves.toMatchObject({ refundPercent: 100, amountMinor: 100_000 });
+    });
+
+    it('0 days left: a 0-day tier still applies until the departure instant', async () => {
+      const { service, model } = setup();
+      model.findById = reads(
+        withTiers([
+          { daysBefore: 0, refundPercent: 25 },
+          { daysBefore: 7, refundPercent: 50 },
+        ]),
+      );
+      await expect(service.refundQuote(owner, oid(), at(1))).resolves.toEqual({
+        amountMinor: 25_000,
+        currency: 'EGP',
+        refundPercent: 25,
+        tierApplied: { daysBefore: 0, refundPercent: 25 },
+        daysBefore: 0,
+      });
+      expect(
+        await failure(service.refundQuote(owner, oid(), at(0))),
+      ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+    });
+
+    it('rounds a partial refund down to whole minor units', async () => {
+      const { service, model } = setup();
+      model.findById = reads(
+        paid({
+          totalMinor: 99_999,
+          policySnapshot: {
+            version: 'v1',
+            airlines: [
+              airline('HQ100', [{ daysBefore: 0, refundPercent: 33 }]),
+            ],
+          },
+        }),
+      );
+      await expect(
+        service.refundQuote(owner, oid(), NOW),
+      ).resolves.toMatchObject({ amountMinor: 32_999, refundPercent: 33 });
+    });
+  });
+
+  it('refundQuote: 404 for unknown, malformed or someone else; 409 unless confirmed and before departure', async () => {
+    const { service, model } = setup();
+    model.findById = reads(null);
+    for (const id of [oid(), 'bad']) {
+      expect(await failure(service.refundQuote(owner, id, NOW))).toMatchObject({
+        status: 404,
+        code: 'NOT_FOUND',
+      });
+    }
+    model.findById = reads(paid());
+    expect(
+      await failure(
+        service.refundQuote({ id: oid(), role: Role.User }, oid(), NOW),
+      ),
+    ).toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    model.findById = reads(paid({ status: BookingStatus.PendingPayment }));
+    expect(await failure(service.refundQuote(owner, oid(), NOW))).toMatchObject(
+      { status: 409, code: 'BOOKING_NOT_CONFIRMED' },
+    );
+    model.findById = reads(paid());
+    const atDeparture = new Date('2027-12-01T10:00:00Z');
+    expect(
+      await failure(service.refundQuote(owner, oid(), atDeparture)),
+    ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+  });
+
+  it('cancel moves CONFIRMED -> CANCELLED, releases every segment, refunds and notifies in one transaction', async () => {
+    const { service, model, inventory, refunds, notifications, session } =
+      setup({}, { moved: [1, 1] });
+    const doc = roundTrip();
+    model.findById = reads(doc);
+    inventory.releaseSeats.mockResolvedValue(true);
+    const refundId = oid();
+    refunds.refundFor.mockResolvedValue({
+      refundId,
+      status: 'PENDING',
+      amountMinor: 50_000,
+    });
+    await service.cancel(owner, doc.id, NOW);
+
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(model.updateOne).toHaveBeenNthCalledWith(
+      1,
+      {
+        startsAt: { $gt: NOW },
+        _id: doc.id,
+        status: BookingStatus.Confirmed,
+      },
+      {
+        $set: {
+          cancelledAt: NOW,
+          cancelledBy: 'USER',
+          status: BookingStatus.Cancelled,
+        },
+      },
+      { session },
+    );
+    expect(inventory.releaseSeats.mock.calls).toEqual([
+      [
+        doc.segments[0].flightId.toHexString(),
+        doc.segments[0].cabinId.toHexString(),
+        2,
+        session,
+      ],
+      [
+        doc.segments[1].flightId.toHexString(),
+        doc.segments[1].cabinId.toHexString(),
+        2,
+        session,
+      ],
+    ]);
+    expect(refunds.refundFor).toHaveBeenCalledWith(
+      {
+        bookingType: 'FLIGHT',
+        bookingId: doc.id,
+        userId: ownerId,
+        paymentId: doc.paymentId.toHexString(),
+        quote: expect.objectContaining({ refundPercent: 50 }) as unknown,
+        reason: RefundReason.UserCancellation,
+      },
+      session,
+    );
+    expect(model.updateOne).toHaveBeenNthCalledWith(
+      2,
+      { _id: doc.id },
+      { $set: { refundId: new Types.ObjectId(refundId) } },
+      { session },
+    );
+    expect(notifications.notify).toHaveBeenCalledWith(
+      {
+        userId: ownerId,
+        type: 'BOOKING_CANCELLED',
+        title: 'Flight booking FL-AB12CD34 cancelled',
+        body: 'CDG -> HND -> CDG, flights HQ100 / ZZ200, is cancelled and its seats are released. Refund: 500.00 EGP (50%).',
+        link: `/bookings/flights/${doc.id}`,
+      },
+      session,
+    );
+  });
+
+  it('a 0% cancellation still asks refundFor and accepts its null (no refund recorded)', async () => {
+    const { service, model, refunds, notifications, inventory } = setup(
+      {},
+      { moved: [1] },
+    );
+    const doc = paid({
+      policySnapshot: { version: 'v1', airlines: [airline('HQ100', [])] },
+    });
+    model.findById = reads(doc);
+    inventory.releaseSeats.mockResolvedValue(true);
+    await expect(service.cancel(owner, doc.id, NOW)).resolves.toMatchObject({
+      id: doc.id,
+      refund: null,
+    });
+    expect(refunds.refundFor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quote: expect.objectContaining({
+          amountMinor: 0,
+          refundPercent: 0,
+        }) as unknown,
+      }),
+      expect.anything(),
+    );
+    // Only the transition wrote to the booking: there is no refund to link.
+    expect(model.updateOne).toHaveBeenCalledTimes(1);
+    expect(notifications.notify.mock.calls[0][0]).toMatchObject({
+      body: 'CDG -> HND, flight HQ100, is cancelled and its seats are released. No refund applies under the cancellation policy you accepted.',
+    });
+  });
+
+  it('a concurrent cancel that loses the transition is 409 and releases, refunds and notifies nothing', async () => {
+    const { service, model, inventory, refunds, notifications } = setup(
+      {},
+      { moved: [0] },
+    );
+    model.findById = reads(paid());
+    expect(await failure(service.cancel(owner, oid(), NOW))).toMatchObject({
+      status: 409,
+      code: 'BOOKING_NOT_CONFIRMED',
+    });
+    expect(inventory.releaseSeats).not.toHaveBeenCalled();
+    expect(refunds.refundFor).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('cancelConfirmed re-checks the departure window inside the transaction', async () => {
+    const { service, model, refunds, session } = setup({}, { moved: [1] });
+    model.findById = reads(paid());
+    expect(
+      await failure(
+        service.cancelConfirmed(
+          oid(),
+          { reason: RefundReason.UserCancellation },
+          new Date('2027-12-01T10:00:01Z'),
+        ),
+      ),
+    ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(refunds.refundFor).not.toHaveBeenCalled();
+  });
+
+  it('a Confirmed booking without a policy snapshot is a defect (500), never a silent 0% refund', async () => {
+    const { service, model, refunds } = setup({}, { moved: [1] });
+    model.findById = reads(paid({ policySnapshot: null }));
+    const e = await failure(service.cancel(owner, oid(), NOW));
+    expect(e).toBeInstanceOf(Error);
+    expect(e.status).toBeUndefined();
+    expect((e as Error).message).toContain('has no accepted policy snapshot');
+    expect(model.updateOne).not.toHaveBeenCalled();
+    expect(refunds.refundFor).not.toHaveBeenCalled();
   });
 });
