@@ -3,7 +3,6 @@ export {
   Activity,
   ACTIVITIES_COLLECTION,
   ActivitySchema,
-  MAX_ACTIVITY_IMAGES,
 } from './schemas/activity.schema';
 export type { ActivityDocument } from './schemas/activity.schema';
 export {
