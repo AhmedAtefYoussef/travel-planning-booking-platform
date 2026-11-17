@@ -1265,3 +1265,19 @@ Claude closed the unmerged PRs and reverted merge #72 (FLT-26 code, tests and tr
 git revert. The earlier FLT-26 entry in this log stays, because the log is append-only and the work did
 happen. I review and merge the revert.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-135
+Prompt:
+Analyse the project description, the requirements workbook, Jira and the repository, then complete my assigned
+tasks. For TRVL-135: rebuild the README, Swagger demo script, openapi export and demo seed from closed PR #79 on
+top of the current develop, and keep only what is merged after the FLT-26 revert (#80).
+How the output was used:
+Claude cherry-picked the #79 commits onto a fresh branch, removed the demo steps and feature-map entries for
+unmerged or reverted stories (FLT-26, HTL-21, ACC-15/16, GEN-09/10), re-exported openapi.json from develop
+(61 paths), made the demo seed also fill hotel times stored as null, and re-ran the quality gate. I reviewed the
+README and the demo script against Swagger before opening the pull request.
+================================================
