@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { CommonModule } from './common/common.module';
 import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
+import { AdminModule } from './modules/admin';
 import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth';
 import { BookingsModule } from './modules/bookings';
@@ -37,6 +38,7 @@ import { UsersModule } from './modules/users';
     CurrencyModule,
     FlightsModule,
     HotelsModule,
+    AdminModule,
     // Dev-only Swagger demos; evaluated after AppConfigModule has loaded .env into process.env.
     ...(diagnosticsEnabled(process.env.NODE_ENV) ? [DiagnosticsModule] : []),
   ],
