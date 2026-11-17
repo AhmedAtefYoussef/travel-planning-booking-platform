@@ -276,7 +276,7 @@ describe('Admin suspends and reactivates registered users (e2e): ACC-16, GEN-07'
   const { ctx } = h;
 
   it('suspends a user: their cookie session dies, login is refused, Confirmed bookings stay Confirmed, and it is audited', async () => {
-    const { leg } = await h.airlineWithFlight('KS');
+    const { leg } = await h.airlineWithFlight('AQS');
     const user = await loginAs(ctx.app, Role.User);
     const bookingId = await h.confirmedFlightBooking(user, leg);
 
@@ -321,7 +321,7 @@ describe('Admin suspends and reactivates registered users (e2e): ACC-16, GEN-07'
   });
 
   it('reactivates a suspended user: login works again, both notifications arrive, the booking is still Confirmed, and it is audited', async () => {
-    const { leg } = await h.airlineWithFlight('KT');
+    const { leg } = await h.airlineWithFlight('AQT');
     const user = await loginAs(ctx.app, Role.User);
     const bookingId = await h.confirmedFlightBooking(user, leg);
     await h.patchAccount(user.userId, 'suspend').expect(200);
@@ -434,7 +434,7 @@ describe('Admin suspends moderators and deactivates providers (e2e): ACC-15, GEN
 
   describe('moderator accounts', () => {
     it('suspends an airline moderator: the session dies and login is refused; reactivation restores it', async () => {
-      const { moderator } = await h.airlineWithFlight('KU');
+      const { moderator } = await h.airlineWithFlight('AQU');
 
       const res = await h
         .patchAccount(moderator.userId, 'suspend', {
@@ -472,7 +472,7 @@ describe('Admin suspends moderators and deactivates providers (e2e): ACC-15, GEN
 
   describe('airlines', () => {
     it('deactivates an airline: hidden from search, holds refused with 409 PROVIDER_INACTIVE, Confirmed bookings stay valid, moderator notified, audited', async () => {
-      const { airlineId, moderator, leg } = await h.airlineWithFlight('KV');
+      const { airlineId, moderator, leg } = await h.airlineWithFlight('AQV');
       const traveller = await loginAs(ctx.app, Role.User);
       const bookingId = await h.confirmedFlightBooking(traveller, leg);
       expect(await h.searchIds()).toContain(leg.flightId);
@@ -485,7 +485,7 @@ describe('Admin suspends moderators and deactivates providers (e2e): ACC-15, GEN
       expect(res.body).toEqual({
         id: airlineId,
         type: 'AIRLINE',
-        name: 'Suspension Air KV',
+        name: 'Suspension Air AQV',
         isActive: false,
       });
 
@@ -501,7 +501,7 @@ describe('Admin suspends moderators and deactivates providers (e2e): ACC-15, GEN
       const [notice] = await h.notificationsOf(moderator);
       expect(notice).toMatchObject({ type: 'PROVIDER_DEACTIVATED' });
       expect(notice.title).toBe('Your airline has been deactivated');
-      expect(notice.body).toContain('Suspension Air KV');
+      expect(notice.body).toContain('Suspension Air AQV');
 
       expect(await h.auditRows('DEACTIVATE_PROVIDER', airlineId)).toEqual([
         expect.objectContaining({
@@ -509,7 +509,7 @@ describe('Admin suspends moderators and deactivates providers (e2e): ACC-15, GEN
           targetType: 'AIRLINE',
           reason: 'Licence expired',
           metadata: {
-            providerName: 'Suspension Air KV',
+            providerName: 'Suspension Air AQV',
             moderatorsNotified: 1,
           },
         }),
@@ -517,7 +517,7 @@ describe('Admin suspends moderators and deactivates providers (e2e): ACC-15, GEN
     });
 
     it('reactivates an airline: back in search, bookable again, moderator notified, audited', async () => {
-      const { airlineId, moderator, leg } = await h.airlineWithFlight('KW');
+      const { airlineId, moderator, leg } = await h.airlineWithFlight('AQW');
       await h.patchProvider('airline', airlineId, 'deactivate').expect(200);
 
       const res = await h
