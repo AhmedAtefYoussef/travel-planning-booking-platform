@@ -1,14 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
+import { IsArray, Matches, Max, Min, ValidateNested } from 'class-validator';
 import {
-  IsArray,
-  IsNumber,
-  Matches,
-  Max,
-  Min,
-  ValidateNested,
-} from 'class-validator';
-import { IsWholeNumber, LOCAL_TIME_HH_MM } from '../../../common/validation';
+  IsTwoDecimalNumber,
+  IsWholeNumber,
+  LOCAL_TIME_HH_MM,
+} from '../../../common/validation';
 
 const TIME_DESCRIPTION =
   '24-hour local time of the hotel, HH:mm from 00:00 to 23:59 (e.g. 14:00). Shown on the hotel page and the booking summary.';
@@ -39,10 +36,7 @@ export class HotelCancellationTierDto {
     description:
       'Refund percentage of the reservation total, 0-100, up to two decimals',
   })
-  @IsNumber(
-    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 },
-    { message: 'refundPercent must be a number with up to two decimals' },
-  )
+  @IsTwoDecimalNumber('refundPercent must be a number with up to two decimals')
   @Min(0)
   @Max(100)
   refundPercent!: number;

@@ -127,6 +127,11 @@ describe('SetHotelPoliciesDto: HTL-10', () => {
       'cancellationTiers.0.refundPercent',
     ],
     [{ daysBefore: 7 }, 'cancellationTiers.0.refundPercent'],
+    // Exponent form: crashed class-validator's maxDecimalPlaces (a 500) before IsTwoDecimalNumber.
+    [
+      { daysBefore: 7, refundPercent: 1e-7 },
+      'cancellationTiers.0.refundPercent',
+    ],
   ])('rejects tier %p at %s', (tier, path) => {
     expect(tierPaths([tier])).toEqual([path]);
   });

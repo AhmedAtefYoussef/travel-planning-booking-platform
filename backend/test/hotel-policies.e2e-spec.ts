@@ -152,6 +152,7 @@ describe('Hotel policies (e2e)', () => {
       [[{ daysBefore: 7, refundPercent: 100.01 }], 'refundPercent'],
       [[{ daysBefore: 7, refundPercent: -1 }], 'refundPercent'],
       [[{ daysBefore: 7, refundPercent: 33.333 }], 'refundPercent'],
+      [[{ daysBefore: 7, refundPercent: 1e-7 }], 'refundPercent'],
     ])(
       'rejects %j with a field error on %s and changes nothing (BVA)',
       async (bad, key) => {
