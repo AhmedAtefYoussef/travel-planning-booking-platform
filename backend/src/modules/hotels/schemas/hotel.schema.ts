@@ -14,12 +14,8 @@ export class CancellationTier implements CancellationTierShape {
   @Prop({ required: true, min: 0, validate: safeInteger('daysBefore') })
   daysBefore: number;
 
-  @Prop({
-    required: true,
-    min: 0,
-    max: 100,
-    validate: safeInteger('refundPercent'),
-  })
+  /** 0..100, up to two decimals (checked by the policy DTO), the same as the airline tiers (FLT-09). */
+  @Prop({ type: Number, required: true, min: 0, max: 100 })
   refundPercent: number;
 }
 export const CancellationTierSchema =

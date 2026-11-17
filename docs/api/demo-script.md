@@ -102,11 +102,11 @@ and 102 already have availability and are the ones the traveller books in Part 4
 | 5 | `POST /api/hotels/{hotelId}/rooms/{roomId}/availability` | `{"ranges":[{"from":"2028-03-01","to":"2028-04-01"}]}` | 201 (HTL-04); an overlapping range gives 409 |
 | 6 | `PATCH /api/hotels/{hotelId}/rooms/{roomId}` | `{"priceMinor":13000}` | 200 (HTL-05) |
 | 7 | `PATCH /api/hotels/{hotelId}/rooms/{roomId}/availability` | `{"ranges":[{"from":"2028-03-01","to":"2028-05-01"}]}` | 200, replaces all ranges (HTL-05) |
-| 8 | `GET /api/notifications` | | 200 |
+| 8 | `PUT /api/hotels/{hotelId}/policies` | `{"checkInTime":"14:00","checkOutTime":"12:00","cancellationTiers":[{"daysBefore":7,"refundPercent":100},{"daysBefore":2,"refundPercent":50}]}` | 200, tiers returned sorted (HTL-09, HTL-10); a repeated `daysBefore` gives 400 naming `cancellationTiers[1].daysBefore` |
+| 9 | `GET /api/notifications` | | 200 |
 
-Check-in and check-out times and the hotel cancellation tiers (HTL-09, HTL-10) have no endpoint yet: only the demo hotel
-has them, set by `npm run seed:demo`. A hotel you create yourself (path B) has none, so its policies step and any
-hotel cancellation would show no tiers. That is why Part 4 uses the demo hotel.
+Step 8 sets the times and tiers that Part 4 shows before payment (PAY-02). The demo hotel already has them from
+`npm run seed:demo`; a hotel you create yourself (path B) has none until you run step 8.
 
 ## 4. Traveller
 
