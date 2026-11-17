@@ -1,4 +1,3 @@
-
 import { model, Types } from 'mongoose';
 import { UPLOAD_LIMITS } from '../../../common/contracts';
 import { ActivitySchema } from './activity.schema';
@@ -40,13 +39,9 @@ describe('ActivitySchema', () => {
     expect(errorsOf({ costMinor: -1 })).toContain('costMinor');
     expect(errorsOf({ costMinor: 10.5 })).toContain('costMinor');
 
-    expect(
-      errorsOf({ currency: 'usd', costMinor: 1250 }),
-    ).toEqual([]);
+    expect(errorsOf({ currency: 'usd', costMinor: 1250 })).toEqual([]);
 
-    expect(
-      errorsOf({ currency: 'US', costMinor: 1250 }),
-    ).toContain('currency');
+    expect(errorsOf({ currency: 'US', costMinor: 1250 })).toContain('currency');
 
     const doc = new ActivityModel({
       ...valid,
@@ -60,30 +55,30 @@ describe('ActivitySchema', () => {
   });
 
   it('requires costMinor and currency to be provided together', async () => {
-  const costOnly = new ActivityModel({ ...valid, costMinor: 1250 });
+    const costOnly = new ActivityModel({ ...valid, costMinor: 1250 });
 
-  await expect(costOnly.validate()).rejects.toMatchObject({
-    errors: expect.objectContaining({
-      currency: expect.anything(),
-    }),
+    await expect(costOnly.validate()).rejects.toMatchObject({
+      errors: expect.objectContaining({
+        currency: expect.anything(),
+      }),
+    });
+
+    const currencyOnly = new ActivityModel({ ...valid, currency: 'USD' });
+
+    await expect(currencyOnly.validate()).rejects.toMatchObject({
+      errors: expect.objectContaining({
+        costMinor: expect.anything(),
+      }),
+    });
+
+    const both = new ActivityModel({
+      ...valid,
+      costMinor: 1250,
+      currency: 'USD',
+    });
+
+    await expect(both.validate()).resolves.toBeUndefined();
   });
-
-  const currencyOnly = new ActivityModel({ ...valid, currency: 'USD' });
-
-  await expect(currencyOnly.validate()).rejects.toMatchObject({
-    errors: expect.objectContaining({
-      costMinor: expect.anything(),
-    }),
-  });
-
-  const both = new ActivityModel({
-    ...valid,
-    costMinor: 1250,
-    currency: 'USD',
-  });
-
-  await expect(both.validate()).resolves.toBeUndefined();
-});
 
   it('limits stored image URLs to the shared activity upload maximum', () => {
     expect(
@@ -94,21 +89,19 @@ describe('ActivitySchema', () => {
 
     expect(
       errorsOf({
-        images: Array(UPLOAD_LIMITS.maxImagesPerEntity + 1).fill(
-          validImageUrl,
-        ),
+        images: Array(UPLOAD_LIMITS.maxImagesPerEntity + 1).fill(validImageUrl),
       }),
     ).toContain('images');
   });
 
   it('rejects invalid activity image URLs', () => {
-    expect(
-      errorsOf({ images: ['/uploads/activities/museum.jpg'] }),
-    ).toContain('images');
+    expect(errorsOf({ images: ['/uploads/activities/museum.jpg'] })).toContain(
+      'images',
+    );
 
-    expect(
-      errorsOf({ images: ['https://example.com/museum.jpg'] }),
-    ).toContain('images');
+    expect(errorsOf({ images: ['https://example.com/museum.jpg'] })).toContain(
+      'images',
+    );
   });
 
   it('indexes activities by itinerary and embedded day id', () => {

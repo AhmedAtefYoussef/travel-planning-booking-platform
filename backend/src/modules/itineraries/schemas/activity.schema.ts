@@ -1,4 +1,3 @@
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { SCHEMA_OPTIONS, UPLOAD_LIMITS } from '../../../common/contracts';

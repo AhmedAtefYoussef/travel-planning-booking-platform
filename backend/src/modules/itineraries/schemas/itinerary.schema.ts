@@ -1,4 +1,3 @@
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import { SCHEMA_OPTIONS } from '../../../common/contracts';
@@ -81,8 +80,7 @@ export class Itinerary {
         countries.length > 0 &&
         countries.every((code) => /^[A-Z]{2}$/.test(code)) &&
         new Set(countries).size === countries.length,
-      message:
-        'countries must contain unique, valid seeded country codes',
+      message: 'countries must contain unique, valid seeded country codes',
     },
   })
   countries!: string[];
