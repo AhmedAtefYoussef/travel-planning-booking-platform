@@ -138,7 +138,7 @@ describe('AccountSuspensionsService: ACC-15, ACC-16, GEN-07', () => {
     expect(messages).toEqual([
       'The account is already suspended',
       'The account is not suspended',
-      expect.stringContaining('ACC-12') as string,
+      'This account was deactivated by its owner (ACC-12) and cannot be suspended',
     ]);
 
     const raced = setup(account(), false);

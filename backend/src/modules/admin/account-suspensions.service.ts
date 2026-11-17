@@ -164,7 +164,7 @@ function conflictMessage(
   current: SessionAccountStatus,
 ): string {
   if (current === 'DEACTIVATED') {
-    return `This account was deactivated by its owner (ACC-12) and cannot be ${change.verb}d`;
+    return `This account was deactivated by its owner (ACC-12) and cannot be ${change.verb === 'suspend' ? 'suspended' : 'reactivated'}`;
   }
   return change.verb === 'suspend'
     ? 'The account is already suspended'
