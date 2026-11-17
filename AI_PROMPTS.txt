@@ -1312,3 +1312,19 @@ HotelsService.setPolicies, the Swagger route, checkInTime/checkOutTime on every 
 e2e tests. I agreed the design (check-out may be earlier than check-in; tiers are never touched) before it
 was written and reviewed the tests.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-10 (TRVL-55), HTL-09 (TRVL-54), PAY-02 (TRVL-68)
+Prompt:
+Take over HTL-09 and HTL-10 to close PAY-02: cherry-pick Sandra's #56 commits, then add the hotel cancellation
+tiers to the same PUT /api/hotels/:id/policies body, validated and selected with the shared FLT-09 helpers,
+test-first, and make the PAY-02 test set the hotel terms through the API instead of the database.
+How the output was used:
+Claude kept Sandra's four commits with her authorship, wrote failing DTO, service and e2e tests (thresholds,
+decimals, duplicates, 20/21 tiers, access), then made the tier list a required part of the PUT, sorted and
+returned on every hotel response, and aligned the hotel refund precision with the airline tiers. The hotel page
+part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live Swagger run.
+================================================

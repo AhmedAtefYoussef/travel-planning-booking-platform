@@ -184,7 +184,7 @@ The policies are read through the FLIGHT_INVENTORY and HOTEL_INVENTORY contracts
 | Rule | Source | Rule text | Technique | Code | Test | Verdict | Note |
 |---|---|---|---|---|---|---|---|
 | R-PAY-02-01 | workbook | Before payment the airline's cancellation and baggage policies are shown: each flight's cancellation tiers (FLT-09), extra-bag price and limit (FLT-08) and the booked cabin's free bags (FLT-04) | EP | modules/bookings/booking-policies.service.ts (`show`), flights/flight-inventory.service.ts (`getAirlinePolicy`) | test/booking-policies.e2e-spec.ts | PASS | One entry per flight, so a round trip shows both airlines |
-| R-PAY-02-02 | workbook | For a hotel, its cancellation tiers (HTL-10) and check-in/check-out times (HTL-09) are shown | EP | `show`, hotels/hotel-inventory.service.ts (`getHotelPolicy`) | booking-policies.e2e-spec.ts | PARTIAL | The values are set directly in the test: on develop no endpoint sets a hotel's check-in/check-out times (HTL-09, #56 open) or its cancellation tiers (HTL-10). Live, a hotel shows `null` times and no tiers |
+| R-PAY-02-02 | workbook | For a hotel, its cancellation tiers (HTL-10) and check-in/check-out times (HTL-09) are shown | EP | `show`, hotels/hotel-inventory.service.ts (`getHotelPolicy`) | booking-policies.e2e-spec.ts | PASS | The hotel moderator now sets the times and tiers through PUT /api/hotels/:id/policies (HTL-09, HTL-10), and the e2e test uses that endpoint instead of writing the database (earlier verdict: PARTIAL) |
 | R-PAY-02-03 | workbook | Acceptance needs the checkbox: `accepted` must be true (400 on `accepted`) | EP | dto/booking-policies.dto.ts | booking-policies.e2e-spec.ts | PASS | |
 | R-PAY-02-04 | workbook | The acceptance is stored with a timestamp, together with a snapshot of the accepted terms; a repeat keeps the first time | EP, IDEM | `accept` (one conditional update) | booking-policies.e2e-spec.ts; booking-policies.service.spec.ts | PASS | PAY-03 refunds from the snapshot; closes the "typed policySnapshot" obligation |
 | R-PAY-02-05 | derived | Terms that changed after they were shown are not accepted: `version` must match the current terms (409, nothing stored) | ST | `policiesVersion`, `accept` | booking-policies.e2e-spec.ts; payment-gate.spec.ts | PASS | Key-order independent fingerprint |
@@ -276,7 +276,7 @@ Read-only audits of #57 to #62 against the workbook and the Jira acceptance crit
 | The cancel job logged a rejection a retry can't fix (e.g. a revoked key) only as a warning (found by the review) | MEDIUM | Logged as an error with the payment and intent ids; the job still backs off (payments.service.spec.ts) |
 | A 2xx answer with an unreadable body became a TypeError (found by the review) | MEDIUM | A retryable StripeApiError, 502 `network_error` (http-stripe-gateway.spec.ts) |
 | Swagger did not list the 503 on create and retry, or the webhook's deliberate 500 | LOW | Documented |
-| PAY-02 marked Done although no endpoint sets a hotel's times or tiers | Doc | Traceability set to Partial; R-PAY-02-02 is PARTIAL |
+| PAY-02 marked Done although no endpoint sets a hotel's times or tiers | Doc | Traceability set to Partial; R-PAY-02-02 was PARTIAL. Resolved by the HTL-09/HTL-10 endpoint: PAY-02 Done, R-PAY-02-02 PASS |
 | ADR-0003 and R-PAY-01-05/06/07 described behaviour or names that don't exist | Doc | Corrected; the stored operational fields are listed as a declared deviation |
 
 **Rebutted or deferred, with reasons:**
