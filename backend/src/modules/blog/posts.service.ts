@@ -1,7 +1,16 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
+import { isOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
+import type { UploadsService } from '../../common/contracts/services.contract';
+import {
+  AppException,
+  ValidationFailedException,
+} from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
+import { localUploadUrlPattern } from '../../common/validation';
 import { UsersService } from '../users';
 import { excerptOf } from './blog-rules';
 import type {
@@ -9,8 +18,14 @@ import type {
   CreatePostDto,
   PostDto,
   PostSummaryDto,
+  UpdatePostDto,
 } from './dto/post.dto';
+import { Comment } from './schemas/comment.schema';
+import { Like } from './schemas/like.schema';
 import { Post, PostStatus } from './schemas/post.schema';
+
+/** A post image this backend stored (GEN-08); group 2 is its image id. */
+const POST_UPLOAD_URL = localUploadUrlPattern(['posts']);
 
 type PostLike = Pick<
   Post,
@@ -30,13 +45,17 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt.
+ * unless it is published, and publishing stamps publishedAt. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft).
  */
 @Injectable()
 export class PostsService {
   constructor(
     @InjectModel(Post.name) private readonly posts: Model<Post>,
+    @InjectModel(Comment.name) private readonly comments: Model<Comment>,
+    @InjectModel(Like.name) private readonly likes: Model<Like>,
     private readonly users: UsersService,
+    @InjectConnection() private readonly connection: Connection,
+    @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
   ) {}
 
   /** BLG-01: a draft by default; publishing stamps publishedAt. */
@@ -51,6 +70,70 @@ export class PostsService {
       publishedAt: status === PostStatus.Published ? new Date() : null,
     });
     return this.toPost(post);
+  }
+
+  /** BLG-04 / BLG-08: the author edits their post. Publishing a draft for the first time stamps publishedAt. */
+  async update(
+    user: AuthUser,
+    id: string,
+    dto: UpdatePostDto,
+  ): Promise<PostDto> {
+    const post = await this.loadOwn(user, id);
+    if (dto.images !== undefined) assertOwnImages(post.images, dto.images);
+    const set: Partial<Post> = {};
+    if (dto.title !== undefined) set.title = dto.title;
+    if (dto.body !== undefined) set.body = dto.body;
+    if (dto.tags !== undefined) set.tags = dto.tags;
+    if (dto.images !== undefined) set.images = dto.images;
+    if (dto.status !== undefined) {
+      set.status = dto.status;
+      if (dto.status === PostStatus.Published && !post.publishedAt) {
+        set.publishedAt = new Date();
+      }
+    }
+    const updated = await this.posts
+      .findOneAndUpdate(
+        { _id: id, authorId: post.authorId },
+        { $set: set },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!updated) throw notFound();
+    const dropped = post.images.filter((url) => !updated.images.includes(url));
+    await this.discardUnused(dropped);
+    return this.toPost(updated);
+  }
+
+  /** BLG-04: the author deletes their post with its comments, likes and uploaded images. */
+  async remove(user: AuthUser, id: string): Promise<void> {
+    const post = await this.loadOwn(user, id);
+    await this.connection.transaction(async (session) => {
+      const deleted = await this.posts
+        .deleteOne({ _id: post._id, authorId: post.authorId }, { session })
+        .exec();
+      if (deleted.deletedCount !== 1) throw notFound();
+      await this.comments.deleteMany({ postId: post._id }, { session }).exec();
+      await this.likes.deleteMany({ postId: post._id }, { session }).exec();
+    });
+    await this.discardUnused(post.images);
+  }
+
+  /**
+   * The caller's own post. Someone else's post answers 403 when it is public (it visibly exists) and
+   * 404 when it is a draft or hidden, exactly like an unknown id (ACC-11).
+   */
+  private async loadOwn(user: AuthUser, id: string): Promise<PostLike> {
+    const post = await this.posts.findById(id).lean<PostLike>().exec();
+    if (!post) throw notFound();
+    if (isOwner(user, post.authorId)) return post;
+    if (post.status === PostStatus.Published && !post.isHidden) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+        'You can only change your own posts',
+      );
+    }
+    throw notFound();
   }
 
   /**
@@ -99,4 +182,39 @@ export class PostsService {
       updatedAt: post.updatedAt,
     };
   }
+
+  /** Deletes uploaded files no post points at any more (a PATCH may copy an uploaded URL into another post). */
+  private async discardUnused(urls: string[]): Promise<void> {
+    for (const url of urls) {
+      if (!POST_UPLOAD_URL.test(url)) continue;
+      const stillUsed = await this.posts.exists({ images: url }).exec();
+      if (!stillUsed) await this.uploads.deleteImage(url);
+    }
+  }
+}
+
+function notFound(): AppException {
+  return new AppException(
+    HttpStatus.NOT_FOUND,
+    ErrorCode.NOT_FOUND,
+    'Post not found',
+  );
+}
+
+/**
+ * GEN-08 / BLG-04: an edit may reorder or remove the post's uploaded images but never add one; new
+ * images only arrive through the upload (BLG-10), which checks type, size and count.
+ */
+function assertOwnImages(current: string[], next: string[]): void {
+  const own = new Set(current);
+  if (next.every((url) => own.has(url)) && new Set(next).size === next.length) {
+    return;
+  }
+  throw new ValidationFailedException([
+    {
+      field: 'images',
+      message:
+        "images can only reorder or remove this post's uploaded images; new images are uploaded to the post",
+    },
+  ]);
 }
