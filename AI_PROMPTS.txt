@@ -1252,3 +1252,16 @@ Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund
 404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
 found no blocking issues. I reviewed the diff and ran the live check in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-26 (TRVL-45)
+Prompt:
+Revert everything implemented in this session.
+How the output was used:
+Claude closed the unmerged PRs and reverted merge #72 (FLT-26 code, tests and traceability rows) with
+git revert. The earlier FLT-26 entry in this log stays, because the log is append-only and the work did
+happen. I review and merge the revert.
+================================================
