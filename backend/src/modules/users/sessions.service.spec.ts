@@ -1,5 +1,5 @@
 import type { ConfigService } from '@nestjs/config';
-import { Types, type Model } from 'mongoose';
+import { Types, type ClientSession, type Model } from 'mongoose';
 import type { Session } from './schemas/session.schema';
 import {
   hashRefreshToken,
@@ -207,6 +207,18 @@ describe('SessionsService.revoke (ACC-06 logout)', () => {
     expect(model.updateMany).toHaveBeenCalledWith(
       { userId: USER, revokedAt: { $exists: false } },
       { $set: { revokedAt: NOW } },
+      { session: undefined },
+    );
+  });
+
+  it('revokes inside the caller transaction when given a session (ACC-15/16)', async () => {
+    const { service, model } = setup();
+    const session = {} as ClientSession;
+    await service.revokeAllForUser(USER.toHexString(), { session }, NOW);
+    expect(model.updateMany).toHaveBeenCalledWith(
+      { userId: USER, revokedAt: { $exists: false } },
+      { $set: { revokedAt: NOW } },
+      { session },
     );
   });
 
@@ -220,6 +232,7 @@ describe('SessionsService.revoke (ACC-06 logout)', () => {
     expect(model.updateMany).toHaveBeenCalledWith(
       { userId: USER, revokedAt: { $exists: false }, _id: { $ne: SESSION } },
       { $set: { revokedAt: NOW } },
+      { session: undefined },
     );
     // A malformed id keeps nothing open rather than failing.
     await service.revokeAllForUser(USER.toHexString(), {
@@ -228,6 +241,7 @@ describe('SessionsService.revoke (ACC-06 logout)', () => {
     expect(model.updateMany).toHaveBeenLastCalledWith(
       { userId: USER, revokedAt: { $exists: false } },
       { $set: { revokedAt: expect.any(Date) } },
+      { session: undefined },
     );
   });
 });

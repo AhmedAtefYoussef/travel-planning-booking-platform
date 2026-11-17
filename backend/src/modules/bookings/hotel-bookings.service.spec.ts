@@ -238,10 +238,10 @@ describe('HotelBookingsService.hold (HTL-16, HTL-18)', () => {
     );
   });
 
-  it('refuses a deactivated hotel (ACC-15) with 409', async () => {
+  it('refuses a deactivated hotel (ACC-15) with 409 PROVIDER_INACTIVE', async () => {
     const s = stay({ unavailableReason: 'Nile View is not taking bookings' });
     const err = await failure(setup(s).service.hold(user, request(s), NOW));
-    expect(err).toMatchObject({ status: 409 });
+    expect(err).toMatchObject({ status: 409, code: 'PROVIDER_INACTIVE' });
   });
 
   it('takes "today" in the hotel zone: Cairo is already on the next day at 23:30 UTC', async () => {

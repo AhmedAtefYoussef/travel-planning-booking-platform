@@ -18,6 +18,9 @@
  *   UPLOADS_SERVICE (Ahmed)         ->  blog, itineraries, hotels, airlines
  *   SESSION_VALIDATOR (Abdelrahman) ->  common/auth AuthGuard (ACC-06 idle expiry, logout)
  *   UPCOMING_BOOKINGS (bookings)    ->  users (ACC-12 self-deactivation)
+ *   ACCOUNT_ADMIN (users)           ->  admin (ACC-15, ACC-16 suspensions)
+ *   AIRLINE_STATUS (flights)        ->  admin (ACC-15 deactivation), bookings (409 PROVIDER_INACTIVE)
+ *   HOTEL_STATUS (hotels)           ->  admin (ACC-15 deactivation)
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
  * The providing module exports `{ provide: AUDIT_SERVICE, useExisting: AuditLogService }`.
@@ -37,3 +40,6 @@ export const UPLOADS_SERVICE = Symbol('UPLOADS_SERVICE');
 export const FLIGHT_BOOKINGS_LOOKUP = Symbol('FLIGHT_BOOKINGS_LOOKUP');
 export const SESSION_VALIDATOR = Symbol('SESSION_VALIDATOR');
 export const UPCOMING_BOOKINGS = Symbol('UPCOMING_BOOKINGS');
+export const ACCOUNT_ADMIN = Symbol('ACCOUNT_ADMIN');
+export const AIRLINE_STATUS = Symbol('AIRLINE_STATUS');
+export const HOTEL_STATUS = Symbol('HOTEL_STATUS');

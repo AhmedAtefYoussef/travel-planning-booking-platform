@@ -94,7 +94,7 @@ function confirmedDoc(over: object = {}) {
 
 function setup(
   legs: Record<string, BookableCabin | null> = {},
-  opts: { reserve?: boolean; moved?: number[] } = {},
+  opts: { reserve?: boolean; moved?: number[]; airlineActive?: boolean } = {},
 ) {
   const inventory: jest.Mocked<FlightInventory> = {
     getBookableCabin: jest.fn<
@@ -156,6 +156,16 @@ function setup(
   const users = {
     findProfile: jest.fn().mockResolvedValue({ name: 'Mona Adel' }),
   };
+  const airlines = {
+    find: jest.fn((id: string) =>
+      Promise.resolve({
+        id,
+        name: 'Hold Test Air',
+        isActive: opts.airlineActive ?? true,
+      }),
+    ),
+    setActive: jest.fn(),
+  };
   const service = new FlightBookingsService(
     model as never,
     guards as never,
@@ -166,6 +176,7 @@ function setup(
     notifications,
     reference as never,
     users as never,
+    airlines,
   );
   return {
     service,
@@ -253,6 +264,22 @@ describe('FlightBookingsService.quote (FLT-21, FLT-19)', () => {
     ).toMatchObject({
       status: 409,
       code: 'CONFLICT',
+    });
+  });
+
+  it('is 409 PROVIDER_INACTIVE when an admin deactivated the airline (ACC-15)', async () => {
+    const out = cabin({
+      unavailableReason: 'The airline of flight HQ100 is not taking bookings',
+    });
+    const { service } = setup(
+      { [out.flightId]: out },
+      { airlineActive: false },
+    );
+    expect(
+      await failure(service.quote(request(out, [adult]), NOW)),
+    ).toMatchObject({
+      status: 409,
+      code: 'PROVIDER_INACTIVE',
     });
   });
 
