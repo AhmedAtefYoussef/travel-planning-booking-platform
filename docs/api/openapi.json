@@ -1930,272 +1930,6 @@
         ]
       }
     },
-    "/api/flight-bookings/{id}/refund-quote": {
-      "get": {
-        "description": "Shows what POST .../cancel would refund right now; changes nothing. Owner only (USER role): anyone else gets the same 404 as an unknown id (ACC-11). Only a CONFIRMED booking can be cancelled (409 BOOKING_NOT_CONFIRMED otherwise, including one already cancelled), and only before the outbound departure (409 CANCELLATION_WINDOW_CLOSED at or after it). The refund is the amount paid times the airline tier accepted with the booking (PAY-02 snapshot, never the current policy): the tier with the highest daysBefore not exceeding the whole days left before departure, 0% when none applies (FLT-09), rounded down to minor units of the platform currency. A round trip is one booking, cancelled as a whole using the OUTBOUND flight and its airline tier (FLT-12 a).",
-        "operationId": "FlightBookingsController_refundQuote",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Flight booking id",
-            "examples": {
-              "valid": {
-                "summary": "A confirmed booking of yours",
-                "value": "6af0eaaec77901aa9f228658"
-              },
-              "invalid": {
-                "summary": "Invalid: not an id (400)",
-                "value": "not-an-id"
-              }
-            },
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/RefundQuoteDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed or malformed request (body contains fieldErrors, GEN-02)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated or session expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Authenticated but not allowed (role, ownership or provider scope)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown booking, or someone else's (identical body, ACC-11)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "example": {
-                  "statusCode": 404,
-                  "error": "Not Found",
-                  "code": "NOT_FOUND",
-                  "message": "Booking not found",
-                  "path": "/api/flight-bookings/6af0eaaec77901aa9f228658/cancel",
-                  "timestamp": "2026-11-16T10:15:30.000Z"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Not confirmed, or the flight has already departed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "notConfirmed": {
-                    "summary": "The booking is not CONFIRMED (pending, expired, cancelled…)",
-                    "value": {
-                      "statusCode": 409,
-                      "error": "Conflict",
-                      "code": "BOOKING_NOT_CONFIRMED",
-                      "message": "This booking is CANCELLED; only a confirmed booking can be cancelled",
-                      "path": "/api/flight-bookings/6af0eaaec77901aa9f228658/cancel",
-                      "timestamp": "2026-11-16T10:15:30.000Z"
-                    }
-                  },
-                  "departed": {
-                    "summary": "The outbound flight has left",
-                    "value": {
-                      "statusCode": 409,
-                      "error": "Conflict",
-                      "code": "CANCELLATION_WINDOW_CLOSED",
-                      "message": "The flight has already departed, so this booking can no longer be cancelled",
-                      "path": "/api/flight-bookings/6af0eaaec77901aa9f228658/cancel",
-                      "timestamp": "2026-11-16T10:15:30.000Z"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "access_token": []
-          },
-          {
-            "dev-user": []
-          }
-        ],
-        "summary": "FLT-26 See the refund before cancelling a confirmed flight booking",
-        "tags": [
-          "flight-bookings"
-        ]
-      }
-    },
-    "/api/flight-bookings/{id}/cancel": {
-      "post": {
-        "description": "No body: call GET .../refund-quote first and show the amount for the user to confirm. In one transaction the booking becomes CANCELLED (GEN-11), every segment's seats (adults and children; infants take none) return to the cabin inventory, a PENDING refund is recorded when the amount is positive (PAY-03: Stripe is asked after commit and the refund block on the booking moves to REFUNDED or FAILED; the user gets REFUND_ISSUED), and the owner gets a BOOKING_CANCELLED notification. Of two simultaneous cancels exactly one succeeds; the other is 409. Answers the updated booking details. Owner only (USER role): anyone else gets the same 404 as an unknown id (ACC-11). Only a CONFIRMED booking can be cancelled (409 BOOKING_NOT_CONFIRMED otherwise, including one already cancelled), and only before the outbound departure (409 CANCELLATION_WINDOW_CLOSED at or after it). The refund is the amount paid times the airline tier accepted with the booking (PAY-02 snapshot, never the current policy): the tier with the highest daysBefore not exceeding the whole days left before departure, 0% when none applies (FLT-09), rounded down to minor units of the platform currency. A round trip is one booking, cancelled as a whole using the OUTBOUND flight and its airline tier (FLT-12 a).",
-        "operationId": "FlightBookingsController_cancel",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Flight booking id",
-            "examples": {
-              "valid": {
-                "summary": "A confirmed booking of yours",
-                "value": "6af0eaaec77901aa9f228658"
-              },
-              "invalid": {
-                "summary": "Invalid: not an id (400)",
-                "value": "not-an-id"
-              }
-            },
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The cancelled booking; `refund` is null when no tier applied (0%)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FlightBookingDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Validation failed or malformed request (body contains fieldErrors, GEN-02)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Not authenticated or session expired",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Authenticated but not allowed (role, ownership or provider scope)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Unknown booking, or someone else's (identical body, ACC-11)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "example": {
-                  "statusCode": 404,
-                  "error": "Not Found",
-                  "code": "NOT_FOUND",
-                  "message": "Booking not found",
-                  "path": "/api/flight-bookings/6af0eaaec77901aa9f228658/cancel",
-                  "timestamp": "2026-11-16T10:15:30.000Z"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Not confirmed, or the flight has already departed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponseDto"
-                },
-                "examples": {
-                  "notConfirmed": {
-                    "summary": "The booking is not CONFIRMED (pending, expired, cancelled…)",
-                    "value": {
-                      "statusCode": 409,
-                      "error": "Conflict",
-                      "code": "BOOKING_NOT_CONFIRMED",
-                      "message": "This booking is CANCELLED; only a confirmed booking can be cancelled",
-                      "path": "/api/flight-bookings/6af0eaaec77901aa9f228658/cancel",
-                      "timestamp": "2026-11-16T10:15:30.000Z"
-                    }
-                  },
-                  "departed": {
-                    "summary": "The outbound flight has left",
-                    "value": {
-                      "statusCode": 409,
-                      "error": "Conflict",
-                      "code": "CANCELLATION_WINDOW_CLOSED",
-                      "message": "The flight has already departed, so this booking can no longer be cancelled",
-                      "path": "/api/flight-bookings/6af0eaaec77901aa9f228658/cancel",
-                      "timestamp": "2026-11-16T10:15:30.000Z"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "access_token": []
-          },
-          {
-            "dev-user": []
-          }
-        ],
-        "summary": "FLT-26 Cancel a confirmed flight booking with a tier refund",
-        "tags": [
-          "flight-bookings"
-        ]
-      }
-    },
     "/api/flight-bookings/{id}/e-ticket": {
       "get": {
         "description": "Owner only: anyone else gets the same 404 as an unknown id (ACC-11). Only CONFIRMED or COMPLETED bookings have an e-ticket; any other status is 409 BOOKING_NOT_CONFIRMED. The PDF shows the booking reference, booker, every flight (airline, flight number, cabin, airport names and IATA codes, departure and arrival in each airport local time with its zone, GEN-06), every passenger with the passport or ID number masked to its last 4 characters, free and extra bags, the total paid in the platform currency and the accepted policies. Confirmation (PAY-01 webhook) also sends one in-app BOOKING_CONFIRMED notification; seats taken by the hold already count as booked (seatsAvailable = total - booked - held), so confirming moves no seats. Sent as an attachment named e-ticket-<reference>.pdf, never cached.",
@@ -6813,7 +6547,6 @@
               "ACCOUNT_LOCKED",
               "ACCOUNT_SUSPENDED",
               "BOOKING_NOT_CONFIRMED",
-              "CANCELLATION_WINDOW_CLOSED",
               "EMAIL_ALREADY_REGISTERED",
               "INVALID_CREDENTIALS",
               "PASSWORD_CHANGE_REQUIRED",
@@ -7809,71 +7542,6 @@
           "createdAt"
         ]
       },
-      "CancellationTierDto": {
-        "type": "object",
-        "properties": {
-          "daysBefore": {
-            "type": "number",
-            "example": 7,
-            "description": "Cancel at least this many days ahead…"
-          },
-          "refundPercent": {
-            "type": "number",
-            "example": 50,
-            "description": "…to get this % of the amount paid back"
-          }
-        },
-        "required": [
-          "daysBefore",
-          "refundPercent"
-        ]
-      },
-      "RefundQuoteDto": {
-        "type": "object",
-        "properties": {
-          "amountMinor": {
-            "type": "number",
-            "example": 60000,
-            "description": "Minor units, rounded down; 0 when no tier applies"
-          },
-          "currency": {
-            "type": "string",
-            "example": "USD",
-            "description": "Always PLATFORM_CURRENCY (PAY-04)"
-          },
-          "refundPercent": {
-            "type": "number",
-            "example": 50,
-            "description": "0..100"
-          },
-          "tierApplied": {
-            "nullable": true,
-            "example": {
-              "daysBefore": 7,
-              "refundPercent": 50
-            },
-            "description": "FLT-09: the tier with the highest threshold not exceeding daysBefore; null when none applies (0%)",
-            "type": "object",
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CancellationTierDto"
-              }
-            ]
-          },
-          "daysBefore": {
-            "type": "number",
-            "example": 30,
-            "description": "Whole 24-hour periods left before departure"
-          }
-        },
-        "required": [
-          "amountMinor",
-          "currency",
-          "refundPercent",
-          "tierApplied",
-          "daysBefore"
-        ]
-      },
       "RoomGuestsInputDto": {
         "type": "object",
         "properties": {
@@ -8074,6 +7742,25 @@
           "reference",
           "refund",
           "createdAt"
+        ]
+      },
+      "CancellationTierDto": {
+        "type": "object",
+        "properties": {
+          "daysBefore": {
+            "type": "number",
+            "example": 7,
+            "description": "Cancel at least this many days ahead…"
+          },
+          "refundPercent": {
+            "type": "number",
+            "example": 50,
+            "description": "…to get this % of the amount paid back"
+          }
+        },
+        "required": [
+          "daysBefore",
+          "refundPercent"
         ]
       },
       "ExtraBaggageDto": {
