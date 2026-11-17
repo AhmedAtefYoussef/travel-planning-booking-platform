@@ -275,10 +275,10 @@ export async function seedDemo(
       providerId: hotelId.toHexString(),
     },
   };
-  // Check-in/out times and cancellation tiers (HTL-09, HTL-10) have no endpoint yet, so they are set
-  // on the document, and only while the hotel has none.
+  // Check-in/out times and cancellation tiers (HTL-09, HTL-10) have no endpoint on develop yet, so they
+  // are set on the document, and only while the hotel has no times.
   const policies = await hotelModel.updateOne(
-    { _id: hotelId, checkInTime: { $exists: false } },
+    { _id: hotelId, checkInTime: null }, // matches a missing or a null time
     {
       $set: {
         checkInTime: DEMO_HOTEL.checkInTime,
