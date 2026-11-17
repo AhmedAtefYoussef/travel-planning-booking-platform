@@ -12,6 +12,7 @@ that changes module code must cite its own number in its requirement's row. Set 
 the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 ## Notes on the brief vs the workbook
+- TRVL-141 (PR #73) adds itinerary and activity schemas, validation rules and helper utilities only; ITN-01, ITN-03, ITN-05, ITN-09, ITN-10 and ITN-12 remain Not started until their API functionality is implemented.
 - The brief cites **ACC-03** (`POST /api/auth/register`) and **BLG-11** (`GET /api/posts`, `GET /api/tags/:tag/posts`); neither ID exists in the workbook. Those endpoints are traced to ACC-01 and BLG-02/BLG-08/BLG-09.
 - **HTL-09** (check-in/check-out times) is served by `PUT /api/hotels/:id/policies`; the brief maps that endpoint to HTL-08.
 - `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
@@ -110,14 +111,14 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | - | Not started |
-| ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | - | Not started |
-| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | - | Not started |
+| ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | #73 | Not started |
+| ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | #73 | Not started |
+| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73 | Not started |
 | ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | - | Not started |
 | ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | - | Not started |
-| ITN-09 | Mandatory | day city + grouping in itinerary responses | Sarah | TRVL-75 | - | Not started |
-| ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | - | Not started |
-| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | - | Not started |
+| ITN-09 | Mandatory | day city + grouping in itinerary responses | Sarah | TRVL-75 | #73 | Not started |
+| ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73 | Not started |
+| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Not started |
 | ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | - | Not started |
 | ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id | Malak | TRVL-79 | - | Not started |
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68 | Partial: rates, cache and convert in place (TRVL-133); itinerary budget conversion pending |
