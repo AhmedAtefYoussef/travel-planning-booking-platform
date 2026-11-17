@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PostsController } from './posts.controller';
 import { PostsService } from './posts.service';
+import { TagsController } from './tags.controller';
 import { Comment, CommentSchema } from './schemas/comment.schema';
 import { Like, LikeSchema } from './schemas/like.schema';
 import { Post, PostSchema } from './schemas/post.schema';
@@ -19,7 +20,7 @@ import { Post, PostSchema } from './schemas/post.schema';
       { name: Like.name, schema: LikeSchema },
     ]),
   ],
-  controllers: [PostsController],
+  controllers: [PostsController, TagsController],
   providers: [PostsService],
 })
 export class BlogModule {}

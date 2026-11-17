@@ -1,16 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { ValidationFailedException } from '../../common/errors/app.exception';
+import {
+  type Page,
+  PAGE_SIZE,
+  skipFor,
+  toPage,
+} from '../../common/pagination/pagination';
 import { UsersService } from '../users';
-import { excerptOf } from './blog-rules';
+import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
   CreatePostDto,
   PostDto,
   PostSummaryDto,
 } from './dto/post.dto';
-import { Post, PostStatus } from './schemas/post.schema';
+import { MAX_TAG_LENGTH, Post, PostStatus } from './schemas/post.schema';
 
 type PostLike = Pick<
   Post,
@@ -30,7 +37,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt.
+ * unless it is published, and publishing stamps publishedAt. BLG-08: a tag link lists the published posts carrying that tag.
  */
 @Injectable()
 export class PostsService {
@@ -51,6 +58,42 @@ export class PostsService {
       publishedAt: status === PostStatus.Published ? new Date() : null,
     });
     return this.toPost(post);
+  }
+
+  /** BLG-08: the posts behind a clickable tag. */
+  listByTag(tag: string, page: number): Promise<Page<PostSummaryDto>> {
+    const clean = tag.trim().toLowerCase();
+    if (clean.length < 1 || clean.length > MAX_TAG_LENGTH) {
+      throw new ValidationFailedException([
+        { field: 'tag', message: `tag must be 1-${MAX_TAG_LENGTH} characters` },
+      ]);
+    }
+    return this.page({ ...PUBLIC_POST_FILTER, tags: clean }, page, {
+      publishedAt: -1,
+    });
+  }
+
+  private async page(
+    filter: FilterQuery<Post>,
+    page: number,
+    sort: Record<string, SortOrder>,
+  ): Promise<Page<PostSummaryDto>> {
+    const [items, total] = await Promise.all([
+      this.posts
+        .find(filter)
+        .sort({ ...sort, _id: -1 })
+        .skip(skipFor(page))
+        .limit(PAGE_SIZE)
+        .lean<PostLike[]>()
+        .exec(),
+      this.posts.countDocuments(filter).exec(),
+    ]);
+    const authors = await this.authorsOf(items.map((p) => p.authorId));
+    return toPage(
+      items.map((p) => this.summary(p, authors)),
+      total,
+      page,
+    );
   }
 
   /**
