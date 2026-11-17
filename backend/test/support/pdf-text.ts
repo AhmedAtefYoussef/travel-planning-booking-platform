@@ -68,9 +68,15 @@ export function pdfText(pdf: Buffer): string {
   return lines.join('\n');
 }
 
+/** A CMap target: UTF-16BE hex, possibly several code units separated by spaces (e.g. a ligature). */
 function utf16(hex: string): string {
-  return Buffer.from(hex, 'hex').swap16().toString('utf16le');
+  return Buffer.from(hex.replace(/\s+/g, ''), 'hex')
+    .swap16()
+    .toString('utf16le');
 }
+
+/** Hex strings of a CMap target list. A ligature such as "ff" maps to `<0066 0066>`, with a space. */
+const CMAP_TARGET = /<([0-9a-fA-F\s]*)>/g;
 
 function parseCmap(cmap: string): Map<string, string> {
   const map = new Map<string, string>();
@@ -83,9 +89,7 @@ function parseCmap(cmap: string): Map<string, string> {
       const lo = parseInt(e[1], 16);
       const hi = parseInt(e[2], 16);
       if (e[3] !== undefined) {
-        const targets = [...e[3].matchAll(/<([0-9a-fA-F]*)>/g)].map(
-          (t) => t[1],
-        );
+        const targets = [...e[3].matchAll(CMAP_TARGET)].map((t) => t[1]);
         targets.forEach((t, i) => map.set(key(lo + i), utf16(t)));
       } else {
         const start = parseInt(e[4], 16);
@@ -96,7 +100,9 @@ function parseCmap(cmap: string): Map<string, string> {
     }
   }
   for (const block of cmap.matchAll(/beginbfchar([\s\S]*?)endbfchar/g)) {
-    for (const e of block[1].matchAll(/<([0-9a-fA-F]+)>\s*<([0-9a-fA-F]+)>/g)) {
+    for (const e of block[1].matchAll(
+      /<([0-9a-fA-F]+)>\s*<([0-9a-fA-F][0-9a-fA-F\s]*)>/g,
+    )) {
       map.set(e[1].toLowerCase().padStart(width, '0'), utf16(e[2]));
     }
   }

@@ -157,6 +157,19 @@ describe('FLT-23 e-ticket (GEN-06 local times, passport masking)', () => {
     }
   });
 
+  it('reads back text that the font draws with an "ff" ligature (a policy version is random hex)', async () => {
+    // pdfkit draws "ff" as one ligature glyph whose ToUnicode target is two characters. This used to
+    // shift every later glyph in the test reader, so about 1 run in 18 of the e2e suite failed.
+    const pdf = await renderETicket(
+      view({ policySnapshot: { version: 'a0ff1e9c', airlines: [airline] } }),
+    );
+    const text = pdfText(pdf);
+    expect(text).toContain(
+      'Terms version a0ff1e9c were accepted before payment (PAY-02).',
+    );
+    expect(text).not.toContain('�');
+  });
+
   it('falls back to the IATA code and UTC for an airport missing from reference data, and to the code for the airline', () => {
     const v = toETicketView({
       booking: booking({
