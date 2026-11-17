@@ -134,23 +134,22 @@ ends). Only the signature-verified webhook confirms a booking; card details neve
 ## Feature map
 
 Each module, its Swagger tag and the requirements it covers (status per requirement is in
-[docs/requirements/traceability.md](docs/requirements/traceability.md)). Marks: (PR #76) and (PR #77) are open
-pull requests, (in review) is work in progress.
+[docs/requirements/traceability.md](docs/requirements/traceability.md)). Only merged work is listed; the matrix
+shows what is still open.
 
 | Module (`backend/src/modules/`) | Swagger tag | Requirements |
 |---|---|---|
 | `auth` | Auth | ACC-01, ACC-04, ACC-05, ACC-06, ACC-08, ACC-19 |
-| `users` | Users, Admin: accounts | ACC-07a, ACC-09, ACC-11, ACC-12, ACC-13, ACC-14, ACC-15 and ACC-16 (PR #76) |
+| `users` | Users, Admin: accounts | ACC-07a, ACC-09, ACC-11, ACC-12, ACC-13, ACC-14 |
 | `audit` | Admin: audit log | GEN-07 |
 | `notifications` | notifications | GEN-01 |
 | `flights` | Airlines, Flights | FLT-01, FLT-03, FLT-04, FLT-05, FLT-08, FLT-09, FLT-11, FLT-12, FLT-15, FLT-17 |
-| `bookings` | flight-bookings, hotel-bookings, booking-policies | FLT-19 to FLT-23, FLT-26, HTL-16 to HTL-18, HTL-21 (PR #77), PAY-02 |
+| `bookings` | flight-bookings, hotel-bookings, booking-policies | FLT-19 to FLT-23, HTL-16 to HTL-18, PAY-02, GEN-11 |
 | `hotels` | Hotels | HTL-01, HTL-03, HTL-04, HTL-05 |
 | `payments` | payments, refunds | PAY-01, PAY-03 |
 | `currency` | currency | ITN-18, PAY-04 |
 | `reference` | Reference data | GEN-12, FLT-02 |
 | `uploads` | (inside Airlines and Hotels) | GEN-08 |
-| moderation | (reports, admin content) | GEN-09, GEN-10 (in review) |
 | `health`, `diagnostics` | Health, Diagnostics (dev only) | TRVL-128, GEN-02, GEN-05, GEN-13 |
 
 ## Quality gate

@@ -5,11 +5,9 @@ Airline moderator, then Hotel moderator, then Traveller. Each step is one call: 
 that works, and the status to expect. Error cases at the end of each part show the shared error envelope
 (`docs/api/conventions.md`).
 
-Marks used below, so they can be dropped once the work is merged:
-
-- **(PR #76)** ACC-15/16, suspend and deactivate. **(PR #77)** HTL-21, cancel a hotel booking.
-- **(in review)** GEN-09/10, reports and moderation: the routes exist only after the content modules register
-  (blog posts, comments, reviews); until then they are not in `openapi.json` either.
+The script lists only what is merged on `develop`. Steps for stories that are still open (suspensions and
+provider deactivation ACC-15/16, booking cancellations FLT-26/HTL-21, reports and moderation GEN-09/10, blog and
+itineraries) are added here when they merge; their status is in `docs/requirements/traceability.md`.
 
 ## 0. Before you start
 
@@ -58,16 +56,8 @@ Log in as `ADMIN_SEED_EMAIL`. Steps 4 to 6 are alternative path B (your own prov
 | 6 | `POST /api/admin/moderators` (path B) | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{walkAirlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"name":"Walk Hotel Mod"`, `"email":"walk.hotel@example.com"`, `"role":"HOTEL_MODERATOR"` and `{walkHotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
 | 7 | `GET /api/admin/accounts` | `?q=demo&role=USER&status=ACTIVE` | 200, paginated, 10 per page (ACC-14) |
 | 8 | `POST /api/admin/users/{id}/reset-password` | `{"temporaryPassword":"Temp2026x"}` | 204; the user must change it at next login (ACC-07a) |
-| 9 | `PATCH /api/admin/accounts/{id}/suspend` **(PR #76)** | no body; a user or moderator id | 200, status `SUSPENDED`; the account can no longer log in and is notified (ACC-16) |
-| 10 | `PATCH /api/admin/accounts/{id}/reactivate` **(PR #76)** | | 200, status `ACTIVE`; login works again |
-| 11 | `PATCH /api/admin/providers/{type}/{id}/deactivate` **(PR #76)** | no body; `{type}` is `airline` or `hotel` | 200, `isActive: false`; hidden from search and cannot be booked, Confirmed bookings stay valid (ACC-15) |
-| 12 | `PATCH /api/admin/providers/{type}/{id}/reactivate` **(PR #76)** | | 200, `isActive: true` |
-| 13 | `GET /api/admin/reports` **(in review)** | | 200, reports filed by users (GEN-09) |
-| 14 | `PATCH /api/admin/reports/{id}` **(in review)** | body as shown in Swagger once merged | 200, the report is resolved with the action taken |
-| 15 | `PATCH /api/admin/content/{type}/{id}/hide` **(in review)** | | 200; hidden content is removed from public lists (GEN-10) |
-| 16 | `DELETE /api/admin/content/{type}/{id}` **(in review)** | | 204 |
-| 17 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): moderator creation, password resets and, once merged, suspensions and provider changes |
-| 18 | `GET /api/currencies/rates`, `GET /api/currencies/convert` | `?amountMinor=10000&from=USD&to=EUR` | 200 (ITN-18); 503 if the exchange-rate service is unreachable |
+| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): moderator creations and password resets (suspensions and moderation actions are recorded once ACC-15/16 and GEN-10 merge) |
+| 10 | `GET /api/currencies/rates`, `GET /api/currencies/convert` | `?amountMinor=10000&from=USD&to=EUR` | 200 (ITN-18); 503 if the exchange-rate service is unreachable |
 
 Error cases worth showing: step 4 as a traveller gives 403 `FORBIDDEN`; any admin call without logging in gives
 401 `UNAUTHENTICATED`; `GET /api/airlines/not-an-id` gives 400 `INVALID_ID`; an unknown valid id gives 404 `NOT_FOUND`.
@@ -139,16 +129,10 @@ hotel cancellation would show no tiers. That is why Part 4 uses the demo hotel.
 | 14 | `GET /api/flight-bookings/{bookingId}` | | 200, `CONFIRMED`, `reference` starting `FL-` (`HT-` for hotels) |
 | 15 | `GET /api/payments/{id}` | | 200 |
 | 16 | `GET /api/flight-bookings/{bookingId}/e-ticket` | | 200, a PDF (FLT-23) |
-| 17 | `GET /api/flight-bookings/{bookingId}/refund-quote` | | 200, the refund amount and tier (FLT-26) |
-| 18 | `POST /api/flight-bookings/{bookingId}/cancel` | no body | 200, `CANCELLED`, seats returned, a refund recorded (FLT-26); a second call gives 409 |
-| 19 | `GET /api/refunds/{id}` | the id from the booking's `refund` block | 200, `PENDING`, then `REFUNDED` (PAY-03) |
-| 20 | `GET /api/hotel-bookings/{reservationId}/refund-quote` **(PR #77)** | | 200 (HTL-21) |
-| 21 | `POST /api/hotel-bookings/{reservationId}/cancel` **(PR #77)** | no body | 200, rooms released, refund by the hotel tiers (HTL-21) |
-| 22 | `POST /api/reports` **(in review)** | `{"targetType":"POST","targetId":"{id}","reason":"Offensive language"}` (types: POST, COMMENT, REVIEW, ITINERARY) | 201 (GEN-09) |
-| 23 | `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/{id}/read` | | 200: booking confirmed, cancelled and refund notices (GEN-01) |
-| 24 | `GET /api/currencies/convert` | `?amountMinor=25000&from=USD&to=EGP` | 200 (PAY-04) |
-| 25 | `PATCH /api/auth/change-password` | `{"currentPassword":"Travel2026","newPassword":"Travel2027"}` | 204 (ACC-08) |
-| 26 | `DELETE /api/users/me` | `{"password":"Travel2027"}` | 204, the account is deactivated (ACC-12); with a Confirmed or held booking it gives 409 `UPCOMING_BOOKINGS_EXIST` |
+| 17 | `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/{id}/read` | | 200: the booking-confirmed notices (GEN-01) |
+| 18 | `GET /api/currencies/convert` | `?amountMinor=25000&from=USD&to=EGP` | 200 (PAY-04) |
+| 19 | `PATCH /api/auth/change-password` | `{"currentPassword":"Travel2026","newPassword":"Travel2027"}` | 204 (ACC-08) |
+| 20 | `DELETE /api/users/me` | `{"password":"Travel2027"}` | 409 `UPCOMING_BOOKINGS_EXIST` here, because the booking confirmed in step 14 is upcoming (ACC-12); an account with no Confirmed or held upcoming booking gets 204 and is deactivated |
 
 A card that fails: `stripe payment_intents confirm <id> --payment-method pm_card_chargeDeclined` fails the
 attempt; `POST /api/payments/{id}/retry` (no body) tries again until the hold ends. After 10 minutes an unpaid
