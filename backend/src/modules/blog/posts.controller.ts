@@ -1,18 +1,53 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
+  ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
-import { CreatePostDto, PostDto } from './dto/post.dto';
+import { type Page } from '../../common/pagination/pagination';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
+import {
+  ApiErrorResponses,
+  ApiPaginatedResponse,
+} from '../../common/swagger/api-responses.decorator';
+import {
+  CreatePostDto,
+  ListPostsQueryDto,
+  PostDto,
+  PostSummaryDto,
+} from './dto/post.dto';
 import { PostsService } from './posts.service';
 
-/** Blog posts (brief section 6.6): registered users write posts (BLG-01). */
+const POST_ID_PARAM = {
+  name: 'id',
+  description: 'Post id',
+  examples: {
+    valid: {
+      summary: 'A post id from GET /api/posts',
+      value: '6af0f1c2c77901aa9f228700',
+    },
+    invalid: { summary: 'Invalid: 400 (not an id)', value: 'not-an-id' },
+  },
+};
+
+const PAGE_QUERY = {
+  name: 'page',
+  required: false,
+  type: Number,
+  examples: {
+    first: { summary: 'First page', value: 1 },
+    invalid: { summary: 'Invalid: 400 (pages start at 1)', value: 0 },
+  },
+};
+
+/** Blog posts (brief section 6.6). Guests read published posts; registered users write. */
 @ApiTags('Blog')
 @Controller('posts')
 export class PostsController {
@@ -65,5 +100,34 @@ export class PostsController {
     @Body() dto: CreatePostDto,
   ): Promise<PostDto> {
     return this.posts.create(user, dto);
+  }
+
+  @Get()
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 Browse published posts',
+    description:
+      'Published, non-hidden posts with title, author, date, excerpt, tags, like and comment counts; newest first, 10 per page. tag filters by one tag (BLG-08), ignoring case.',
+  })
+  @ApiQuery({ name: 'tag', required: false, example: 'egypt' })
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(PostSummaryDto)
+  @ApiErrorResponses(400)
+  list(@Query() query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    return this.posts.listPublic(query);
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 View a published post',
+    description:
+      'Title, author, date, body, tags, images and like and comment counts. Comments are listed separately (added by BLG-05). Drafts and hidden posts are 404 here; their author opens them from their own posts (added by BLG-03).',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  get(@Param('id', ParseObjectIdPipe) id: string): Promise<PostDto> {
+    return this.posts.getPublic(id);
   }
 }

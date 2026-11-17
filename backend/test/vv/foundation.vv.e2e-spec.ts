@@ -523,6 +523,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/itineraries?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
+    // BLG-02: published posts.
+    { url: '/api/posts?' },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
@@ -754,6 +756,9 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
+        // BLG-02: guests read published posts (brief section 4).
+        'GET /api/posts',
+        'GET /api/posts/:id',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',

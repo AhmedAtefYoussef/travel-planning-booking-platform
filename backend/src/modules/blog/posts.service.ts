@@ -1,12 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
+import {
+  type Page,
+  PAGE_SIZE,
+  skipFor,
+  toPage,
+} from '../../common/pagination/pagination';
 import { UsersService } from '../users';
-import { excerptOf } from './blog-rules';
+import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
   CreatePostDto,
+  ListPostsQueryDto,
   PostDto,
   PostSummaryDto,
 } from './dto/post.dto';
@@ -30,7 +39,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt.
+ * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts are public; drafts and hidden posts answer 404.
  */
 @Injectable()
 export class PostsService {
@@ -51,6 +60,46 @@ export class PostsService {
       publishedAt: status === PostStatus.Published ? new Date() : null,
     });
     return this.toPost(post);
+  }
+
+  /** BLG-02: published posts, newest first, optionally one tag (BLG-08). */
+  listPublic(query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    const filter: FilterQuery<Post> = { ...PUBLIC_POST_FILTER };
+    if (query.tag) filter.tags = query.tag;
+    return this.page(filter, query.page, { publishedAt: -1 });
+  }
+
+  /** BLG-02: the public post page. Drafts and hidden posts answer 404 here. */
+  async getPublic(id: string): Promise<PostDto> {
+    const post = await this.posts
+      .findOne({ _id: id, ...PUBLIC_POST_FILTER })
+      .lean<PostLike>()
+      .exec();
+    if (!post) throw notFound();
+    return this.toPost(post);
+  }
+
+  private async page(
+    filter: FilterQuery<Post>,
+    page: number,
+    sort: Record<string, SortOrder>,
+  ): Promise<Page<PostSummaryDto>> {
+    const [items, total] = await Promise.all([
+      this.posts
+        .find(filter)
+        .sort({ ...sort, _id: -1 })
+        .skip(skipFor(page))
+        .limit(PAGE_SIZE)
+        .lean<PostLike[]>()
+        .exec(),
+      this.posts.countDocuments(filter).exec(),
+    ]);
+    const authors = await this.authorsOf(items.map((p) => p.authorId));
+    return toPage(
+      items.map((p) => this.summary(p, authors)),
+      total,
+      page,
+    );
   }
 
   /**
@@ -99,4 +148,12 @@ export class PostsService {
       updatedAt: post.updatedAt,
     };
   }
+}
+
+function notFound(): AppException {
+  return new AppException(
+    HttpStatus.NOT_FOUND,
+    ErrorCode.NOT_FOUND,
+    'Post not found',
+  );
 }
