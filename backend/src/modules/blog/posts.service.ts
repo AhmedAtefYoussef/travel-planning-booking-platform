@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { User } from '../users';
+import { UsersService } from '../users';
 import { excerptOf } from './blog-rules';
 import type {
   AuthorRefDto,
@@ -36,7 +36,7 @@ type PostLike = Pick<
 export class PostsService {
   constructor(
     @InjectModel(Post.name) private readonly posts: Model<Post>,
-    @InjectModel(User.name) private readonly users: Model<User>,
+    private readonly users: UsersService,
   ) {}
 
   /** BLG-01: a draft by default; publishing stamps publishedAt. */
@@ -47,25 +47,26 @@ export class PostsService {
       title: dto.title,
       body: dto.body,
       tags: dto.tags ?? [],
-      images: dto.images ?? [],
       status,
       publishedAt: status === PostStatus.Published ? new Date() : null,
     });
     return this.toPost(post);
   }
 
-  /** Author id -> {id, name}; a deleted account shows as "Deleted user". */
+  /**
+   * Author id -> {id, name}, read through the users module (one lookup per distinct author, so at most
+   * one per post on a page). A deleted account shows as "Deleted user".
+   */
   async authorsOf(ids: Types.ObjectId[]): Promise<Map<string, AuthorRefDto>> {
     const unique = [...new Set(ids.map((id) => id.toHexString()))];
-    const users = unique.length
-      ? await this.users
-          .find({ _id: { $in: unique } }, { name: 1 })
-          .lean<{ _id: Types.ObjectId; name: string }[]>()
-          .exec()
-      : [];
-    const names = new Map(users.map((u) => [u._id.toHexString(), u.name]));
+    const profiles = await Promise.all(
+      unique.map((id) => this.users.findProfile(id)),
+    );
     return new Map(
-      unique.map((id) => [id, { id, name: names.get(id) ?? 'Deleted user' }]),
+      unique.map((id, i) => [
+        id,
+        { id, name: profiles[i]?.name ?? 'Deleted user' },
+      ]),
     );
   }
 

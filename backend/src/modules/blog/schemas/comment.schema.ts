@@ -26,7 +26,7 @@ export class Comment {
   body!: string;
 
   /** Hidden by an admin (GEN-10): visible only to its author and admins. */
-  @Prop({ type: Boolean, default: false, index: true })
+  @Prop({ type: Boolean, default: false })
   isHidden!: boolean;
 
   createdAt!: Date;

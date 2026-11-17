@@ -1393,3 +1393,21 @@ interactionScore for BLG-09), the create DTO with tag normalisation (lowercase, 
 endpoint in Swagger UI and captured screenshots on docs/blog-swagger-evidence. I reviewed the diff and
 ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01
+Prompt:
+Apply Ahmed's review of PR #75: rebase onto develop, mark BLG-01 Partial, stop the ERD over-claiming,
+drop the unrelated reports row change, keep Swagger text to routes that exist, stop images bypassing
+GEN-08, read author names through the users module instead of the raw User model, tidy the indexes,
+and add a unit test for PostsService.create.
+How the output was used:
+Claude rebased the branch (develop's AI_PROMPTS.txt entries kept, mine last), removed images from the
+create body (they are uploaded under GEN-08 by BLG-10), switched author names to UsersService.findProfile,
+dropped the User model registration and the module's exports, removed the single isHidden indexes, added
+isHidden to the tag and search indexes, added a unit test for draft/published stamping and an e2e test
+that checks the indexes exist. I reviewed the diff and ran the checks locally.
+================================================

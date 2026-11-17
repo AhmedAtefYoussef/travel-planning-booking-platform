@@ -23,7 +23,7 @@ export class PostsController {
   @ApiOperation({
     summary: 'BLG-01 Create a post as a draft or published',
     description:
-      'Title (1-150 characters) and body are required; tags (BLG-08) and image URLs (BLG-10) are optional. status DRAFT (the default) keeps the post private to its author; PUBLISHED makes it public.',
+      'Title (1-150 characters) and body are required; tags are optional (at most 5, 30 characters each; trimmed, lowercased, no repeats). Images are uploaded to the post afterwards (added by BLG-10, GEN-08). status DRAFT (the default) keeps the post private to its author; PUBLISHED makes it public.',
   })
   @ApiBody({
     type: CreatePostDto,

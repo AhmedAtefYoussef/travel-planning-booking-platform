@@ -85,7 +85,7 @@ export class Post {
   publishedAt!: Date | null;
 
   /** Hidden by an admin (GEN-10): visible only to its author and admins. */
-  @Prop({ type: Boolean, default: false, index: true })
+  @Prop({ type: Boolean, default: false })
   isHidden!: boolean;
 
   @Prop({
@@ -121,8 +121,13 @@ export type PostDocument = HydratedDocument<Post>;
 export const PostSchema = SchemaFactory.createForClass(Post);
 /** BLG-02 browse (newest first) and BLG-08 tag pages. */
 PostSchema.index({ status: 1, isHidden: 1, publishedAt: -1 });
-PostSchema.index({ tags: 1, status: 1, publishedAt: -1 });
+PostSchema.index({ tags: 1, status: 1, isHidden: 1, publishedAt: -1 });
 /** BLG-09 search ordering. */
-PostSchema.index({ status: 1, interactionScore: -1, publishedAt: -1 });
+PostSchema.index({
+  status: 1,
+  isHidden: 1,
+  interactionScore: -1,
+  publishedAt: -1,
+});
 /** BLG-03 my posts and BLG-12 author page. */
 PostSchema.index({ authorId: 1, createdAt: -1 });

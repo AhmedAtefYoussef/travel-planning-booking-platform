@@ -8,12 +8,9 @@ import {
   IsOptional,
   IsString,
   Length,
-  MaxLength,
 } from 'class-validator';
-import { IsImageUrl } from '../../../common/validation';
 import {
   MAX_POST_BODY,
-  MAX_POST_IMAGES,
   MAX_POST_TAGS,
   MAX_POST_TITLE,
   MAX_TAG_LENGTH,
@@ -53,19 +50,6 @@ const TagsRules = () =>
       message: `each tag must be 1-${MAX_TAG_LENGTH} characters`,
     }),
   );
-const ImagesRules = () =>
-  applyDecorators(
-    IsArray(),
-    ArrayMaxSize(MAX_POST_IMAGES, {
-      message: `a post has at most ${MAX_POST_IMAGES} images`,
-    }),
-    IsImageUrl('posts', {
-      each: true,
-      message:
-        'each image must be an http(s) URL or a /uploads/posts/ URL returned by the BLG-10 upload',
-    }),
-    MaxLength(500, { each: true }),
-  );
 const StatusRules = () =>
   applyDecorators(
     IsEnum(PostStatus, {
@@ -74,7 +58,6 @@ const StatusRules = () =>
   );
 
 const TAGS_DESCRIPTION = `Up to ${MAX_POST_TAGS} tags, each 1-${MAX_TAG_LENGTH} characters (BLG-08). Tags are trimmed and lowercased, and repeats are dropped, so "Cairo" and "cairo " are the same tag.`;
-const IMAGES_DESCRIPTION = `Up to ${MAX_POST_IMAGES} image URLs: http(s) links or /uploads/posts/<id>.jpg|png URLs returned by POST /api/posts/:id/images (BLG-10, GEN-08).`;
 
 /** BLG-01: create a post as a draft or published. */
 export class CreatePostDto {
@@ -104,16 +87,6 @@ export class CreatePostDto {
   @IsOptional()
   @TagsRules()
   tags?: string[];
-
-  @ApiPropertyOptional({
-    type: [String],
-    example: [],
-    maxItems: MAX_POST_IMAGES,
-    description: IMAGES_DESCRIPTION,
-  })
-  @IsOptional()
-  @ImagesRules()
-  images?: string[];
 
   @ApiPropertyOptional({
     enum: PostStatus,
@@ -182,7 +155,7 @@ export class PostSummaryDto {
   isHidden!: boolean;
 }
 
-/** The post page (BLG-02); comments are listed by GET /api/posts/:id/comments. */
+/** A post with its body and images; comments are listed separately (added by BLG-05). */
 export class PostDto extends PostSummaryDto {
   @ApiProperty({
     example:

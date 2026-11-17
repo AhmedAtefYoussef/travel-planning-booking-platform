@@ -90,21 +90,19 @@ describe('Blog posts (e2e): BLG-01', () => {
       .expect(400);
   });
 
-  it('BLG-01 accepts image URLs and rejects anything else', async () => {
-    await http()
+  it('BLG-01 takes no images on create: they are uploaded afterwards (GEN-08)', async () => {
+    const res = await http()
       .post('/api/posts')
       .set('Cookie', author.cookie)
       .send({
         title: 't',
         body: 'b',
-        images: ['https://cdn.example.com/a.jpg'],
+        images: ['http://example.com/not-an-image.exe'],
       })
-      .expect(201);
-    await http()
-      .post('/api/posts')
-      .set('Cookie', author.cookie)
-      .send({ title: 't', body: 'b', images: ['not-a-url'] })
       .expect(400);
+    expect(res.body.fieldErrors).toEqual([
+      expect.objectContaining({ field: 'images' }),
+    ]);
   });
 
   it('BLG-01 guests cannot create posts (401) and other roles get 403', async () => {
@@ -127,5 +125,29 @@ describe('Blog posts (e2e): BLG-01', () => {
     await expect(likes.insertOne({ ...like })).rejects.toMatchObject({
       code: 11000,
     });
+  });
+
+  it('TRVL-142 builds the indexes the blog queries rely on', async () => {
+    const keys = async (collection: string) =>
+      (await connection.collection(collection).indexes()).map((i) =>
+        JSON.stringify(i.key),
+      );
+    expect(await keys('posts')).toEqual(
+      expect.arrayContaining([
+        JSON.stringify({ status: 1, isHidden: 1, publishedAt: -1 }),
+        JSON.stringify({ tags: 1, status: 1, isHidden: 1, publishedAt: -1 }),
+        JSON.stringify({
+          status: 1,
+          isHidden: 1,
+          interactionScore: -1,
+          publishedAt: -1,
+        }),
+        JSON.stringify({ authorId: 1, createdAt: -1 }),
+      ]),
+    );
+    expect(await keys('posts')).not.toContain(JSON.stringify({ isHidden: 1 }));
+    expect(await keys('comments')).toContain(
+      JSON.stringify({ postId: 1, createdAt: 1 }),
+    );
   });
 });
