@@ -82,8 +82,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |
 | HTL-06 | Mandatory | DELETE /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-52 | - | Not started |
 | HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | - | Not started |
-| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #56 | Partial: set and returned on every hotel response and the pre-payment booking summary (PAY-02); shown on the public hotel page once HTL-02 (GET /api/hotels/:id) lands |
-| HTL-10 | Mandatory | PUT /api/hotels/:id/policies | Ahmed | TRVL-55 | #4 | Done |
+| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #56, #86 | Partial: set and returned on every hotel response and the pre-payment booking summary (PAY-02); shown on the public hotel page once HTL-02 (GET /api/hotels/:id) lands |
+| HTL-10 | Mandatory | PUT /api/hotels/:id/policies | Ahmed | TRVL-55 | #4, #86 | Done |
 | HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | - | Not started |
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
 | HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | - | Not started |
@@ -102,7 +102,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #62 | Done |
-| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61, #62 | Done |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61, #62, #86 | Done |
 | PAY-03 | Mandatory | GET /api/refunds/:id; refund block on GET /api/flight-bookings/:id and GET /api/hotel-bookings/:id; refund.* webhook events; REFUNDS_SERVICE.refundFor | Ahmed | TRVL-69 | #4, #67 | Done |
 | PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61, #62, #67 | Done |
 
