@@ -20,6 +20,8 @@ import {
   type PayableBooking,
   type PayableSnapshot,
   REFUNDS_SERVICE,
+  RefundReason,
+  type RefundQuote,
   type RefundsService,
   type RefundSummary,
   type NotificationsService,
@@ -36,7 +38,7 @@ import {
   generateBookingReference,
   isReferenceCollision,
 } from '../../common/utils/booking-reference';
-import { multiplyMinor, sumMinor } from '../../common/utils/money';
+import { formatMinor, multiplyMinor, sumMinor } from '../../common/utils/money';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { partyErrors, priceParty } from '../flights';
 import { UsersService } from '../users';
@@ -50,10 +52,12 @@ import { canPrint, renderETicket } from './e-ticket/e-ticket.renderer';
 import { formatLocal, toETicketView } from './e-ticket/e-ticket.view';
 import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
 import { ageOn, passengerTypeOn } from './passenger-age';
+import { CancelledBy } from './schemas/booking-fields';
 import { HoldGuard } from './schemas/hold-guard.schema';
 import {
   FlightBooking,
   type FlightBookingDocument,
+  type FlightSegment,
   PassengerType,
   TripType,
 } from './schemas/flight-booking.schema';
@@ -69,8 +73,9 @@ interface Plan {
 const MAX_AGE = 120;
 
 /**
- * Flight bookings: FLT-21 summary, FLT-22 seat hold and expiry, FLT-19 passenger details, and the
- * FLIGHT_PAYABLE_BOOKING contract that PAY-01 confirms through.
+ * Flight bookings: FLT-21 summary, FLT-22 seat hold and expiry, FLT-19 passenger details, FLT-26
+ * cancellation with a tier-based refund, and the FLIGHT_PAYABLE_BOOKING contract that PAY-01 confirms
+ * through.
  *
  * Seats are taken with FLIGHT_INVENTORY's single conditional update (ADR-0002). A round trip reserves
  * both legs and inserts the booking in ONE transaction, so it is held entirely or not at all.
@@ -234,7 +239,11 @@ export class FlightBookingsService implements PayableBooking {
     return expired;
   }
 
-  /** Gives back every segment's seats; a seat counter that no longer exists is logged, not ignored. */
+  /**
+   * Gives back every segment's seats (outbound and return) for an expired hold or a cancelled booking.
+   * `seats` counts adults and children only, so infants (on a lap) give nothing back. A seat counter
+   * that no longer exists is logged, not ignored.
+   */
   private async releaseAll(id: string, session: ClientSession): Promise<void> {
     const booking = await this.bookings
       .findById(id, { segments: 1 }, { session })
@@ -380,15 +389,13 @@ export class FlightBookingsService implements PayableBooking {
         `Booking ${bookingId}: airport ${first.from} lookup failed (${e instanceof Error ? e.message : String(e)}); the confirmation notice shows UTC`,
       );
     }
-    const route = [first.from, ...b.segments.map((s) => s.to)].join(' -> ');
-    const flights = b.segments.map((s) => s.flightNumber).join(' / ');
     const people = b.passengers.length;
     await this.notifications.notify(
       {
         userId: b.userId.toHexString(),
         type: NotificationType.BookingConfirmed,
         title: `Flight booking ${b.reference} confirmed`,
-        body: `${route}, flight${b.segments.length > 1 ? 's' : ''} ${flights}, departs ${formatLocal(first.departureUtc, airport?.timeZone ?? 'UTC')}; ${people} passenger${people === 1 ? '' : 's'}.`,
+        body: `${trip(b.segments)}, departs ${formatLocal(first.departureUtc, airport?.timeZone ?? 'UTC')}; ${people} passenger${people === 1 ? '' : 's'}.`,
         link: `/bookings/flights/${bookingId}`,
       },
       session,
@@ -404,14 +411,7 @@ export class FlightBookingsService implements PayableBooking {
     id: string,
     now: Date = new Date(),
   ): Promise<{ filename: string; pdf: Buffer }> {
-    const booking = Types.ObjectId.isValid(id)
-      ? await this.bookings.findById(id).lean().exec()
-      : null;
-    if (!booking) throw notFound();
-    assertOwner(user, booking.userId, {
-      notFound: true,
-      notFoundMessage: notFound().message,
-    });
+    const booking = await this.ownBooking(user, id);
     const ticketed =
       booking.status === BookingStatus.Confirmed ||
       booking.status === BookingStatus.Completed;
@@ -460,6 +460,187 @@ export class FlightBookingsService implements PayableBooking {
       }),
     );
     return { filename: `e-ticket-${booking.reference}.pdf`, pdf };
+  }
+
+  /* ------------------------------- FLT-26 cancellation (GEN-11) ------------------------------- */
+
+  /**
+   * FLT-26: what cancelling now would refund, from the airline tiers accepted with the booking (PAY-02
+   * snapshot, never the airline's current policy) and the outbound departure; a round trip is cancelled
+   * as a whole on the outbound tier (FLT-12 a). Owner only (anyone else: the unknown-id 404, ACC-11);
+   * 409 BOOKING_NOT_CONFIRMED unless CONFIRMED, 409 CANCELLATION_WINDOW_CLOSED once the flight left.
+   */
+  async refundQuote(
+    user: AuthUser,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<RefundQuote> {
+    const booking = await this.ownBooking(user, id);
+    assertCancellable(booking, now, true);
+    return this.cancellationQuote(booking, RefundReason.UserCancellation, now);
+  }
+
+  /** FLT-26: the owner cancels; answers the booking details with the refund block (PAY-03). */
+  async cancel(
+    user: AuthUser,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<FlightBookingDto> {
+    // Strangers and wrong states fail here; cancelConfirmed checks again inside its transaction.
+    assertCancellable(await this.ownBooking(user, id), now, true);
+    await this.cancelConfirmed(
+      id,
+      { reason: RefundReason.UserCancellation },
+      now,
+    );
+    return this.findOne(user, id);
+  }
+
+  /**
+   * GEN-11 CONFIRMED -> CANCELLED: the core FLT-26 uses and FLT-06 (the airline cancels a flight:
+   * RefundReason.ProviderCancellation, always 100%) can reuse. Ownership is the caller's job. In ONE
+   * transaction:
+   * - the status-conditioned transition: of two concurrent cancels exactly one wins, the other is 409
+   *   and releases, refunds and notifies nothing;
+   * - a user cancellation is re-checked against the outbound departure (409 CANCELLATION_WINDOW_CLOSED);
+   * - every segment's seats go back to their cabin (releaseAll, shared with hold expiry);
+   * - the refund through REFUNDS_SERVICE (none is recorded for 0%), linked as refundId;
+   * - the owner's BOOKING_CANCELLED notice.
+   */
+  async cancelConfirmed(
+    bookingId: string,
+    options: { reason: RefundReason },
+    now: Date = new Date(),
+  ): Promise<void> {
+    const byUser = options.reason === RefundReason.UserCancellation;
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const booking = Types.ObjectId.isValid(bookingId)
+          ? await this.bookings
+              .findById(bookingId, null, { session })
+              .lean()
+              .exec()
+          : null;
+        if (!booking) throw notFound();
+        assertCancellable(booking, now, byUser);
+        const quote = this.cancellationQuote(booking, options.reason, now);
+        if (!booking.paymentId) {
+          throw new Error(
+            `Confirmed flight booking ${bookingId} has no payment to refund`,
+          );
+        }
+        const moved = await transitionBooking(
+          this.bookings,
+          bookingId,
+          BookingStatus.Confirmed,
+          BookingStatus.Cancelled,
+          {
+            where: byUser
+              ? { 'segments.0.departureUtc': { $gt: now } }
+              : undefined,
+            set: {
+              cancelledAt: now,
+              cancelledBy: byUser ? CancelledBy.User : CancelledBy.Provider,
+            },
+            session,
+          },
+        );
+        if (!moved) {
+          throw new AppException(
+            HttpStatus.CONFLICT,
+            ErrorCode.BOOKING_NOT_CONFIRMED,
+            'This booking was changed by another request and is no longer confirmed',
+          );
+        }
+        await this.releaseAll(bookingId, session);
+        const refund = await this.refunds.refundFor(
+          {
+            bookingType: BookingType.Flight,
+            bookingId,
+            userId: booking.userId.toHexString(),
+            paymentId: booking.paymentId.toHexString(),
+            quote,
+            reason: options.reason,
+          },
+          session,
+        );
+        if (refund) {
+          await this.bookings
+            .updateOne(
+              { _id: bookingId },
+              { $set: { refundId: new Types.ObjectId(refund.refundId) } },
+              { session },
+            )
+            .exec();
+        }
+        await this.notifications.notify(
+          {
+            userId: booking.userId.toHexString(),
+            type: NotificationType.BookingCancelled,
+            title: `Flight booking ${booking.reference} cancelled`,
+            body: `${trip(booking.segments)}, is cancelled and its seats are released. ${refundLine(quote)}`,
+            link: `/bookings/flights/${bookingId}`,
+          },
+          session,
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  /**
+   * The refund for cancelling now: the amount paid, the OUTBOUND departure and the outbound airline's
+   * tiers as accepted (PAY-02 snapshot). A Confirmed booking always has a snapshot (payment is blocked
+   * until acceptance), so a missing one is a defect (500), never a silent 0%.
+   */
+  private cancellationQuote(
+    booking: Pick<
+      FlightBooking,
+      'segments' | 'policySnapshot' | 'totalMinor' | 'currency'
+    > & { _id: Types.ObjectId },
+    reason: RefundReason,
+    now: Date,
+  ): RefundQuote {
+    const outbound = booking.segments[0];
+    const accepted = booking.policySnapshot?.airlines;
+    const id = booking._id.toHexString();
+    if (!accepted) {
+      throw new Error(
+        `Confirmed flight booking ${id} has no accepted policy snapshot (PAY-02)`,
+      );
+    }
+    const terms =
+      accepted[0]?.flightNumber === outbound.flightNumber
+        ? accepted[0]
+        : accepted.find((a) => a.flightNumber === outbound.flightNumber);
+    if (!terms) {
+      throw new Error(
+        `Flight booking ${id}: the accepted policy snapshot has no terms for outbound flight ${outbound.flightNumber}`,
+      );
+    }
+    return this.refunds.quote({
+      paidMinor: booking.totalMinor,
+      currency: booking.currency,
+      eventStartUtc: outbound.departureUtc,
+      tiers: terms.cancellationTiers,
+      reason,
+      now,
+    });
+  }
+
+  /** ACC-11: the caller's own booking; anyone else's is the same 404 as an unknown id. */
+  private async ownBooking(user: AuthUser, id: string) {
+    const booking = Types.ObjectId.isValid(id)
+      ? await this.bookings.findById(id).lean().exec()
+      : null;
+    if (!booking) throw notFound();
+    assertOwner(user, booking.userId, {
+      notFound: true,
+      notFoundMessage: notFound().message,
+    });
+    return booking;
   }
 
   /**
@@ -720,6 +901,48 @@ export class FlightBookingsService implements PayableBooking {
  */
 function latestToday(now: Date): string {
   return new Date(now.getTime() + 14 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/** "CDG -> HND -> CDG, flights HQ100 / HQ101": the route and flight numbers shown in notices. */
+function trip(segments: readonly FlightSegment[]): string {
+  const route = [segments[0].from, ...segments.map((s) => s.to)].join(' -> ');
+  const flights = segments.map((s) => s.flightNumber).join(' / ');
+  return `${route}, flight${segments.length > 1 ? 's' : ''} ${flights}`;
+}
+
+/** The refund sentence of the BOOKING_CANCELLED notice (amounts in the platform currency, PAY-04). */
+function refundLine(quote: RefundQuote): string {
+  return quote.amountMinor > 0
+    ? `Refund: ${formatMinor(quote.amountMinor, quote.currency)} ${quote.currency} (${quote.refundPercent}%).`
+    : 'No refund applies under the cancellation policy you accepted.';
+}
+
+/**
+ * FLT-26, GEN-11: only a CONFIRMED booking can be cancelled (409 BOOKING_NOT_CONFIRMED), and a user
+ * only before the outbound departure (409 CANCELLATION_WINDOW_CLOSED at or after it).
+ */
+function assertCancellable(
+  b: Pick<FlightBooking, 'status' | 'segments'>,
+  now: Date,
+  beforeDeparture: boolean,
+): void {
+  if (b.status !== BookingStatus.Confirmed) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.BOOKING_NOT_CONFIRMED,
+      `This booking is ${b.status}; only a confirmed booking can be cancelled`,
+    );
+  }
+  if (
+    beforeDeparture &&
+    b.segments[0].departureUtc.getTime() <= now.getTime()
+  ) {
+    throw new AppException(
+      HttpStatus.CONFLICT,
+      ErrorCode.CANCELLATION_WINDOW_CLOSED,
+      'The flight has already departed, so this booking can no longer be cancelled',
+    );
+  }
 }
 
 function notFound(): AppException {
