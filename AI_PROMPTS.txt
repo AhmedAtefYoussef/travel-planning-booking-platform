@@ -1296,3 +1296,21 @@ whose ToUnicode target has two characters; the test reader skipped it and shifte
 test reader changed, plus a unit test with an "ff" version that fails on the old reader. I checked 400 random
 renders (21 bad before, 0 after) before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-26 (TRVL-45), FLT-12, GEN-11
+Prompt:
+Take over FLT-26: revert the revert of #72 on a fresh branch from develop, re-review it against develop, extract
+a reusable Confirmed -> Cancelled core (transition with startsAt > now, seat release, REFUNDS_SERVICE.refundFor,
+BOOKING_CANCELLED notice, one transaction) for HTL-21 and FLT-06 to reuse, cancel a round trip as a whole on the
+outbound tier (FLT-12 a), write the tests first, update the traceability and RTM rows, and check it live in Swagger.
+How the output was used:
+Claude restored #72, moved the cancel flow into bookings/booking-cancellation.ts, guarded the transition on the
+shared startsAt field, and added unit tests for the tier boundaries (exactly at a threshold, 0 days, a 0% refund
+with no record) and e2e cases for a second cancel, a 0% tier and infants on both legs of a round trip. I reviewed
+the transaction order and the refund link, ran the quality gate and the e2e three times, and checked the quote and
+cancel journey in Swagger on a throw-away database before opening the pull request.
+================================================
