@@ -940,7 +940,7 @@ describe('FlightBookingsService FLT-23 confirmation notice and e-ticket', () => 
   });
 });
 
-describe('FlightBookingsService FLT-26 cancellation and refund quote', () => {
+describe('FlightBookingsService cancellation and refund quote: FLT-26', () => {
   const ownerId = oid();
   const owner = { id: ownerId, role: Role.User };
   const OUT_TIERS = [
@@ -964,6 +964,7 @@ describe('FlightBookingsService FLT-26 cancellation and refund quote', () => {
       userId: new Types.ObjectId(ownerId),
       tripType: 'ONE_WAY',
       createdAt: NOW,
+      startsAt: new Date('2027-12-01T10:00:00Z'),
       policySnapshot: {
         version: 'v1',
         airlines: [airline('HQ100', OUT_TIERS)],
@@ -1025,7 +1026,7 @@ describe('FlightBookingsService FLT-26 cancellation and refund quote', () => {
     expect(refunds.quote).toHaveBeenCalledWith({
       paidMinor: 100_000,
       currency: 'EGP',
-      eventStartUtc: doc.segments[0].departureUtc,
+      eventStartUtc: new Date('2027-12-01T10:00:00Z'),
       tiers: OUT_TIERS,
       reason: RefundReason.UserCancellation,
       now: NOW,
@@ -1034,13 +1035,102 @@ describe('FlightBookingsService FLT-26 cancellation and refund quote', () => {
     expect(inventory.getAirlinePolicy).not.toHaveBeenCalled();
   });
 
-  it('a round trip is quoted as a whole with the outbound tier (FLT-12 a)', async () => {
-    const { service, model } = setup();
-    const doc = roundTrip();
-    model.findById = reads(doc);
-    await expect(
-      service.refundQuote(owner, doc.id, NOW),
-    ).resolves.toMatchObject({ refundPercent: 50, amountMinor: 50_000 });
+  describe('round trip cancelled as a whole on the outbound tier: FLT-12', () => {
+    it('a round trip is quoted as a whole with the outbound tier (FLT-12 a)', async () => {
+      const { service, model } = setup();
+      const doc = roundTrip();
+      model.findById = reads(doc);
+      await expect(
+        service.refundQuote(owner, doc.id, NOW),
+      ).resolves.toMatchObject({ refundPercent: 50, amountMinor: 50_000 });
+    });
+
+    it('finds the outbound terms even when the snapshot lists the return airline first', async () => {
+      const { service, model, refunds } = setup();
+      const doc = roundTrip();
+      doc.policySnapshot.airlines.reverse();
+      model.findById = reads(doc);
+      await expect(
+        service.refundQuote(owner, doc.id, NOW),
+      ).resolves.toMatchObject({ refundPercent: 50 });
+      expect(refunds.quote).toHaveBeenCalledWith(
+        expect.objectContaining({ tiers: OUT_TIERS }),
+      );
+    });
+  });
+
+  describe('refund tiers at their boundaries: FLT-26', () => {
+    const DEPARTURE = new Date('2027-12-01T10:00:00Z');
+    const DAY = 86_400_000;
+    const at = (msBefore: number) => new Date(DEPARTURE.getTime() - msBefore);
+    const withTiers = (tiers: object[]) =>
+      paid({
+        policySnapshot: { version: 'v1', airlines: [airline('HQ100', tiers)] },
+      });
+
+    it('exactly at a threshold the tier applies; one millisecond later it does not', async () => {
+      const { service, model } = setup();
+      model.findById = reads(paid());
+      await expect(
+        service.refundQuote(owner, oid(), at(7 * DAY)),
+      ).resolves.toEqual({
+        amountMinor: 50_000,
+        currency: 'EGP',
+        refundPercent: 50,
+        tierApplied: { daysBefore: 7, refundPercent: 50 },
+        daysBefore: 7,
+      });
+      await expect(
+        service.refundQuote(owner, oid(), at(7 * DAY - 1)),
+      ).resolves.toEqual({
+        amountMinor: 0,
+        currency: 'EGP',
+        refundPercent: 0,
+        tierApplied: null,
+        daysBefore: 6,
+      });
+      await expect(
+        service.refundQuote(owner, oid(), at(60 * DAY)),
+      ).resolves.toMatchObject({ refundPercent: 100, amountMinor: 100_000 });
+    });
+
+    it('0 days left: a 0-day tier still applies until the departure instant', async () => {
+      const { service, model } = setup();
+      model.findById = reads(
+        withTiers([
+          { daysBefore: 0, refundPercent: 25 },
+          { daysBefore: 7, refundPercent: 50 },
+        ]),
+      );
+      await expect(service.refundQuote(owner, oid(), at(1))).resolves.toEqual({
+        amountMinor: 25_000,
+        currency: 'EGP',
+        refundPercent: 25,
+        tierApplied: { daysBefore: 0, refundPercent: 25 },
+        daysBefore: 0,
+      });
+      expect(
+        await failure(service.refundQuote(owner, oid(), at(0))),
+      ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+    });
+
+    it('rounds a partial refund down to whole minor units', async () => {
+      const { service, model } = setup();
+      model.findById = reads(
+        paid({
+          totalMinor: 99_999,
+          policySnapshot: {
+            version: 'v1',
+            airlines: [
+              airline('HQ100', [{ daysBefore: 0, refundPercent: 33 }]),
+            ],
+          },
+        }),
+      );
+      await expect(
+        service.refundQuote(owner, oid(), NOW),
+      ).resolves.toMatchObject({ amountMinor: 32_999, refundPercent: 33 });
+    });
   });
 
   it('refundQuote: 404 for unknown, malformed or someone else; 409 unless confirmed and before departure', async () => {
@@ -1087,7 +1177,7 @@ describe('FlightBookingsService FLT-26 cancellation and refund quote', () => {
     expect(model.updateOne).toHaveBeenNthCalledWith(
       1,
       {
-        'segments.0.departureUtc': { $gt: NOW },
+        startsAt: { $gt: NOW },
         _id: doc.id,
         status: BookingStatus.Confirmed,
       },

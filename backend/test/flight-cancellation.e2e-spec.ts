@@ -43,6 +43,7 @@ describe('Flight cancellation (e2e): FLT-26', () => {
   let notifications: Model<Notification>;
   let outbound: { flightId: string; cabinId: string };
   let back: { flightId: string; cabinId: string };
+  let noRefund: { flightId: string; cabinId: string };
   let owner: LoggedIn;
   let stranger: LoggedIn;
   let admin: LoggedIn;
@@ -89,13 +90,17 @@ describe('Flight cancellation (e2e): FLT-26', () => {
   /** Hold, accept the policies, pay and confirm through the webhook (PAY-01, PAY-02). */
   const confirmed = async (
     who: LoggedIn,
-    opts: { roundTrip?: boolean; passengers?: object[] } = {},
+    opts: {
+      roundTrip?: boolean;
+      passengers?: object[];
+      leg?: { flightId: string; cabinId: string };
+    } = {},
   ) => {
     const held = await http()
       .post('/api/flight-bookings/hold')
       .set('Cookie', who.cookie)
       .send({
-        outbound,
+        outbound: opts.leg ?? outbound,
         ...(opts.roundTrip ? { return: back } : {}),
         passengers: opts.passengers ?? [adult()],
       })
@@ -244,6 +249,20 @@ describe('Flight cancellation (e2e): FLT-26', () => {
       RETURN_FARE,
       [{ daysBefore: 0, refundPercent: 100 }],
     );
+    // An airline whose only tier refunds nothing: cancelling is allowed, no refund is recorded.
+    noRefund = await airlineWithFlight(
+      'Strict Air',
+      'KS',
+      {
+        number: 'KS302',
+        from: 'CAI',
+        to: 'LHR',
+        dep: '2028-05-21T09:00',
+        arr: '2028-05-21T13:00',
+      },
+      FARE,
+      [{ daysBefore: 0, refundPercent: 0 }],
+    );
     stranger = await loginAs(app, Role.User);
     admin = await loginAs(app, Role.Admin);
   });
@@ -319,31 +338,50 @@ describe('Flight cancellation (e2e): FLT-26', () => {
     expect(details.body).toEqual(res.body);
   });
 
-  it('FLT-12(a) round trip is cancelled as a whole with the outbound tier; both segments get their seats back', async () => {
-    const booking = await confirmed(owner, {
-      roundTrip: true,
-      passengers: [adult(), adult()],
-    });
-    const id = booking._id.toHexString();
-    const out = await seatsLeft(outbound.flightId);
-    const ret = await seatsLeft(back.flightId);
-    const total = booking.totalMinor;
-    expect(total).toBe(2 * (FARE + RETURN_FARE));
+  describe('round trip cancelled as a whole: FLT-12', () => {
+    it('FLT-12(a) uses the outbound tier (not the return airline 100%) and gives both segments their seats back', async () => {
+      const booking = await confirmed(owner, {
+        roundTrip: true,
+        passengers: [adult(), adult()],
+      });
+      const id = booking._id.toHexString();
+      const out = await seatsLeft(outbound.flightId);
+      const ret = await seatsLeft(back.flightId);
+      const total = booking.totalMinor;
+      expect(total).toBe(2 * (FARE + RETURN_FARE));
 
-    const shown = await quote(owner, id).expect(200);
-    expect(shown.body).toMatchObject({
-      refundPercent: 50,
-      amountMinor: total / 2,
+      const shown = await quote(owner, id).expect(200);
+      expect(shown.body).toMatchObject({
+        refundPercent: 50,
+        amountMinor: total / 2,
+        tierApplied: { daysBefore: 7, refundPercent: 50 },
+      });
+      const res = await cancel(owner, id).expect(200);
+      expect(res.body.status).toBe(BookingStatus.Cancelled);
+      expect(res.body.refund).toMatchObject({ amountMinor: total / 2 });
+      expect(await seatsLeft(outbound.flightId)).toBe(out + 2);
+      expect(await seatsLeft(back.flightId)).toBe(ret + 2);
+      const stored = await refundsOf(id);
+      expect(stored).toHaveLength(1);
+      expect(stored[0]).toMatchObject({ refundPercent: 50 });
+      expect(await cancelNotices(owner)).toHaveLength(1);
     });
-    const res = await cancel(owner, id).expect(200);
-    expect(res.body.status).toBe(BookingStatus.Cancelled);
-    expect(res.body.refund).toMatchObject({ amountMinor: total / 2 });
-    expect(await seatsLeft(outbound.flightId)).toBe(out + 2);
-    expect(await seatsLeft(back.flightId)).toBe(ret + 2);
-    expect(await refundsOf(id)).toHaveLength(1);
+
+    it('FLT-12 infants take no seat on either flight, so only the adult seats come back', async () => {
+      const booking = await confirmed(owner, {
+        roundTrip: true,
+        passengers: [adult(), infant()],
+      });
+      const id = booking._id.toHexString();
+      const out = await seatsLeft(outbound.flightId);
+      const ret = await seatsLeft(back.flightId);
+      await cancel(owner, id).expect(200);
+      expect(await seatsLeft(outbound.flightId)).toBe(out + 1);
+      expect(await seatsLeft(back.flightId)).toBe(ret + 1);
+    });
   });
 
-  it('FLT-26 infants sit on a lap: cancelling gives back only the adult seats', async () => {
+  it('FLT-26 infants sit on a lap: cancelling a one-way gives back only the adult seats', async () => {
     const booking = await confirmed(owner, {
       passengers: [adult(), infant()],
     });
@@ -392,21 +430,54 @@ describe('Flight cancellation (e2e): FLT-26', () => {
     expect((await bookings.findById(id).lean())!.status).toBe(
       BookingStatus.PendingPayment,
     );
+  });
 
-    // Cancelling twice: the second is 409 too.
-    const done = await confirmed(owner);
-    await cancel(owner, done._id.toHexString()).expect(200);
-    const again = await cancel(owner, done._id.toHexString()).expect(409);
+  it('FLT-26 a second cancel is 409 and releases, refunds and notifies nothing more', async () => {
+    const booking = await confirmed(owner);
+    const id = booking._id.toHexString();
+    await cancel(owner, id).expect(200);
+    const seats = await seatsLeft(outbound.flightId);
+    const again = await cancel(owner, id).expect(409);
     expect(again.body.code).toBe('BOOKING_NOT_CONFIRMED');
+    const requote = await quote(owner, id).expect(409);
+    expect(requote.body.code).toBe('BOOKING_NOT_CONFIRMED');
+    expect(await seatsLeft(outbound.flightId)).toBe(seats);
+    expect(await refundsOf(id)).toHaveLength(1);
+    expect(await cancelNotices(owner)).toHaveLength(1);
+  });
+
+  it('FLT-26 a 0% tier cancels the booking but records no refund', async () => {
+    const booking = await confirmed(owner, { leg: noRefund });
+    const id = booking._id.toHexString();
+    const before = await seatsLeft(noRefund.flightId);
+    const shown = await quote(owner, id).expect(200);
+    expect(shown.body).toMatchObject({
+      amountMinor: 0,
+      refundPercent: 0,
+      tierApplied: { daysBefore: 0, refundPercent: 0 },
+    });
+    const res = await cancel(owner, id).expect(200);
+    expect(res.body).toMatchObject({
+      status: BookingStatus.Cancelled,
+      refund: null,
+    });
+    expect(await refundsOf(id)).toHaveLength(0);
+    expect((await bookings.findById(id).lean())!.refundId).toBeNull();
+    expect(await seatsLeft(noRefund.flightId)).toBe(before + 1);
+    const [notice] = await cancelNotices(owner);
+    expect(notice.body).toContain(
+      'No refund applies under the cancellation policy you accepted.',
+    );
   });
 
   it('FLT-26 after departure the quote and the cancellation are 409 CANCELLATION_WINDOW_CLOSED', async () => {
     const booking = await confirmed(owner);
     const id = booking._id.toHexString();
     // The flight left a minute ago (stored departure moved back; the API refuses past flights).
+    const left = new Date(Date.now() - 60_000);
     await bookings.updateOne(
       { _id: id },
-      { $set: { 'segments.0.departureUtc': new Date(Date.now() - 60_000) } },
+      { $set: { startsAt: left, 'segments.0.departureUtc': left } },
     );
     const before = await seatsLeft(outbound.flightId);
     for (const call of [quote, cancel]) {
@@ -420,7 +491,7 @@ describe('Flight cancellation (e2e): FLT-26', () => {
     );
   });
 
-  it('FLT-26 two cancels racing: exactly one 200 and one 409, seats back once, one refund, one notice', async () => {
+  it('FLT-26 two parallel cancels: exactly one 200 and one 409, seats back once, one refund, one notice', async () => {
     const booking = await confirmed(owner, { passengers: [adult(), adult()] });
     const id = booking._id.toHexString();
     const before = await seatsLeft(outbound.flightId);
