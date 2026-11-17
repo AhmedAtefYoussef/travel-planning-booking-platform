@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { SESSION_VALIDATOR } from '../../common/contracts';
+import { ACCOUNT_ADMIN, SESSION_VALIDATOR } from '../../common/contracts';
+import { AccountAdminService } from './account-admin.service';
 import { AdminAccountsController } from './admin-accounts.controller';
 import { AdminAccountsService } from './admin-accounts.service';
 import { AdminSeedService } from './admin-seed.service';
@@ -41,6 +42,8 @@ import { UsersService } from './users.service';
     SessionsService,
     SessionValidatorService,
     { provide: SESSION_VALIDATOR, useExisting: SessionValidatorService },
+    AccountAdminService,
+    { provide: ACCOUNT_ADMIN, useExisting: AccountAdminService },
   ],
   exports: [
     MongooseModule,
@@ -48,6 +51,7 @@ import { UsersService } from './users.service';
     UsersService,
     SessionsService,
     SESSION_VALIDATOR,
+    ACCOUNT_ADMIN,
   ],
 })
 export class UsersModule {}

@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
-import { Types, type Model } from 'mongoose';
+import { Types, type ClientSession, type Model } from 'mongoose';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { Session } from './schemas/session.schema';
 
@@ -165,10 +165,13 @@ export class SessionsService {
     );
   }
 
-  /** Ends every session of a user (password change ACC-08, admin reset ACC-07a, suspension). */
+  /**
+   * Ends every session of a user (password change ACC-08, admin reset ACC-07a, suspension ACC-15/16).
+   * Pass `session` to revoke inside the caller's transaction.
+   */
   async revokeAllForUser(
     userId: string,
-    options: { exceptSessionId?: string } = {},
+    options: { exceptSessionId?: string; session?: ClientSession } = {},
     now = new Date(),
   ): Promise<void> {
     const keep =
@@ -182,6 +185,7 @@ export class SessionsService {
         ...keep,
       },
       { $set: { revokedAt: now } },
+      { session: options.session },
     );
   }
 

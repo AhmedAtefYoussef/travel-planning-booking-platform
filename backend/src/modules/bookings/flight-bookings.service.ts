@@ -5,6 +5,7 @@ import { ClientSession, Connection, Model, Types } from 'mongoose';
 import { assertOwner } from '../../common/auth/access';
 import { AuthUser, Role } from '../../common/auth/auth.types';
 import {
+  AIRLINE_STATUS,
   BookingStatus,
   BookingType,
   FLIGHT_INVENTORY,
@@ -25,6 +26,7 @@ import {
   type RefundsService,
   type RefundSummary,
   type NotificationsService,
+  type ProviderStatus,
   type ReferenceService,
 } from '../../common/contracts';
 import {
@@ -100,6 +102,7 @@ export class FlightBookingsService implements PayableBooking {
     private readonly notifications: NotificationsService,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
     private readonly users: UsersService,
+    @Inject(AIRLINE_STATUS) private readonly airlines: ProviderStatus,
   ) {}
 
   /** FLT-21: the price and details of exactly what a hold would take; holds nothing. */
@@ -644,11 +647,7 @@ export class FlightBookingsService implements PayableBooking {
       );
     }
     if (fresh.unavailableReason) {
-      return new AppException(
-        HttpStatus.CONFLICT,
-        ErrorCode.CONFLICT,
-        fresh.unavailableReason,
-      );
+      return this.unavailable(fresh, fresh.unavailableReason);
     }
     return new AppException(
       HttpStatus.CONFLICT,
@@ -658,6 +657,24 @@ export class FlightBookingsService implements PayableBooking {
   }
 
   /* ------------------------------------------ helpers ------------------------------------------ */
+
+  /**
+   * 409 for a leg that cannot be booked: PROVIDER_INACTIVE when an admin deactivated its airline
+   * (ACC-15), CONFLICT for any other reason (flight cancelled or departed).
+   */
+  private async unavailable(
+    leg: BookableCabin,
+    reason: string,
+  ): Promise<AppException> {
+    const airline = await this.airlines.find(leg.airlineId);
+    return new AppException(
+      HttpStatus.CONFLICT,
+      airline && !airline.isActive
+        ? ErrorCode.PROVIDER_INACTIVE
+        : ErrorCode.CONFLICT,
+      reason,
+    );
+  }
 
   /** Validates the request against the live flights and prices it; reports every error at once. */
   private async plan(dto: FlightBookingRequestDto, now: Date): Promise<Plan> {
@@ -683,11 +700,7 @@ export class FlightBookingsService implements PayableBooking {
     const legs = inbound ? [outbound, inbound] : [outbound];
     for (const leg of legs) {
       if (leg.unavailableReason) {
-        throw new AppException(
-          HttpStatus.CONFLICT,
-          ErrorCode.CONFLICT,
-          leg.unavailableReason,
-        );
+        throw await this.unavailable(leg, leg.unavailableReason);
       }
     }
 
