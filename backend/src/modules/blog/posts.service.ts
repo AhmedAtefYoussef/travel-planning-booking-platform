@@ -30,7 +30,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt.
+ * unless it is published, and publishing stamps publishedAt. BLG-06: likes live in LikesService.
  */
 @Injectable()
 export class PostsService {
