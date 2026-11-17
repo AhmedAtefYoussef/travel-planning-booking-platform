@@ -1,9 +1,11 @@
+import { getModelToken } from '@nestjs/mongoose';
+import { Test } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { Role } from '../../common/auth/auth.types';
-import type { UsersService } from '../users';
+import { UsersService } from '../users';
 import type { CreatePostDto } from './dto/post.dto';
 import { PostsService } from './posts.service';
-import { PostStatus } from './schemas/post.schema';
+import { Post, PostStatus } from './schemas/post.schema';
 
 /** BLG-01: what PostsService.create stores and returns, without a database. */
 describe('PostsService.create (BLG-01)', () => {
@@ -29,10 +31,21 @@ describe('PostsService.create (BLG-01)', () => {
       Promise.resolve(id === author.id ? { name: 'Malak' } : null),
     ),
   };
-  const service = new PostsService(
-    posts as never,
-    users as unknown as UsersService,
-  );
+  let service: PostsService;
+
+  beforeAll(async () => {
+    // Any other dependency the service grows (models, uploads) is auto-mocked and unused by create.
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        PostsService,
+        { provide: getModelToken(Post.name), useValue: posts },
+        { provide: UsersService, useValue: users },
+      ],
+    })
+      .useMocker(() => ({}))
+      .compile();
+    service = moduleRef.get(PostsService);
+  });
   const dto = (extra: Partial<CreatePostDto> = {}): CreatePostDto => ({
     title: 'Three days in Cairo',
     body: 'Museum, then Khan el-Khalili.',
