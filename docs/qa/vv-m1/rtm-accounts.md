@@ -1,6 +1,7 @@
 # V&V M1: Track A (Accounts/Auth) requirements traceability matrix
 
 Scope: ACC-01, ACC-04, ACC-05, ACC-06, ACC-07a, ACC-08, ACC-09, ACC-11, ACC-12 (Partial), ACC-13, ACC-14, ACC-18, ACC-19.
+ACC-15, ACC-16 and the GEN-07 suspension entries were added later from `feature/ACC-15-admin-suspensions` (`backend/test/admin-suspensions.e2e-spec.ts`).
 Branch `test/vv-m1-acceptance` (develop @ fc610e0). Paths: code under `backend/src/`, tests under `backend/test/`.
 `vv:NNN` means `backend/test/vv/accounts.vv.e2e-spec.ts:NNN`.
 
@@ -94,6 +95,22 @@ All Auth and Admin endpoints of brief §8 exist with the listed paths and verbs:
 | R-ACC-14-04 | workbook | Filter by role and by status, combinable | GET /api/admin/accounts | modules/users/admin-accounts.service.ts:105-108 | admin-accounts.e2e-spec.ts:131, :170 | - | PASS | |
 | R-ACC-14-05 | derived | Newest first, with a stable `_id` tie-break: equal registration times never overlap pages, and the order repeats | GET /api/admin/accounts | common/pagination/pagination.ts:119 | admin-accounts.e2e-spec.ts:64 | vv:603 | PASS | |
 | R-ACC-14-06 | jira-dod | Admins only; bad role or status gives 400 with fieldErrors | GET /api/admin/accounts | modules/users/admin-accounts.controller.ts:40 | admin-accounts.e2e-spec.ts:186, :198 | - | PASS | |
+| R-ACC-15-01 | workbook | An admin suspends a moderator account: its open cookie session ends at once and it cannot log in (403 `ACCOUNT_SUSPENDED`); reactivation lets it log in again | PATCH /api/admin/accounts/:id/suspend\|reactivate | modules/admin/account-suspensions.service.ts:86, :131; modules/auth/auth.service.ts:153 | admin-suspensions.e2e-spec.ts:436 | - | PASS | |
+| R-ACC-15-02 | workbook | An admin deactivates an airline: its flights are hidden from search and a new hold gets 409 `PROVIDER_INACTIVE` | PATCH /api/admin/providers/airline/:id/deactivate | modules/admin/provider-activation.service.ts:76-86; modules/flights/flight-search.service.ts:256; modules/bookings/flight-bookings.service.ts:519 | admin-suspensions.e2e-spec.ts:474; unit bookings/flight-bookings.service.spec.ts (PROVIDER_INACTIVE case) | - | PASS | |
+| R-ACC-15-03 | workbook | An admin deactivates a hotel: a new hold gets 409 `PROVIDER_INACTIVE` (hotel search, HTL-11, is not built yet; it must use `ACTIVE_PROVIDER_FILTER`) | PATCH /api/admin/providers/hotel/:id/deactivate | modules/admin/provider-activation.service.ts:76-86; modules/bookings/hotel-bookings.service.ts:498 | admin-suspensions.e2e-spec.ts:540 | - | PASS | |
+| R-ACC-15-04 | workbook | Existing Confirmed flight bookings and hotel reservations of a deactivated provider stay Confirmed | provider deactivate | modules/admin/provider-activation.service.ts (only `isActive` changes) | admin-suspensions.e2e-spec.ts:474, :540 | - | PASS | |
+| R-ACC-15-05 | workbook | Affected parties are notified: every moderator of the provider gets PROVIDER_DEACTIVATED / PROVIDER_REACTIVATED, a suspended account gets ACCOUNT_SUSPENDED / ACCOUNT_REACTIVATED | all four endpoints | modules/admin/provider-activation.service.ts:94-99; modules/admin/account-suspensions.service.ts:148 | admin-suspensions.e2e-spec.ts:474, :519, :540; unit admin/provider-activation.service.spec.ts:58 | - | PASS | |
+| R-ACC-15-06 | workbook | Reactivating an airline or hotel puts it back in search and makes it bookable | PATCH /api/admin/providers/:type/:id/reactivate | modules/admin/provider-activation.service.ts:86 | admin-suspensions.e2e-spec.ts:519, :540 | - | PASS | |
+| R-ACC-15-07 | derived | A repeated action is 409 and audited once; unknown id or a hotel id under `airline` is 404; a `type` other than airline/hotel or a malformed id is 400 with the field | provider endpoints | modules/admin/provider-kind.pipe.ts, modules/admin/provider-activation.service.ts:77-92 | admin-suspensions.e2e-spec.ts:597, :608; unit admin/provider-activation.service.spec.ts:116, :145 | - | PASS | |
+| R-ACC-15-08 | jira-dod | Admins only: no session 401, a traveller or the provider's own moderator 403 | provider endpoints | modules/admin/provider-activation.controller.ts (@Roles(Role.Admin)) | admin-suspensions.e2e-spec.ts:630 | - | PASS | |
+| R-ACC-16-01 | workbook | An admin suspends a registered user: the status becomes SUSPENDED, every session (access and refresh cookie) is revoked, and login with the right password is refused (403 `ACCOUNT_SUSPENDED`) | PATCH /api/admin/accounts/:id/suspend | modules/admin/account-suspensions.service.ts:86-131; common/auth/auth.guard.ts:101 | admin-suspensions.e2e-spec.ts:278 | - | PASS | Login answers 403, not 401 (existing ACC-04 contract) |
+| R-ACC-16-02 | workbook | The suspended user's existing bookings remain valid (a Confirmed booking stays Confirmed through suspension and reactivation) | PATCH /api/admin/accounts/:id/suspend\|reactivate | modules/admin/account-suspensions.service.ts (bookings untouched) | admin-suspensions.e2e-spec.ts:278, :323 | - | PASS | |
+| R-ACC-16-03 | workbook | Reactivation restores login, and the user sees both notices | PATCH /api/admin/accounts/:id/reactivate | modules/admin/account-suspensions.service.ts:41 | admin-suspensions.e2e-spec.ts:323 | - | PASS | |
+| R-ACC-16-04 | workbook | Their content stays visible unless hidden through GEN-10 | - | nothing hides content on suspension | - | - | BLOCKED-BY BLG/GEN-10 | no blog or review content exists in M1 |
+| R-ACC-16-05 | derived | Only users and moderators are targets: your own account or another admin is 403 and nothing changes | suspend, reactivate | modules/admin/account-suspensions.service.ts:92, :108 | admin-suspensions.e2e-spec.ts:380; unit admin/account-suspensions.service.spec.ts:106, :114 | - | PASS | |
+| R-ACC-16-06 | derived | Already in that state is 409 and audited once; a self-deactivated (ACC-12) account cannot be suspended or reactivated (409); a parallel change is 409 with nothing written | suspend, reactivate | modules/admin/account-suspensions.service.ts:118-127 | admin-suspensions.e2e-spec.ts:358; unit admin/account-suspensions.service.spec.ts:126 | - | PASS | |
+| R-ACC-16-07 | jira-dod | 400 for a malformed id, a reason over 500 characters or an unknown body field; 404 for an unknown account; admins only (401/403) | suspend, reactivate | modules/admin/dto/admin-actions.dto.ts, modules/admin/account-suspensions.controller.ts | admin-suspensions.e2e-spec.ts:392, :412 | - | PASS | |
+| R-GEN-07-S1 | workbook | Every suspension, reactivation, deactivation and provider reactivation is in GET /api/admin/audit-logs with the admin, target type, reason and a before/after summary, written in the same transaction | GET /api/admin/audit-logs | modules/admin/account-suspensions.service.ts:133; modules/admin/provider-activation.service.ts:107 | admin-suspensions.e2e-spec.ts:278, :323, :474, :519, :540 | - | PASS | |
 | R-ACC-18-01 | workbook | Admin accounts are created by seeding | `npm run seed` | modules/users/admin-seed.service.ts:53 | users-schemas.e2e-spec.ts:202; auth-login.e2e-spec.ts:168 | - | PASS | |
 | R-ACC-18-02 | workbook | No admin self-registration: a role in the body is rejected, register always creates USER, and a `__proto__` role does not get through | POST /api/auth/register | modules/users/users.service.ts:44 | auth-register.e2e-spec.ts:142 | vv:648 | PASS | |
 | R-ACC-18-03 | derived | The seed is idempotent and race-safe, never resets an existing admin's password, and never promotes a non-admin | `npm run seed` | modules/users/admin-seed.service.ts:64 | users-schemas.e2e-spec.ts:224, :235, :245 | - | PASS | |
@@ -119,9 +136,12 @@ All Auth and Admin endpoints of brief §8 exist with the listed paths and verbs:
 | ACC-12 | 3 | 0 | 0 | 3 | 0 |
 | ACC-13 | 8 | 0 | 0 | 0 | 0 |
 | ACC-14 | 6 | 0 | 0 | 0 | 0 |
+| ACC-15 | 8 | 0 | 0 | 0 | 0 |
+| ACC-16 | 6 | 0 | 0 | 1 | 0 |
+| GEN-07 (suspensions) | 1 | 0 | 0 | 0 | 0 |
 | ACC-18 | 4 | 0 | 0 | 0 | 0 |
 | ACC-19 | 4 | 0 | 0 | 1 | 0 |
-| **Total** | **80** | **2** | **1** | **6** | **0** |
+| **Total** | **95** | **2** | **1** | **7** | **0** |
 
 ## Findings
 

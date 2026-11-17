@@ -1296,3 +1296,21 @@ whose ToUnicode target has two characters; the test reader skipped it and shifte
 test reader changed, plus a unit test with an "ff" version that fails on the old reader. I checked 400 random
 renders (21 bad before, 0 after) before opening the pull request.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-15, ACC-16, GEN-07 (TRVL-25, TRVL-26)
+Prompt:
+Build ACC-15 and ACC-16 in a new backend admin module: PATCH suspend/reactivate for moderators and registered
+users, and PATCH deactivate/reactivate for airlines and hotels. Reach other modules only through contract tokens,
+change status, revoke sessions, write the GEN-07 audit entry and send the notification in one transaction, test
+first with e2e, update the traceability matrix and the accounts RTM, and verify live in Swagger.
+How the output was used:
+Claude wrote the e2e suite first (13 cases, all failing), then added the ACCOUNT_ADMIN, AIRLINE_STATUS and
+HOTEL_STATUS contracts with their users, flights and hotels implementations, the admin module, unit tests, and
+409 PROVIDER_INACTIVE for holds on a deactivated airline or hotel. It kept the existing login answer for a
+suspended account (403 ACCOUNT_SUSPENDED) and revokes sessions only on suspension. I reviewed the transaction
+order, the admin and self-target refusals and the docs before opening the pull request.
+================================================
