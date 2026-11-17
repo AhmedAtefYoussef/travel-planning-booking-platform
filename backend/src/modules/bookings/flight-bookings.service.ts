@@ -52,7 +52,10 @@ import { canPrint, renderETicket } from './e-ticket/e-ticket.renderer';
 import { formatLocal, toETicketView } from './e-ticket/e-ticket.view';
 import { assertUnpaidHoldsBelowCap, EXPIRY_BATCH } from './hold-limit';
 import { ageOn, passengerTypeOn } from './passenger-age';
-import { CancelledBy } from './schemas/booking-fields';
+import {
+  cancelConfirmedBooking,
+  type CancellationReason,
+} from './booking-cancellation';
 import { HoldGuard } from './schemas/hold-guard.schema';
 import {
   FlightBooking,
@@ -497,25 +500,28 @@ export class FlightBookingsService implements PayableBooking {
   }
 
   /**
-   * GEN-11 CONFIRMED -> CANCELLED: the core FLT-26 uses and FLT-06 (the airline cancels a flight:
-   * RefundReason.ProviderCancellation, always 100%) can reuse. Ownership is the caller's job. In ONE
-   * transaction:
-   * - the status-conditioned transition: of two concurrent cancels exactly one wins, the other is 409
-   *   and releases, refunds and notifies nothing;
-   * - a user cancellation is re-checked against the outbound departure (409 CANCELLATION_WINDOW_CLOSED);
-   * - every segment's seats go back to their cabin (releaseAll, shared with hold expiry);
-   * - the refund through REFUNDS_SERVICE (none is recorded for 0%), linked as refundId;
-   * - the owner's BOOKING_CANCELLED notice.
+   * GEN-11 CONFIRMED -> CANCELLED for a flight booking, through the shared cancellation core
+   * (booking-cancellation.ts). FLT-26 uses it for the owner; FLT-06 (the airline cancels a flight:
+   * RefundReason.ProviderCancellation, always 100%) can reuse it. Ownership is the caller's job. Inside
+   * the core's transaction the booking is read again and re-checked (409 BOOKING_NOT_CONFIRMED, and
+   * for a user 409 CANCELLATION_WINDOW_CLOSED once it has departed), then it is cancelled as a whole:
+   * a round trip uses the outbound tier (FLT-12 a) and every segment's seats go back (releaseAll,
+   * shared with hold expiry; infants hold no seat).
    */
   async cancelConfirmed(
     bookingId: string,
-    options: { reason: RefundReason },
+    options: { reason: CancellationReason },
     now: Date = new Date(),
   ): Promise<void> {
     const byUser = options.reason === RefundReason.UserCancellation;
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
+    await cancelConfirmedBooking(
+      {
+        connection: this.connection,
+        model: this.bookings,
+        refunds: this.refunds,
+        notifications: this.notifications,
+      },
+      async (session) => {
         const booking = Types.ObjectId.isValid(bookingId)
           ? await this.bookings
               .findById(bookingId, null, { session })
@@ -530,64 +536,23 @@ export class FlightBookingsService implements PayableBooking {
             `Confirmed flight booking ${bookingId} has no payment to refund`,
           );
         }
-        const moved = await transitionBooking(
-          this.bookings,
+        return {
+          bookingType: BookingType.Flight,
           bookingId,
-          BookingStatus.Confirmed,
-          BookingStatus.Cancelled,
-          {
-            where: byUser
-              ? { 'segments.0.departureUtc': { $gt: now } }
-              : undefined,
-            set: {
-              cancelledAt: now,
-              cancelledBy: byUser ? CancelledBy.User : CancelledBy.Provider,
-            },
-            session,
-          },
-        );
-        if (!moved) {
-          throw new AppException(
-            HttpStatus.CONFLICT,
-            ErrorCode.BOOKING_NOT_CONFIRMED,
-            'This booking was changed by another request and is no longer confirmed',
-          );
-        }
-        await this.releaseAll(bookingId, session);
-        const refund = await this.refunds.refundFor(
-          {
-            bookingType: BookingType.Flight,
-            bookingId,
-            userId: booking.userId.toHexString(),
-            paymentId: booking.paymentId.toHexString(),
-            quote,
-            reason: options.reason,
-          },
-          session,
-        );
-        if (refund) {
-          await this.bookings
-            .updateOne(
-              { _id: bookingId },
-              { $set: { refundId: new Types.ObjectId(refund.refundId) } },
-              { session },
-            )
-            .exec();
-        }
-        await this.notifications.notify(
-          {
-            userId: booking.userId.toHexString(),
-            type: NotificationType.BookingCancelled,
+          userId: booking.userId.toHexString(),
+          paymentId: booking.paymentId.toHexString(),
+          quote,
+          reason: options.reason,
+          release: (s) => this.releaseAll(bookingId, s),
+          notice: {
             title: `Flight booking ${booking.reference} cancelled`,
             body: `${trip(booking.segments)}, is cancelled and its seats are released. ${refundLine(quote)}`,
             link: `/bookings/flights/${bookingId}`,
           },
-          session,
-        );
-      });
-    } finally {
-      await session.endSession();
-    }
+        };
+      },
+      now,
+    );
   }
 
   /**
@@ -598,7 +563,7 @@ export class FlightBookingsService implements PayableBooking {
   private cancellationQuote(
     booking: Pick<
       FlightBooking,
-      'segments' | 'policySnapshot' | 'totalMinor' | 'currency'
+      'segments' | 'startsAt' | 'policySnapshot' | 'totalMinor' | 'currency'
     > & { _id: Types.ObjectId },
     reason: RefundReason,
     now: Date,
@@ -623,7 +588,7 @@ export class FlightBookingsService implements PayableBooking {
     return this.refunds.quote({
       paidMinor: booking.totalMinor,
       currency: booking.currency,
-      eventStartUtc: outbound.departureUtc,
+      eventStartUtc: booking.startsAt,
       tiers: terms.cancellationTiers,
       reason,
       now,
@@ -922,7 +887,7 @@ function refundLine(quote: RefundQuote): string {
  * only before the outbound departure (409 CANCELLATION_WINDOW_CLOSED at or after it).
  */
 function assertCancellable(
-  b: Pick<FlightBooking, 'status' | 'segments'>,
+  b: Pick<FlightBooking, 'status' | 'startsAt'>,
   now: Date,
   beforeDeparture: boolean,
 ): void {
@@ -933,10 +898,7 @@ function assertCancellable(
       `This booking is ${b.status}; only a confirmed booking can be cancelled`,
     );
   }
-  if (
-    beforeDeparture &&
-    b.segments[0].departureUtc.getTime() <= now.getTime()
-  ) {
+  if (beforeDeparture && b.startsAt.getTime() <= now.getTime()) {
     throw new AppException(
       HttpStatus.CONFLICT,
       ErrorCode.CANCELLATION_WINDOW_CLOSED,
