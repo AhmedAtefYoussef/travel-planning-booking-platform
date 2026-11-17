@@ -12,7 +12,7 @@ import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator'
 import { CreatePostDto, PostDto } from './dto/post.dto';
 import { PostsService } from './posts.service';
 
-/** Blog posts (brief section 6.6): registered users write posts (BLG-01). */
+/** Blog posts (brief section 6.6). Guests read published posts; registered users write. */
 @ApiTags('Blog')
 @Controller('posts')
 export class PostsController {

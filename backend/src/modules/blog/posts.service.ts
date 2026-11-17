@@ -1,9 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { AppException } from '../../common/errors/app.exception';
+import { ErrorCode } from '../../common/errors/error-codes';
+import {
+  type Page,
+  PAGE_SIZE,
+  skipFor,
+  toPage,
+} from '../../common/pagination/pagination';
 import { UsersService } from '../users';
-import { excerptOf } from './blog-rules';
+import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
+import type { AuthorPageDto } from './dto/author.dto';
 import type {
   AuthorRefDto,
   CreatePostDto,
@@ -30,7 +39,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt.
+ * unless it is published, and publishing stamps publishedAt. BLG-12: the public author page shows the author's name, join date and published posts.
  */
 @Injectable()
 export class PostsService {
@@ -51,6 +60,52 @@ export class PostsService {
       publishedAt: status === PostStatus.Published ? new Date() : null,
     });
     return this.toPost(post);
+  }
+
+  /** BLG-12: public author page with the author's published posts, newest first. */
+  async authorPage(authorId: string, page: number): Promise<AuthorPageDto> {
+    const author = await this.users.findProfile(authorId);
+    if (!author) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Author not found',
+      );
+    }
+    const posts = await this.page(
+      { ...PUBLIC_POST_FILTER, authorId: new Types.ObjectId(author.id) },
+      page,
+      { publishedAt: -1 },
+    );
+    return {
+      id: author.id,
+      name: author.name,
+      joinedAt: new Date(author.createdAt),
+      posts,
+    };
+  }
+
+  private async page(
+    filter: FilterQuery<Post>,
+    page: number,
+    sort: Record<string, SortOrder>,
+  ): Promise<Page<PostSummaryDto>> {
+    const [items, total] = await Promise.all([
+      this.posts
+        .find(filter)
+        .sort({ ...sort, _id: -1 })
+        .skip(skipFor(page))
+        .limit(PAGE_SIZE)
+        .lean<PostLike[]>()
+        .exec(),
+      this.posts.countDocuments(filter).exec(),
+    ]);
+    const authors = await this.authorsOf(items.map((p) => p.authorId));
+    return toPage(
+      items.map((p) => this.summary(p, authors)),
+      total,
+      page,
+    );
   }
 
   /**
