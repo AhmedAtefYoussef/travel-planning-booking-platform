@@ -107,7 +107,9 @@ describe('Provider booking views (e2e): FLT-29, HTL-22', () => {
         .post('/api/flight-bookings/hold')
         .set('Cookie', who.cookie)
         .send({ outbound: { flightId, cabinId }, passengers })
-        .expect(201)
+        .expect((r) => {
+          if (r.status !== 201) throw new Error(JSON.stringify(r.body));
+        })
     ).body.id as string;
 
   beforeAll(async () => {
