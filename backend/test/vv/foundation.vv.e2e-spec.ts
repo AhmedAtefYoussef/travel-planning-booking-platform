@@ -518,6 +518,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/notifications?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
+    {
+      // ITN-03: the caller's own itineraries.
+      url: '/api/itineraries?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>

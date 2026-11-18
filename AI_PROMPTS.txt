@@ -1443,3 +1443,20 @@ Claude added HotelDetailsService (visible-review rating and the 10 newest review
 dates only the rooms free every night with their stay total), the query DTO with date rules, the Swagger
 route, the reviewed public-route entry, and e2e tests. I agreed the design before it was written.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-01 (TRVL-70), ITN-03 (TRVL-71), ITN-20 (TRVL-81)
+Prompt:
+Read the project brief, the requirements workbook, my Jira stories and the develop branch, then implement
+ITN-01, ITN-03 and ITN-20 on top of my TRVL-141 schemas following the team conventions: owner-only CRUD with
+the same 404 for strangers, countries checked against the reference list, private by default, a paginated
+"my itineraries" list sorted by last update, visibility through PATCH, Swagger examples and e2e/unit tests.
+How the output was used:
+Claude wrote the DTOs, the ItinerariesService, the controller, the itinerary detail view and an optional
+ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. Deleting an itinerary removes
+its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
+verify and tried every endpoint in Swagger.
+================================================

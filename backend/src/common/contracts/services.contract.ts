@@ -559,3 +559,42 @@ export interface ProviderStatus {
     session: ClientSession,
   ): Promise<boolean>;
 }
+
+/* ----------------------------------------------------------------------------------------------
+ * Itinerary budgets (ITN-14, ITN-16, Malak -> itineraries). The budgets module provides it under
+ * ITINERARY_BUDGETS. Itineraries inject it with @Optional(): until it is provided, day subtotals
+ * (ITN-09) count activity costs only, and deleting or cloning an itinerary (ITN-01, ITN-07, ITN-21)
+ * has no budget rows to touch. Amounts stay in their own currency; conversion is ITN-18's job.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface MoneyAmount {
+  /** Uppercase ISO 4217 code. */
+  currency: string;
+  /** Integer minor units (ADR-0004). */
+  amountMinor: number;
+}
+
+export interface ItineraryDayBudget {
+  /** The embedded itinerary day's _id. */
+  dayId: string;
+  /** Budget entries and transport costs of that day, summed per currency. */
+  amounts: MoneyAmount[];
+}
+
+export interface ItineraryBudgets {
+  /** Per-day totals of budget entries and transport costs, for days that have any. */
+  dayTotals(itineraryId: string): Promise<ItineraryDayBudget[]>;
+  /** ITN-07: removes the budget rows of deleted days. */
+  deleteForDays(itineraryId: string, dayIds: string[]): Promise<void>;
+  /** ITN-01: removes every budget row of a deleted itinerary. */
+  deleteForItinerary(itineraryId: string): Promise<void>;
+  /**
+   * ITN-21: copies every budget row of `sourceId` to `targetId`, mapping each source day id to the
+   * clone's day id. Rows of days missing from the map are skipped.
+   */
+  cloneForItinerary(
+    sourceId: string,
+    targetId: string,
+    dayIdMap: ReadonlyMap<string, string>,
+  ): Promise<void>;
+}
