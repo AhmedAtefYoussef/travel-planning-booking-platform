@@ -21,6 +21,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 - The `users` and `sessions` schemas (TRVL-137, Jira setup task, not a workbook ID) back ACC-01, ACC-04 to ACC-09, ACC-11 to ACC-14 and ACC-19. Each of those rows changes status when its own endpoints land.
 - The `hotels`, `rooms`, `room_nights` and `reviews` schemas (TRVL-140, Jira setup task, not a workbook ID, PR #21) back the HTL requirements (HTL-01 to HTL-24). Each of those rows changes status when its own endpoints land.
 - The `posts`, `comments` and `likes` schemas (TRVL-142, Jira setup task, not a workbook ID, PR #75) back BLG-01 to BLG-12. Each of those rows changes status when its own endpoints land.
+- The `budget_entries` and `transport_costs` schemas (TRVL-143, Jira setup task, not a workbook ID, PR #92) back ITN-14, ITN-16 and ITN-18. Each of those rows changes status when its own endpoints land.
 
 ## Accounts & Admin
 
@@ -121,7 +122,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73 | Not started |
 | ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Not started |
 | ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | - | Not started |
-| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id | Malak | TRVL-79 | - | Not started |
+| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id | Malak | TRVL-79 | #92 | Done |
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68 | Partial: rates, cache and convert in place (TRVL-133); itinerary budget conversion pending |
 | ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88 | Partial: visibility set through PATCH /api/itineraries/:id; the public search it controls lands with ITN-21 |
 | ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | - | Not started |
