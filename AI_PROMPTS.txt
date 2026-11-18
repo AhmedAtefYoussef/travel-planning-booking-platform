@@ -1710,3 +1710,19 @@ ended is already PAST and reads COMPLETED before the minute job runs; an expired
 in each airport's local time (GEN-06), unit specs for the rules and the service, and an e2e suite that books
 through hold, policies, payment and webhook. I chose to keep passport numbers out of the list and reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-07 (TRVL-73)
+Prompt:
+Implement deleting a day from my itinerary: remove its activities, their unused image files and its budget rows,
+renumber the later days so their dates move one day earlier, and return the recalculated groups and subtotals.
+As the team lead asked on #88, make the database part atomic.
+How the output was used:
+Claude rewrites the day list (guarded by the __v revision) and deletes the day's activities in one MongoDB
+transaction, then removes the budget rows through ITINERARY_BUDGETS and the image files no clone still uses,
+only after the commit. I checked renumbering, re-dating, subtotals, deleting the only day, an unknown day and a
+stranger getting 404 in e2e and Swagger, and the failure path in the unit tests.
+================================================
