@@ -2301,3 +2301,19 @@ Claude rebuilt BLG-07 on the reviewed BLG-05 branch (develop merged, ACC-12 rule
 edit and delete comment endpoints, and added CommentsService unit tests for them (the src/modules/
 branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-10 (TRVL-76)
+Prompt:
+Implement adding, editing and deleting activities of an itinerary day: a name, a description, an optional time
+and an optional cost in a supported currency. Only the itinerary's owner may do it, and each change should move
+the itinerary to the top of "my itineraries".
+How the output was used:
+Claude added the activity endpoints with whole-number minor-unit costs that need a currency from the seeded list,
+removeTime and removeCost flags for clearing the optional fields, and the same 404 for a stranger as for an
+unknown activity (ACC-11). Each change touches the itinerary's updatedAt. I checked every validation case, the
+subtotal of the day's city group and the ownership rules in e2e and Swagger.
+================================================
