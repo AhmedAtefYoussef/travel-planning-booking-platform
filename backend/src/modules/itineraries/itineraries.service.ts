@@ -225,6 +225,17 @@ export class ItinerariesService {
     return toItineraryDto(plain, { activities, cityNames, dayBudgets });
   }
 
+  /** Marks the itinerary as just updated after a change to one of its activities (ITN-03 order). */
+  async touch(id: Types.ObjectId): Promise<void> {
+    await this.itineraries
+      .updateOne(
+        { _id: id },
+        { $set: { updatedAt: new Date() } },
+        { timestamps: false },
+      )
+      .exec();
+  }
+
   /** Deletes the files of these image URLs unless an activity (e.g. a clone's) still uses them. */
   async deleteUnusedImages(urls: readonly string[]): Promise<void> {
     for (const url of new Set(urls)) {
