@@ -257,6 +257,7 @@ describe('AdminModerationService: GEN-10 direct hide and delete', () => {
         action: AuditAction.HideContent,
         targetType: 'ITINERARY',
         targetId: TARGET,
+        metadata: { authorId: AUTHOR, reportsResolved: 1 },
       }),
       SESSION,
     );
@@ -285,7 +286,10 @@ describe('AdminModerationService: GEN-10 direct hide and delete', () => {
     ).resolves.toMatchObject({ outcome: ReportStatus.Deleted });
     expect(afterCommit).toHaveBeenCalledTimes(1);
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: AuditAction.DeleteContent }),
+      expect.objectContaining({
+        action: AuditAction.DeleteContent,
+        metadata: { authorId: AUTHOR, reportsResolved: 1 },
+      }),
       SESSION,
     );
   });

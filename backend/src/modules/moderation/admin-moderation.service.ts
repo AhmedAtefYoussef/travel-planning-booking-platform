@@ -117,15 +117,11 @@ export class AdminModerationService {
           targetId,
           dto.action,
           { explicit: false, reportId, note: dto.note },
-          session,
-        );
-        removed = applied.removed;
-        others = await this.closeOpenReports(
-          report.targetType,
-          targetId,
           resolution,
           session,
         );
+        removed = applied.removed;
+        others = applied.reportsResolved;
       }
       await this.audit.record(
         {
@@ -182,20 +178,15 @@ export class AdminModerationService {
         id,
         action,
         { explicit: true },
-        session,
-      );
-      removed = applied.removed;
-      const reportsResolved = await this.closeOpenReports(
-        type,
-        id,
         resolution,
         session,
       );
+      removed = applied.removed;
       return {
         targetType: type,
         targetId: id,
         outcome: resolution.status,
-        reportsResolved,
+        reportsResolved: applied.reportsResolved,
       };
     });
     await this.afterCommit(removed);
@@ -203,8 +194,9 @@ export class AdminModerationService {
   }
 
   /**
-   * Hides or deletes through the adapter and audits it. Missing content or an unregistered type is 404.
-   * Hiding hidden content: 409 when `explicit`, otherwise a success without a second HIDE_CONTENT entry.
+   * Hides or deletes through the adapter, closes the item's OPEN reports with the same outcome and audits
+   * it (with the number of reports closed). Missing content or an unregistered type is 404. Hiding hidden
+   * content: 409 when `explicit`, otherwise the reports close without a second HIDE_CONTENT entry.
    */
   private async applyToContent(
     actor: AuthUser,
@@ -212,8 +204,9 @@ export class AdminModerationService {
     id: string,
     action: ReportAction.Hide | ReportAction.Delete,
     context: { explicit: boolean; reportId?: string; note?: string },
+    resolution: Resolution,
     session: ClientSession,
-  ): Promise<{ removed: RemovedContent | null }> {
+  ): Promise<{ removed: RemovedContent | null; reportsResolved: number }> {
     const adapter = this.content.get(type);
     const content = await adapter?.find(id, session);
     if (!adapter || !content) throw notFound('The content was not found');
@@ -228,12 +221,24 @@ export class AdminModerationService {
             'This content is already hidden',
           );
         }
-        return { removed };
+        const reportsResolved = await this.closeOpenReports(
+          type,
+          id,
+          resolution,
+          session,
+        );
+        return { removed, reportsResolved };
       }
     } else {
       removed = await adapter.remove(id, session);
       if (!removed) throw notFound('The content was not found');
     }
+    const reportsResolved = await this.closeOpenReports(
+      type,
+      id,
+      resolution,
+      session,
+    );
     await this.audit.record(
       {
         actor: { id: actor.id, role: actor.role },
@@ -244,11 +249,15 @@ export class AdminModerationService {
         targetType: AUDIT_TARGET[type],
         targetId: id,
         reason: context.note,
-        metadata: { authorId: content.authorId, reportId: context.reportId },
+        metadata: {
+          authorId: content.authorId,
+          reportId: context.reportId,
+          reportsResolved,
+        },
       },
       session,
     );
-    return { removed };
+    return { removed, reportsResolved };
   }
 
   /** Closes every OPEN report of the item with the same outcome; the documents stay for the audit trail. */

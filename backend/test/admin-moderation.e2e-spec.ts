@@ -407,6 +407,64 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
       ).toHaveLength(0);
     });
 
+    const failAuditOn = (action: AuditAction) => {
+      const audit = app.get<AuditService>(AUDIT_SERVICE);
+      const original = audit.record.bind(audit);
+      return jest
+        .spyOn(audit, 'record')
+        .mockImplementation((entry: AuditEntry, session) =>
+          entry.action === action
+            ? Promise.reject(new Error('audit down'))
+            : original(entry, session),
+        );
+    };
+
+    it('GEN-10 GEN-07 a direct delete rolls back when DELETE_CONTENT cannot be audited, a retry succeeds', async () => {
+      const id = await content(ModeratableContentType.Itinerary, bob);
+      const reportId = await fileReport(
+        alice,
+        ModeratableContentType.Itinerary,
+        id,
+      );
+      const spy = failAuditOn(AuditAction.DeleteContent);
+      const url = `/api/admin/content/itinerary/${id}`;
+      await as(http().delete(url), admin).expect(500);
+      expect(await find(ModeratableContentType.Itinerary, id)).not.toBeNull();
+      expect(await statusOf(reportId)).toBe('OPEN');
+      expect(await auditOf({ targetId: new Types.ObjectId(id) })).toHaveLength(
+        0,
+      );
+
+      spy.mockRestore();
+      await as(http().delete(url), admin).expect(200);
+      expect(await find(ModeratableContentType.Itinerary, id)).toBeNull();
+      expect(await statusOf(reportId)).toBe('DELETED');
+      expect(await auditOf({ targetId: new Types.ObjectId(id) })).toHaveLength(
+        1,
+      );
+    });
+
+    it('GEN-10 GEN-07 a direct hide rolls back when HIDE_CONTENT cannot be audited', async () => {
+      const id = await content(ModeratableContentType.Itinerary, bob);
+      const reportId = await fileReport(
+        alice,
+        ModeratableContentType.Itinerary,
+        id,
+      );
+      failAuditOn(AuditAction.HideContent);
+      await as(
+        http().patch(`/api/admin/content/itinerary/${id}/hide`),
+        admin,
+      ).expect(500);
+      expect((await find(ModeratableContentType.Itinerary, id))?.isHidden).toBe(
+        false,
+      );
+      expect(await statusOf(reportId)).toBe('OPEN');
+      expect(await auditOf({ targetId: new Types.ObjectId(id) })).toHaveLength(
+        0,
+      );
+    });
+
     it('GEN-10 cleanup runs after the commit and its failure does not fail the request', async () => {
       const id = await content(ModeratableContentType.Itinerary, bob);
       const reportId = await fileReport(
@@ -506,16 +564,39 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
         .expect(404);
     });
 
-    it('GEN-10 a hidden post cannot be reported by a stranger, its author still fetches it', async () => {
-      const id = await content(ModeratableContentType.Post, bob);
+    it('GEN-10 a hidden post leaves public lists and cannot be reported by a stranger, its author still fetches it', async () => {
+      const author = await loginAs(app, Role.User);
+      const tag = `gen10${new Types.ObjectId().toHexString().slice(-8)}`;
+      const publish = async (title: string) =>
+        (
+          await as(http().post('/api/posts'), author)
+            .send({ title, body: 'Markets', status: 'PUBLISHED', tags: [tag] })
+            .expect(201)
+        ).body.id as string;
+      const kept = await publish('Kept');
+      const id = await publish('Hidden');
+      const authorPage = () =>
+        http().get(`/api/authors/${author.userId}`).expect(200);
+      const tagPage = () => http().get(`/api/tags/${tag}/posts`).expect(200);
+      const ids = (page: { items: { id: string }[] }) =>
+        page.items.map((p) => p.id);
+      expect((await authorPage()).body.posts.total).toBe(2);
+      expect(ids((await tagPage()).body)).toContain(id);
+
       await as(
         http().patch(`/api/admin/content/post/${id}/hide`),
         admin,
       ).expect(200);
+
+      const publicPosts = (await authorPage()).body.posts;
+      expect(publicPosts.total).toBe(1);
+      expect(ids(publicPosts)).toEqual([kept]);
+      const tagged = (await tagPage()).body;
+      expect(ids(tagged)).toEqual([kept]);
       await as(http().post('/api/reports'), alice)
         .send({ targetType: 'POST', targetId: id, reason: 'Spam' })
         .expect(404);
-      const mine = await as(http().get(`/api/posts/mine/${id}`), bob).expect(
+      const mine = await as(http().get(`/api/posts/mine/${id}`), author).expect(
         200,
       );
       expect(mine.body.isHidden).toBe(true);
@@ -536,6 +617,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
         200,
       );
       const deletedItem = await content(ModeratableContentType.Post, bob);
+      await fileReport(alice, ModeratableContentType.Post, deletedItem);
       await as(
         http().delete(`/api/admin/content/post/${deletedItem}`),
         mod,
@@ -566,6 +648,11 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
           actor,
           targetType: 'ITINERARY',
           targetId: hiddenItem,
+          metadata: {
+            authorId: bob.userId,
+            reportId,
+            reportsResolved: 0,
+          },
         }),
       ]);
       const deleted = await logs('DELETE_CONTENT');
@@ -574,6 +661,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
           actor,
           targetType: 'POST',
           targetId: deletedItem,
+          metadata: { authorId: bob.userId, reportsResolved: 1 },
         }),
       ]);
       const all = await as(
