@@ -1649,3 +1649,18 @@ Claude rebuilt the update field by field from the validated values (ObjectId for
 through the TransportMode enum, String/Number for the rest), so no raw body value or operator reaches
 the query. The ITN-16 e2e tests still pass. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+After merging develop into PR #92, backend-test failed: branch coverage for src/modules/ was 64.15%,
+under the 65% floor, because the budgets service and the ITINERARY_BUDGETS port had e2e but no unit tests.
+How the output was used:
+Claude wrote unit tests for BudgetsService (owner checks, day/city/currency rules, field-by-field update,
+404 paths) and ItineraryBudgetsPort (day totals per currency, deletes, clone mapping, malformed ids) with
+mocked models through the Nest testing module. Module branch coverage is back above 65% (budgets service
+93%). I reviewed the tests and ran the coverage gate locally.
+================================================
