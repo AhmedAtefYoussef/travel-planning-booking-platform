@@ -12,7 +12,7 @@ that changes module code must cite its own number in its requirement's row. Set 
 the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 ## Notes on the brief vs the workbook
-- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days), ITN-09 (city groups), ITN-07 (delete a day), ITN-08 (move a day), ITN-10 (activities).
+- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days), ITN-09 (city groups), ITN-07 (delete a day), ITN-08 (move a day), ITN-10 (activities), ITN-12 (activity images).
 - The brief cites **ACC-03** (`POST /api/auth/register`) and **BLG-11** (`GET /api/posts`, `GET /api/tags/:tag/posts`); neither ID exists in the workbook. Those endpoints are traced to ACC-01 and BLG-02/BLG-08/BLG-09.
 - **HTL-09** (check-in/check-out times) is served by `PUT /api/hotels/:id/policies`; the brief maps that endpoint to HTL-08.
 - `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
@@ -120,7 +120,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | #127 | Done |
 | ITN-09 | Mandatory | day city + cityGroups (day count, budget subtotal) in GET /api/itineraries/:id and every day response | Sarah | TRVL-75 | #73, #107 | Partial: groups, day counts and activity-cost subtotals done; budget entries and transport costs join the subtotals once ITN-14/ITN-16 provide ITINERARY_BUDGETS |
 | ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73, #PRNUM | Done |
-| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Not started |
+| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73, #PRNUM | Done |
 | ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | #114 | Done |
 | ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id (counted in the itinerary totals, #114) | Malak | TRVL-79 | #92, #114 | Done |
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68, #125 | Done |

@@ -2317,3 +2317,20 @@ removeTime and removeCost flags for clearing the optional fields, and the same 4
 unknown activity (ACC-11). Each change touches the itinerary's updatedAt. I checked every validation case, the
 subtotal of the day's city group and the ownership rules in e2e and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-12 (TRVL-77)
+Prompt:
+Implement attaching images to an activity and removing them, under the GEN-08 rules: JPG or PNG only, at most
+5 MB each and at most 5 per activity. Only the itinerary's owner may do it, and a file a clone still shows must
+not be deleted.
+How the output was used:
+Claude reused the shared upload interceptor and UPLOADS_SERVICE. Files are checked and written first, then added
+with one conditional $push that only matches while there is room for all of them, so concurrent uploads cannot
+pass 5; on any failure the new files are deleted. Removing an image takes its UUID and deletes the file only
+when no other activity uses it. I checked the limits, bad types and sizes, the image id and a shared clone file
+in e2e and Swagger.
+================================================
