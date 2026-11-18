@@ -1615,3 +1615,65 @@ How the output was used:
 Claude added GET /api/tags/:tag/posts (published posts with the tag, ignoring case, newest first, 10 per page), the public-route and page-size verification entries, and e2e tests. Adding and editing tags is part of create (BLG-01) and edit (BLG-04). Rebuilt on the reviewed BLG-01 (author names through UsersService).
 I reviewed the diff and ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-143, ITN-16
+Prompt:
+Build the itinerary budgets on top of the TRVL-141 itinerary schemas, one pull request per feature as
+Ahmed asked: this one holds the budget_entries and transport_costs schemas (TRVL-143) and ITN-16, add,
+edit and delete an intercity transport cost (mode, from-city, to-city, amount, currency, day).
+How the output was used:
+Claude wrote both schemas and the transport-cost DTOs, service, controller and Swagger docs: owner only
+(404 for anyone else on a private itinerary), the day must belong to the itinerary, both cities must be
+reference cities and differ, the currency must be a seeded one, and e2e tests. I reviewed the diff and
+ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-16
+Prompt:
+Sarah asked me to rebase the budgets branches onto develop without her old schema commit and to
+provide her ITINERARY_BUDGETS port (dayTotals, deleteForDays, deleteForItinerary, cloneForItinerary)
+from the budgets module.
+How the output was used:
+Claude rebased the ITN-16 branch onto develop (only BudgetsModule added to app.module), wrote
+ItineraryBudgetsPort over transport costs (budget entries join it in ITN-14), made BudgetsModule global
+so the itineraries module can inject the token, imported ItinerariesModule for the itinerary model
+instead of registering it again, and added e2e tests for the four port methods, including Sarah's real
+DELETE /api/itineraries/:id. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+CodeQL flagged "Database query built from user-controlled sources" on PATCH /api/transport-costs/:id in
+PR #92: the $set was a spread of the request body.
+How the output was used:
+Claude rebuilt the update field by field from the validated values (ObjectId for the day, the mode mapped
+through the TransportMode enum, String/Number for the rest), so no raw body value or operator reaches
+the query. The ITN-16 e2e tests still pass. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+After merging develop into PR #92, backend-test failed: branch coverage for src/modules/ was 64.15%,
+under the 65% floor, because the budgets service and the ITINERARY_BUDGETS port had e2e but no unit tests.
+How the output was used:
+Claude wrote unit tests for BudgetsService (owner checks, day/city/currency rules, field-by-field update,
+404 paths) and ItineraryBudgetsPort (day totals per currency, deletes, clone mapping, malformed ids) with
+mocked models through the Nest testing module. Module branch coverage is back above 65% (budgets service
+93%). I reviewed the tests and ran the coverage gate locally.
+================================================
