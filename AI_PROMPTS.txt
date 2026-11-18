@@ -1581,6 +1581,32 @@ I reviewed the diff and ran the checks locally.
 Date: 2026-11-16
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-04
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-04 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added PATCH /api/posts/:id (any subset of title, body, tags, images and status; publishing a draft stamps publishedAt) and DELETE /api/posts/:id (deletes the post with its comments, likes and uploaded images in one transaction), author only (403 for a published post, 404 for a draft), and e2e tests. An edit can only reorder or remove the post's own uploaded images (GEN-08). Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-06
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-06 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added POST and DELETE /api/posts/:id/like with a LikesService: one like per user enforced by the unique {postId, userId} index (409 ALREADY_LIKED, also under concurrent requests), likeCount changed in the same transaction, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
 Related Requirement: BLG-08
 Prompt:
 Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-08 on its own
