@@ -116,7 +116,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | #73, #88 | Done |
 | ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | #73, #88 | Done |
 | ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73, #96 | Done |
-| ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | #PRNUM | Done |
+| ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | #113 | Done |
 | ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | - | Not started |
 | ITN-09 | Mandatory | day city + cityGroups (day count, budget subtotal) in GET /api/itineraries/:id and every day response | Sarah | TRVL-75 | #73, #107 | Partial: groups, day counts and subtotals of activity costs and transport costs (ITN-16, #92) done; budget entries join the subtotals once ITN-14 provides them through ITINERARY_BUDGETS |
 | ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73 | Not started |
