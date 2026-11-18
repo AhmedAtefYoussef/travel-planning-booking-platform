@@ -1476,3 +1476,20 @@ Claude wrote both schemas and the transport-cost DTOs, service, controller and S
 reference cities and differ, the currency must be a seeded one, and e2e tests. I reviewed the diff and
 ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-16
+Prompt:
+Sarah asked me to rebase the budgets branches onto develop without her old schema commit and to
+provide her ITINERARY_BUDGETS port (dayTotals, deleteForDays, deleteForItinerary, cloneForItinerary)
+from the budgets module.
+How the output was used:
+Claude rebased the ITN-16 branch onto develop (only BudgetsModule added to app.module), wrote
+ItineraryBudgetsPort over transport costs (budget entries join it in ITN-14), made BudgetsModule global
+so the itineraries module can inject the token, imported ItinerariesModule for the itinerary model
+instead of registering it again, and added e2e tests for the four port methods, including Sarah's real
+DELETE /api/itineraries/:id. I reviewed the diff and ran the checks locally.
+================================================

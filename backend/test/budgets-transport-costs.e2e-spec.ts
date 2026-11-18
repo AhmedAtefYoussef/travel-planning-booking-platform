@@ -5,6 +5,10 @@ import { Connection, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Role } from '../src/common/auth/auth.types';
+import {
+  ITINERARY_BUDGETS,
+  type ItineraryBudgets,
+} from '../src/common/contracts';
 import { FX_RATES_CLIENT } from '../src/modules/currency/fx-rates.client';
 import {
   loadReferenceDataset,
@@ -134,6 +138,106 @@ describe('Transport costs (e2e): ITN-16', () => {
         dayId: new Types.ObjectId().toHexString(),
       }).expect(400);
       expect(day.body.fieldErrors[0].field).toBe('dayId');
+    });
+  });
+
+  describe('ITINERARY_BUDGETS port (ITN-01, ITN-07, ITN-09, ITN-21)', () => {
+    const port = () => app.get<ItineraryBudgets>(ITINERARY_BUDGETS);
+    const addCost = (
+      it: { id: string },
+      dayId: string,
+      amountMinor: number,
+      currency: string,
+    ) =>
+      http()
+        .post(`/api/itineraries/${it.id}/transport-costs`)
+        .set('Cookie', owner.cookie)
+        .send({
+          dayId,
+          mode: 'TRAIN',
+          fromCityId: 'cairo',
+          toCityId: 'paris',
+          amountMinor,
+          currency,
+        })
+        .expect(201);
+    const count = (itineraryId: string) =>
+      connection
+        .collection('transport_costs')
+        .countDocuments({ itineraryId: new Types.ObjectId(itineraryId) });
+
+    it('dayTotals sums each day per currency, unconverted (ITN-09)', async () => {
+      const it = await itinerary(owner);
+      await addCost(it, it.day1, 1000, 'EGP');
+      await addCost(it, it.day1, 500, 'EGP');
+      await addCost(it, it.day1, 300, 'EUR');
+      await addCost(it, it.day2, 700, 'EGP');
+      const totals = await port().dayTotals(it.id);
+      expect(totals).toEqual(
+        expect.arrayContaining([
+          {
+            dayId: it.day1,
+            amounts: [
+              { currency: 'EGP', amountMinor: 1500 },
+              { currency: 'EUR', amountMinor: 300 },
+            ],
+          },
+          { dayId: it.day2, amounts: [{ currency: 'EGP', amountMinor: 700 }] },
+        ]),
+      );
+      expect(totals).toHaveLength(2);
+      expect(await port().dayTotals('not-an-id')).toEqual([]);
+    });
+
+    it('deleteForDays removes only the rows of the deleted days (ITN-07)', async () => {
+      const it = await itinerary(owner);
+      await addCost(it, it.day1, 100, 'EGP');
+      await addCost(it, it.day2, 200, 'EGP');
+      await port().deleteForDays(it.id, [it.day1]);
+      const left = await connection
+        .collection('transport_costs')
+        .find({ itineraryId: new Types.ObjectId(it.id) })
+        .toArray();
+      expect(
+        left.map((r) => (r.dayId as Types.ObjectId).toHexString()),
+      ).toEqual([it.day2]);
+    });
+
+    it('cloneForItinerary copies rows onto the mapped days and skips unmapped ones (ITN-21)', async () => {
+      const source = await itinerary(owner);
+      const target = await itinerary(owner);
+      await addCost(source, source.day1, 100, 'EGP');
+      await addCost(source, source.day2, 200, 'EUR');
+      await port().cloneForItinerary(
+        source.id,
+        target.id,
+        new Map([[source.day1, target.day1]]),
+      );
+      const copies = await connection
+        .collection('transport_costs')
+        .find({ itineraryId: new Types.ObjectId(target.id) })
+        .toArray();
+      expect(copies).toHaveLength(1);
+      expect(copies[0]).toMatchObject({
+        amountMinor: 100,
+        currency: 'EGP',
+        mode: 'TRAIN',
+      });
+      expect((copies[0].dayId as Types.ObjectId).toHexString()).toBe(
+        target.day1,
+      );
+      expect(await count(source.id)).toBe(2);
+    });
+
+    it('deleting an itinerary through ITN-01 deletes its transport costs', async () => {
+      const it = await itinerary(owner);
+      await addCost(it, it.day1, 100, 'EGP');
+      expect(await count(it.id)).toBe(1);
+      await http()
+        .delete(`/api/itineraries/${it.id}`)
+        .set('Cookie', owner.cookie)
+        .expect(204);
+      expect(await count(it.id)).toBe(0);
     });
   });
 });
