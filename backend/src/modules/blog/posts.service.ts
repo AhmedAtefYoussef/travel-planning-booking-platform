@@ -18,7 +18,7 @@ import {
 } from '../../common/pagination/pagination';
 import { localUploadUrlPattern } from '../../common/validation';
 import { UsersService } from '../users';
-import { excerptOf } from './blog-rules';
+import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
   CreatePostDto,
@@ -28,7 +28,7 @@ import type {
 } from './dto/post.dto';
 import { Comment } from './schemas/comment.schema';
 import { Like } from './schemas/like.schema';
-import { Post, PostStatus } from './schemas/post.schema';
+import { MAX_TAG_LENGTH, Post, PostStatus } from './schemas/post.schema';
 
 /** A post image this backend stored (GEN-08); group 2 is its image id. */
 const POST_UPLOAD_URL = localUploadUrlPattern(['posts']);
@@ -51,7 +51,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService.
+ * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag.
  */
 @Injectable()
 export class PostsService {
@@ -122,6 +122,19 @@ export class PostsService {
       await this.likes.deleteMany({ postId: post._id }, { session }).exec();
     });
     await this.discardUnused(post.images);
+  }
+
+  /** BLG-08: the posts behind a clickable tag. */
+  listByTag(tag: string, page: number): Promise<Page<PostSummaryDto>> {
+    const clean = tag.trim().toLowerCase();
+    if (clean.length < 1 || clean.length > MAX_TAG_LENGTH) {
+      throw new ValidationFailedException([
+        { field: 'tag', message: `tag must be 1-${MAX_TAG_LENGTH} characters` },
+      ]);
+    }
+    return this.page({ ...PUBLIC_POST_FILTER, tags: clean }, page, {
+      publishedAt: -1,
+    });
   }
 
   /** BLG-03: the caller's own posts, drafts and hidden ones included, newest first. */
