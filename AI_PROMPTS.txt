@@ -1542,3 +1542,19 @@ How the output was used:
 Claude added GET /api/posts (published posts, newest first, 10 per page, optional tag filter) and GET /api/posts/:id (404 for drafts and hidden posts), the public-route and page-size verification entries, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
 I reviewed the diff and ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-02, ACC-12
+Prompt:
+Apply Ahmed's review of PR #93: merge develop (AI log and traceability conflicts), and hide a deactivated
+author's published posts from browse and the post page (ACC-12: their posts are hidden, their comments
+show "Deleted user"), in a way comments and likes can reuse.
+How the output was used:
+Claude merged develop (develop's log and rows kept, mine re-applied), added PostsService.publicFilter()
+(published, not hidden, author not DEACTIVATED) for browse and the post page, made authorsOf show
+"Deleted user" for a deactivated account, and added a read-only UsersService.findIdsByStatus so the blog
+never reads the users collection. Unit and e2e tests added. I reviewed the diff and ran the checks.
+================================================

@@ -10,7 +10,7 @@ import {
   skipFor,
   toPage,
 } from '../../common/pagination/pagination';
-import { UsersService } from '../users';
+import { AccountStatus, UsersService } from '../users';
 import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
@@ -39,7 +39,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts are public; drafts and hidden posts answer 404.
+ * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts of active authors are public; anything else answers 404.
  */
 @Injectable()
 export class PostsService {
@@ -62,9 +62,23 @@ export class PostsService {
     return this.toPost(post);
   }
 
+  /**
+   * What anyone may read: published, not hidden by an admin (GEN-10) and not written by a deactivated
+   * account (ACC-12: "their posts ... are hidden"). Browse, the post page, comments and likes all use it.
+   */
+  async publicFilter(): Promise<FilterQuery<Post>> {
+    const deactivated = await this.users.findIdsByStatus(
+      AccountStatus.Deactivated,
+    );
+    return {
+      ...PUBLIC_POST_FILTER,
+      authorId: { $nin: deactivated.map((id) => new Types.ObjectId(id)) },
+    };
+  }
+
   /** BLG-02: published posts, newest first, optionally one tag (BLG-08). */
-  listPublic(query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
-    const filter: FilterQuery<Post> = { ...PUBLIC_POST_FILTER };
+  async listPublic(query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    const filter: FilterQuery<Post> = await this.publicFilter();
     if (query.tag) filter.tags = query.tag;
     return this.page(filter, query.page, { publishedAt: -1 });
   }
@@ -72,7 +86,7 @@ export class PostsService {
   /** BLG-02: the public post page. Drafts and hidden posts answer 404 here. */
   async getPublic(id: string): Promise<PostDto> {
     const post = await this.posts
-      .findOne({ _id: id, ...PUBLIC_POST_FILTER })
+      .findOne({ _id: id, ...(await this.publicFilter()) })
       .lean<PostLike>()
       .exec();
     if (!post) throw notFound();
@@ -104,7 +118,7 @@ export class PostsService {
 
   /**
    * Author id -> {id, name}, read through the users module (one lookup per distinct author, so at most
-   * one per post on a page). A deleted account shows as "Deleted user".
+   * one per post on a page). A deleted or deactivated account shows as "Deleted user" (ACC-12).
    */
   async authorsOf(ids: Types.ObjectId[]): Promise<Map<string, AuthorRefDto>> {
     const unique = [...new Set(ids.map((id) => id.toHexString()))];
@@ -112,10 +126,14 @@ export class PostsService {
       unique.map((id) => this.users.findProfile(id)),
     );
     return new Map(
-      unique.map((id, i) => [
-        id,
-        { id, name: profiles[i]?.name ?? 'Deleted user' },
-      ]),
+      unique.map((id, i) => {
+        const profile = profiles[i];
+        const name =
+          profile && profile.status !== AccountStatus.Deactivated
+            ? profile.name
+            : 'Deleted user';
+        return [id, { id, name }];
+      }),
     );
   }
 
