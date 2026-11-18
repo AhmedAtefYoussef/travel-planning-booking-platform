@@ -418,8 +418,15 @@ export interface HotelInventory {
   ): Promise<number>;
   /** PAY-02: the hotel's current terms, or null when the hotel is gone. */
   getHotelPolicy(hotelId: string): Promise<HotelPolicySnapshot | null>;
-  /** Deletes the reservation's HELD nights (expiry). Returns how many were released. */
-  releaseNights(reservationId: string, session: ClientSession): Promise<number>;
+  /**
+   * Deletes the reservation's nights of one kind and returns how many were released: HELD (default) for
+   * a hold that expires (HTL-18), BOOKED for a confirmed reservation that is cancelled (HTL-21).
+   */
+  releaseNights(
+    reservationId: string,
+    session: ClientSession,
+    kind?: 'HELD' | 'BOOKED',
+  ): Promise<number>;
 }
 
 /* ----------------------------------------------------------------------------------------------

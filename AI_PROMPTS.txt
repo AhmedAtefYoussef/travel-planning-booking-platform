@@ -1780,3 +1780,18 @@ reservation check in bookings (owner only, completing a Confirmed stay whose che
 transition), two error codes, unit specs and an e2e suite through hold, policies, payment and webhook. I kept the
 public average on the existing visibleRatings so HTL-02, HTL-12 and HTL-24 show the same number, and reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: HTL-21 (TRVL-63)
+Prompt:
+Write a spec for hotel reservation cancellation that mirrors the flight cancellation core (FLT-26): owner-only
+quote and cancel, Confirmed only, closed once check-in begins, refund from the accepted policy snapshot tiers on the
+full total, rooms released, one transaction with rollback. Have delegated subagents implement it from that spec.
+How the output was used:
+Delegated subagents implemented HTL-21 from the written spec, which mirrors the FLT-26 core. An adversarial review
+pass found two gaps, and both were applied: a rollback test (a failing refund or notification leaves the reservation
+Confirmed with its nights kept) and a documentation sentence on refund timing. I reviewed the diff.
+================================================
