@@ -1501,3 +1501,18 @@ in the traceability matrix to say images come through BLG-10 (GEN-08).
 How the output was used:
 Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: HTL-01 (TRVL-47), ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-21, HTL-22, HTL-23, HTL-24, GEN-03, GEN-09, GEN-10
+Prompt:
+Audit Jira against the workbook, the develop branch and every PR, then fix the mismatches and reassign Karim's
+stories to Joudy, Abdelrahman and me.
+How the output was used:
+Claude compared all 179 Jira issues with the traceability matrix, the controllers and the PR history. I used its
+findings to move HTL-01 to Done (GEN-08 landed in #66), correct the owners of twelve rows, drop closed PR #56 from
+HTL-09 and replace the stale "Karim" ownership notes in the architecture docs. The Jira changes were made in Jira
+itself; this PR only brings the repo docs in line. I reviewed the diff.
+================================================
