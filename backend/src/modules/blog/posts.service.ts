@@ -1,9 +1,8 @@
-import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
+import { HttpStatus, Injectable, Inject, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
+import { isOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
-import type { PublicItineraries } from '../../common/contracts/services.contract';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
@@ -12,9 +11,8 @@ import {
   skipFor,
   toPage,
 } from '../../common/pagination/pagination';
-import { AccountStatus, UsersService } from '../users';
+import { UsersService, AccountStatus } from '../users';
 import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
-import type { AuthorPageDto } from './dto/author.dto';
 import type {
   AuthorRefDto,
   CreatePostDto,
@@ -22,6 +20,9 @@ import type {
   PostSummaryDto,
 } from './dto/post.dto';
 import { Post, PostStatus } from './schemas/post.schema';
+import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
+import type { PublicItineraries } from '../../common/contracts/services.contract';
+import type { AuthorPageDto } from './dto/author.dto';
 
 type PostLike = Pick<
   Post,
@@ -174,4 +175,42 @@ export class PostsService {
       updatedAt: post.updatedAt,
     };
   }
+
+  /** BLG-03: the caller's own posts, drafts and hidden ones included, newest first. */
+  listMine(user: AuthUser, page: number): Promise<Page<PostSummaryDto>> {
+    return this.page({ authorId: new Types.ObjectId(user.id) }, page, {
+      createdAt: -1,
+    });
+  }
+
+  /** BLG-03: the author opens one of their own posts, draft or hidden included. */
+  async getMine(user: AuthUser, id: string): Promise<PostDto> {
+    return this.toPost(await this.loadOwn(user, id));
+  }
+
+  /**
+   * The caller's own post. Someone else's post answers 403 when it is public (it visibly exists) and
+   * 404 when it is a draft or hidden, exactly like an unknown id (ACC-11).
+   */
+  private async loadOwn(user: AuthUser, id: string): Promise<PostLike> {
+    const post = await this.posts.findById(id).lean<PostLike>().exec();
+    if (!post) throw notFound();
+    if (isOwner(user, post.authorId)) return post;
+    if (post.status === PostStatus.Published && !post.isHidden) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+        'You can only change your own posts',
+      );
+    }
+    throw notFound();
+  }
+}
+
+function notFound(): AppException {
+  return new AppException(
+    HttpStatus.NOT_FOUND,
+    ErrorCode.NOT_FOUND,
+    'Post not found',
+  );
 }

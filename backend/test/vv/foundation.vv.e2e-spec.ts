@@ -533,6 +533,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
     {
+      // BLG-03: the caller's own posts.
+      url: '/api/posts/mine?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
       // BLG-12: the author's posts are the page; VV_AUTHOR is inserted in beforeAll.
       url: `/api/authors/${VV_AUTHOR}?`,
       docPath: '/api/authors/{id}',
