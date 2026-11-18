@@ -1908,3 +1908,17 @@ entry update field by field from validated values instead of passing the body to
 injection alert on #92), and added BudgetsService unit tests for budget entries and the summary (the
 src/modules/ branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-19
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-14
+Prompt:
+Apply Ahmed's V&V of PR #114: amountMinor null returns three validation messages for one field (fix it
+test-first), and update the ITN-09 traceability row now that budget entries join the city-group subtotals.
+How the output was used:
+Claude wrote budget.dto.spec.ts first (null, text, decimals, unsafe, negative and too-large amounts each
+give exactly one message), then replaced the stacked IsWholeNumber/Min/Max with one validator in the
+budgets DTO, and updated the ITN-09 row (still Partial). I reviewed the diff and ran the full CI locally.
+================================================

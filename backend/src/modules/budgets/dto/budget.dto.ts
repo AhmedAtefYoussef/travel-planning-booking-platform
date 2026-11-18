@@ -8,11 +8,11 @@ import {
   IsString,
   Length,
   Matches,
-  Max,
   MaxLength,
-  Min,
+  ValidateBy,
+  type ValidationArguments,
 } from 'class-validator';
-import { IsWholeNumber, Omittable } from '../../../common/validation';
+import { Omittable } from '../../../common/validation';
 import type { SummaryCategory } from '../budget-rules';
 import { BudgetCategory } from '../schemas/budget-entry.schema';
 import { TransportMode } from '../schemas/transport-cost.schema';
@@ -25,12 +25,29 @@ const trim = ({ value }: { value: unknown }) =>
 const upper = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim().toUpperCase() : value;
 
+/**
+ * ITN-14 / ITN-16: a non-negative whole number of minor units up to MAX_AMOUNT_MINOR. One validator
+ * with one message per invalid value (GEN-02): stacked IsWholeNumber/Min/Max all fired for `null`.
+ */
 const AmountRules = () =>
-  applyDecorators(
-    IsWholeNumber('amountMinor must be a whole number of minor units'),
-    Min(0, { message: 'amountMinor must not be negative' }),
-    Max(MAX_AMOUNT_MINOR),
-  );
+  ValidateBy({
+    name: 'isAmountMinor',
+    validator: {
+      validate: (value: unknown) =>
+        typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value >= 0 &&
+        value <= MAX_AMOUNT_MINOR,
+      defaultMessage: (args?: ValidationArguments) => {
+        const value: unknown = args?.value;
+        if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
+          return 'amountMinor must be a whole number of minor units';
+        }
+        if (value < 0) return 'amountMinor must not be negative';
+        return `amountMinor must not be greater than ${MAX_AMOUNT_MINOR}`;
+      },
+    },
+  });
 const CurrencyRules = () =>
   applyDecorators(
     Transform(upper),
