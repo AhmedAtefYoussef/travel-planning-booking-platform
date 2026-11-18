@@ -2334,3 +2334,20 @@ pass 5; on any failure the new files are deleted. Removing an image takes its UU
 when no other activity uses it. I checked the limits, bad types and sizes, the image id and a shared clone file
 in e2e and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-21 (TRVL-82), ITN-20 (TRVL-81)
+Prompt:
+Implement the public itinerary search for guests and users (keyword on title, country or city; country, city and
+duration filters), a read-only public view with the author and budget, and cloning a public itinerary into an
+independent private copy that credits its author. Only PUBLIC itineraries an admin has not hidden may appear.
+How the output was used:
+Claude filters on PUBLIC and not hidden on every request, so making an itinerary private (ITN-20) or deleting it
+removes it from the search at once. The keyword is regex-escaped and also matched against country and city names.
+The clone writes the copy and its activities in one MongoDB transaction with new day ids, then copies budget rows
+through ITINERARY_BUDGETS and removes the copy again if that fails. I checked search, view, clone independence,
+hidden and private itineraries and the 404s in e2e and Swagger.
+================================================
