@@ -25,9 +25,16 @@ import { Review } from './schemas/review.schema';
 import { RoomNight } from './schemas/room-night.schema';
 import { Room } from './schemas/room.schema';
 
-type RoomLean = Pick<
+/** An active room as the free-room check reads it. */
+export type FreeRoom = Pick<
   Room,
-  'number' | 'type' | 'beds' | 'maxOccupancy' | 'priceMinor' | 'availability'
+  | 'hotelId'
+  | 'number'
+  | 'type'
+  | 'beds'
+  | 'maxOccupancy'
+  | 'priceMinor'
+  | 'availability'
 > & { _id: Types.ObjectId };
 
 /**
@@ -88,19 +95,64 @@ export class HotelDetailsService {
     hotelId: Types.ObjectId,
     stay: HotelStayDto,
   ): Promise<HotelRoomSummaryDto[]> {
-    const wanted = eachNight(stay.checkIn, stay.checkOut);
-    const candidates = (await this.activeRooms(hotelId)).filter((room) =>
-      coversEveryNight(room, wanted),
+    const free = await this.freeRoomsOf(
+      [hotelId],
+      eachNight(stay.checkIn, stay.checkOut),
     );
-    if (candidates.length === 0) return [];
+    return (free.get(hotelId.toHexString()) ?? []).map((room) =>
+      toRoomSummary(room, stay.nights),
+    );
+  }
+
+  /**
+   * For many hotels at once (HTL-11 search): each hotel's active rooms free for every one of
+   * `nights`, cheapest first. Two queries in all, whatever the number of hotels.
+   */
+  async freeRoomsOf(
+    hotelIds: Types.ObjectId[],
+    nights: string[],
+  ): Promise<Map<string, FreeRoom[]>> {
+    const result = new Map<string, FreeRoom[]>();
+    if (hotelIds.length === 0) return result;
+    const candidates = (await this.activeRoomsOf(hotelIds)).filter((room) =>
+      coversEveryNight(room, nights),
+    );
+    if (candidates.length === 0) return result;
     const takenIds = await this.nights.distinct('roomId', {
       roomId: { $in: candidates.map((r) => r._id) },
-      date: { $in: wanted },
+      date: { $in: nights },
     });
     const taken = new Set(takenIds.map((t) => String(t)));
-    return candidates
-      .filter((room) => !taken.has(room._id.toHexString()))
-      .map((room) => toRoomSummary(room, stay.nights));
+    for (const room of candidates) {
+      if (taken.has(room._id.toHexString())) continue;
+      const key = room.hotelId.toHexString();
+      result.set(key, [...(result.get(key) ?? []), room]);
+    }
+    return result;
+  }
+
+  /** Average and count of the visible reviews (GEN-10) per hotel; hotels without any are absent. */
+  async visibleRatings(
+    hotelIds: Types.ObjectId[],
+  ): Promise<Map<string, { avg: number; count: number }>> {
+    const rows = await this.reviews
+      .aggregate<{ _id: Types.ObjectId; avg: number; count: number }>([
+        { $match: { hotelId: { $in: hotelIds }, ...VISIBLE_CONTENT_FILTER } },
+        {
+          $group: {
+            _id: '$hotelId',
+            avg: { $avg: '$rating' },
+            count: { $sum: 1 },
+          },
+        },
+      ])
+      .exec();
+    return new Map(
+      rows.map((r) => [
+        r._id.toHexString(),
+        { avg: Math.round(r.avg * 10) / 10, count: r.count },
+      ]),
+    );
   }
 
   /** Both dates or neither; check-in not before today at the hotel. */
@@ -132,11 +184,16 @@ export class HotelDetailsService {
     return { checkIn, checkOut, nights: eachNight(checkIn, checkOut).length };
   }
 
-  private activeRooms(hotelId: Types.ObjectId): Promise<RoomLean[]> {
+  private activeRooms(hotelId: Types.ObjectId): Promise<FreeRoom[]> {
+    return this.activeRoomsOf([hotelId]);
+  }
+
+  private activeRoomsOf(hotelIds: Types.ObjectId[]): Promise<FreeRoom[]> {
     return this.rooms
       .find(
-        { hotelId, isActive: true },
+        { hotelId: { $in: hotelIds }, isActive: true },
         {
+          hotelId: 1,
           number: 1,
           type: 1,
           beds: 1,
@@ -146,7 +203,7 @@ export class HotelDetailsService {
         },
       )
       .sort({ priceMinor: 1, number: 1 })
-      .lean<RoomLean[]>()
+      .lean<FreeRoom[]>()
       .exec();
   }
 
@@ -154,14 +211,11 @@ export class HotelDetailsService {
   private async rating(
     hotelId: Types.ObjectId,
   ): Promise<{ ratingAvg: number; ratingCount: number }> {
-    const [row] = await this.reviews
-      .aggregate<{ avg: number; count: number }>([
-        { $match: { hotelId, ...VISIBLE_CONTENT_FILTER } },
-        { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-      ])
-      .exec();
+    const row = (await this.visibleRatings([hotelId])).get(
+      hotelId.toHexString(),
+    );
     return row
-      ? { ratingAvg: Math.round(row.avg * 10) / 10, ratingCount: row.count }
+      ? { ratingAvg: row.avg, ratingCount: row.count }
       : { ratingAvg: 0, ratingCount: 0 };
   }
 
@@ -182,14 +236,14 @@ export class HotelDetailsService {
 }
 
 /** Ranges are half-open and ISO dates compare as text. */
-function coversEveryNight(room: RoomLean, nights: string[]): boolean {
+function coversEveryNight(room: FreeRoom, nights: string[]): boolean {
   return nights.every((night) =>
     room.availability.some((r) => r.from <= night && night < r.to),
   );
 }
 
 function toRoomSummary(
-  room: RoomLean,
+  room: FreeRoom,
   nights: number | null,
 ): HotelRoomSummaryDto {
   return {
