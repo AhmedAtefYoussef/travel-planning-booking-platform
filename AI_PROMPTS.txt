@@ -1628,3 +1628,16 @@ How the output was used:
 Claude added POST /api/posts/:id/images and DELETE /api/posts/:id/images/:imageId using the shared UPLOADS_SERVICE and ImageFilesInterceptor (JPG/PNG, 5 MB, at most 5 per post), author only, files deleted when no post uses them any more, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
 I reviewed the diff and ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-10, BLG-01
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #100.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop, including BLG-04's image cleanup) and re-applied
+only this PR's upload and remove-image endpoints on top, and noted on the BLG-01 row that images are now
+uploaded to the post (#100). I reviewed the diff and ran the full CI checks locally.
+================================================
