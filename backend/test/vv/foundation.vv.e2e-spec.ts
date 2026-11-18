@@ -492,11 +492,21 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   const ROUTE = { from: 'RUH', to: 'CDG', date: '2028-02-29' };
 
   /** Every list endpoint in the app, with what it needs to answer 200. */
+  // FLT-29, HTL-22: a flight and a hotel of the stub moderators below, inserted in beforeAll, so their
+  // per-provider lists answer 200.
+  const VV_AIRLINE = '6af0f1c2c77901aa9f2287a1';
+  const VV_FLIGHT = '6af0f1c2c77901aa9f2287a2';
+  const VV_HOTEL = '6af0f1c2c77901aa9f2287a3';
+  // HTL-24: an active hotel, inserted in beforeAll, whose public reviews list answers 200.
+  const VV_REVIEWED_HOTEL = '6af0f1c2c77901aa9f2287b4';
+
   const LISTS: {
     url: string;
     headers?: Record<string, string>;
     /** Where the page envelope is, when it is not the whole body (FLT-12 round trip). */
     envelope?: (body: Record<string, unknown>) => Record<string, unknown>;
+    /** The OpenAPI path, when the URL fills in a path parameter. */
+    docPath?: string;
   }[] = [
     { url: '/api/countries?' },
     { url: '/api/cities?' },
@@ -513,10 +523,28 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     },
     { url: '/api/diagnostics/rows?' },
     {
+      // FLT-29: the bookings of a flight, for its airline's moderator.
+      url: `/api/flights/${VV_FLIGHT}/bookings?`,
+      docPath: '/api/flights/{id}/bookings',
+      headers: {
+        'x-dev-user': `AIRLINE_MODERATOR:6af0f1c2c77901aa9f228702:${VV_AIRLINE}`,
+      },
+    },
+    {
+      // HTL-22: the reservations of a hotel, for its moderator.
+      url: `/api/hotels/${VV_HOTEL}/reservations?`,
+      docPath: '/api/hotels/{id}/reservations',
+      headers: {
+        'x-dev-user': `HOTEL_MODERATOR:6af0f1c2c77901aa9f228703:${VV_HOTEL}`,
+      },
+    },
+    {
       // HTL-11: hotel search, 10 per page like every list.
       url: '/api/hotels/search?cityId=cairo&checkIn=2028-03-01&checkOut=2028-03-03&guests=1&',
     },
     { url: '/api/admin/audit-logs?', headers: { 'x-dev-user': 'ADMIN' } },
+    // ACC-17: every flight booking and hotel reservation, for admins.
+    { url: '/api/admin/bookings?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       // GEN-01: the caller's own notifications.
       url: '/api/notifications?',
@@ -528,9 +556,26 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
     {
+      // FLT-25: the caller's own flight bookings, one group at a time.
+      url: '/api/flight-bookings?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
+      // HTL-20: the caller's own hotel reservations, one group at a time.
+      url: '/api/hotel-bookings?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
       // BLG-03: the caller's own posts.
       url: '/api/posts/mine?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    // BLG-08: the posts behind a tag link.
+    { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
+    {
+      // HTL-24: a hotel's reviews, public; the hotel is inserted in beforeAll.
+      url: `/api/hotels/${VV_REVIEWED_HOTEL}/reviews?`,
+      docPath: '/api/hotels/{id}/reviews',
     },
   ];
 
@@ -542,8 +587,39 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
   });
 
+  beforeAll(async () => {
+    await app.get<Model<unknown>>(getModelToken('Flight')).create({
+      _id: VV_FLIGHT,
+      airlineId: VV_AIRLINE,
+      flightNumber: 'VVP100',
+      from: 'CAI',
+      to: 'DXB',
+      departureUtc: new Date('2030-01-10T10:00:00Z'),
+      arrivalUtc: new Date('2030-01-10T14:00:00Z'),
+      departureLocalDate: '2030-01-10',
+      status: 'SCHEDULED',
+    });
+    await app.get<Model<unknown>>(getModelToken('Hotel')).create({
+      _id: VV_HOTEL,
+      name: 'VV Paging Hotel',
+      address: '1 Paging street',
+      cityId: 'cairo',
+      countryCode: 'EG',
+    });
+  });
+
   afterAll(async () => {
     await app.close();
+  });
+
+  beforeAll(async () => {
+    await app.get<Model<unknown>>(getModelToken('Hotel')).create({
+      _id: VV_REVIEWED_HOTEL,
+      name: 'VV Reviewed Hotel',
+      address: '2 Paging street',
+      cityId: 'cairo',
+      countryCode: 'EG',
+    });
   });
 
   it('the paginated routes are exactly the documented ones', () => {
@@ -556,7 +632,9 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       )
       .map(([path]) => path)
       .sort();
-    expect(paginated).toEqual(LISTS.map((l) => l.url.split('?')[0]).sort());
+    expect(paginated).toEqual(
+      LISTS.map((l) => l.docPath ?? l.url.split('?')[0]).sort(),
+    );
   });
 
   async function expectTwoPages(
@@ -762,9 +840,13 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/hotels/search',
         // HTL-02: the hotel details page is for guests too.
         'GET /api/hotels/:id',
+        // HTL-24: the hotel rating summary and reviews are for guests too.
+        'GET /api/hotels/:id/reviews',
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
+        // BLG-08: guests open tag pages.
+        'GET /api/tags/:tag/posts',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',

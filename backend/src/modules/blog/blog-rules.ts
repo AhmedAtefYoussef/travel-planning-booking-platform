@@ -1,3 +1,6 @@
+import { VISIBLE_CONTENT_FILTER } from '../../common/contracts';
+import { PostStatus } from './schemas/post.schema';
+
 /** Characters of the body shown in post lists (BLG-09: "title, author, date and excerpt"). */
 export const EXCERPT_LENGTH = 200;
 
@@ -30,3 +33,9 @@ export function excerptOf(body: string): string {
   const space = cut.lastIndexOf(' ');
   return `${(space > EXCERPT_LENGTH / 2 ? cut.slice(0, space) : cut).trimEnd()}...`;
 }
+
+/** Posts anyone may read: published and not hidden by an admin (BLG-02, GEN-10). */
+export const PUBLIC_POST_FILTER = {
+  status: PostStatus.Published,
+  ...VISIBLE_CONTENT_FILTER,
+} as const;

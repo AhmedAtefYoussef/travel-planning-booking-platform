@@ -242,6 +242,39 @@ export interface FlightBookingsLookup {
 }
 
 /* ----------------------------------------------------------------------------------------------
+ * Flight booking cancellations (FLT-06). The bookings module provides it under
+ * FLIGHT_BOOKING_CANCELLATIONS; the flights module calls it right after it marks a flight Cancelled.
+ * It is required (not optional): a flight must never be cancelled without its bookings and refunds.
+ * -------------------------------------------------------------------------------------------- */
+
+/** What one sweep over a cancelled flight's bookings did. */
+export interface FlightCancellationOutcome {
+  /** Confirmed bookings now Cancelled, each with its 100% refund and notification (PAY-03, GEN-01). */
+  bookingsCancelled: number;
+  /** Of those, how many recorded a refund (a booking paid 0 records none). */
+  refundsRecorded: number;
+  /** Unpaid holds ended (Pending Payment -> Expired) with their seats released. */
+  holdsReleased: number;
+  /** Bookings or holds that failed and are left as they were; sweeping again retries them. */
+  failed: number;
+}
+
+export interface FlightBookingCancellations {
+  /**
+   * FLT-06: for a flight that is already Cancelled, first ends every unpaid hold on it (Pending Payment
+   * -> Expired, seats released: a hold can no longer be confirmed, and a payment captured later is
+   * refunded in full by PAY-01), then cancels every Confirmed booking on it as the provider (100%
+   * refund, BOOKING_CANCELLED notice; a round trip is cancelled as a whole). Each booking is its own
+   * transaction; one failing is logged and counted, never stops the others. Idempotent: a second sweep
+   * finds nothing left to do, or retries what failed.
+   */
+  cancelAllForFlight(
+    flightId: string,
+    now?: Date,
+  ): Promise<FlightCancellationOutcome>;
+}
+
+/* ----------------------------------------------------------------------------------------------
  * Flight inventory (FLT-22). The flights module owns the seat counters; bookings reserve and release
  * seats only through this contract, inside the caller's transaction (ADR-0002). Register under
  * FLIGHT_INVENTORY.
