@@ -26,7 +26,7 @@ const reviewRow = (over: object = {}) => ({
 });
 
 function setup(opts: {
-  createError?: unknown;
+  createError?: Error;
   stored?: object | null;
   ratings?: { avg: number; count: number }[];
   hotel?: object | null;
@@ -152,7 +152,11 @@ describe('ReviewsService (HTL-23, HTL-24)', () => {
   });
 
   it('HTL-23 answers a second review of the same reservation with 409 REVIEW_ALREADY_EXISTS', async () => {
-    const { service } = setup({ createError: { code: 11000 } });
+    const { service } = setup({
+      createError: Object.assign(new Error('E11000 duplicate key'), {
+        code: 11000,
+      }),
+    });
     await expect(service.create(stay, { rating: 3 })).rejects.toMatchObject({
       code: 'REVIEW_ALREADY_EXISTS',
     });
