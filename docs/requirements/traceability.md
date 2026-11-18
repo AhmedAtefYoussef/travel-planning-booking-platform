@@ -68,7 +68,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62, #70 | Done |
 | FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
 | FLT-26 | Mandatory | GET /api/flight-bookings/:id/refund-quote; POST /api/flight-bookings/:id/cancel | Ahmed | TRVL-45 | #72, #85 | Done |
-| FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |
+| FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | #109 | Done |
 | FLT-30 | Mandatory | flight status lifecycle (scheduled job + FLT-06) | Joudy | TRVL-107 | #14 | Done |
 | FLT-27 | Bonus | PATCH /api/flight-bookings/:id/change-flight | Team | TRVL-120 | - | Not started |
 | FLT-28 | Bonus | PATCH /api/flight-bookings/:id/seat | Team | TRVL-121 | - | Not started |
@@ -94,7 +94,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60 | Done |
 | HTL-20 | Mandatory | GET /api/hotel-bookings; GET /api/hotel-bookings/:id | Karim | TRVL-62 | - | Not started |
 | HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Ahmed | TRVL-63 | - | Not started |
-| HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | - | Not started |
+| HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | #109 | Done |
 | HTL-23 | Mandatory | POST /api/hotel-bookings/:id/review; PATCH\|DELETE /api/reviews/:id | Karim | TRVL-65 | - | Not started |
 | HTL-24 | Mandatory | GET /api/hotels/:id/reviews | Karim | TRVL-66 | - | Not started |
 | HTL-26 | Bonus | POST /api/reviews/:id/reply | Team | TRVL-122 | - | Not started |
