@@ -1462,6 +1462,109 @@ verify and tried every endpoint in Swagger.
 ================================================
 
 ================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-06 (TRVL-52)
+Prompt:
+Implement HTL-06: the hotel moderator blocks date ranges for a room, deactivates it, or deletes it.
+Blocking or deactivation is rejected over a Confirmed or Pending Payment reservation; deactivated rooms
+leave search; only never-reserved rooms can be deleted. Safe against a concurrent HTL-18 hold.
+How the output was used:
+Claude added POST/DELETE .../rooms/:roomId/blocks (BLOCKED room_nights from today on), isActive on the room
+edit, DELETE .../rooms/:roomId, all inside one transaction that first writes the room so a concurrent hold
+conflicts, plus unit and e2e tests. I chose separate /blocks routes over PATCH .../availability because that
+route already replaces the bookable ranges (HTL-05).
+================================================
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-06 (TRVL-52), HTL-02, ITN-01, ITN-03, ITN-20, FLT-05, BLG-01
+Prompt:
+Validate and verify every open PR against the workbook, the Jira Definition of Done and the review checklist,
+and test their endpoints through Swagger. Then merge the approved ones and sync Jira.
+How the output was used:
+Claude ran npm run verify on all open PRs merged together, a live Swagger/API probe on a throw-away in-memory
+database (115 checks, races included) and mutation checks on the FLT-05 test, then drafted the reviews I posted.
+It found that HTL-06 cannot be Done until HTL-11 search exists, so this PR sets the row to Partial.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-01
+Prompt:
+Apply the last nit from Ahmed's re-review of PR #75 (raised by Sarah): extend the BLG-01 Partial note
+in the traceability matrix to say images come through BLG-10 (GEN-08).
+How the output was used:
+Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: HTL-01 (TRVL-47), ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-21, HTL-22, HTL-23, HTL-24, GEN-03, GEN-09, GEN-10
+Prompt:
+Audit Jira against the workbook, the develop branch and every PR, then fix the mismatches and reassign Karim's
+stories to Joudy, Abdelrahman and me.
+How the output was used:
+Claude compared all 179 Jira issues with the traceability matrix, the controllers and the PR history. I used its
+findings to move HTL-01 to Done (GEN-08 landed in #66), correct the owners of twelve rows, drop closed PR #56 from
+HTL-09 and replace the stale "Karim" ownership notes in the architecture docs. The Jira changes were made in Jira
+itself; this PR only brings the repo docs in line. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-22, HTL-23, HTL-24, GEN-03
+Prompt:
+Reassign Karim's tasks back to him.
+How the output was used:
+Claude restored Karim as assignee, label and description owner on his twelve Jira items, then restored him as
+owner of his nine matrix rows and of the reviews schema in the ERD, undoing the owner changes that #103 merged.
+HTL-21, GEN-09 and GEN-10 stay with Ahmed, as in Jira. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-11 (TRVL-56), HTL-06 (TRVL-52)
+Prompt:
+Implement HTL-11: public GET /api/hotels/search by city or country, check-in, check-out, guests and rooms
+(default 1), listing active hotels with that many rooms free for the whole stay that together hold the guests;
+check-out after check-in, check-in not in the past. Also provide HOTELS_SEARCH (ITN-25) with the same rules.
+Then rebuild the branch on the latest develop and prove that rooms deactivated or blocked through HTL-06 leave
+the search.
+How the output was used:
+Claude added HotelSearchService (batched free-room and visible-rating queries shared with HTL-02, an exact
+cheapest-set-of-rooms price, cheapest first, GEN-05 pages), the query DTO, the route before GET :id, the
+HOTELS_SEARCH provider, V&V list entries and unit and e2e tests, including the HTL-06 exclusion test. I agreed
+the design before it was written, reviewed the diff and checked every case in Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-05 (TRVL-72)
+Prompt:
+Implement adding a day to my itinerary with a city from the reference list and optional notes, and editing a
+day's city or notes. Days are numbered 1..n with dates derived from the start date, at most 60 per itinerary,
+and concurrent changes must never skip or repeat a number. One PR per story, as the team lead asked.
+How the output was used:
+Claude rewrites the embedded day list in one update guarded by the itinerary's __v revision, retrying a lost
+race up to three times before a 409, so concurrent adds never leave gaps or a 61st day (409
+ITINERARY_DAY_LIMIT). I checked the e2e cases (60th and 61st day, concurrent adds, null and empty edits,
+unknown cities, a stranger getting 404) and ran them in Swagger.
+================================================
+
+================================================
 Date: 2026-11-16
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus)
