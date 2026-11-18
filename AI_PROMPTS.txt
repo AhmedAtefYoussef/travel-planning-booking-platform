@@ -1532,6 +1532,24 @@ HTL-21, GEN-09 and GEN-10 stay with Ahmed, as in Jira. I reviewed the diff.
 
 ================================================
 Date: 2026-11-18
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-11 (TRVL-56), HTL-06 (TRVL-52)
+Prompt:
+Implement HTL-11: public GET /api/hotels/search by city or country, check-in, check-out, guests and rooms
+(default 1), listing active hotels with that many rooms free for the whole stay that together hold the guests;
+check-out after check-in, check-in not in the past. Also provide HOTELS_SEARCH (ITN-25) with the same rules.
+Then rebuild the branch on the latest develop and prove that rooms deactivated or blocked through HTL-06 leave
+the search.
+How the output was used:
+Claude added HotelSearchService (batched free-room and visible-rating queries shared with HTL-02, an exact
+cheapest-set-of-rooms price, cheapest first, GEN-05 pages), the query DTO, the route before GET :id, the
+HOTELS_SEARCH provider, V&V list entries and unit and e2e tests, including the HTL-06 exclusion test. I agreed
+the design before it was written, reviewed the diff and checked every case in Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
 Student: Sarah Eldahaby
 Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: ITN-05 (TRVL-72)
