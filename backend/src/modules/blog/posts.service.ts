@@ -17,7 +17,7 @@ import {
   toPage,
 } from '../../common/pagination/pagination';
 import { localUploadUrlPattern } from '../../common/validation';
-import { UsersService } from '../users';
+import { AccountStatus, UsersService } from '../users';
 import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
@@ -192,7 +192,7 @@ export class PostsService {
 
   /**
    * Author id -> {id, name}, read through the users module (one lookup per distinct author, so at most
-   * one per post on a page). A deleted account shows as "Deleted user".
+   * one per post on a page). A deleted or deactivated account shows as "Deleted user" (ACC-12).
    */
   async authorsOf(ids: Types.ObjectId[]): Promise<Map<string, AuthorRefDto>> {
     const unique = [...new Set(ids.map((id) => id.toHexString()))];
@@ -200,10 +200,14 @@ export class PostsService {
       unique.map((id) => this.users.findProfile(id)),
     );
     return new Map(
-      unique.map((id, i) => [
-        id,
-        { id, name: profiles[i]?.name ?? 'Deleted user' },
-      ]),
+      unique.map((id, i) => {
+        const profile = profiles[i];
+        const name =
+          profile && profile.status !== AccountStatus.Deactivated
+            ? profile.name
+            : 'Deleted user';
+        return [id, { id, name }];
+      }),
     );
   }
 

@@ -131,4 +131,28 @@ describe('Blog comments (e2e): BLG-05', () => {
       .send({ body: 'after' })
       .expect(404);
   });
+
+  it('ACC-12 a deactivated commenter shows as "Deleted user"', async () => {
+    const post = await publish(ctx.author, 'Still open');
+    const leaver = await loginAs(ctx.app, Role.User);
+    const made = await http()
+      .post(`/api/posts/${post.id}/comments`)
+      .set('Cookie', leaver.cookie)
+      .send({ body: 'bye' })
+      .expect(201);
+    expect(made.body.author.name).not.toBe('Deleted user');
+    await ctx.connection
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(leaver.userId) },
+        { $set: { status: 'DEACTIVATED' } },
+      );
+    const list = await http().get(`/api/posts/${post.id}/comments`).expect(200);
+    expect(list.body.items).toEqual([
+      expect.objectContaining({
+        body: 'bye',
+        author: { id: leaver.userId, name: 'Deleted user' },
+      }),
+    ]);
+  });
 });
