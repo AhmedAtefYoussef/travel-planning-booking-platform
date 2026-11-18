@@ -58,7 +58,7 @@ function setup(opts: {
   const service = new FlightCancellationService(
     flights as never,
     airlines as never,
-    bookings as never,
+    bookings,
   );
   return { service, flights, airlines, bookings };
 }
