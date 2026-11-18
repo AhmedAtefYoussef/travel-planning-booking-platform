@@ -1,8 +1,13 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { ValidationFailedException } from '../../common/errors/app.exception';
+import {
+  ValidationFailedException,
+  AppException,
+} from '../../common/errors/app.exception';
+import { isOwner } from '../../common/auth/access';
+import { ErrorCode } from '../../common/errors/error-codes';
 import {
   type Page,
   PAGE_SIZE,
@@ -38,6 +43,7 @@ type PostLike = Pick<
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
  * unless it is published, and publishing stamps publishedAt. BLG-08: a tag link lists the published posts carrying that tag.
+ * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404.
  */
 @Injectable()
 export class PostsService {
@@ -71,6 +77,36 @@ export class PostsService {
     return this.page({ ...PUBLIC_POST_FILTER, tags: clean }, page, {
       publishedAt: -1,
     });
+  }
+
+  /** BLG-03: the caller's own posts, drafts and hidden ones included, newest first. */
+  listMine(user: AuthUser, page: number): Promise<Page<PostSummaryDto>> {
+    return this.page({ authorId: new Types.ObjectId(user.id) }, page, {
+      createdAt: -1,
+    });
+  }
+
+  /** BLG-03: the author opens one of their own posts, draft or hidden included. */
+  async getMine(user: AuthUser, id: string): Promise<PostDto> {
+    return this.toPost(await this.loadOwn(user, id));
+  }
+
+  /**
+   * The caller's own post. Someone else's post answers 403 when it is public (it visibly exists) and
+   * 404 when it is a draft or hidden, exactly like an unknown id (ACC-11).
+   */
+  private async loadOwn(user: AuthUser, id: string): Promise<PostLike> {
+    const post = await this.posts.findById(id).lean<PostLike>().exec();
+    if (!post) throw notFound();
+    if (isOwner(user, post.authorId)) return post;
+    if (post.status === PostStatus.Published && !post.isHidden) {
+      throw new AppException(
+        HttpStatus.FORBIDDEN,
+        ErrorCode.FORBIDDEN,
+        'You can only change your own posts',
+      );
+    }
+    throw notFound();
   }
 
   private async page(
@@ -142,4 +178,12 @@ export class PostsService {
       updatedAt: post.updatedAt,
     };
   }
+}
+
+function notFound(): AppException {
+  return new AppException(
+    HttpStatus.NOT_FOUND,
+    ErrorCode.NOT_FOUND,
+    'Post not found',
+  );
 }

@@ -529,6 +529,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/itineraries?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
+    {
+      // BLG-03: the caller's own posts.
+      url: '/api/posts/mine?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
     // BLG-08: the posts behind a tag link.
     { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
   ];
