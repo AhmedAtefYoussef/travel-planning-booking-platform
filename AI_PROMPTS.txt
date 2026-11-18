@@ -1375,3 +1375,20 @@ decimals, duplicates, 20/21 tiers, access), then made the tier list a required p
 returned on every hotel response, and aligned the hotel refund precision with the airline tiers. The hotel page
 part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live Swagger run.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-01 (TRVL-70), ITN-03 (TRVL-71), ITN-20 (TRVL-81)
+Prompt:
+Read the project brief, the requirements workbook, my Jira stories and the develop branch, then implement
+ITN-01, ITN-03 and ITN-20 on top of my TRVL-141 schemas following the team conventions: owner-only CRUD with
+the same 404 for strangers, countries checked against the reference list, private by default, a paginated
+"my itineraries" list sorted by last update, visibility through PATCH, Swagger examples and e2e/unit tests.
+How the output was used:
+Claude wrote the DTOs, the ItinerariesService, the controller, the itinerary detail view and an optional
+ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. Deleting an itinerary removes
+its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
+verify and tried every endpoint in Swagger.
+================================================
