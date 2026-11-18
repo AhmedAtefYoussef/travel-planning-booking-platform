@@ -10,6 +10,7 @@ import {
 } from '../../common/contracts/tokens';
 import type {
   ItineraryBudgets,
+  MoneyAmount,
   ReferenceService,
   UploadsService,
 } from '../../common/contracts/services.contract';
@@ -203,7 +204,8 @@ export class ItinerariesService {
     return itinerary;
   }
 
-  /** Builds the ITN-03 detail view: days with derived dates, city names and activities. */
+  /** Builds the ITN-03 detail view: days with derived dates, city names and activities, and the
+   * ITN-09 city groups with their budget subtotals. */
   async toDetail(
     itinerary: ItineraryDocument | ItineraryLike,
   ): Promise<ItineraryDto> {
@@ -211,18 +213,16 @@ export class ItinerariesService {
       'toObject' in itinerary && typeof itinerary.toObject === 'function'
         ? itinerary.toObject()
         : itinerary;
-    const [activities, cityNames] = await Promise.all([
+    const [activities, cityNames, dayBudgets] = await Promise.all([
       this.activities
         .find({ itineraryId: plain._id })
         .sort({ createdAt: 1, _id: 1 })
         .lean()
         .exec(),
       this.cityNames(plain.days.map((day) => day.cityId)),
+      this.dayBudgets(plain._id.toHexString()),
     ]);
-    return toItineraryDto(plain, {
-      activities: activities,
-      cityNames,
-    });
+    return toItineraryDto(plain, { activities, cityNames, dayBudgets });
   }
 
   /** Deletes the files of these image URLs unless an activity (e.g. a clone's) still uses them. */
@@ -231,6 +231,14 @@ export class ItinerariesService {
       const stillUsed = await this.activities.exists({ images: url }).exec();
       if (!stillUsed) await this.uploads.deleteImage(url);
     }
+  }
+
+  /** ITN-14/ITN-16 totals per day from the budgets module; empty until it provides the port. */
+  private async dayBudgets(
+    itineraryId: string,
+  ): Promise<Map<string, MoneyAmount[]>> {
+    const totals = (await this.budgets?.dayTotals(itineraryId)) ?? [];
+    return new Map(totals.map((t) => [t.dayId, t.amounts]));
   }
 
   private async cityNames(
