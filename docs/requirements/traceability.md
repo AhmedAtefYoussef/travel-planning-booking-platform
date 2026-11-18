@@ -114,7 +114,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 |---|---|---|---|---|---|---|
 | ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | #73, #88 | Done |
 | ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | #73, #88 | Done |
-| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73, #PRNUM | Done |
+| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73, #96 | Done |
 | ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | - | Not started |
 | ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | - | Not started |
 | ITN-09 | Mandatory | day city + grouping in itinerary responses | Sarah | TRVL-75 | #73 | Not started |
