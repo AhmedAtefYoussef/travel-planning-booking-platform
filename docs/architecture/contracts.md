@@ -20,6 +20,7 @@ exports: [AUDIT_SERVICE],
 | `CURRENCY_SERVICE` | `CurrencyService.convert`, `supportedCurrencies` | currency (`ExchangeRatesService`, Ahmed, TRVL-133), **implemented** | budgets ITN-18 (Malak) |
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions, currencies with minor units) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
+| `CONTENT_MODERATION` | `ContentModeration.register(adapter)`, `get(type)`; adapter interface `ModeratableContentAdapter` (see below) | moderation (`ContentModerationRegistry`, Ahmed, GEN-09, **implemented**, #106) | content modules register one adapter each: blog posts (`PostModerationAdapter`) and itineraries (`ItineraryModerationAdapter`) are registered; comments and reviews are not yet; reports (GEN-09), hide and delete (GEN-10) |
 | `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Ahmed, GEN-01) | bookings, payments, admin, flights |
 | `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | bookings (`BookingQueriesService`, TRVL-139), **implemented** | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
 | `UPLOADS_SERVICE` | `UploadsService.saveImages`, `deleteImage` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (`LocalDiskUploadsService`, Ahmed, **implemented**) | hotels HTL-01, airlines FLT-01; blog BLG-10 (Malak), itineraries ITN-12 (Sarah) |
@@ -79,6 +80,19 @@ if (!updated) { for (const u of urls) await this.uploads.deleteImage(u); throw n
 - `saveImages` rejects the whole batch with 400 `VALIDATION_FAILED` (`fieldErrors.images`, or `logo` for `AIRLINE_LOGO`) for 0 files, more than 5 in all (1 for a logo), a file above 5 MB, or content that is not JPG/PNG or does not match the declared type (magic bytes). Nothing is written then; on a later failure it deletes what it wrote.
 - URLs look like `/uploads/<posts|activities|hotels|airlines>/<uuid>.<jpg|png>`, served publicly outside `/api` (`app.setup.ts`, `nosniff`). Validate stored URLs in DTOs with `IsImageUrl('<folder>')` (`common/validation`), which also accepts http(s) links.
 - Delete files you drop with `deleteImage(url)` (it ignores anything that is not such a URL, and a missing file), and delete the files you saved whenever your own write afterwards fails or loses a race.
+
+## Content moderation (GEN-09, GEN-10), for posts, comments, reviews and itineraries
+Moderation never imports the content modules. Each one injects `CONTENT_MODERATION` (global, `common/contracts/moderation.contract.ts`) and registers **one** adapter for its type at start-up:
+```ts
+constructor(@Optional() @Inject(CONTENT_MODERATION) private readonly moderation?: ContentModeration) {}
+onModuleInit() { this.moderation?.register(this); }
+```
+- **Adapter** (`ModeratableContentAdapter`): `type` (`POST`, `COMMENT`, `REVIEW` or `ITINERARY`) and three methods.
+  - `find(id, session?)` returns `{ id, authorId, isHidden, isPublic }` whatever the visibility, or `null` for an unknown or malformed id. Reporting checks `isContentVisibleTo(content, userId)`: the author always, anyone else only when public and not hidden. Anything else answers exactly like an unknown id (404).
+  - `setHidden(id, hidden, session)` (GEN-10) returns `false` and changes nothing when the content does not exist or already has that flag.
+  - `remove(id, session)` (GEN-10) deletes the content and what belongs only to it, inside the caller's transaction. It returns `null` when there is nothing to delete; otherwise `{ afterCommit() }`.
+- **Registry:** `register` throws on a second adapter for one type. A type with no adapter behaves as if no such content exists, so `POST /api/reports` answers 404 for it.
+- **afterCommit rule:** the caller runs `afterCommit()` only after its transaction has committed, never inside it. Put there whatever cannot roll back with the transaction: deleting image files and calling ports that take no session. Never do that work inside `remove()`.
 
 ## Implemented in Sprint 0
 - `modules/audit`: `audit_logs` schema, `AuditLogService` (TRVL-162) and `GET /api/admin/audit-logs` (GEN-07, TRVL-102: admin only, newest first, 10 per page, filters `action`, `targetType`, `actorId`, `from`, `to`). The log is append-only at the model level (update/delete hooks throw). Secret-looking metadata keys are stripped. Entries join the caller's transaction when a session is passed.
