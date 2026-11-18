@@ -1615,3 +1615,20 @@ How the output was used:
 Claude added GET /api/tags/:tag/posts (published posts with the tag, ignoring case, newest first, 10 per page), the public-route and page-size verification entries, and e2e tests. Adding and editing tags is part of create (BLG-01) and edit (BLG-04). Rebuilt on the reviewed BLG-01 (author names through UsersService).
 I reviewed the diff and ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: HTL-23 (TRVL-65), HTL-24 (TRVL-66)
+Prompt:
+Implement my assigned stories to their Definition of Done. For HTL-23 and HTL-24: one rating and optional review
+per Completed reservation, editable and deletable by its author, with the hotel average recalculated, and a public
+rating summary with paginated reviews, newest first.
+How the output was used:
+Claude added ReviewsService in the hotels module (create, edit, delete, each in one transaction with a rating
+recalculation from the visible reviews; the public list with "Deleted user" for deactivated authors), the
+reservation check in bookings (owner only, completing a Confirmed stay whose check-out passed through the GEN-11
+transition), two error codes, unit specs and an e2e suite through hold, policies, payment and webhook. I kept the
+public average on the existing visibleRatings so HTL-02, HTL-12 and HTL-24 show the same number, and reviewed the diff.
+================================================

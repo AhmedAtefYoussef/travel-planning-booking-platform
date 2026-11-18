@@ -95,8 +95,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-20 | Mandatory | GET /api/hotel-bookings; GET /api/hotel-bookings/:id | Karim | TRVL-62 | - | Not started |
 | HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Ahmed | TRVL-63 | - | Not started |
 | HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | - | Not started |
-| HTL-23 | Mandatory | POST /api/hotel-bookings/:id/review; PATCH\|DELETE /api/reviews/:id | Karim | TRVL-65 | - | Not started |
-| HTL-24 | Mandatory | GET /api/hotels/:id/reviews | Karim | TRVL-66 | - | Not started |
+| HTL-23 | Mandatory | POST /api/hotel-bookings/:id/review; PATCH\|DELETE /api/reviews/:id | Karim | TRVL-65 | #112 | Done |
+| HTL-24 | Mandatory | GET /api/hotels/:id/reviews | Karim | TRVL-66 | #112 | Done |
 | HTL-26 | Bonus | POST /api/reviews/:id/reply | Team | TRVL-122 | - | Not started |
 
 ## Payments & Policies
