@@ -10,7 +10,6 @@ import { paginate, type Page } from '../../common/pagination/pagination';
 import { Flight } from '../flights';
 import { Hotel } from '../hotels';
 import { UsersService } from '../users';
-import { effectiveStatus } from './booking-groups';
 import {
   FLIGHT_MANIFEST_STATUSES,
   HOTEL_RESERVATION_STATUSES,
@@ -146,7 +145,7 @@ export class ProviderBookingsService {
       ]),
     ].map((cells) => cells.map(csvCell).join(','));
     // UTF-8 BOM so spreadsheet apps read accented names correctly; CRLF line ends (RFC 4180).
-    const csv = Buffer.from(`﻿${lines.join('\r\n')}\r\n`, 'utf8');
+    const csv = Buffer.from(`\uFEFF${lines.join('\r\n')}\r\n`, 'utf8');
     return {
       filename: `passengers-${flight.flightNumber}-${flight.departureLocalDate}.csv`,
       csv,
@@ -158,7 +157,6 @@ export class ProviderBookingsService {
     user: AuthUser,
     hotelId: string,
     query: HotelReservationsQueryDto,
-    now: Date = new Date(),
   ): Promise<Page<HotelReservationForHotelDto>> {
     const hotel = Types.ObjectId.isValid(hotelId)
       ? await this.hotels.findById(hotelId, { _id: 1 }).lean().exec()
@@ -179,11 +177,10 @@ export class ProviderBookingsService {
     return {
       ...page,
       items: rows.map((r) => {
-        const status = effectiveStatus(r, now);
         return {
           id: r._id.toHexString(),
           reference: r.reference ?? null,
-          status,
+          status: r.status,
           guestName: names.get(r.userId.toHexString()) ?? DELETED_USER,
           adults: r.rooms.reduce((n, room) => n + room.adults, 0),
           children: r.rooms.reduce(

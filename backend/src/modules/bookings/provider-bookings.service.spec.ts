@@ -260,7 +260,7 @@ describe('ProviderBookingsService (FLT-29, HTL-22)', () => {
       status: { $in: [BookingStatus.Confirmed, BookingStatus.Completed] },
     });
     const text = csv.toString('utf8');
-    expect(text.startsWith('﻿')).toBe(true);
+    expect(text.startsWith('\uFEFF')).toBe(true);
     expect(text.slice(1).split('\r\n')).toEqual([
       '"Booking reference","Booking status","Cabin","Passenger type","Last name","First name","Extra bags"',
       '"FL-7K3M9QX2","CONFIRMED","ECONOMY","CHILD","Adel","\'=HYPERLINK(""x"")","0"',
@@ -302,7 +302,6 @@ describe('ProviderBookingsService (FLT-29, HTL-22)', () => {
       hotelMod(),
       HOTEL.toHexString(),
       { page: 1 },
-      NOW,
     );
     expect(reservations.seen.filter).toEqual({
       hotelId: HOTEL,

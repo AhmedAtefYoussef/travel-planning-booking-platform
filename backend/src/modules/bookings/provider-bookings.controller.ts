@@ -130,7 +130,7 @@ export class HotelReservationsController {
   @Header('Cache-Control', 'private, no-store')
   @ApiOperation({
     summary: 'HTL-22 Hotel moderator views the reservations of their hotel',
-    description: `Each reservation shows the guest (the account holder), the stay dates (the hotel's local dates), the rooms with their guests, the total and the status (GEN-11 as of now: PENDING_PAYMENT while an unpaid hold runs, CONFIRMED, COMPLETED after check-out, CANCELLED). Expired holds are not listed. Latest check-in first, 10 per page (GEN-05); ?status= narrows to one status. ${SCOPE}`,
+    description: `Each reservation shows the guest (the account holder), the stay dates (the hotel's local dates), the rooms with their guests, the total and the GEN-11 status (PENDING_PAYMENT while an unpaid hold runs, CONFIRMED, COMPLETED once the minute job has seen the check-out day pass, CANCELLED). Expired holds are not listed. Latest check-in first, 10 per page (GEN-05); ?status= narrows to one status. ${SCOPE}`,
   })
   @ApiParam({ name: 'id', description: 'Hotel id' })
   @ApiPaginatedResponse(HotelReservationForHotelDto)

@@ -138,7 +138,7 @@ export class HotelReservationForHotelDto {
   @ApiProperty({
     enum: Object.values(BookingStatus),
     description:
-      'GEN-11 status as of now: a confirmed stay whose check-out day has passed reads COMPLETED',
+      'Stored GEN-11 status; the minute job moves a stay to COMPLETED after its check-out day',
   })
   status!: BookingStatus;
   @ApiProperty({

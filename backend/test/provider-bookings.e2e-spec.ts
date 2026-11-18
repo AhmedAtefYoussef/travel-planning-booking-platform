@@ -295,7 +295,7 @@ describe('Provider booking views (e2e): FLT-29, HTL-22', () => {
       expect(csv.headers['content-disposition']).toBe(
         'attachment; filename="passengers-WP200-2028-06-15.csv"',
       );
-      const lines = (csv.body as string).replace(/^﻿/, '').split('\r\n');
+      const lines = (csv.body as string).replace(/^\uFEFF/, '').split('\r\n');
       expect(lines[0]).toBe(
         '"Booking reference","Booking status","Cabin","Passenger type","Last name","First name","Extra bags"',
       );
