@@ -1563,3 +1563,19 @@ race up to three times before a 409, so concurrent adds never leave gaps or a 61
 ITINERARY_DAY_LIMIT). I checked the e2e cases (60th and 61st day, concurrent adds, null and empty edits,
 unknown cities, a stranger getting 404) and ran them in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75)
+Prompt:
+Show the consecutive same-city groups of my itinerary in every itinerary response: each group's city, first and
+last day, dates, day count and budget subtotal. The subtotal adds the activity costs and the budget entries and
+transport costs from Malak's budgets module, without importing it.
+How the output was used:
+Claude builds cityGroups in the detail view from the shared groupConsecutiveDaysByCity rule, so a return to a
+city starts a new group. Subtotals stay per currency with no conversion (that is ITN-18) and read the day totals
+through the optional ITINERARY_BUDGETS port, so the row stays Partial until ITN-14/ITN-16 provide it. I checked
+the A,A,B,A grouping, the subtotals with a fake budgets module and a city change merging groups, in e2e and Swagger.
+================================================
