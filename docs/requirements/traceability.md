@@ -144,7 +144,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | - | Not started |
 | BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | - | Not started |
 | BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | - | Not started |
-| BLG-12 | Mandatory | GET /api/authors/:id | Malak | TRVL-95 | - | Not started |
+| BLG-12 | Mandatory | GET /api/authors/:id | Malak | TRVL-95 | #101 | Partial: name, join date and published posts done; public itineraries once ITN-20 lands |
 | BLG-13 | Bonus | PATCH /api/posts/:id/itinerary | Team | TRVL-125 | - | Not started |
 
 ## Cross-cutting
