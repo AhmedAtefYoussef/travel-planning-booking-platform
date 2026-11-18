@@ -1,19 +1,19 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import { isOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
-import type {
-  UploadedFileLike,
-  UploadsService,
-} from '../../common/contracts/services.contract';
 import {
   AppException,
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { localUploadUrlPattern } from '../../common/validation';
+import {
+  type Page,
+  PAGE_SIZE,
+  skipFor,
+  toPage,
+} from '../../common/pagination/pagination';
 import { UsersService } from '../users';
 import { excerptOf } from './blog-rules';
 import type {
@@ -23,11 +23,17 @@ import type {
   PostSummaryDto,
 } from './dto/post.dto';
 import {
-  MAX_POST_IMAGES,
   Post,
-  PostDocument,
   PostStatus,
+  MAX_POST_IMAGES,
+  PostDocument,
 } from './schemas/post.schema';
+import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
+import type {
+  UploadedFileLike,
+  UploadsService,
+} from '../../common/contracts/services.contract';
+import { localUploadUrlPattern } from '../../common/validation';
 
 /** A post image this backend stored (GEN-08); group 2 is its image id. */
 const POST_UPLOAD_URL = localUploadUrlPattern(['posts']);
@@ -233,6 +239,41 @@ export class PostsService {
 
   private async discard(urls: string[]): Promise<void> {
     for (const url of urls) await this.uploads.deleteImage(url);
+  }
+
+  /** BLG-03: the caller's own posts, drafts and hidden ones included, newest first. */
+  listMine(user: AuthUser, page: number): Promise<Page<PostSummaryDto>> {
+    return this.page({ authorId: new Types.ObjectId(user.id) }, page, {
+      createdAt: -1,
+    });
+  }
+
+  /** BLG-03: the author opens one of their own posts, draft or hidden included. */
+  async getMine(user: AuthUser, id: string): Promise<PostDto> {
+    return this.toPost(await this.loadOwn(user, id));
+  }
+
+  private async page(
+    filter: FilterQuery<Post>,
+    page: number,
+    sort: Record<string, SortOrder>,
+  ): Promise<Page<PostSummaryDto>> {
+    const [items, total] = await Promise.all([
+      this.posts
+        .find(filter)
+        .sort({ ...sort, _id: -1 })
+        .skip(skipFor(page))
+        .limit(PAGE_SIZE)
+        .lean<PostLike[]>()
+        .exec(),
+      this.posts.countDocuments(filter).exec(),
+    ]);
+    const authors = await this.authorsOf(items.map((p) => p.authorId));
+    return toPage(
+      items.map((p) => this.summary(p, authors)),
+      total,
+      page,
+    );
   }
 }
 
