@@ -1516,3 +1516,19 @@ findings to move HTL-01 to Done (GEN-08 landed in #66), correct the owners of tw
 HTL-09 and replace the stale "Karim" ownership notes in the architecture docs. The Jira changes were made in Jira
 itself; this PR only brings the repo docs in line. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-05 (TRVL-72)
+Prompt:
+Implement adding a day to my itinerary with a city from the reference list and optional notes, and editing a
+day's city or notes. Days are numbered 1..n with dates derived from the start date, at most 60 per itinerary,
+and concurrent changes must never skip or repeat a number. One PR per story, as the team lead asked.
+How the output was used:
+Claude rewrites the embedded day list in one update guarded by the itinerary's __v revision, retrying a lost
+race up to three times before a 409, so concurrent adds never leave gaps or a 61st day (409
+ITINERARY_DAY_LIMIT). I checked the e2e cases (60th and 61st day, concurrent adds, null and empty edits,
+unknown cities, a stranger getting 404) and ran them in Swagger.
+================================================
