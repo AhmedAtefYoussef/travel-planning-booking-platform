@@ -1460,3 +1460,15 @@ ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. 
 its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
 verify and tried every endpoint in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-01
+Prompt:
+Apply the last nit from Ahmed's re-review of PR #75 (raised by Sarah): extend the BLG-01 Partial note
+in the traceability matrix to say images come through BLG-10 (GEN-08).
+How the output was used:
+Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
+================================================
