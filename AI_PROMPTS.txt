@@ -1340,8 +1340,6 @@ shared startsAt field, and added unit tests for the tier boundaries (exactly at 
 with no record) and e2e cases for a second cancel, a 0% tier and infants on both legs of a round trip. I reviewed
 the transaction order and the refund link, ran the quality gate and the e2e three times, and checked the quote and
 cancel journey in Swagger on a throw-away database before opening the pull request.
-=========================================================================================
-
 ================================================
 
 ================================================
@@ -1376,7 +1374,10 @@ Claude kept Sandra's four commits with her authorship, wrote failing DTO, servic
 decimals, duplicates, 20/21 tiers, access), then made the tier list a required part of the PUT, sorted and
 returned on every hotel response, and aligned the hotel refund precision with the airline tiers. The hotel page
 part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live Swagger run.
-=======
+================================================
+
+================================================
+Date: 2026-11-17
 Student: Joudy Khaled Hagar
 Tool: Claude (Claude Opus, agentic coding session)
 Related Requirement: FLT-05 (TRVL-32) closing test, with GEN-01
