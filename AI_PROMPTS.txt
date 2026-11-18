@@ -2152,3 +2152,18 @@ Build GEN-10 admin moderation from the written spec on the GEN-09 CONTENT_MODERA
 How the output was used:
 A delegated subagent built the admin moderation module from that spec: the report queue, report resolution, the direct hide and delete routes, and the RESOLVE_REPORT, HIDE_CONTENT and DELETE_CONTENT audit entries, all in one transaction. An adversarial review found no blockers but found missing rollback tests on the direct routes, no test that a hidden post leaves the public lists, and no report count in the direct audit entries. All three were added in a second commit. The stale-report case after an owner deletes content was left as a documented follow-up. I reviewed the diff. Comment and review moderation wait for their modules (BLG-05 and PR #116).
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-08 (TRVL-74)
+Prompt:
+Implement moving a day of my itinerary to a new position. Every day keeps its city, notes and activities; the
+days are renumbered 1..n so their dates follow the new order, and the city groups are recalculated.
+How the output was used:
+Claude added PATCH /api/itineraries/:id/days/reorder (declared before PATCH :dayId so "reorder" is never a day
+id), reusing the revision-guarded day-list rewrite, so a concurrent change retries instead of mixing orders. I
+checked moving to the end and back, the regrouping, an out-of-range, fractional or huge position, a malformed or
+unknown day id and a stranger getting 404 in e2e and Swagger.
+================================================
