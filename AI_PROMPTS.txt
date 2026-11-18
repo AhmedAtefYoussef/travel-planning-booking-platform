@@ -1874,3 +1874,17 @@ Claude merged develop (BLG-03/04/06/08 and ITN-05 kept as on develop) and re-app
 page, the PUBLIC_ITINERARIES provider and its verification entries on top; it checked the provider still
 matches the itinerary schema after ITN-05. I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-09 (TRVL-104)
+Prompt:
+Add hotel reviews as a report target on POST /api/reports (targetType REVIEW), following the post and itinerary
+moderation adapters, and keep the hotel rating correct when a review is hidden or removed.
+How the output was used:
+A delegated subagent wrote ReviewModerationAdapter from a spec that copies the post and itinerary adapters. It found
+that the hotel rating is stored, so hide and delete recalculate ratingAvg and ratingCount in the same transaction as
+the change. I reviewed the diff.
+================================================
