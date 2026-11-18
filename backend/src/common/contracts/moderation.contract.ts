@@ -33,14 +33,26 @@ export interface ModeratableContentAdapter {
   readonly type: ModeratableContentType;
   /** The content whatever its visibility, or null when none has this id (also for a malformed id). */
   find(id: string, session?: ClientSession): Promise<ModeratableContent | null>;
-  /** Sets `isHidden`; false, changing nothing, when the content does not exist or already had it. */
+  /**
+   * Sets `isHidden`; false, changing nothing, when the content does not exist (also for a malformed id)
+   * or already had it.
+   */
   setHidden(
     id: string,
     hidden: boolean,
     session: ClientSession,
   ): Promise<boolean>;
-  /** Deletes the content (and what belongs only to it); false when it did not exist. */
-  remove(id: string, session: ClientSession): Promise<boolean>;
+  /**
+   * Deletes the content and what belongs only to it inside the caller's transaction. Returns null when it
+   * did not exist (also for a malformed id); otherwise cleanup the caller must run once the transaction
+   * has committed (files, rows of ports that take no session), never inside it.
+   */
+  remove(id: string, session: ClientSession): Promise<RemovedContent | null>;
+}
+
+/** Returned by a successful remove(): call afterCommit() only after the transaction commits. */
+export interface RemovedContent {
+  afterCommit(): Promise<void>;
 }
 
 export interface ContentModeration {

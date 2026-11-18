@@ -2,6 +2,7 @@ import { Types } from 'mongoose';
 import {
   ModeratableContentType,
   type ContentModeration,
+  type ItineraryBudgets,
 } from '../../common/contracts';
 import { ItineraryModerationAdapter } from './itinerary-moderation.adapter';
 import { ItineraryVisibility } from './schemas/itinerary.schema';
@@ -22,17 +23,30 @@ function setup(found: unknown = null) {
     updateOne: jest.fn(() => chain({ modifiedCount: 1 })),
     deleteOne: jest.fn(() => chain({ deletedCount: 1 })),
   };
-  const activities = { deleteMany: jest.fn(() => chain({})) };
+  const activities = {
+    find: jest.fn(() =>
+      chain([{ images: ['/uploads/activities/a.jpg'] }, { images: undefined }]),
+    ),
+    deleteMany: jest.fn(() => chain({})),
+  };
+  const service = {
+    deleteUnusedImages: jest.fn().mockResolvedValue(undefined),
+  };
   const registry: jest.Mocked<ContentModeration> = {
     register: jest.fn(),
     get: jest.fn(),
   };
+  const budgets = {
+    deleteForItinerary: jest.fn().mockResolvedValue(undefined),
+  } as unknown as jest.Mocked<ItineraryBudgets>;
   const adapter = new ItineraryModerationAdapter(
     itineraries as never,
     activities as never,
+    service as never,
     registry,
+    budgets,
   );
-  return { adapter, itineraries, activities, registry };
+  return { adapter, itineraries, activities, service, registry, budgets };
 }
 
 describe('ItineraryModerationAdapter: GEN-09, GEN-10 itineraries as moderatable content', () => {
@@ -44,7 +58,11 @@ describe('ItineraryModerationAdapter: GEN-09, GEN-10 itineraries as moderatable 
   });
 
   it('starts without a moderation module (nothing to register with)', () => {
-    const adapter = new ItineraryModerationAdapter({} as never, {} as never);
+    const adapter = new ItineraryModerationAdapter(
+      {} as never,
+      {} as never,
+      {} as never,
+    );
     expect(() => adapter.onModuleInit()).not.toThrow();
   });
 
@@ -63,11 +81,15 @@ describe('ItineraryModerationAdapter: GEN-09, GEN-10 itineraries as moderatable 
     });
   });
 
-  it('answers null for an unknown or malformed id', async () => {
+  it('answers null/false for a malformed id without querying (no CastError)', async () => {
     const { adapter, itineraries } = setup(null);
     await expect(adapter.find(ID.toHexString())).resolves.toBeNull();
     await expect(adapter.find('nope')).resolves.toBeNull();
+    await expect(adapter.setHidden('nope', true, SESSION)).resolves.toBe(false);
+    await expect(adapter.remove('nope', SESSION)).resolves.toBeNull();
     expect(itineraries.findById).toHaveBeenCalledTimes(1);
+    expect(itineraries.updateOne).not.toHaveBeenCalled();
+    expect(itineraries.deleteOne).not.toHaveBeenCalled();
   });
 
   it('hides only an itinerary that is not hidden yet, in the caller session', async () => {
@@ -82,16 +104,27 @@ describe('ItineraryModerationAdapter: GEN-09, GEN-10 itineraries as moderatable 
     );
   });
 
-  it('removes the itinerary with its activities, or reports that it was gone', async () => {
-    const { adapter, itineraries, activities } = setup();
-    await expect(adapter.remove(ID.toHexString(), SESSION)).resolves.toBe(true);
+  it('removes the itinerary with its activities, and cleans budgets and images only after commit', async () => {
+    const { adapter, activities, service, budgets } = setup();
+    const removed = await adapter.remove(ID.toHexString(), SESSION);
     expect(activities.deleteMany).toHaveBeenCalledWith(
       { itineraryId: ID.toHexString() },
       { session: SESSION },
     );
+    expect(budgets.deleteForItinerary).not.toHaveBeenCalled();
+    expect(service.deleteUnusedImages).not.toHaveBeenCalled();
+
+    await removed!.afterCommit();
+    expect(budgets.deleteForItinerary).toHaveBeenCalledWith(ID.toHexString());
+    expect(service.deleteUnusedImages).toHaveBeenCalledWith([
+      '/uploads/activities/a.jpg',
+    ]);
+  });
+
+  it('answers null when the itinerary was already gone', async () => {
+    const { adapter, itineraries, activities } = setup();
     itineraries.deleteOne.mockReturnValueOnce(chain({ deletedCount: 0 }));
-    await expect(adapter.remove(ID.toHexString(), SESSION)).resolves.toBe(
-      false,
-    );
+    await expect(adapter.remove(ID.toHexString(), SESSION)).resolves.toBeNull();
+    expect(activities.deleteMany).not.toHaveBeenCalled();
   });
 });

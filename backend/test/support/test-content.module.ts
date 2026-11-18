@@ -1,5 +1,5 @@
 /**
- * Test-only moderatable content (GEN-09, GEN-10): in-memory adapters for posts, comments and reviews,
+ * Test-only moderatable content (GEN-09, GEN-10): in-memory adapters for comments and reviews,
  * registered with CONTENT_MODERATION exactly as their real modules will, so the port can be exercised
  * for every type before those modules land. Mounted only by e2e tests, never by AppModule.
  */
@@ -20,7 +20,6 @@ import {
 } from '../../src/common/contracts';
 
 export const FAKE_CONTENT_TYPES = [
-  ModeratableContentType.Post,
   ModeratableContentType.Comment,
   ModeratableContentType.Review,
 ] as const;
@@ -68,7 +67,12 @@ export class FakeContentStore implements OnModuleInit {
         item.isHidden = hidden;
         return Promise.resolve(true);
       },
-      remove: (id) => Promise.resolve(this.items.delete(key(id))),
+      remove: (id) =>
+        Promise.resolve(
+          this.items.delete(key(id))
+            ? { afterCommit: () => Promise.resolve() }
+            : null,
+        ),
     };
   }
 }

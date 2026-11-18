@@ -119,20 +119,26 @@ describe('ReportsService: GEN-09 report content once per item', () => {
     ).resolves.toMatchObject({ status: ReportStatus.Open });
   });
 
-  it('turns the unique-index violation (a repeat or a race) into 409 REPORT_ALREADY_FILED', async () => {
-    const { service, reports } = setup(
-      adapter(ModeratableContentType.Post, {}),
-    );
-    reports.create.mockRejectedValueOnce(
-      Object.assign(new Error('E11000'), {
-        code: 11000,
-        keyPattern: { reporterId: 1, targetType: 1, targetId: 1 },
-      }),
-    );
-    const e = await failure(service.report(USER, dto()));
-    expect(e.getStatus()).toBe(409);
-    expect(e.code).toBe('REPORT_ALREADY_FILED');
-  });
+  it.each([
+    [
+      'keyPattern',
+      { keyPattern: { reporterId: 1, targetType: 1, targetId: 1 } },
+    ],
+    ['keyValue only', { keyValue: { reporterId: USER.id, targetId: TARGET } }],
+  ])(
+    'turns the unique-index violation (%s) into 409 REPORT_ALREADY_FILED',
+    async (_, details) => {
+      const { service, reports } = setup(
+        adapter(ModeratableContentType.Post, {}),
+      );
+      reports.create.mockRejectedValueOnce(
+        Object.assign(new Error('E11000'), { code: 11000, ...details }),
+      );
+      const e = await failure(service.report(USER, dto()));
+      expect(e.getStatus()).toBe(409);
+      expect(e.code).toBe('REPORT_ALREADY_FILED');
+    },
+  );
 
   it('rethrows any other database error unchanged', async () => {
     const { service, reports } = setup(

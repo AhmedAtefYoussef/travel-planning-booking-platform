@@ -70,6 +70,8 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
     content = app.get(FakeContentStore);
     reports = app.get<Model<Report>>(getModelToken(Report.name));
     itineraries = app.get<Model<Itinerary>>(getModelToken(Itinerary.name));
+    // The unique index is the once-only rule: make sure it exists before the parallel test.
+    await reports.syncIndexes();
     alice = await loginAs(app, Role.User);
     bob = await loginAs(app, Role.User);
   });
@@ -116,13 +118,43 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
     });
   });
 
+  describe('GEN-09 blog posts through the real adapter', () => {
+    const post = async (author: LoggedIn, status: 'PUBLISHED' | 'DRAFT') => {
+      const res = await http()
+        .post('/api/posts')
+        .set('Cookie', author.cookie)
+        .send({
+          title: 'Three days in Cairo',
+          body: 'Museums and markets',
+          status,
+        })
+        .expect(201);
+      return (res.body as { id: string }).id;
+    };
+
+    it('reports a published post of another user once (201, then 409)', async () => {
+      const id = await post(bob, 'PUBLISHED');
+      await report(alice, body('POST', id)).expect(201);
+      const again = await report(alice, body('POST', id)).expect(409);
+      expect(again.body.code).toBe('REPORT_ALREADY_FILED');
+    });
+
+    it("answers 404 for someone else's draft, which its author may report", async () => {
+      const id = await post(bob, 'DRAFT');
+      await report(alice, body('POST', id)).expect(404);
+      await report(bob, body('POST', id)).expect(201);
+    });
+  });
+
   describe('GEN-09 at most once per item', () => {
     it('refuses a second report of the same item by the same user (409), a different user may', async () => {
-      const id = content.add(ModeratableContentType.Post);
-      await report(alice, body('POST', id)).expect(201);
-      const again = await report(alice, body('POST', id, 'Again')).expect(409);
+      const id = content.add(ModeratableContentType.Comment);
+      await report(alice, body('COMMENT', id)).expect(201);
+      const again = await report(alice, body('COMMENT', id, 'Again')).expect(
+        409,
+      );
       expect(again.body.code).toBe('REPORT_ALREADY_FILED');
-      await report(bob, body('POST', id)).expect(201);
+      await report(bob, body('COMMENT', id)).expect(201);
       expect(
         await reports.countDocuments({ targetId: new Types.ObjectId(id) }),
       ).toBe(2);
@@ -190,25 +222,25 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
       const id = await itinerary(bob, 'PUBLIC');
       await itineraries.updateOne({ _id: id }, { $set: { isHidden: true } });
       await report(alice, body('ITINERARY', id)).expect(404);
-      const post = content.add(ModeratableContentType.Post, {
+      const post = content.add(ModeratableContentType.Comment, {
         isHidden: true,
       });
-      await report(alice, body('POST', post)).expect(404);
+      await report(alice, body('COMMENT', post)).expect(404);
     });
   });
 
   describe('GEN-09 only registered users may report', () => {
     it('answers 401 without a session', async () => {
-      const id = content.add(ModeratableContentType.Post);
-      await report(null, body('POST', id)).expect(401);
+      const id = content.add(ModeratableContentType.Comment);
+      await report(null, body('COMMENT', id)).expect(401);
     });
 
     it.each([Role.Admin, Role.AirlineModerator, Role.HotelModerator])(
       'answers 403 to %s',
       async (role) => {
         const as = await loginAs(app, role);
-        const id = content.add(ModeratableContentType.Post);
-        await report(as, body('POST', id)).expect(403);
+        const id = content.add(ModeratableContentType.Comment);
+        await report(as, body('COMMENT', id)).expect(403);
       },
     );
   });
@@ -225,13 +257,13 @@ describe('Reports (e2e): GEN-09 content type whose module has not registered', (
     await app.close();
   });
 
-  it('answers 404 for a post while no posts adapter is registered', async () => {
+  it('answers 404 for a comment while no comments adapter is registered', async () => {
     const user = await loginAs(app, Role.User);
     await request(app.getHttpServer())
       .post('/api/reports')
       .set('Cookie', user.cookie)
       .send({
-        targetType: 'POST',
+        targetType: 'COMMENT',
         targetId: new Types.ObjectId().toHexString(),
         reason: 'Spam',
       })

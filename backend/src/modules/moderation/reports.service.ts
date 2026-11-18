@@ -18,8 +18,16 @@ const DUPLICATE_KEY = 11000;
 export const REPORT_TARGET_NOT_FOUND = 'The reported content was not found';
 
 function isDuplicateReport(e: unknown): boolean {
-  const err = e as { code?: unknown; keyPattern?: Record<string, unknown> };
-  return err?.code === DUPLICATE_KEY && !!err.keyPattern?.reporterId;
+  const err = e as {
+    code?: unknown;
+    keyPattern?: Record<string, unknown>;
+    keyValue?: Record<string, unknown>;
+  };
+  return (
+    err?.code === DUPLICATE_KEY &&
+    (err.keyPattern?.reporterId !== undefined ||
+      err.keyValue?.reporterId !== undefined)
+  );
 }
 
 /**
