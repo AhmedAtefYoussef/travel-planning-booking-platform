@@ -1617,6 +1617,84 @@ I reviewed the diff and ran the checks locally.
 ================================================
 
 ================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-143, ITN-16
+Prompt:
+Build the itinerary budgets on top of the TRVL-141 itinerary schemas, one pull request per feature as
+Ahmed asked: this one holds the budget_entries and transport_costs schemas (TRVL-143) and ITN-16, add,
+edit and delete an intercity transport cost (mode, from-city, to-city, amount, currency, day).
+How the output was used:
+Claude wrote both schemas and the transport-cost DTOs, service, controller and Swagger docs: owner only
+(404 for anyone else on a private itinerary), the day must belong to the itinerary, both cities must be
+reference cities and differ, the currency must be a seeded one, and e2e tests. I reviewed the diff and
+ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-16
+Prompt:
+Sarah asked me to rebase the budgets branches onto develop without her old schema commit and to
+provide her ITINERARY_BUDGETS port (dayTotals, deleteForDays, deleteForItinerary, cloneForItinerary)
+from the budgets module.
+How the output was used:
+Claude rebased the ITN-16 branch onto develop (only BudgetsModule added to app.module), wrote
+ItineraryBudgetsPort over transport costs (budget entries join it in ITN-14), made BudgetsModule global
+so the itineraries module can inject the token, imported ItinerariesModule for the itinerary model
+instead of registering it again, and added e2e tests for the four port methods, including Sarah's real
+DELETE /api/itineraries/:id. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+CodeQL flagged "Database query built from user-controlled sources" on PATCH /api/transport-costs/:id in
+PR #92: the $set was a spread of the request body.
+How the output was used:
+Claude rebuilt the update field by field from the validated values (ObjectId for the day, the mode mapped
+through the TransportMode enum, String/Number for the rest), so no raw body value or operator reaches
+the query. The ITN-16 e2e tests still pass. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+After merging develop into PR #92, backend-test failed: branch coverage for src/modules/ was 64.15%,
+under the 65% floor, because the budgets service and the ITINERARY_BUDGETS port had e2e but no unit tests.
+How the output was used:
+Claude wrote unit tests for BudgetsService (owner checks, day/city/currency rules, field-by-field update,
+404 paths) and ItineraryBudgetsPort (day totals per currency, deletes, clone mapping, malformed ids) with
+mocked models through the Nest testing module. Module branch coverage is back above 65% (budgets service
+93%). I reviewed the tests and ran the coverage gate locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75)
+Prompt:
+Show the consecutive same-city groups of my itinerary in every itinerary response: each group's city, first and
+last day, dates, day count and budget subtotal. The subtotal adds the activity costs and the budget entries and
+transport costs from Malak's budgets module, without importing it.
+How the output was used:
+Claude builds cityGroups in the detail view from the shared groupConsecutiveDaysByCity rule, so a return to a
+city starts a new group. Subtotals stay per currency with no conversion (that is ITN-18) and read the day totals
+through the optional ITINERARY_BUDGETS port, so the row stays Partial until ITN-14/ITN-16 provide it. I checked
+the A,A,B,A grouping, the subtotals with a fake budgets module and a city change merging groups, in e2e and Swagger.
+================================================
+
+================================================
 Date: 2026-11-18
 Student: Karim Walid
 Tool: Claude (Claude Opus 5.5, agentic session)

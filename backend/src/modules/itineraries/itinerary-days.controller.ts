@@ -21,7 +21,7 @@ import { ItineraryDaysService } from './itinerary-days.service';
 const OWNER_ONLY =
   'Only the owner can do this; another user gets the same 404 as for an unknown itinerary (ACC-11). Admins and moderators get 403. Two changes to the same itinerary at the same moment are applied one after the other; 409 only if it keeps changing.';
 const RETURNS =
-  'Returns the whole itinerary: days numbered 1..n with their derived dates.';
+  'Returns the whole itinerary: days numbered 1..n with their derived dates, and the ITN-09 city groups with day counts and budget subtotals.';
 
 /** Days of the caller's itinerary (ITN-05). */
 @ApiTags('Itineraries')
@@ -77,8 +77,8 @@ export class ItineraryDaysController {
   @Patch(':dayId')
   @Roles(Role.User)
   @ApiOperation({
-    summary: "ITN-05 Edit a day's city or notes",
-    description: `Send cityId (from the predefined list, required for every day: it can be changed, not removed), notes, or both; a field left out stays, null or an empty body is 400. ${RETURNS} ${OWNER_ONLY}`,
+    summary: "ITN-05 / ITN-09 Edit a day's city or notes",
+    description: `Send cityId (from the predefined list, required for every day: it can be changed, not removed), notes, or both; a field left out stays, null or an empty body is 400. Changing a city can split or merge the city groups (ITN-09). ${RETURNS} ${OWNER_ONLY}`,
   })
   @ApiParam({ name: 'id', description: 'Itinerary id' })
   @ApiParam({ name: 'dayId', description: 'Day id (days[].id)' })
