@@ -505,6 +505,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     { url: '/api/airports?' },
     { url: '/api/currencies?' },
     { url: '/api/admin/accounts?', headers: { 'x-dev-user': 'ADMIN' } },
+    // ACC-17: every flight booking and hotel reservation, for admins.
+    { url: '/api/admin/bookings?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       url: `/api/flights/search?from=${ROUTE.from}&to=${ROUTE.to}&departureDate=${ROUTE.date}&passengers=1&`,
     },
