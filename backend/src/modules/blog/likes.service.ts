@@ -39,7 +39,7 @@ export class LikesService {
           .findOneAndUpdate(
             { _id: postId, ...PUBLIC_POST_FILTER },
             { $inc: { likeCount: 1, interactionScore: 1 } },
-            { session, new: true },
+            { session, new: true, runValidators: true },
           )
           .exec();
         if (!post) throw postNotFound();
@@ -85,7 +85,7 @@ export class LikesService {
         .findOneAndUpdate(
           { _id: postId, likeCount: { $gte: 1 } },
           { $inc: { likeCount: -1, interactionScore: -1 } },
-          { session, new: true },
+          { session, new: true, runValidators: true },
         )
         .exec();
       return post?.likeCount ?? 0;
