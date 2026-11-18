@@ -15,7 +15,7 @@ exports: [AUDIT_SERVICE],
 |---|---|---|---|
 | `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | bookings (FLT-22, HTL-18) | payments (Ahmed) |
 | `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor`, `summaryFor` | payments (`RefundsServiceImpl`, PAY-03, **implemented**) | booking details (refund block), cancellations FLT-26/HTL-21 (Ahmed), FLT-06 |
-| `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
+| `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah, **implemented**: `ItinerarySearchService` searches each airport of the first day's city, outbound and return) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (`HotelSearchService`, Sandra, HTL-11 #102, **implemented**) | itineraries ITN-25 (Sarah, `ItinerarySearchService`, injected `@Optional()`; `ItinerariesModule` imports `HotelsModule` so the export reaches it) |
 | `CURRENCY_SERVICE` | `CurrencyService.convert`, `supportedCurrencies` | currency (`ExchangeRatesService`, Ahmed, TRVL-133), **implemented** | budgets ITN-18 (Malak) |
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions, currencies with minor units) | reference (Joudy, GEN-12) | everyone |
