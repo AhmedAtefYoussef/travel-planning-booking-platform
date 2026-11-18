@@ -133,7 +133,7 @@ describe('Room edit (e2e): HTL-05', () => {
       await edit(id, mod(), { priceMinor: 0 }).expect(400);
       await edit(id, mod(), { maxOccupancy: 1e20 }).expect(400);
       await edit(id, mod(), { number: 'X9' }).expect(400);
-      await edit(id, mod(), { isActive: false }).expect(400);
+      await edit(id, mod(), { everReserved: true }).expect(400);
       expect(await rooms().findById(id).lean()).toMatchObject({
         beds: 2,
         priceMinor: 10_000,
