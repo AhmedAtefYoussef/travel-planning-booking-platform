@@ -42,12 +42,13 @@ export class RefundQuoteDto {
     nullable: true,
     example: { daysBefore: 7, refundPercent: 50 },
     description:
-      'FLT-09: the tier with the highest threshold not exceeding daysBefore; null when none applies (0%)',
+      'FLT-09, HTL-10: the tier with the highest threshold not exceeding daysBefore; null when none applies (0%)',
   })
   tierApplied!: CancellationTierDto | null;
   @ApiProperty({
     example: 30,
-    description: 'Whole 24-hour periods left before departure',
+    description:
+      'Whole 24-hour periods left before departure (flights) or check-in (hotels)',
   })
   daysBefore!: number;
 }
