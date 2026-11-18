@@ -190,7 +190,10 @@ function checkStay(query: HotelSearchQuery): string[] {
     );
   }
   const whole = (n: unknown, max: number) =>
-    Number.isInteger(n) && (n as number) >= 1 && (n as number) <= max;
+    typeof n === 'number' &&
+    Number.isSafeInteger(n) &&
+    (n as number) >= 1 &&
+    (n as number) <= max;
   if (!whole(query.guests, MAX_SEARCH_GUESTS)) {
     throw bad(
       'guests',

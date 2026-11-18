@@ -1459,8 +1459,6 @@ Claude wrote the DTOs, the ItinerariesService, the controller, the itinerary det
 ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. Deleting an itinerary removes
 its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
 verify and tried every endpoint in Swagger.
-=========================================================================================
-
 ================================================
 
 ================================================
@@ -1502,17 +1500,37 @@ Apply the last nit from Ahmed's re-review of PR #75 (raised by Sarah): extend th
 in the traceability matrix to say images come through BLG-10 (GEN-08).
 How the output was used:
 Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
-=======
-Date: 2026-11-16
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: HTL-01 (TRVL-47), ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-21, HTL-22, HTL-23, HTL-24, GEN-03, GEN-09, GEN-10
+Prompt:
+Audit Jira against the workbook, the develop branch and every PR, then fix the mismatches and reassign Karim's
+stories to Joudy, Abdelrahman and me.
+How the output was used:
+Claude compared all 179 Jira issues with the traceability matrix, the controllers and the PR history. I used its
+findings to move HTL-01 to Done (GEN-08 landed in #66), correct the owners of twelve rows, drop closed PR #56 from
+HTL-09 and replace the stale "Karim" ownership notes in the architecture docs. The Jira changes were made in Jira
+itself; this PR only brings the repo docs in line. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
 Student: Sandra George
 Tool: Claude Code (Claude Opus 5.5)
-Related Requirement: HTL-11 (TRVL-56)
+Related Requirement: HTL-11 (TRVL-56), HTL-06 (TRVL-52)
 Prompt:
 Implement HTL-11: public GET /api/hotels/search by city or country, check-in, check-out, guests and rooms
-(default 1), listing active hotels with that many rooms free for the whole stay whose combined occupancy
-covers the guests; check-out after check-in, check-in not in the past. Also provide HOTELS_SEARCH (ITN-25).
+(default 1), listing active hotels with that many rooms free for the whole stay that together hold the guests;
+check-out after check-in, check-in not in the past. Also provide HOTELS_SEARCH (ITN-25) with the same rules.
+Then rebuild the branch on the latest develop and prove that rooms deactivated or blocked through HTL-06 leave
+the search.
 How the output was used:
-Claude added HotelSearchService (batched free-room and visible-rating queries shared with HTL-02, the
-largest-rooms fit rule, cheapest first, GEN-05 pages), the query DTO, the route before GET :id, the
-HOTELS_SEARCH provider, V&V list entries and unit and e2e tests. I agreed the design before it was written.
+Claude added HotelSearchService (batched free-room and visible-rating queries shared with HTL-02, an exact
+cheapest-set-of-rooms price, cheapest first, GEN-05 pages), the query DTO, the route before GET :id, the
+HOTELS_SEARCH provider, V&V list entries and unit and e2e tests, including the HTL-06 exclusion test. I agreed
+the design before it was written, reviewed the diff and checked every case in Swagger.
 ================================================
