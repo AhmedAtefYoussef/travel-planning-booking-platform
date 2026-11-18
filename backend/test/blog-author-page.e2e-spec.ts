@@ -78,4 +78,60 @@ describe('Blog author page (e2e): BLG-12', () => {
       .expect(404);
     await http().get('/api/authors/not-an-id').expect(400);
   });
+
+  it("BLG-12 lists the author's public itineraries only (ITN-20, GEN-10)", async () => {
+    const writer = await loginAs(ctx.app, Role.User);
+    const owner = new Types.ObjectId(writer.userId);
+    const itinerary = (
+      title: string,
+      visibility: string,
+      isHidden = false,
+    ) => ({
+      ownerId: owner,
+      title,
+      countries: ['EG'],
+      startDate: '2027-03-01',
+      visibility,
+      isHidden,
+      days: [
+        { _id: new Types.ObjectId(), order: 1, cityId: 'cairo', notes: '' },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await ctx.connection
+      .collection('itineraries')
+      .insertMany([
+        itinerary('Public trip', 'PUBLIC'),
+        itinerary('Private trip', 'PRIVATE'),
+        itinerary('Hidden trip', 'PUBLIC', true),
+      ]);
+    const res = await http().get(`/api/authors/${writer.userId}`).expect(200);
+    expect(res.body.itineraries).toMatchObject({
+      total: 1,
+      page: 1,
+      limit: 10,
+    });
+    expect(res.body.itineraries.items[0]).toMatchObject({
+      title: 'Public trip',
+      countries: ['EG'],
+      startDate: '2027-03-01',
+      days: 1,
+    });
+    await http()
+      .get(`/api/authors/${writer.userId}?itinerariesPage=0`)
+      .expect(400);
+  });
+
+  it("ACC-12 a deactivated author's page is 404", async () => {
+    const leaver = await loginAs(ctx.app, Role.User);
+    await publish(leaver, 'Gone soon');
+    await ctx.connection
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(leaver.userId) },
+        { $set: { status: 'DEACTIVATED' } },
+      );
+    await http().get(`/api/authors/${leaver.userId}`).expect(404);
+  });
 });

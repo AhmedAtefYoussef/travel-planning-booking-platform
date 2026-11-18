@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
 import { ItinerariesController } from './itineraries.controller';
 import { ItinerariesService } from './itineraries.service';
+import { PublicItinerariesProvider } from './public-itineraries.provider';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
 import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
 
@@ -17,7 +19,11 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
     ]),
   ],
   controllers: [ItinerariesController],
-  providers: [ItinerariesService],
-  exports: [MongooseModule],
+  providers: [
+    ItinerariesService,
+    PublicItinerariesProvider,
+    { provide: PUBLIC_ITINERARIES, useExisting: PublicItinerariesProvider },
+  ],
+  exports: [MongooseModule, PUBLIC_ITINERARIES],
 })
 export class ItinerariesModule {}

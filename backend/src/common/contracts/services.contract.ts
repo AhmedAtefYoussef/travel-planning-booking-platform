@@ -598,3 +598,28 @@ export interface ItineraryBudgets {
     dayIdMap: ReadonlyMap<string, string>,
   ): Promise<void>;
 }
+
+/* ----------------------------------------------------------------------------------------------
+ * Public itineraries of an author (BLG-12, itineraries -> blog). The itineraries module provides it
+ * under PUBLIC_ITINERARIES: only PUBLIC itineraries that an admin has not hidden (ITN-20, GEN-10), newest
+ * update first, PAGE_SIZE per page (GEN-05). The blog never reads the itineraries collection itself.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface PublicItinerarySummary {
+  id: string;
+  title: string;
+  /** ISO 3166-1 alpha-2 codes. */
+  countries: string[];
+  /** Calendar date YYYY-MM-DD. */
+  startDate: string;
+  /** Number of days. */
+  days: number;
+}
+
+export interface PublicItineraries {
+  /** One page of the author's public itineraries and how many there are in all. */
+  ofAuthor(
+    authorId: string,
+    page: number,
+  ): Promise<{ items: PublicItinerarySummary[]; total: number }>;
+}

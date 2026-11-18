@@ -1,7 +1,9 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
+import type { PublicItineraries } from '../../common/contracts/services.contract';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
@@ -10,7 +12,7 @@ import {
   skipFor,
   toPage,
 } from '../../common/pagination/pagination';
-import { UsersService } from '../users';
+import { AccountStatus, UsersService } from '../users';
 import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type { AuthorPageDto } from './dto/author.dto';
 import type {
@@ -46,6 +48,9 @@ export class PostsService {
   constructor(
     @InjectModel(Post.name) private readonly posts: Model<Post>,
     private readonly users: UsersService,
+    @Optional()
+    @Inject(PUBLIC_ITINERARIES)
+    private readonly itineraries?: PublicItineraries,
   ) {}
 
   /** BLG-01: a draft by default; publishing stamps publishedAt. */
@@ -63,25 +68,40 @@ export class PostsService {
   }
 
   /** BLG-12: public author page with the author's published posts, newest first. */
-  async authorPage(authorId: string, page: number): Promise<AuthorPageDto> {
+  async authorPage(
+    authorId: string,
+    page: number,
+    itinerariesPage = 1,
+  ): Promise<AuthorPageDto> {
     const author = await this.users.findProfile(authorId);
-    if (!author) {
+    // ACC-12: a deactivated user's posts and public itineraries are hidden, so their page is too.
+    if (!author || author.status === AccountStatus.Deactivated) {
       throw new AppException(
         HttpStatus.NOT_FOUND,
         ErrorCode.NOT_FOUND,
         'Author not found',
       );
     }
-    const posts = await this.page(
-      { ...PUBLIC_POST_FILTER, authorId: new Types.ObjectId(author.id) },
-      page,
-      { publishedAt: -1 },
-    );
+    const [posts, itineraries] = await Promise.all([
+      this.page(
+        { ...PUBLIC_POST_FILTER, authorId: new Types.ObjectId(author.id) },
+        page,
+        { publishedAt: -1 },
+      ),
+      this.itineraries
+        ? this.itineraries.ofAuthor(author.id, itinerariesPage)
+        : Promise.resolve({ items: [], total: 0 }),
+    ]);
     return {
       id: author.id,
       name: author.name,
       joinedAt: new Date(author.createdAt),
       posts,
+      itineraries: toPage(
+        itineraries.items,
+        itineraries.total,
+        itinerariesPage,
+      ),
     };
   }
 

@@ -7,10 +7,9 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Public } from '../../common/auth/auth.decorators';
-import { PaginationQueryDto } from '../../common/pagination/pagination';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
-import { AuthorPageDto } from './dto/author.dto';
+import { AuthorPageDto, AuthorPageQueryDto } from './dto/author.dto';
 import { PostsService } from './posts.service';
 
 const PAGE_QUERY = {
@@ -34,7 +33,7 @@ export class AuthorsController {
   @ApiOperation({
     summary: 'BLG-12 View a public author page',
     description:
-      'The author’s name, join date and published posts (newest first, 10 per page; page selects the posts page). An unknown author id is 404.',
+      'The author’s name, join date, published posts (newest first; `page`) and public itineraries (ITN-20, newest update first; `itinerariesPage`), 10 per page each. An unknown or deactivated author (ACC-12) is 404.',
   })
   @ApiParam({
     name: 'id',
@@ -49,8 +48,8 @@ export class AuthorsController {
   @ApiErrorResponses(400, 404)
   get(
     @Param('id', ParseObjectIdPipe) id: string,
-    @Query() query: PaginationQueryDto,
+    @Query() query: AuthorPageQueryDto,
   ): Promise<AuthorPageDto> {
-    return this.posts.authorPage(id, query.page);
+    return this.posts.authorPage(id, query.page, query.itinerariesPage);
   }
 }
