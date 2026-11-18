@@ -17,6 +17,8 @@ import { FlightCancellationsService } from './flight-cancellations.service';
 import { BookingLifecycleService } from './booking-lifecycle.service';
 import { BookingPoliciesController } from './booking-policies.controller';
 import { BookingPoliciesService } from './booking-policies.service';
+import { ReservationReviewsController } from './reservation-reviews.controller';
+import { ReservationReviewsService } from './reservation-reviews.service';
 import { BookingQueriesService } from './booking-queries.service';
 import { HotelBookingsController } from './hotel-bookings.controller';
 import { HotelBookingsService } from './hotel-bookings.service';
@@ -65,6 +67,7 @@ import {
     AirlineFlightBookingsController,
     HotelReservationsController,
     HotelBookingsController,
+    ReservationReviewsController,
     BookingPoliciesController,
     MyFlightBookingsController,
     MyHotelReservationsController,
@@ -77,6 +80,7 @@ import {
     { provide: FLIGHT_PAYABLE_BOOKING, useExisting: FlightBookingsService },
     HotelBookingsService,
     { provide: HOTEL_PAYABLE_BOOKING, useExisting: HotelBookingsService },
+    ReservationReviewsService,
     BookingPoliciesService,
     BookingQueriesService,
     MyBookingsService,
