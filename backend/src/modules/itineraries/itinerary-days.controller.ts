@@ -5,11 +5,13 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
+import { ErrorResponseDto } from '../../common/errors/error-response.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import { AddDayDto, UpdateDayDto } from './dto/day.dto';
@@ -49,7 +51,21 @@ export class ItineraryDaysController {
     },
   })
   @ApiCreatedResponse({ type: ItineraryDto })
-  @ApiErrorResponses(400, 404, 409)
+  @ApiErrorResponses(400, 404)
+  @ApiResponse({
+    status: 409,
+    type: ErrorResponseDto,
+    description:
+      'The itinerary already has 60 days (ITINERARY_DAY_LIMIT), or it kept changing at the same moment (CONFLICT)',
+    example: {
+      statusCode: 409,
+      error: 'Conflict',
+      code: 'ITINERARY_DAY_LIMIT',
+      message: 'An itinerary has at most 60 days',
+      path: '/api/itineraries/6720c0a9e4b0a1b2c3d4e5f6/days',
+      timestamp: '2026-11-18T10:15:30.000Z',
+    },
+  })
   addDay(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,
