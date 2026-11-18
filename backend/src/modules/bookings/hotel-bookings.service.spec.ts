@@ -2,6 +2,8 @@ import { Types } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
 import {
   BookingStatus,
+  computeRefundQuote,
+  RefundReason,
   type BookableStay,
   type HotelInventory,
 } from '../../common/contracts';
@@ -95,17 +97,24 @@ function setup(
     notify: jest.fn().mockResolvedValue(undefined),
     notifyMany: jest.fn(),
   };
+  const refunds = {
+    // The real pure calculation, so tests see the tier the service asked for.
+    quote: jest.fn(computeRefundQuote),
+    refundFor: jest.fn().mockResolvedValue(null),
+    summaryFor: jest.fn().mockResolvedValue(null),
+  };
   const service = new HotelBookingsService(
     model as never,
     guards as never,
     connection as never,
     inventory,
     config as never,
-    { summaryFor: jest.fn().mockResolvedValue(null) } as never,
+    refunds,
     notifications,
   );
   return {
     service,
+    refunds,
     inventory,
     model,
     session,
@@ -473,5 +482,258 @@ describe('HotelBookingsService payable contract (PAY-01, HTL-17)', () => {
         reason: 'x',
       }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('HotelBookingsService cancellation and refund quote: HTL-21', () => {
+  const ownerId = user.id;
+  const CHECK_IN = new Date('2027-12-09T22:00:00Z'); // 2027-12-10 00:00 in Cairo (UTC+2)
+  const TIERS = [
+    { daysBefore: 7, refundPercent: 50 },
+    { daysBefore: 60, refundPercent: 100 },
+  ];
+  /** A confirmed, paid reservation; NOW is 38 days before check-in. */
+  const paid = (over: object = {}) => {
+    const _id = new Types.ObjectId();
+    return {
+      _id,
+      id: _id.toHexString(),
+      userId: new Types.ObjectId(ownerId),
+      status: BookingStatus.Confirmed,
+      hotelName: 'Nile View',
+      reference: 'HT-AB12CD34',
+      checkIn: '2027-12-10',
+      checkOut: '2027-12-13',
+      nights: 3,
+      timeZone: 'Africa/Cairo',
+      hotelId: new Types.ObjectId(),
+      rooms: [
+        {
+          roomId: new Types.ObjectId(),
+          roomNumber: '101',
+          adults: 2,
+          childrenAges: [],
+          nightlyPriceMinor: 33_333,
+          subtotalMinor: 100_000,
+        },
+      ],
+      totalMinor: 100_000,
+      currency: 'EGP',
+      startsAt: CHECK_IN,
+      paymentId: new Types.ObjectId(),
+      policySnapshot: {
+        version: 'v1',
+        hotel: {
+          hotelId: oid(),
+          hotelName: 'Nile View',
+          cancellationTiers: TIERS,
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
+        },
+      },
+      createdAt: NOW,
+      ...over,
+    };
+  };
+  const reads = (doc: unknown) =>
+    jest.fn().mockReturnValue({
+      exec: () => Promise.resolve(doc),
+      lean: () => ({ exec: () => Promise.resolve(doc) }),
+    });
+
+  it('HTL-21 quotes the full total from the accepted snapshot tiers and check-in, never the hotel current policy', async () => {
+    const { service, model, refunds, inventory } = setup();
+    const doc = paid();
+    model.findById = reads(doc);
+    await expect(service.refundQuote(user, doc.id, NOW)).resolves.toEqual({
+      amountMinor: 50_000,
+      currency: 'EGP',
+      refundPercent: 50,
+      tierApplied: { daysBefore: 7, refundPercent: 50 },
+      daysBefore: 38,
+    });
+    expect(refunds.quote).toHaveBeenCalledWith({
+      paidMinor: 100_000,
+      currency: 'EGP',
+      eventStartUtc: CHECK_IN,
+      tiers: TIERS,
+      reason: RefundReason.UserCancellation,
+      now: NOW,
+    });
+    expect(inventory.getHotelPolicy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['100%', [{ daysBefore: 30, refundPercent: 100 }], 100_000, 100],
+    ['50%', TIERS, 50_000, 50],
+    ['0%', [{ daysBefore: 0, refundPercent: 0 }], 0, 0],
+    ['no tiers (0%)', [], 0, 0],
+  ])(
+    'HTL-21 refund tier %s applies on the whole total',
+    async (_name, tiers, amountMinor, refundPercent) => {
+      const { service, model } = setup();
+      const doc = paid();
+      doc.policySnapshot.hotel.cancellationTiers = tiers;
+      model.findById = reads(doc);
+      await expect(
+        service.refundQuote(user, doc.id, NOW),
+      ).resolves.toMatchObject({ amountMinor, refundPercent });
+    },
+  );
+
+  it('HTL-21 answers 404 for an unknown id and for a stranger alike (ACC-11)', async () => {
+    const { service, model } = setup();
+    const doc = paid({ userId: new Types.ObjectId() });
+    model.findById = reads(doc);
+    const stranger = await failure(service.refundQuote(user, doc.id, NOW));
+    model.findById = reads(null);
+    const unknown = await failure(service.refundQuote(user, oid(), NOW));
+    expect(stranger).toMatchObject({ status: 404, code: 'NOT_FOUND' });
+    expect(stranger.message).toBe(unknown.message);
+    model.findById = reads(doc);
+    expect(await failure(service.cancel(user, doc.id, NOW))).toMatchObject({
+      status: 404,
+    });
+  });
+
+  it.each([
+    BookingStatus.PendingPayment,
+    BookingStatus.Expired,
+    BookingStatus.Cancelled,
+    BookingStatus.Completed,
+  ])('HTL-21 a %s reservation is 409 BOOKING_NOT_CONFIRMED', async (status) => {
+    const { service, model, refunds } = setup();
+    const doc = paid({ status });
+    model.findById = reads(doc);
+    for (const call of [
+      () => service.refundQuote(user, doc.id, NOW),
+      () => service.cancel(user, doc.id, NOW),
+    ]) {
+      expect(await failure(call())).toMatchObject({
+        status: 409,
+        code: 'BOOKING_NOT_CONFIRMED',
+      });
+    }
+    expect(refunds.refundFor).not.toHaveBeenCalled();
+  });
+
+  it('HTL-21 at or after the check-in instant it is 409 CANCELLATION_WINDOW_CLOSED; one millisecond before is allowed', async () => {
+    const { service, model } = setup();
+    model.findById = reads(paid());
+    expect(
+      await failure(service.refundQuote(user, oid(), CHECK_IN)),
+    ).toMatchObject({ status: 409, code: 'CANCELLATION_WINDOW_CLOSED' });
+    await expect(
+      service.refundQuote(user, oid(), new Date(CHECK_IN.getTime() - 1)),
+    ).resolves.toMatchObject({ refundPercent: 0 });
+  });
+
+  it('HTL-21 cancel moves CONFIRMED -> CANCELLED, releases the BOOKED nights, refunds and notifies in one transaction', async () => {
+    const { service, model, inventory, refunds, notifications, session } =
+      setup(stay(), { moved: [1, 1] });
+    const doc = paid();
+    model.findById = reads(doc);
+    const refundId = oid();
+    refunds.refundFor.mockResolvedValue({
+      refundId,
+      status: 'PENDING',
+      amountMinor: 50_000,
+    });
+    await service.cancel(user, doc.id, NOW);
+
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(model.updateOne).toHaveBeenNthCalledWith(
+      1,
+      { startsAt: { $gt: NOW }, _id: doc.id, status: BookingStatus.Confirmed },
+      {
+        $set: {
+          cancelledAt: NOW,
+          cancelledBy: 'USER',
+          status: BookingStatus.Cancelled,
+        },
+      },
+      { session },
+    );
+    expect(inventory.releaseNights).toHaveBeenCalledWith(
+      doc.id,
+      session,
+      'BOOKED',
+    );
+    expect(refunds.refundFor).toHaveBeenCalledWith(
+      {
+        bookingType: 'HOTEL',
+        bookingId: doc.id,
+        userId: ownerId,
+        paymentId: doc.paymentId.toHexString(),
+        quote: expect.objectContaining({ refundPercent: 50 }) as unknown,
+        reason: RefundReason.UserCancellation,
+      },
+      session,
+    );
+    expect(model.updateOne).toHaveBeenNthCalledWith(
+      2,
+      { _id: doc.id },
+      { $set: { refundId: new Types.ObjectId(refundId) } },
+      { session },
+    );
+    expect(notifications.notify).toHaveBeenCalledWith(
+      {
+        userId: ownerId,
+        type: 'BOOKING_CANCELLED',
+        title: 'Hotel reservation HT-AB12CD34 cancelled',
+        body: 'Nile View, Dec 10, 2027 to Dec 13, 2027, is cancelled and its rooms are released. Refund: 500.00 EGP (50%).',
+        link: `/bookings/hotels/${doc.id}`,
+      },
+      session,
+    );
+  });
+
+  it('HTL-21 a 0% cancellation records no refund and says so in the notice', async () => {
+    const { service, model, refunds, notifications } = setup(stay(), {
+      moved: [1],
+    });
+    const doc = paid();
+    doc.policySnapshot.hotel.cancellationTiers = [];
+    model.findById = reads(doc);
+    await expect(service.cancel(user, doc.id, NOW)).resolves.toMatchObject({
+      id: doc.id,
+      refund: null,
+    });
+    expect(refunds.refundFor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        quote: expect.objectContaining({ amountMinor: 0 }) as unknown,
+      }),
+      expect.anything(),
+    );
+    expect(model.updateOne).toHaveBeenCalledTimes(1);
+    expect(notifications.notify.mock.calls[0][0]).toMatchObject({
+      body: expect.stringContaining('No refund applies') as unknown,
+    });
+  });
+
+  it('HTL-21 a concurrent cancel that loses the transition is 409 and releases, refunds and notifies nothing', async () => {
+    const { service, model, inventory, refunds, notifications } = setup(
+      stay(),
+      { moved: [0] },
+    );
+    model.findById = reads(paid());
+    expect(await failure(service.cancel(user, oid(), NOW))).toMatchObject({
+      status: 409,
+      code: 'BOOKING_NOT_CONFIRMED',
+    });
+    expect(inventory.releaseNights).not.toHaveBeenCalled();
+    expect(refunds.refundFor).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+
+  it('HTL-21 a Confirmed reservation without a policy snapshot is a defect (500), never a silent 0% refund', async () => {
+    const { service, model, refunds } = setup(stay(), { moved: [1] });
+    model.findById = reads(paid({ policySnapshot: null }));
+    const e = await failure(service.cancel(user, oid(), NOW));
+    expect(e.status).toBeUndefined();
+    expect((e as unknown as Error).message).toContain(
+      'has no accepted policy snapshot',
+    );
+    expect(refunds.refundFor).not.toHaveBeenCalled();
   });
 });

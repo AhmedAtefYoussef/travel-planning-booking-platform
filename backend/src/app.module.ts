@@ -7,12 +7,14 @@ import { AuditModule } from './modules/audit';
 import { AuthModule } from './modules/auth';
 import { BlogModule } from './modules/blog';
 import { BookingsModule } from './modules/bookings';
+import { BudgetsModule } from './modules/budgets';
 import { CurrencyModule } from './modules/currency';
 import { DiagnosticsModule, diagnosticsEnabled } from './modules/diagnostics';
 import { FlightsModule } from './modules/flights';
 import { HealthModule } from './modules/health';
 import { HotelsModule } from './modules/hotels';
 import { ItinerariesModule } from './modules/itineraries';
+import { ModerationModule } from './modules/moderation';
 import { NotificationsModule } from './modules/notifications';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
@@ -43,6 +45,8 @@ import { UsersModule } from './modules/users';
     ItinerariesModule,
     AdminModule,
     BlogModule,
+    BudgetsModule,
+    ModerationModule,
     // Dev-only Swagger demos; evaluated after AppConfigModule has loaded .env into process.env.
     ...(diagnosticsEnabled(process.env.NODE_ENV) ? [DiagnosticsModule] : []),
   ],

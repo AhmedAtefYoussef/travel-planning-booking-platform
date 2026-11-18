@@ -5,8 +5,8 @@ Airline moderator, then Hotel moderator, then Traveller. Each step is one call: 
 that works, and the status to expect. Error cases at the end of each part show the shared error envelope
 (`docs/api/conventions.md`).
 
-The script lists only what is merged on `develop`. Steps for stories that are still open (booking cancellations
-FLT-26/HTL-21, reports and moderation GEN-09/10, blog and itineraries) are added here when they merge; their status is in `docs/requirements/traceability.md`.
+The script lists only what is merged on `develop`. Steps for stories that are still open (moderation GEN-10,
+blog and itineraries) are added here when they merge; hotel cancellation (HTL-21) is in Part 6 and reports (GEN-09) in Part 7; their status is in `docs/requirements/traceability.md`.
 
 ## 0. Before you start
 
@@ -159,7 +159,44 @@ watch the session end, and log in as the admin in the main window. `{travellerId
 Error cases: `PATCH /api/admin/providers/train/{id}/deactivate` gives 400 on `type`; any of these calls as a traveller
 or a moderator gives 403.
 
-## 6. Not part of the script
+## 6. Cancel a hotel reservation (HTL-21)
+
+Run this after Part 4, logged in as the traveller. It needs a Confirmed hotel reservation: pay the hold from Part 4
+step 8 the same way as the flight, with `GET /api/bookings/hotel/{reservationId}/policies`, then
+`POST /api/bookings/hotel/{reservationId}/accept-policies`, then `POST /api/payments` with
+`{"bookingType":"HOTEL","bookingId":"{reservationId}"}` and the Stripe confirm. The hold lasts 10 minutes, so pay it soon
+after step 8. Then `GET /api/hotel-bookings/{reservationId}` shows `CONFIRMED` with an `HT-` reference.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `GET /api/hotel-bookings/{reservationId}/refund-quote` | | 200, `amountMinor` (the whole total times the tier), `refundPercent` and `tierApplied` from the policy you accepted. With the demo tiers from Part 3 step 8 and check-in more than 7 days away, 100% of the total. Changes nothing: the reservation stays `CONFIRMED` and its nights stay booked (HTL-21) |
+| 2 | `POST /api/hotel-bookings/{reservationId}/cancel` | | 200, `status` `CANCELLED`, `refund` with `status` `PENDING` and the amount from step 1. The rooms are released, so another traveller can hold them (HTL-21) |
+| 3 | `POST /api/hotel-bookings/{reservationId}/cancel` again | | 409 `BOOKING_NOT_CONFIRMED`; the quote call now gives the same 409. Nothing is refunded or notified twice (GEN-11) |
+| 4 | `GET /api/notifications` | | 200, a `BOOKING_CANCELLED` notice titled `Hotel reservation HT-... cancelled` with the refund in its body (GEN-01) |
+
+Error cases: another traveller's id, or an unknown id, gets the same 404 `NOT_FOUND` on both calls (ACC-11). A
+reservation whose check-in day has begun gives 409 `CANCELLATION_WINDOW_CLOSED` on both calls. The demo check-in dates
+are in the future, so that case cannot be reached in this walkthrough; the e2e test `test/hotel-cancellation.e2e-spec.ts` covers it.
+
+## 7. Reports (GEN-09)
+
+Run this after Part 4, as a traveller who is ACTIVE (Part 5 suspends and then reactivates the traveller). Step 1 creates a
+public itinerary; step 2 switches to a second traveller, because you can report your own content but the demo reads better
+with someone else's. Reports are filed once per user and item. Posts and itineraries can be reported; comments and reviews
+answer 404 until their modules are merged. Hiding a reported item waits for GEN-10.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `POST /api/itineraries` (as the first traveller) | `{"title":"Ten days in Egypt","countries":["EG"],"startDate":"2028-03-01","visibility":"PUBLIC"}` | 201, keep `id` as `{itineraryId}` (ITN-01) |
+| 2 | `POST /api/auth/logout`, then `POST /api/auth/register` | `{"name":"Omar Said","email":"omar@example.com","password":"Travel2026","acceptTerms":true}` | 201 (a repeat gives 409 `EMAIL_ALREADY_REGISTERED`); log in as `omar@example.com` |
+| 3 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"{itineraryId}","reason":"Spam: the same advert is posted on every itinerary"}` | 201, `status` `OPEN`, `targetId` as sent (GEN-09) |
+| 4 | `POST /api/reports` (same body) | | 409 `REPORT_ALREADY_FILED`; a different traveller may still report the same item |
+| 5 | `POST /api/reports` | `{"targetType":"POST","targetId":"{postId}","reason":"Offensive language"}` | 201 for `{postId}`, a PUBLISHED post of another user (create one with `POST /api/posts` `{"title":"Three days in Cairo","body":"Museums and markets","status":"PUBLISHED"}` as that user); a draft of another user gives 404 (GEN-09) |
+| 6 | `POST /api/reports` | `{"targetType":"HOTEL","targetId":"123","reason":"   "}` | 400 `VALIDATION_FAILED`; `fieldErrors` name `targetType`, `targetId` and `reason` |
+| 7 | `POST /api/reports` (as `ADMIN_SEED_EMAIL`, Part 1) | `{"targetType":"ITINERARY","targetId":"{itineraryId}","reason":"Spam"}` | 403: only registered travellers report |
+| 8 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"<unknown 24-character id>","reason":"Spam"}` | 404 `NOT_FOUND`, with the same message as for a private itinerary of someone else; `COMMENT` and `REVIEW` targets also give 404 for now |
+
+## 8. Not part of the script
 
 `GET /api/health` is the liveness check. The `Diagnostics (dev only)` Swagger tag (`/api/diagnostics/*`) exists
 only outside production, to exercise the shared validation, pagination and error rules; it is not a feature.

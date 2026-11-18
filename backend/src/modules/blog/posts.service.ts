@@ -9,6 +9,7 @@ import {
 } from '../../common/contracts/tokens';
 import type {
   PublicItineraries,
+  UploadedFileLike,
   UploadsService,
 } from '../../common/contracts/services.contract';
 import {
@@ -35,10 +36,18 @@ import type {
 import type { AuthorPageDto } from './dto/author.dto';
 import { Comment } from './schemas/comment.schema';
 import { Like } from './schemas/like.schema';
-import { MAX_TAG_LENGTH, Post, PostStatus } from './schemas/post.schema';
+import {
+  MAX_POST_IMAGES,
+  MAX_TAG_LENGTH,
+  Post,
+  PostDocument,
+  PostStatus,
+} from './schemas/post.schema';
 
 /** A post image this backend stored (GEN-08); group 2 is its image id. */
 const POST_UPLOAD_URL = localUploadUrlPattern(['posts']);
+const IMAGE_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 type PostLike = Pick<
   Post,
@@ -58,7 +67,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-12: the public author page shows the author's name, join date and published posts.
+ * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-12: the public author page shows the author's name, join date and published posts.
  */
 @Injectable()
 export class PostsService {
@@ -145,6 +154,87 @@ export class PostsService {
     return this.page({ ...PUBLIC_POST_FILTER, tags: clean }, page, {
       publishedAt: -1,
     });
+  }
+
+  /** BLG-10 / GEN-08: the author uploads 1-5 images; a post holds at most 5 in all. */
+  async addImages(
+    user: AuthUser,
+    id: string,
+    files: UploadedFileLike[],
+  ): Promise<PostDto> {
+    const post = await this.loadOwn(user, id);
+    const stored = await this.uploads.saveImages(files, {
+      entityType: 'POST',
+      entityId: id,
+      existingCount: post.images.length,
+    });
+    const urls = stored.map((image) => image.url);
+    let updated: PostDocument | null;
+    try {
+      updated = await this.posts
+        .findOneAndUpdate(
+          {
+            _id: id,
+            authorId: post.authorId,
+            $expr: {
+              $lte: [{ $size: '$images' }, MAX_POST_IMAGES - urls.length],
+            },
+          },
+          { $push: { images: { $each: urls } } },
+          { new: true },
+        )
+        .exec();
+    } catch (err) {
+      await this.discard(urls);
+      throw err;
+    }
+    if (updated) return this.toPost(updated);
+    await this.discard(urls);
+    await this.loadOwn(user, id); // 404 if the post was deleted meanwhile
+    throw new ValidationFailedException([
+      {
+        field: 'images',
+        message: `A post can have at most ${MAX_POST_IMAGES} images, and other images were added at the same time. Reload and try again`,
+      },
+    ]);
+  }
+
+  /** BLG-10: the author removes one uploaded image; its file is deleted unless another post uses it. */
+  async removeImage(
+    user: AuthUser,
+    id: string,
+    imageId: string,
+  ): Promise<PostDto> {
+    if (!IMAGE_ID.test(imageId)) {
+      throw new ValidationFailedException([
+        {
+          field: 'imageId',
+          message: 'imageId must be the id returned by the upload (a UUID)',
+        },
+      ]);
+    }
+    const post = await this.loadOwn(user, id);
+    const url = post.images.find(
+      (image) => POST_UPLOAD_URL.exec(image)?.[2] === imageId,
+    );
+    const updated = url
+      ? await this.posts
+          .findOneAndUpdate(
+            { _id: id, authorId: post.authorId, images: url },
+            { $pull: { images: url } },
+            { new: true },
+          )
+          .exec()
+      : null;
+    if (!url || !updated) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Image not found',
+      );
+    }
+    await this.discardUnused([url]);
+    return this.toPost(updated);
   }
 
   /** BLG-12: public author page with the author's published posts, newest first. */
@@ -292,6 +382,10 @@ export class PostsService {
       const stillUsed = await this.posts.exists({ images: url }).exec();
       if (!stillUsed) await this.uploads.deleteImage(url);
     }
+  }
+
+  private async discard(urls: string[]): Promise<void> {
+    for (const url of urls) await this.uploads.deleteImage(url);
   }
 }
 

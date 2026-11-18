@@ -5,6 +5,7 @@ import { ItinerariesController } from './itineraries.controller';
 import { ItineraryDaysController } from './itinerary-days.controller';
 import { ItineraryDaysService } from './itinerary-days.service';
 import { ItinerariesService } from './itineraries.service';
+import { ItineraryModerationAdapter } from './itinerary-moderation.adapter';
 import { PublicItinerariesProvider } from './public-itineraries.provider';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
 import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
@@ -25,6 +26,7 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
   providers: [
     ItinerariesService,
     ItineraryDaysService,
+    ItineraryModerationAdapter,
     PublicItinerariesProvider,
     { provide: PUBLIC_ITINERARIES, useExisting: PublicItinerariesProvider },
   ],

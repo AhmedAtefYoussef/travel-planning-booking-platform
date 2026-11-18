@@ -4,6 +4,7 @@ import { ItinerariesModule } from '../itineraries';
 import { AuthorsController } from './authors.controller';
 import { LikesService } from './likes.service';
 import { PostsController } from './posts.controller';
+import { PostModerationAdapter } from './post-moderation.adapter';
 import { PostsService } from './posts.service';
 import { TagsController } from './tags.controller';
 import { Comment, CommentSchema } from './schemas/comment.schema';
@@ -26,6 +27,6 @@ import { Post, PostSchema } from './schemas/post.schema';
     ItinerariesModule,
   ],
   controllers: [PostsController, TagsController, AuthorsController],
-  providers: [PostsService, LikesService],
+  providers: [PostsService, LikesService, PostModerationAdapter],
 })
 export class BlogModule {}
