@@ -1377,6 +1377,59 @@ part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live S
 ================================================
 
 ================================================
+Date: 2026-11-17
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-05 (TRVL-32) closing test, with GEN-01
+Prompt:
+FLT-05 stays In Progress until a test shows the time-change notification reaching a Confirmed passenger. Add an e2e
+test with the real bookings, payments and notifications modules (only Stripe faked): passengers book through hold,
+accept-policies, pay and the Stripe webhook (one Confirmed, one left Pending, one paid then cancelled), the moderator
+changes the times, and each inbox is read through GET /api/notifications. After Sarah's review: also prove that a
+same-value time edit, a price-only and a seat-only edit notify nobody, that the paid fare survives a price change
+while a new booking gets the new fare, and remove the duplicated stand-in notification check from flight-edit.
+How the output was used:
+Claude wrote the test following the existing flight-cancellation suite's payment flow; I checked each case against
+the FLT-05 rules and that the fare assertion can now fail.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01
+Prompt:
+Read the project brief, my Jira tasks for the Blog & Community epic and the team conventions, then
+design the posts, comments and likes schemas and implement POST /api/posts (create a post as draft or
+published) with Swagger docs and e2e tests. Ahmed asked for one pull request per feature, so this PR
+holds only the schemas and BLG-01; the other blog features follow in their own PRs.
+How the output was used:
+Claude designed the schemas (unique {postId, userId} like index, likeCount, commentCount and an
+interactionScore for BLG-09), the create DTO with tag normalisation (lowercase, no repeats, at most 5 of
+30 characters) and the service and controller, following the hotels module patterns. It also ran the
+endpoint in Swagger UI and captured screenshots on docs/blog-swagger-evidence. I reviewed the diff and
+ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01
+Prompt:
+Apply Ahmed's review of PR #75: rebase onto develop, mark BLG-01 Partial, stop the ERD over-claiming,
+drop the unrelated reports row change, keep Swagger text to routes that exist, stop images bypassing
+GEN-08, read author names through the users module instead of the raw User model, tidy the indexes,
+and add a unit test for PostsService.create.
+How the output was used:
+Claude rebased the branch (develop's AI_PROMPTS.txt entries kept, mine last), removed images from the
+create body (they are uploaded under GEN-08 by BLG-10), switched author names to UsersService.findProfile,
+dropped the User model registration and the module's exports, removed the single isHidden indexes, added
+isHidden to the tag and search indexes, added a unit test for draft/published stamping and an e2e test
+that checks the indexes exist. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
 Date: 2026-11-16
 Student: Sandra George
 Tool: Claude Code (Claude Opus 5.5)
