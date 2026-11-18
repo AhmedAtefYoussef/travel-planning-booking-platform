@@ -193,6 +193,36 @@ export class ItineraryDayDto {
   activities!: ActivityDto[];
 }
 
+export class CityGroupDto {
+  @ApiProperty({ example: 'cairo' })
+  cityId!: string;
+
+  @ApiProperty({ example: 'Cairo', nullable: true, type: String })
+  cityName!: string | null;
+
+  @ApiProperty({ example: 1, description: 'Number of the first day' })
+  fromDay!: number;
+
+  @ApiProperty({ example: 3, description: 'Number of the last day' })
+  toDay!: number;
+
+  @ApiProperty({ example: '2027-03-01' })
+  startDate!: string;
+
+  @ApiProperty({ example: '2027-03-03' })
+  endDate!: string;
+
+  @ApiProperty({ example: 3 })
+  dayCount!: number;
+
+  @ApiProperty({
+    type: [MoneyAmountDto],
+    description:
+      'Budget subtotal of the group, one amount per currency (not converted): activity costs (ITN-10) plus budget entries and transport costs (ITN-14, ITN-16)',
+  })
+  subtotals!: MoneyAmountDto[];
+}
+
 export class CloneAttributionDto {
   @ApiProperty({ example: '6720c0a9e4b0a1b2c3d4e5f0' })
   itineraryId!: string;
@@ -262,6 +292,13 @@ export class ItineraryDto {
 
   @ApiProperty({ type: [ItineraryDayDto] })
   days!: ItineraryDayDto[];
+
+  @ApiProperty({
+    type: [CityGroupDto],
+    description:
+      'ITN-09: consecutive days in the same city form one group, in day order (a later return to a city starts a new group)',
+  })
+  cityGroups!: CityGroupDto[];
 
   @ApiProperty({ type: CloneAttributionDto, nullable: true })
   clonedFrom!: CloneAttributionDto | null;

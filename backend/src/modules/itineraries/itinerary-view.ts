@@ -1,12 +1,17 @@
 import { Types } from 'mongoose';
+import type { MoneyAmount } from '../../common/contracts/services.contract';
 import type {
   ActivityDto,
+  CityGroupDto,
   CloneAttributionDto,
   ItineraryDayDto,
   ItineraryDto,
   ItinerarySummaryDto,
 } from './dto/itinerary.dto';
-import { itineraryDayDate } from './itinerary-rules';
+import {
+  groupConsecutiveDaysByCity,
+  itineraryDayDate,
+} from './itinerary-rules';
 import type { Activity } from './schemas/activity.schema';
 import type {
   Itinerary,
@@ -26,6 +31,19 @@ export interface ItineraryViewContext {
   activities: readonly ActivityLike[];
   /** City names by city id (reference data); a city missing here is shown with a null name. */
   cityNames: ReadonlyMap<string, string>;
+  /** Budget entries and transport costs per day id (ITN-14, ITN-16), when the budgets port is there. */
+  dayBudgets?: ReadonlyMap<string, readonly MoneyAmount[]>;
+}
+
+/** Adds amounts into per-currency totals; the result is sorted by currency code. */
+export function sumByCurrency(amounts: Iterable<MoneyAmount>): MoneyAmount[] {
+  const totals = new Map<string, number>();
+  for (const { currency, amountMinor } of amounts) {
+    totals.set(currency, (totals.get(currency) ?? 0) + amountMinor);
+  }
+  return [...totals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([currency, amountMinor]) => ({ currency, amountMinor }));
 }
 
 const hex = (id: Types.ObjectId | string): string =>
@@ -105,6 +123,32 @@ export function toItineraryDto(
       activities: activitiesByDay.get(hex(day._id)) ?? [],
     }));
 
+  // ITN-09: a day's budget is its activity costs plus its budget entries and transport costs.
+  const dayAmounts = (day: ItineraryDayDto): MoneyAmount[] => [
+    ...day.activities.flatMap((a) =>
+      a.costMinor != null && a.currency
+        ? [{ currency: a.currency, amountMinor: a.costMinor }]
+        : [],
+    ),
+    ...(context.dayBudgets?.get(day.id) ?? []),
+  ];
+  const cityGroups: CityGroupDto[] = groupConsecutiveDaysByCity(
+    days.map((day) => ({ ...day, order: day.dayNumber })),
+  ).map((group) => {
+    const first = group.days[0];
+    const last = group.days[group.days.length - 1];
+    return {
+      cityId: group.cityId,
+      cityName: first.cityName,
+      fromDay: first.dayNumber,
+      toDay: last.dayNumber,
+      startDate: first.date,
+      endDate: last.date,
+      dayCount: group.days.length,
+      subtotals: sumByCurrency(group.days.flatMap(dayAmounts)),
+    };
+  });
+
   return {
     id: hex(itinerary._id),
     ownerId: hex(itinerary.ownerId),
@@ -115,6 +159,7 @@ export function toItineraryDto(
     visibility: itinerary.visibility,
     dayCount: days.length,
     days,
+    cityGroups,
     clonedFrom: toAttribution(itinerary.clonedFrom),
     createdAt: itinerary.createdAt,
     updatedAt: itinerary.updatedAt,

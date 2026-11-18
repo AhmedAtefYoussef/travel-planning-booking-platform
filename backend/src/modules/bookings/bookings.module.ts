@@ -9,6 +9,8 @@ import {
 } from '../../common/contracts';
 import { FlightsModule } from '../flights';
 import { HotelsModule } from '../hotels';
+import { AdminBookingsController } from './admin-bookings.controller';
+import { AdminBookingsService } from './admin-bookings.service';
 import { FlightBookingsController } from './flight-bookings.controller';
 import { FlightBookingsService } from './flight-bookings.service';
 import { FlightCancellationsService } from './flight-cancellations.service';
@@ -19,10 +21,20 @@ import { BookingQueriesService } from './booking-queries.service';
 import { HotelBookingsController } from './hotel-bookings.controller';
 import { HotelBookingsService } from './hotel-bookings.service';
 import {
+  MyFlightBookingsController,
+  MyHotelReservationsController,
+} from './my-bookings.controller';
+import { MyBookingsService } from './my-bookings.service';
+import {
   FlightBooking,
   FlightBookingSchema,
 } from './schemas/flight-booking.schema';
 import { HoldGuard, HoldGuardSchema } from './schemas/hold-guard.schema';
+import {
+  AirlineFlightBookingsController,
+  HotelReservationsController,
+} from './provider-bookings.controller';
+import { ProviderBookingsService } from './provider-bookings.service';
 import {
   HotelReservation,
   HotelReservationSchema,
@@ -48,18 +60,26 @@ import {
     ]),
   ],
   controllers: [
+    AdminBookingsController,
     FlightBookingsController,
+    AirlineFlightBookingsController,
+    HotelReservationsController,
     HotelBookingsController,
     BookingPoliciesController,
+    MyFlightBookingsController,
+    MyHotelReservationsController,
   ],
   providers: [
+    AdminBookingsService,
     BookingLifecycleService,
+    ProviderBookingsService,
     FlightBookingsService,
     { provide: FLIGHT_PAYABLE_BOOKING, useExisting: FlightBookingsService },
     HotelBookingsService,
     { provide: HOTEL_PAYABLE_BOOKING, useExisting: HotelBookingsService },
     BookingPoliciesService,
     BookingQueriesService,
+    MyBookingsService,
     { provide: UPCOMING_BOOKINGS, useExisting: BookingQueriesService },
     { provide: FLIGHT_BOOKINGS_LOOKUP, useExisting: BookingQueriesService },
     FlightCancellationsService,
