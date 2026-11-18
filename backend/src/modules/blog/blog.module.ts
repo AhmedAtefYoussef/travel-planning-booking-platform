@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CommentsService } from './comments.service';
 import { LikesService } from './likes.service';
 import { PostsController } from './posts.controller';
+import { PostModerationAdapter } from './post-moderation.adapter';
 import { PostsService } from './posts.service';
 import { TagsController } from './tags.controller';
 import { Comment, CommentSchema } from './schemas/comment.schema';
@@ -23,6 +24,11 @@ import { Post, PostSchema } from './schemas/post.schema';
     ]),
   ],
   controllers: [PostsController, TagsController],
-  providers: [PostsService, LikesService, CommentsService],
+  providers: [
+    PostsService,
+    LikesService,
+    CommentsService,
+    PostModerationAdapter,
+  ],
 })
 export class BlogModule {}

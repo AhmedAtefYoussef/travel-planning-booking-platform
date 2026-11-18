@@ -43,9 +43,6 @@ import { createTestApp } from '../support/create-test-app';
 
 const BACKEND = join(__dirname, '..', '..');
 const DATA_DIR = join(BACKEND, 'seed', 'data');
-/** Fixed blog fixture for the paginated-list checks (GEN-05). */
-const VV_AUTHOR = '6af0f1c2c77901aa9f2287a1';
-const VV_POST = '6af0f1c2c77901aa9f2287a2';
 
 /** The official mock records (brief section 5.1), exactly as published. */
 const COUNTRIES = [
@@ -500,6 +497,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   const VV_AIRLINE = '6af0f1c2c77901aa9f2287a1';
   const VV_FLIGHT = '6af0f1c2c77901aa9f2287a2';
   const VV_HOTEL = '6af0f1c2c77901aa9f2287a3';
+  // HTL-24: an active hotel, inserted in beforeAll, whose public reviews list answers 200.
+  const VV_REVIEWED_HOTEL = '6af0f1c2c77901aa9f2287b4';
+  // BLG-05: a published post, inserted in beforeAll, whose public comments list answers 200.
+  const VV_POST_AUTHOR = '6af0f1c2c77901aa9f2287c1';
+  const VV_POST = '6af0f1c2c77901aa9f2287c2';
 
   const LISTS: {
     url: string;
@@ -574,9 +576,14 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     // BLG-08: the posts behind a tag link.
     { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
     {
-      // BLG-05: a published post's comments; VV_POST is inserted in beforeAll.
+      // BLG-05: a published post's comments; the post is inserted in beforeAll.
       url: `/api/posts/${VV_POST}/comments?`,
       docPath: '/api/posts/{id}/comments',
+    },
+    {
+      // HTL-24: a hotel's reviews, public; the hotel is inserted in beforeAll.
+      url: `/api/hotels/${VV_REVIEWED_HOTEL}/reviews?`,
+      docPath: '/api/hotels/{id}/reviews',
     },
   ];
 
@@ -586,32 +593,6 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   beforeAll(async () => {
     app = await createTestApp();
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
-    const users = app.get<Model<User>>(getModelToken(User.name));
-    await users.collection.insertOne({
-      _id: new Types.ObjectId(VV_AUTHOR),
-      name: 'VV Author',
-      email: `vv.author.${VV_AUTHOR}@example.com`,
-      passwordHash: 'x',
-      role: Role.User,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-    await users.db.collection('posts').insertOne({
-      _id: new Types.ObjectId(VV_POST),
-      authorId: new Types.ObjectId(VV_AUTHOR),
-      title: 'VV post',
-      body: 'VV body',
-      tags: ['egypt'],
-      images: [],
-      status: 'PUBLISHED',
-      publishedAt: new Date(),
-      isHidden: false,
-      likeCount: 0,
-      commentCount: 0,
-      interactionScore: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
   });
 
   beforeAll(async () => {
@@ -637,6 +618,45 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  beforeAll(async () => {
+    await app.get<Model<unknown>>(getModelToken('Hotel')).create({
+      _id: VV_REVIEWED_HOTEL,
+      name: 'VV Reviewed Hotel',
+      address: '2 Paging street',
+      cityId: 'cairo',
+      countryCode: 'EG',
+    });
+  });
+
+  beforeAll(async () => {
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    await users.collection.insertOne({
+      _id: new Types.ObjectId(VV_POST_AUTHOR),
+      name: 'VV Author',
+      email: `vv.author.${VV_POST_AUTHOR}@example.com`,
+      passwordHash: 'x',
+      role: Role.User,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await users.db.collection('posts').insertOne({
+      _id: new Types.ObjectId(VV_POST),
+      authorId: new Types.ObjectId(VV_POST_AUTHOR),
+      title: 'VV post',
+      body: 'VV body',
+      tags: ['egypt'],
+      images: [],
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+      isHidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      interactionScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   });
 
   it('the paginated routes are exactly the documented ones', () => {
@@ -857,6 +877,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/hotels/search',
         // HTL-02: the hotel details page is for guests too.
         'GET /api/hotels/:id',
+        // HTL-24: the hotel rating summary and reviews are for guests too.
+        'GET /api/hotels/:id/reviews',
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',

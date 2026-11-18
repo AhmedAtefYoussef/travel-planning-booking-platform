@@ -1,5 +1,8 @@
 export { HotelsModule } from './hotels.module';
 export { HotelsService } from './hotels.service';
+export { ReviewsService } from './reviews.service';
+export type { HotelReviewsPage, ReviewedStay } from './reviews.service';
+export { CreateReviewDto, ReviewDto } from './dto/review.dto';
 export {
   EARLIEST_ZONE,
   IsCalendarDate,
