@@ -1745,3 +1745,21 @@ AIRLINE_STATUS, and a travel-date range filter (trips overlapping the range, UTC
 Unit specs check the pipeline and the row mapping; the e2e suite books through the real flow in a month no other
 suite uses. I chose the travel dates (not the booking date) for the range and reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-06 (TRVL-33)
+Prompt:
+Implement my assigned stories to their Definition of Done. For FLT-06: let an airline moderator cancel a Scheduled
+flight so that it is hidden from search, its Confirmed bookings are cancelled with a 100% refund, its pending holds
+are released and the passengers are notified, reusing the existing cancellation core and contracts.
+How the output was used:
+Claude added POST /api/flights/:id/cancel (one conditional Scheduled -> Cancelled update in the flights module) and
+the required FLIGHT_BOOKING_CANCELLATIONS contract provided by bookings: holds are released first (Pending Payment
+-> Expired, so a payment captured later becomes a PAY-01 late refund), then every Confirmed booking is cancelled as
+the provider through the FLT-26 core, one transaction each, and repeating the request retries what failed. Unit
+specs cover the ordering, races and failures; the e2e suite covers refunds, seats on both legs of a round trip,
+notices, search and access. I reviewed the diff and the contract text.
+================================================
