@@ -40,7 +40,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
 | ACC-15 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate (moderators); PATCH /api/admin/providers/:type/:id/deactivate\|reactivate | Ahmed | TRVL-25 | #84 | Done |
 | ACC-16 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate (registered users) | Ahmed | TRVL-26 | #84 | Done |
-| ACC-17 | Mandatory | GET /api/admin/bookings | Karim | TRVL-27 | - | Not started |
+| ACC-17 | Mandatory | GET /api/admin/bookings | Karim | TRVL-27 | #110 | Done |
 | ACC-18 | Mandatory | admin seed script (npm run seed) | Abdelrahman | TRVL-108 | #41 | Done |
 | ACC-02 | Bonus | GET /api/auth/verify-email | Team | TRVL-117 | - | Not started |
 | ACC-07 | Bonus | POST /api/auth/forgot-password; POST /api/auth/reset-password | Team | TRVL-118 | - | Not started |
