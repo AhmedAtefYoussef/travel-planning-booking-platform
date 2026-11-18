@@ -5,7 +5,14 @@ import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Role } from '../src/common/auth/auth.types';
-import { BookingStatus, NotificationType } from '../src/common/contracts';
+import {
+  BookingStatus,
+  NOTIFICATIONS_SERVICE,
+  NotificationType,
+  REFUNDS_SERVICE,
+  type NotificationsService,
+  type RefundsService,
+} from '../src/common/contracts';
 import { HotelReservation } from '../src/modules/bookings';
 import { RoomNight } from '../src/modules/hotels';
 import { Notification } from '../src/modules/notifications';
@@ -465,6 +472,43 @@ describe('Hotel cancellation (e2e): HTL-21', () => {
       BookingStatus.Confirmed,
     );
   });
+
+  it.each(['refund', 'notification'] as const)(
+    'HTL-21 a failing %s step rolls the whole cancellation back: still Confirmed, nights kept, no refund, no notice',
+    async (step) => {
+      const [roomId] = await room(half);
+      const r = await confirmed(owner, half, [roomId]);
+      const id = r._id.toHexString();
+      const failing =
+        step === 'refund'
+          ? jest
+              .spyOn(app.get<RefundsService>(REFUNDS_SERVICE), 'refundFor')
+              .mockRejectedValueOnce(new Error('refund step down'))
+          : jest
+              .spyOn(
+                app.get<NotificationsService>(NOTIFICATIONS_SERVICE),
+                'notify',
+              )
+              .mockRejectedValueOnce(new Error('notify step down'));
+      try {
+        await cancel(owner, id).expect(500);
+        expect(failing).toHaveBeenCalledTimes(1);
+      } finally {
+        failing.mockRestore();
+      }
+      expect((await reservations.findById(id).lean())!).toMatchObject({
+        status: BookingStatus.Confirmed,
+        cancelledAt: null,
+        refundId: null,
+      });
+      expect(await nightsOf(roomId)).toBe(NIGHTS);
+      expect(await refundsOf(id)).toHaveLength(0);
+      expect(await cancelNotices(owner)).toHaveLength(0);
+      // Nothing was half done: the owner can still cancel afterwards.
+      await cancel(owner, id).expect(200);
+      expect(await nightsOf(roomId)).toBe(0);
+    },
+  );
 
   it('HTL-21 two parallel cancels: exactly one 200 and one 409, nights released once, one refund, one notice', async () => {
     const [roomId] = await room(half);

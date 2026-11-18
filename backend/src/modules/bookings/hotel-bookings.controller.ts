@@ -65,7 +65,7 @@ const BODY_EXAMPLES = {
 };
 
 const CANCEL_RULES =
-  'Owner only (USER role): anyone else gets the same 404 as an unknown id (ACC-11). Only a CONFIRMED reservation can be cancelled (409 BOOKING_NOT_CONFIRMED otherwise, including one already cancelled), and only before check-in (409 CANCELLATION_WINDOW_CLOSED once the check-in day has begun at the hotel). The refund is the full amount paid times the hotel tier accepted with the reservation (PAY-02 snapshot, never the current policy): the tier with the highest daysBefore not exceeding the whole days left before check-in, 0% when none applies (HTL-10), rounded down to minor units of the platform currency. A reservation is cancelled as a whole; partial cancellation is not supported.';
+  'Owner only (USER role): anyone else gets the same 404 as an unknown id (ACC-11). Only a CONFIRMED reservation can be cancelled (409 BOOKING_NOT_CONFIRMED otherwise, including one already cancelled), and only before check-in (409 CANCELLATION_WINDOW_CLOSED once the check-in day has begun at the hotel). The refund is the full amount paid times the hotel tier accepted with the reservation (PAY-02 snapshot, never the current policy): the tier with the highest daysBefore not exceeding the whole days left before check-in, 0% when none applies (HTL-10), rounded down to minor units of the platform currency. The refund is computed at the moment of cancellation, so it can differ from an earlier refund-quote if a tier boundary passed in between. A reservation is cancelled as a whole; partial cancellation is not supported.';
 
 const CANCEL_ID_PARAM = {
   name: 'id',
