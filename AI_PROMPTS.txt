@@ -1620,6 +1620,136 @@ I reviewed the diff and ran the checks locally.
 Date: 2026-11-16
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-143, ITN-16
+Prompt:
+Build the itinerary budgets on top of the TRVL-141 itinerary schemas, one pull request per feature as
+Ahmed asked: this one holds the budget_entries and transport_costs schemas (TRVL-143) and ITN-16, add,
+edit and delete an intercity transport cost (mode, from-city, to-city, amount, currency, day).
+How the output was used:
+Claude wrote both schemas and the transport-cost DTOs, service, controller and Swagger docs: owner only
+(404 for anyone else on a private itinerary), the day must belong to the itinerary, both cities must be
+reference cities and differ, the currency must be a seeded one, and e2e tests. I reviewed the diff and
+ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-16
+Prompt:
+Sarah asked me to rebase the budgets branches onto develop without her old schema commit and to
+provide her ITINERARY_BUDGETS port (dayTotals, deleteForDays, deleteForItinerary, cloneForItinerary)
+from the budgets module.
+How the output was used:
+Claude rebased the ITN-16 branch onto develop (only BudgetsModule added to app.module), wrote
+ItineraryBudgetsPort over transport costs (budget entries join it in ITN-14), made BudgetsModule global
+so the itineraries module can inject the token, imported ItinerariesModule for the itinerary model
+instead of registering it again, and added e2e tests for the four port methods, including Sarah's real
+DELETE /api/itineraries/:id. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+CodeQL flagged "Database query built from user-controlled sources" on PATCH /api/transport-costs/:id in
+PR #92: the $set was a spread of the request body.
+How the output was used:
+Claude rebuilt the update field by field from the validated values (ObjectId for the day, the mode mapped
+through the TransportMode enum, String/Number for the rest), so no raw body value or operator reaches
+the query. The ITN-16 e2e tests still pass. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+After merging develop into PR #92, backend-test failed: branch coverage for src/modules/ was 64.15%,
+under the 65% floor, because the budgets service and the ITINERARY_BUDGETS port had e2e but no unit tests.
+How the output was used:
+Claude wrote unit tests for BudgetsService (owner checks, day/city/currency rules, field-by-field update,
+404 paths) and ItineraryBudgetsPort (day totals per currency, deletes, clone mapping, malformed ids) with
+mocked models through the Nest testing module. Module branch coverage is back above 65% (budgets service
+93%). I reviewed the tests and ran the coverage gate locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75)
+Prompt:
+Show the consecutive same-city groups of my itinerary in every itinerary response: each group's city, first and
+last day, dates, day count and budget subtotal. The subtotal adds the activity costs and the budget entries and
+transport costs from Malak's budgets module, without importing it.
+How the output was used:
+Claude builds cityGroups in the detail view from the shared groupConsecutiveDaysByCity rule, so a return to a
+city starts a new group. Subtotals stay per currency with no conversion (that is ITN-18) and read the day totals
+through the optional ITINERARY_BUDGETS port, so the row stays Partial until ITN-14/ITN-16 provide it. I checked
+the A,A,B,A grouping, the subtotals with a fake budgets module and a city change merging groups, in e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-25 (TRVL-44), HTL-20 (TRVL-62)
+Prompt:
+Analyze the project description, the requirements workbook, my Jira tasks and the develop branch, then plan and
+implement my assigned stories to their Definition of Done, following the repo's conventions and requirement IDs.
+For FLT-25 and HTL-20: list my flight bookings and hotel reservations grouped as Upcoming, Past and Cancelled.
+How the output was used:
+Claude added GET /api/flight-bookings and GET /api/hotel-bookings with ?group=UPCOMING|PAST|CANCELLED (owner
+filter inside the query, 10 per page), the group rules in bookings/booking-groups.ts (a confirmed trip that has
+ended is already PAST and reads COMPLETED before the minute job runs; an expired hold is in no group), flight times
+in each airport's local time (GEN-06), unit specs for the rules and the service, and an e2e suite that books
+through hold, policies, payment and webhook. I chose to keep passport numbers out of the list and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-29 (TRVL-46), HTL-22 (TRVL-64)
+Prompt:
+Implement my assigned stories to their Definition of Done. For FLT-29 and HTL-22: let an airline moderator view
+the bookings of a flight with the seats left per cabin and export the passenger list as CSV, and let a hotel
+moderator view the reservations of their hotel, with the provider scope enforced in the backend.
+How the output was used:
+Claude added GET /api/flights/:id/bookings (bookings plus seats remaining, booked and held per cabin), GET
+/api/flights/:id/passengers/export (quoted RFC 4180 CSV with formula-like cells neutralised against CSV injection)
+and GET /api/hotels/:id/reservations in the bookings module, loading the flight or hotel first (404) and then
+checking the provider scope (403). Unit specs cover the filters, seat sums, CSV escaping and scope; the e2e suite
+books through hold, policies, payment and webhook. I chose to leave passport numbers out of the export and reviewed
+the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: ACC-17 (TRVL-27)
+Prompt:
+Implement my assigned stories to their Definition of Done. For ACC-17: give the admin a read-only list of every
+flight booking and hotel reservation (reference, user, provider, dates, amount, status), filterable by type, status
+and date range.
+How the output was used:
+Claude added GET /api/admin/bookings with one $unionWith aggregation over both collections, so the newest-first
+order and the 10-per-page paging are exact across them, user names through UsersService and airline names through
+AIRLINE_STATUS, and a travel-date range filter (trips overlapping the range, UTC days, "to" before "from" is 400).
+Unit specs check the pipeline and the row mapping; the e2e suite books through the real flow in a month no other
+suite uses. I chose the travel dates (not the booking date) for the range and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
 Related Requirement: BLG-05
 Prompt:
 Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-05 on its own

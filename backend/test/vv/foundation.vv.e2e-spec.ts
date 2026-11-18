@@ -495,6 +495,12 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   const ROUTE = { from: 'RUH', to: 'CDG', date: '2028-02-29' };
 
   /** Every list endpoint in the app, with what it needs to answer 200. */
+  // FLT-29, HTL-22: a flight and a hotel of the stub moderators below, inserted in beforeAll, so their
+  // per-provider lists answer 200.
+  const VV_AIRLINE = '6af0f1c2c77901aa9f2287a1';
+  const VV_FLIGHT = '6af0f1c2c77901aa9f2287a2';
+  const VV_HOTEL = '6af0f1c2c77901aa9f2287a3';
+
   const LISTS: {
     url: string;
     headers?: Record<string, string>;
@@ -518,10 +524,28 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     },
     { url: '/api/diagnostics/rows?' },
     {
+      // FLT-29: the bookings of a flight, for its airline's moderator.
+      url: `/api/flights/${VV_FLIGHT}/bookings?`,
+      docPath: '/api/flights/{id}/bookings',
+      headers: {
+        'x-dev-user': `AIRLINE_MODERATOR:6af0f1c2c77901aa9f228702:${VV_AIRLINE}`,
+      },
+    },
+    {
+      // HTL-22: the reservations of a hotel, for its moderator.
+      url: `/api/hotels/${VV_HOTEL}/reservations?`,
+      docPath: '/api/hotels/{id}/reservations',
+      headers: {
+        'x-dev-user': `HOTEL_MODERATOR:6af0f1c2c77901aa9f228703:${VV_HOTEL}`,
+      },
+    },
+    {
       // HTL-11: hotel search, 10 per page like every list.
       url: '/api/hotels/search?cityId=cairo&checkIn=2028-03-01&checkOut=2028-03-03&guests=1&',
     },
     { url: '/api/admin/audit-logs?', headers: { 'x-dev-user': 'ADMIN' } },
+    // ACC-17: every flight booking and hotel reservation, for admins.
+    { url: '/api/admin/bookings?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       // GEN-01: the caller's own notifications.
       url: '/api/notifications?',
@@ -530,6 +554,16 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     {
       // ITN-03: the caller's own itineraries.
       url: '/api/itineraries?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
+      // FLT-25: the caller's own flight bookings, one group at a time.
+      url: '/api/flight-bookings?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
+      // HTL-20: the caller's own hotel reservations, one group at a time.
+      url: '/api/hotel-bookings?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
     {
@@ -577,6 +611,27 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       interactionScore: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
+    });
+  });
+
+  beforeAll(async () => {
+    await app.get<Model<unknown>>(getModelToken('Flight')).create({
+      _id: VV_FLIGHT,
+      airlineId: VV_AIRLINE,
+      flightNumber: 'VVP100',
+      from: 'CAI',
+      to: 'DXB',
+      departureUtc: new Date('2030-01-10T10:00:00Z'),
+      arrivalUtc: new Date('2030-01-10T14:00:00Z'),
+      departureLocalDate: '2030-01-10',
+      status: 'SCHEDULED',
+    });
+    await app.get<Model<unknown>>(getModelToken('Hotel')).create({
+      _id: VV_HOTEL,
+      name: 'VV Paging Hotel',
+      address: '1 Paging street',
+      cityId: 'cairo',
+      countryCode: 'EG',
     });
   });
 
