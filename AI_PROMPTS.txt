@@ -1788,3 +1788,17 @@ Claude merged develop (BLG-03/04/06/08 kept as on develop; this PR's browse and 
 made LikesService use PostsService.publicFilter() so a deactivated author's post answers 404 to a like, and
 extended the ACC-12 e2e test. I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-02, BLG-08, ACC-12
+Prompt:
+Apply Ahmed's round-2 review of PR #93: the tag page (GET /api/tags/{tag}/posts) still lists a deactivated
+author's posts; route it through publicFilter() and add an e2e assertion, then merge develop again.
+How the output was used:
+Claude made PostsService.listByTag use publicFilter() (published, not hidden, author not DEACTIVATED), noted
+it in the tag page's Swagger description, extended the ACC-12 e2e test to the tag page, and merged the latest
+develop (AI log only). I reviewed the diff and ran the full CI checks locally.
+================================================

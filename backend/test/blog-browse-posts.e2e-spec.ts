@@ -118,10 +118,12 @@ describe('Blog browse and view (e2e): BLG-02', () => {
     await http().get('/api/posts/not-an-id').expect(400);
   });
 
-  it("ACC-12 a deactivated author's posts are hidden from browse and the post page and cannot be liked", async () => {
+  it("ACC-12 a deactivated author's posts are hidden from browse, the post page and the tag page, and cannot be liked", async () => {
     const leaver = await loginAs(ctx.app, Role.User);
-    const gone = await publish(leaver, 'Soon hidden');
-    const kept = await publish(ctx.author, 'Still listed');
+    const gone = await publish(leaver, 'Soon hidden', { tags: ['acc12'] });
+    const kept = await publish(ctx.author, 'Still listed', {
+      tags: ['acc12'],
+    });
     await ctx.connection
       .collection('users')
       .updateOne(
@@ -134,6 +136,11 @@ describe('Blog browse and view (e2e): BLG-02', () => {
     expect(ids).not.toContain(gone.id);
     expect(ids).toContain(kept.id);
     await http().get(`/api/posts/${gone.id}`).expect(404);
+    const tagged = (
+      (await http().get('/api/tags/acc12/posts').expect(200)).body
+        .items as PostBody[]
+    ).map((p) => p.id);
+    expect(tagged).toEqual([kept.id]);
     await http()
       .post(`/api/posts/${gone.id}/like`)
       .set('Cookie', ctx.reader.cookie)

@@ -126,14 +126,15 @@ export class PostsService {
   }
 
   /** BLG-08: the posts behind a clickable tag. */
-  listByTag(tag: string, page: number): Promise<Page<PostSummaryDto>> {
+  async listByTag(tag: string, page: number): Promise<Page<PostSummaryDto>> {
     const clean = tag.trim().toLowerCase();
     if (clean.length < 1 || clean.length > MAX_TAG_LENGTH) {
       throw new ValidationFailedException([
         { field: 'tag', message: `tag must be 1-${MAX_TAG_LENGTH} characters` },
       ]);
     }
-    return this.page({ ...PUBLIC_POST_FILTER, tags: clean }, page, {
+    // ACC-12: the same public filter as browse, so a deactivated author's posts are not listed.
+    return this.page({ ...(await this.publicFilter()), tags: clean }, page, {
       publishedAt: -1,
     });
   }
