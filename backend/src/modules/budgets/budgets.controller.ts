@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   Patch,
@@ -23,8 +24,12 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import { BudgetsService } from './budgets.service';
 import {
+  BudgetEntryDto,
+  BudgetSummaryDto,
+  CreateBudgetEntryDto,
   CreateTransportCostDto,
   TransportCostDto,
+  UpdateBudgetEntryDto,
   UpdateTransportCostDto,
 } from './dto/budget.dto';
 
@@ -37,12 +42,96 @@ const ITINERARY_PARAM = {
   },
 };
 
-/** Intercity transport costs (brief section 6.5, ITN-16). Only the itinerary's owner changes them. */
+const DAY_PARAM = {
+  name: 'dayId',
+  description: 'Day id (days[]._id of the itinerary)',
+  example: '6af0f1c2c77901aa9f228800',
+};
+
+/**
+ * Itinerary budgets (brief section 6.5): ITN-14 budget entries and totals, ITN-16 intercity transport
+ * costs. Only the itinerary's owner changes amounts.
+ */
 @ApiTags('Budgets')
 @Controller()
 @Roles(Role.User)
 export class BudgetsController {
   constructor(private readonly budgets: BudgetsService) {}
+
+  @Post('itineraries/:id/days/:dayId/budgets')
+  @ApiOperation({
+    summary: 'ITN-14 Add a budget entry to a day',
+    description:
+      'Category FOOD, ACCOMMODATION, IN_CITY_TRANSPORT or ACTIVITIES; a non-negative whole amount in minor units of a supported currency. Only the itinerary owner may add (anyone else gets 404). A day that is not in the itinerary is 404.',
+  })
+  @ApiParam(ITINERARY_PARAM)
+  @ApiParam(DAY_PARAM)
+  @ApiBody({
+    type: CreateBudgetEntryDto,
+    examples: {
+      food: {
+        summary: 'Food, 255.00 EGP',
+        value: { category: 'FOOD', amountMinor: 25500, currency: 'EGP' },
+      },
+      invalid: {
+        summary: 'Invalid: negative amount, unknown category',
+        value: { category: 'SHOPPING', amountMinor: -1, currency: 'EGP' },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: BudgetEntryDto })
+  @ApiErrorResponses(400, 404)
+  addEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('dayId', ParseObjectIdPipe) dayId: string,
+    @Body() dto: CreateBudgetEntryDto,
+  ): Promise<BudgetEntryDto> {
+    return this.budgets.addEntry(user, id, dayId, dto);
+  }
+
+  @Patch('budgets/:id')
+  @ApiOperation({
+    summary: 'ITN-14 Edit a budget entry',
+    description:
+      'Send any subset of category, amountMinor, currency and note. Only the itinerary owner may edit (404 otherwise).',
+  })
+  @ApiParam({ name: 'id', description: 'Budget entry id' })
+  @ApiBody({
+    type: UpdateBudgetEntryDto,
+    examples: {
+      amount: { summary: 'Change the amount', value: { amountMinor: 30000 } },
+      invalid: {
+        summary: 'Invalid: amount cannot be null',
+        value: { amountMinor: null },
+      },
+    },
+  })
+  @ApiOkResponse({ type: BudgetEntryDto })
+  @ApiErrorResponses(400, 404)
+  updateEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: UpdateBudgetEntryDto,
+  ): Promise<BudgetEntryDto> {
+    return this.budgets.updateEntry(user, id, dto);
+  }
+
+  @Delete('budgets/:id')
+  @HttpCode(204)
+  @ApiOperation({
+    summary: 'ITN-14 Delete a budget entry',
+    description: 'Only the itinerary owner may delete (404 otherwise).',
+  })
+  @ApiParam({ name: 'id', description: 'Budget entry id' })
+  @ApiNoContentResponse({ description: 'Deleted' })
+  @ApiErrorResponses(400, 404)
+  removeEntry(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<void> {
+    return this.budgets.removeEntry(user, id);
+  }
 
   @Post('itineraries/:id/transport-costs')
   @ApiOperation({
@@ -129,5 +218,21 @@ export class BudgetsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<void> {
     return this.budgets.removeTransport(user, id);
+  }
+
+  @Get('itineraries/:id/budget-summary')
+  @ApiOperation({
+    summary: 'ITN-14 Budget totals by category and by day',
+    description:
+      'Budget entries, activity costs (counted under ACTIVITIES) and intercity transport (ITN-16), each converted to the platform currency with the newest cached daily rate. 503 EXCHANGE_RATE_UNAVAILABLE when no rate has ever been cached for a currency. Visible to the owner, and to signed-in users when the itinerary is public.',
+  })
+  @ApiParam(ITINERARY_PARAM)
+  @ApiOkResponse({ type: BudgetSummaryDto })
+  @ApiErrorResponses(400, 404, 503)
+  summary(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<BudgetSummaryDto> {
+    return this.budgets.summary(user, id);
   }
 }

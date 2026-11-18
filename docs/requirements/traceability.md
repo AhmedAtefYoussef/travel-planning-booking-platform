@@ -121,8 +121,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-09 | Mandatory | day city + cityGroups (day count, budget subtotal) in GET /api/itineraries/:id and every day response | Sarah | TRVL-75 | #73, #107 | Partial: groups, day counts and subtotals of activity costs and transport costs (ITN-16, #92) done; budget entries join the subtotals once ITN-14 provides them through ITINERARY_BUDGETS |
 | ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73 | Not started |
 | ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Not started |
-| ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | - | Not started |
-| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id (counted in the itinerary totals once ITN-14 lands) | Malak | TRVL-79 | #92 | Done |
+| ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | #114 | Done |
+| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id (counted in the itinerary totals, #114) | Malak | TRVL-79 | #92, #114 | Done |
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68 | Partial: rates, cache and convert in place (TRVL-133); itinerary budget conversion pending |
 | ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88 | Partial: visibility set through PATCH /api/itineraries/:id; the public search it controls lands with ITN-21 |
 | ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | - | Not started |
