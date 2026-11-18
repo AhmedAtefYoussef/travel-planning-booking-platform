@@ -152,10 +152,18 @@ export class RoomsController {
         summary: 'Invalid: null beds, zero price',
         value: { beds: null, priceMinor: 0 },
       },
+      deactivate: {
+        summary: 'HTL-06 Deactivate (409 while it has reservations)',
+        value: { isActive: false },
+      },
+      reactivate: {
+        summary: 'HTL-06 Reactivate',
+        value: { isActive: true },
+      },
     },
   })
   @ApiOkResponse({ type: RoomDto })
-  @ApiErrorResponses(400, 404)
+  @ApiErrorResponses(400, 404, 409)
   update(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) hotelId: string,
