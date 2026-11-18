@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import {
+  FLIGHT_BOOKING_CANCELLATIONS,
   FLIGHT_BOOKINGS_LOOKUP,
   FLIGHT_PAYABLE_BOOKING,
   HOTEL_PAYABLE_BOOKING,
@@ -12,9 +13,12 @@ import { AdminBookingsController } from './admin-bookings.controller';
 import { AdminBookingsService } from './admin-bookings.service';
 import { FlightBookingsController } from './flight-bookings.controller';
 import { FlightBookingsService } from './flight-bookings.service';
+import { FlightCancellationsService } from './flight-cancellations.service';
 import { BookingLifecycleService } from './booking-lifecycle.service';
 import { BookingPoliciesController } from './booking-policies.controller';
 import { BookingPoliciesService } from './booking-policies.service';
+import { ReservationReviewsController } from './reservation-reviews.controller';
+import { ReservationReviewsService } from './reservation-reviews.service';
 import { BookingQueriesService } from './booking-queries.service';
 import { HotelBookingsController } from './hotel-bookings.controller';
 import { HotelBookingsService } from './hotel-bookings.service';
@@ -43,7 +47,8 @@ import {
  * Seats and nights are taken only through FLIGHT_INVENTORY and HOTEL_INVENTORY (ADR-0002).
  *
  * Global so the contract tokens it provides reach the modules that inject them as optional:
- * UPCOMING_BOOKINGS (users, ACC-12) and FLIGHT_BOOKINGS_LOOKUP (flights, FLT-05).
+ * UPCOMING_BOOKINGS (users, ACC-12), FLIGHT_BOOKINGS_LOOKUP (flights, FLT-05) and
+ * FLIGHT_BOOKING_CANCELLATIONS (flights, FLT-06).
  */
 @Global()
 @Module({
@@ -62,6 +67,7 @@ import {
     AirlineFlightBookingsController,
     HotelReservationsController,
     HotelBookingsController,
+    ReservationReviewsController,
     BookingPoliciesController,
     MyFlightBookingsController,
     MyHotelReservationsController,
@@ -74,15 +80,22 @@ import {
     { provide: FLIGHT_PAYABLE_BOOKING, useExisting: FlightBookingsService },
     HotelBookingsService,
     { provide: HOTEL_PAYABLE_BOOKING, useExisting: HotelBookingsService },
+    ReservationReviewsService,
     BookingPoliciesService,
     BookingQueriesService,
     MyBookingsService,
     { provide: UPCOMING_BOOKINGS, useExisting: BookingQueriesService },
     { provide: FLIGHT_BOOKINGS_LOOKUP, useExisting: BookingQueriesService },
+    FlightCancellationsService,
+    {
+      provide: FLIGHT_BOOKING_CANCELLATIONS,
+      useExisting: FlightCancellationsService,
+    },
   ],
   exports: [
     UPCOMING_BOOKINGS,
     FLIGHT_BOOKINGS_LOOKUP,
+    FLIGHT_BOOKING_CANCELLATIONS,
     FLIGHT_PAYABLE_BOOKING,
     HOTEL_PAYABLE_BOOKING,
   ],

@@ -8,6 +8,8 @@ import {
 import { AirlineStatusService } from './airline-status.service';
 import { AirlinesController } from './airlines.controller';
 import { AirlinesService } from './airlines.service';
+import { FlightCancellationController } from './flight-cancellation.controller';
+import { FlightCancellationService } from './flight-cancellation.service';
 import { FlightInventoryService } from './flight-inventory.service';
 import { FlightScheduleNotifier } from './flight-schedule-notifier';
 import { FlightSearchService } from './flight-search.service';
@@ -28,13 +30,18 @@ import { Flight, FlightSchema } from './schemas/flight.schema';
       { name: Flight.name, schema: FlightSchema },
     ]),
   ],
-  controllers: [AirlinesController, FlightsController],
+  controllers: [
+    AirlinesController,
+    FlightsController,
+    FlightCancellationController,
+  ],
   providers: [
     AirlinesService,
     FlightsService,
     FlightSearchService,
     FlightStatusService,
     FlightScheduleNotifier,
+    FlightCancellationService,
     FlightInventoryService,
     { provide: FLIGHTS_SEARCH, useExisting: FlightSearchService },
     { provide: FLIGHT_INVENTORY, useExisting: FlightInventoryService },
