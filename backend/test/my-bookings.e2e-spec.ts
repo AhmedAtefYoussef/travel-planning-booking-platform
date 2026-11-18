@@ -251,7 +251,8 @@ describe('My bookings (e2e): FLT-25, HTL-20', () => {
             flightNumber: 'WB100',
             from: 'CAI',
             to: 'DXB',
-            departureLocal: '2028-06-10T14:30:00.000+02:00',
+            // Egypt keeps summer time in June (UTC+3).
+            departureLocal: '2028-06-10T14:30:00.000+03:00',
             arrivalLocal: '2028-06-10T18:45:00.000+04:00',
             departureTimeZone: 'Africa/Cairo',
             arrivalTimeZone: 'Asia/Dubai',
