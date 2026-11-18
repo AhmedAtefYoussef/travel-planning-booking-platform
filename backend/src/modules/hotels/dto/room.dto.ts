@@ -5,6 +5,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsString,
   Length,
   Max,
@@ -77,6 +78,7 @@ export const EDITABLE_ROOM_FIELDS = [
   'beds',
   'maxOccupancy',
   'priceMinor',
+  'isActive',
 ] as const;
 
 /**
@@ -103,6 +105,15 @@ export class UpdateRoomDto {
   @Omittable()
   @PriceRules()
   priceMinor?: number;
+
+  @ApiPropertyOptional({
+    example: false,
+    description:
+      'HTL-06: false deactivates the room (409 while it has a booked or held night from today on); true reactivates it. A deactivated room is left out of search, the details page and free rooms',
+  })
+  @Omittable()
+  @IsBoolean({ message: 'isActive must be true or false' })
+  isActive?: boolean;
 }
 
 export class AvailabilityRangeDto {
@@ -209,4 +220,38 @@ export class ReplaceAvailabilityDto {
   @ValidateNested({ each: true })
   @Type(() => AvailabilityRangeInputDto)
   ranges!: AvailabilityRangeInputDto[];
+}
+
+/** Most nights one block or unblock request may cover in all (a year). */
+export const MAX_BLOCK_NIGHTS = MAX_RANGE_NIGHTS;
+
+/**
+ * HTL-06: date ranges to block (POST) or unblock (DELETE) for one room. Same range rules as HTL-04:
+ * `to` is exclusive, after `from` and after today; at most MAX_BLOCK_NIGHTS nights in all.
+ */
+export class BlockDatesDto {
+  @ApiProperty({
+    type: [AvailabilityRangeInputDto],
+    minItems: 1,
+    maxItems: MAX_RANGES_PER_REQUEST,
+    description: `Nights from \`from\` up to the day before \`to\`. Nights before today at the hotel are skipped. At most ${MAX_BLOCK_NIGHTS} nights in all.`,
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(MAX_RANGES_PER_REQUEST)
+  @ValidateNested({ each: true })
+  @Type(() => AvailabilityRangeInputDto)
+  ranges!: AvailabilityRangeInputDto[];
+}
+
+export class BlockedNightsDto {
+  @ApiProperty({ example: '6720c0a9e4b0a1b2c3d4e5f7' })
+  roomId!: string;
+
+  @ApiProperty({
+    type: [AvailabilityRangeDto],
+    description:
+      'Every blocked range of the room from today on, earliest first (consecutive blocked nights joined)',
+  })
+  blocked!: AvailabilityRangeDto[];
 }

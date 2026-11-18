@@ -1460,3 +1460,19 @@ ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. 
 its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
 verify and tried every endpoint in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-06 (TRVL-52)
+Prompt:
+Implement HTL-06: the hotel moderator blocks date ranges for a room, deactivates it, or deletes it.
+Blocking or deactivation is rejected over a Confirmed or Pending Payment reservation; deactivated rooms
+leave search; only never-reserved rooms can be deleted. Safe against a concurrent HTL-18 hold.
+How the output was used:
+Claude added POST/DELETE .../rooms/:roomId/blocks (BLOCKED room_nights from today on), isActive on the room
+edit, DELETE .../rooms/:roomId, all inside one transaction that first writes the room so a concurrent hold
+conflicts, plus unit and e2e tests. I chose separate /blocks routes over PATCH .../availability because that
+route already replaces the bookable ranges (HTL-05).
+================================================
