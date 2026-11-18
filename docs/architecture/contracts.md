@@ -14,13 +14,13 @@ exports: [AUDIT_SERVICE],
 | Token | Interface | Implemented by | Used by |
 |---|---|---|---|
 | `FLIGHT_PAYABLE_BOOKING`, `HOTEL_PAYABLE_BOOKING` | `PayableBooking`: `getPayable`, `markConfirmed`, `markPaymentFailed` | bookings (FLT-22, HTL-18) | payments (Ahmed) |
-| `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor`, `summaryFor` | payments (`RefundsServiceImpl`, PAY-03, **implemented**) | booking details (refund block), cancellations FLT-26/HTL-21 (Karim), FLT-06 |
+| `REFUNDS_SERVICE` | `RefundsService`: `quote`, `refundFor`, `summaryFor` | payments (`RefundsServiceImpl`, PAY-03, **implemented**) | booking details (refund block), cancellations FLT-26/HTL-21 (Ahmed), FLT-06 |
 | `FLIGHTS_SEARCH` | `FlightsSearch.search` | flights (Joudy, Ahmed for FLT-12) | itineraries ITN-26 (Sarah) |
 | `HOTELS_SEARCH` | `HotelsSearch.search` | hotels (Sandra) | itineraries ITN-25 (Sarah) |
 | `CURRENCY_SERVICE` | `CurrencyService.convert`, `supportedCurrencies` | currency (`ExchangeRatesService`, Ahmed, TRVL-133), **implemented** | budgets ITN-18 (Malak) |
 | `REFERENCE_SERVICE` | `ReferenceService` (airports, cities, countries, attractions, currencies with minor units) | reference (Joudy, GEN-12) | everyone |
 | `AUDIT_SERVICE` | `AuditService.record` | audit (Ahmed, **implemented**) | admin, moderation |
-| `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Karim, GEN-01) | bookings, payments, admin, flights |
+| `NOTIFICATIONS_SERVICE` | `NotificationsService.notify` | notifications (Ahmed, GEN-01) | bookings, payments, admin, flights |
 | `FLIGHT_BOOKINGS_LOOKUP` | `FlightBookingsLookup.confirmedBookings(flightId)` returns `{bookingId, userId}[]` | bookings (`BookingQueriesService`, TRVL-139), **implemented** | flights FLT-05 schedule-change notifications (`FlightScheduleNotifier`, injected `@Optional()`) |
 | `UPLOADS_SERVICE` | `UploadsService.saveImages`, `deleteImage` (GEN-08 limits in `UPLOAD_LIMITS`) | uploads (`LocalDiskUploadsService`, Ahmed, **implemented**) | hotels HTL-01, airlines FLT-01; blog BLG-10 (Malak), itineraries ITN-12 (Sarah) |
 | `UPCOMING_BOOKINGS` | `UpcomingBookings.countUpcomingConfirmed(userId, now)`: Confirmed flight bookings not yet departed plus Confirmed hotel reservations not yet checked in (one provider for both) | bookings (`BookingQueriesService`, TRVL-139), **implemented** | users ACC-12 self-deactivation (`DeactivationService`, injected `@Optional()`; until it is provided nobody can hold a booking) |

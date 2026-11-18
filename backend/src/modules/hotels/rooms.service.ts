@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
 import {
   AppException,
@@ -8,10 +8,13 @@ import {
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { EDITABLE_ROOM_FIELDS } from './dto/room.dto';
+import { addDays, eachNight } from '../../common/utils/dates';
+import { EDITABLE_ROOM_FIELDS, MAX_BLOCK_NIGHTS } from './dto/room.dto';
 import type {
   AddAvailabilityDto,
   AvailabilityRangeInputDto,
+  BlockDatesDto,
+  BlockedNightsDto,
   CreateRoomDto,
   ReplaceAvailabilityDto,
   RoomDto,
@@ -19,6 +22,7 @@ import type {
 } from './dto/room.dto';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import { HotelsService } from './hotels.service';
+import type { HotelDocument } from './schemas/hotel.schema';
 import { RoomNight, RoomNightKind } from './schemas/room-night.schema';
 import { MAX_RANGES_PER_ROOM, Room, RoomDocument } from './schemas/room.schema';
 
@@ -131,7 +135,9 @@ export class RoomsService {
     const changes: Partial<Pick<Room, (typeof EDITABLE_ROOM_FIELDS)[number]>> =
       {};
     for (const field of EDITABLE_ROOM_FIELDS) {
-      if (dto[field] !== undefined) changes[field] = dto[field];
+      if (dto[field] !== undefined) {
+        Object.assign(changes, { [field]: dto[field] });
+      }
     }
     if (Object.keys(changes).length === 0) {
       throw new AppException(
@@ -139,6 +145,9 @@ export class RoomsService {
         ErrorCode.BAD_REQUEST,
         `Send at least one of ${EDITABLE_ROOM_FIELDS.join(', ')}`,
       );
+    }
+    if (changes.isActive === false) {
+      return this.deactivate(hotel, roomId, changes);
     }
     const room = await this.rooms
       .findOneAndUpdate(
@@ -149,6 +158,208 @@ export class RoomsService {
       .exec();
     if (!room) throw roomNotFound();
     return toRoomDto(room);
+  }
+
+  /**
+   * HTL-06: deactivating is refused (409) while the room has a booked night, or a held night whose
+   * hold has not expired, from today on. Check and write share one transaction that writes the room,
+   * so a concurrent HTL-18 hold (which always writes the room) conflicts instead of slipping between.
+   */
+  private async deactivate(
+    hotel: HotelDocument,
+    roomId: string,
+    changes: Partial<Room>,
+  ): Promise<RoomDto> {
+    const today = todayIn(await this.zoneOf(hotel));
+    return this.inRoomTransaction(hotel, roomId, async (room, session) => {
+      const reserved = await this.reservedNights(room._id, today, session);
+      if (reserved.length > 0) {
+        throw conflict(
+          `Room ${room.number} has reservations on ${listNights(reserved)}. Nothing was changed`,
+        );
+      }
+      room.set(changes);
+      await room.save({ session });
+      return toRoomDto(room);
+    });
+  }
+
+  /**
+   * HTL-06: blocks the nights of `dto.ranges` from today on. A blocked night is a room_nights document
+   * like a booked one, so search, the details page and holds all skip it. Refused (409, nothing
+   * blocked) when a night is booked, held, or already blocked.
+   */
+  async block(
+    user: AuthUser,
+    hotelId: string,
+    roomId: string,
+    dto: BlockDatesDto,
+  ): Promise<BlockedNightsDto> {
+    const hotel = await this.hotels.loadManaged(user, hotelId);
+    const today = todayIn(await this.zoneOf(hotel));
+    const nights = nightsOf(dto.ranges, today);
+    const now = new Date();
+    return this.inRoomTransaction(hotel, roomId, async (room, session) => {
+      const taken = await this.nights
+        .find({ roomId: room._id, date: { $in: nights } })
+        .sort({ date: 1 })
+        .session(session)
+        .lean()
+        .exec();
+      const reserved = taken.filter(
+        (n) =>
+          n.kind === RoomNightKind.BOOKED ||
+          (n.kind === RoomNightKind.HELD && !!n.expiresAt && n.expiresAt > now),
+      );
+      if (reserved.length > 0) {
+        throw conflict(
+          `These nights have reservations: ${listNights(reserved.map((n) => n.date))}. Nothing was blocked`,
+        );
+      }
+      const releasing = taken.filter((n) => n.kind === RoomNightKind.HELD);
+      if (releasing.length > 0) {
+        throw conflict(
+          `An expired payment hold is still being released on ${listNights(releasing.map((n) => n.date))}. Try again in a minute. Nothing was blocked`,
+        );
+      }
+      if (taken.length > 0) {
+        throw conflict(
+          `Already blocked: ${listNights(taken.map((n) => n.date))}. Nothing was blocked`,
+        );
+      }
+      if (nights.length > 0) {
+        await this.nights.insertMany(
+          nights.map((date) => ({
+            roomId: room._id,
+            hotelId: hotel._id,
+            date,
+            kind: RoomNightKind.BLOCKED,
+            reservationId: null,
+          })),
+          { session },
+        );
+      }
+      return this.blockedOf(room._id, today, session);
+    });
+  }
+
+  /** HTL-06: removes the blocks on those nights. Booked and held nights are never touched. */
+  async unblock(
+    user: AuthUser,
+    hotelId: string,
+    roomId: string,
+    dto: BlockDatesDto,
+  ): Promise<BlockedNightsDto> {
+    const hotel = await this.hotels.loadManaged(user, hotelId);
+    const today = todayIn(await this.zoneOf(hotel));
+    const nights = nightsOf(dto.ranges, today);
+    return this.inRoomTransaction(hotel, roomId, async (room, session) => {
+      await this.nights.deleteMany(
+        {
+          roomId: room._id,
+          kind: RoomNightKind.BLOCKED,
+          date: { $in: nights },
+        },
+        { session },
+      );
+      return this.blockedOf(room._id, today, session);
+    });
+  }
+
+  /**
+   * HTL-06: deletes a room that has never been reserved, with its blocked nights. A room that has
+   * ever been reserved keeps its history: 409, deactivate it instead.
+   */
+  async remove(user: AuthUser, hotelId: string, roomId: string): Promise<void> {
+    const hotel = await this.hotels.loadManaged(user, hotelId);
+    await this.inRoomTransaction(hotel, roomId, async (room, session) => {
+      const reservedAny = await this.nights
+        .exists({ roomId: room._id, kind: { $ne: RoomNightKind.BLOCKED } })
+        .session(session);
+      if (room.everReserved || reservedAny) {
+        throw conflict(
+          `Room ${room.number} has been reserved, so it cannot be deleted. Deactivate it instead (isActive: false)`,
+        );
+      }
+      await this.nights.deleteMany({ roomId: room._id }, { session });
+      await this.rooms.deleteOne({ _id: room._id }, { session });
+    });
+  }
+
+  /**
+   * Loads the room inside a transaction after writing it first (`$inc reservationVersion`), so the
+   * HTL-18 hold, which also always writes the room, conflicts with this change instead of interleaving.
+   */
+  private async inRoomTransaction<T>(
+    hotel: HotelDocument,
+    roomId: string,
+    work: (room: RoomDocument, session: ClientSession) => Promise<T>,
+  ): Promise<T> {
+    const session = await this.connection.startSession();
+    try {
+      return await session.withTransaction(async () => {
+        const touched = await this.rooms
+          .updateOne(
+            { _id: roomId, hotelId: hotel._id },
+            { $inc: { reservationVersion: 1 } },
+            { session },
+          )
+          .exec();
+        if (touched.matchedCount === 0) throw roomNotFound();
+        const room = await this.rooms
+          .findOne({ _id: roomId, hotelId: hotel._id })
+          .session(session)
+          .exec();
+        if (!room) throw roomNotFound();
+        return work(room, session);
+      });
+    } finally {
+      await session.endSession();
+    }
+  }
+
+  /** Booked nights and unexpired held nights of the room from `today` on, earliest first. */
+  private async reservedNights(
+    roomId: Types.ObjectId,
+    today: string,
+    session: ClientSession,
+  ): Promise<string[]> {
+    const rows = await this.nights
+      .find({
+        roomId,
+        date: { $gte: today },
+        $or: [
+          { kind: RoomNightKind.BOOKED },
+          { kind: RoomNightKind.HELD, expiresAt: { $gt: new Date() } },
+        ],
+      })
+      .sort({ date: 1 })
+      .limit(LISTED_NIGHTS + 1)
+      .session(session)
+      .lean()
+      .exec();
+    return rows.map((r) => r.date);
+  }
+
+  private async blockedOf(
+    roomId: Types.ObjectId,
+    today: string,
+    session: ClientSession,
+  ): Promise<BlockedNightsDto> {
+    const rows = await this.nights
+      .find({ roomId, kind: RoomNightKind.BLOCKED, date: { $gte: today } })
+      .sort({ date: 1 })
+      .session(session)
+      .lean()
+      .exec();
+    return {
+      roomId: roomId.toHexString(),
+      blocked: joinNights(rows.map((r) => r.date)),
+    };
+  }
+
+  private async zoneOf(hotel: HotelDocument): Promise<string> {
+    return (await this.hotels.timeZoneOf(hotel.cityId)) ?? EARLIEST_ZONE;
   }
 
   /**
@@ -204,6 +415,45 @@ export class RoomsService {
       await session.endSession();
     }
   }
+}
+
+function conflict(message: string): AppException {
+  return new AppException(HttpStatus.CONFLICT, ErrorCode.CONFLICT, message);
+}
+
+function listNights(nights: string[]): string {
+  const more = nights.length > LISTED_NIGHTS ? ' and more' : '';
+  return `${nights.slice(0, LISTED_NIGHTS).join(', ')}${more}`;
+}
+
+/** Every night of the ranges from `today` on, sorted, without repeats; 400 past MAX_BLOCK_NIGHTS. */
+export function nightsOf(ranges: RangeLike[], today: string): string[] {
+  const all = new Set<string>();
+  for (const r of ranges) {
+    for (const night of eachNight(r.from, r.to)) {
+      if (night >= today) all.add(night);
+    }
+  }
+  if (all.size > MAX_BLOCK_NIGHTS) {
+    throw new ValidationFailedException([
+      {
+        field: 'ranges',
+        message: `ranges cover ${all.size} nights; at most ${MAX_BLOCK_NIGHTS} at a time`,
+      },
+    ]);
+  }
+  return [...all].sort();
+}
+
+/** Consecutive nights joined into half-open ranges: 10, 11, 13 -> [10, 12) and [13, 14). */
+export function joinNights(nights: string[]): { from: string; to: string }[] {
+  const out: { from: string; to: string }[] = [];
+  for (const night of nights) {
+    const last = out[out.length - 1];
+    if (last && last.to === night) last.to = addDays(night, 1);
+    else out.push({ from: night, to: addDays(night, 1) });
+  }
+  return out;
 }
 
 function roomNotFound(): AppException {
