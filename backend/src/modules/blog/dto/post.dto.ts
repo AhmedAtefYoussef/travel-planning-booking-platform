@@ -8,9 +8,11 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
 } from 'class-validator';
 import {
   MAX_POST_BODY,
+  MAX_POST_IMAGES,
   MAX_POST_TAGS,
   MAX_POST_TITLE,
   MAX_TAG_LENGTH,
@@ -18,6 +20,11 @@ import {
 } from '../schemas/post.schema';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { normalizeTags } from '../blog-rules';
+
+import { localUploadUrlPattern, Omittable } from '../../../common/validation';
+
+/** An image this backend stored for a post (GEN-08). */
+const POST_IMAGE_URL = localUploadUrlPattern(['posts']);
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -96,6 +103,56 @@ export class CreatePostDto {
       'DRAFT keeps the post private to its author; PUBLISHED makes it public and searchable.',
   })
   @IsOptional()
+  @StatusRules()
+  status?: PostStatus;
+}
+
+/** BLG-04 / BLG-08: the author edits any subset of the fields. */
+export class UpdatePostDto {
+  @ApiPropertyOptional({
+    example: 'Four days in Cairo',
+    maxLength: MAX_POST_TITLE,
+  })
+  @Omittable()
+  @TitleRules()
+  title?: string;
+
+  @ApiPropertyOptional({ maxLength: MAX_POST_BODY })
+  @Omittable()
+  @BodyRules()
+  body?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['egypt', 'food'],
+    description: `${TAGS_DESCRIPTION} The list replaces the current tags; send [] to remove them all.`,
+  })
+  @Omittable()
+  @TagsRules()
+  tags?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    maxItems: MAX_POST_IMAGES,
+    description:
+      "The post's uploaded image URLs (/uploads/posts/<id>.jpg|png) in the new order; leave one out to remove it. New images are uploaded to the post (GEN-08), never added here.",
+  })
+  @Omittable()
+  @IsArray()
+  @ArrayMaxSize(MAX_POST_IMAGES, {
+    message: `a post has at most ${MAX_POST_IMAGES} images`,
+  })
+  @Matches(POST_IMAGE_URL, {
+    each: true,
+    message: 'each image must be a /uploads/posts/ URL of this post',
+  })
+  images?: string[];
+
+  @ApiPropertyOptional({
+    enum: PostStatus,
+    description: 'Publish a draft, or move a published post back to draft.',
+  })
+  @Omittable()
   @StatusRules()
   status?: PostStatus;
 }

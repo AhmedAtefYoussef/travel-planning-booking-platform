@@ -497,6 +497,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     headers?: Record<string, string>;
     /** Where the page envelope is, when it is not the whole body (FLT-12 round trip). */
     envelope?: (body: Record<string, unknown>) => Record<string, unknown>;
+    /** The OpenAPI path, when the URL fills in a path parameter. */
+    docPath?: string;
   }[] = [
     { url: '/api/countries?' },
     { url: '/api/cities?' },
@@ -532,6 +534,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/posts/mine?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
+    // BLG-08: the posts behind a tag link.
+    { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
     // BLG-02: published posts.
     { url: '/api/posts?' },
   ];
@@ -558,7 +562,9 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       )
       .map(([path]) => path)
       .sort();
-    expect(paginated).toEqual(LISTS.map((l) => l.url.split('?')[0]).sort());
+    expect(paginated).toEqual(
+      LISTS.map((l) => l.docPath ?? l.url.split('?')[0]).sort(),
+    );
   });
 
   async function expectTwoPages(
@@ -770,6 +776,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         // BLG-02: guests read published posts (brief section 4).
         'GET /api/posts',
         'GET /api/posts/:id',
+        // BLG-08: guests open tag pages.
+        'GET /api/tags/:tag/posts',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',
