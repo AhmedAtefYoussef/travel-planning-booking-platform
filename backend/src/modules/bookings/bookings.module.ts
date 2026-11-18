@@ -17,6 +17,11 @@ import { BookingQueriesService } from './booking-queries.service';
 import { HotelBookingsController } from './hotel-bookings.controller';
 import { HotelBookingsService } from './hotel-bookings.service';
 import {
+  MyFlightBookingsController,
+  MyHotelReservationsController,
+} from './my-bookings.controller';
+import { MyBookingsService } from './my-bookings.service';
+import {
   FlightBooking,
   FlightBookingSchema,
 } from './schemas/flight-booking.schema';
@@ -55,6 +60,8 @@ import {
     HotelReservationsController,
     HotelBookingsController,
     BookingPoliciesController,
+    MyFlightBookingsController,
+    MyHotelReservationsController,
   ],
   providers: [
     BookingLifecycleService,
@@ -65,6 +72,7 @@ import {
     { provide: HOTEL_PAYABLE_BOOKING, useExisting: HotelBookingsService },
     BookingPoliciesService,
     BookingQueriesService,
+    MyBookingsService,
     { provide: UPCOMING_BOOKINGS, useExisting: BookingQueriesService },
     { provide: FLIGHT_BOOKINGS_LOOKUP, useExisting: BookingQueriesService },
   ],

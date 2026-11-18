@@ -552,6 +552,16 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
     {
+      // FLT-25: the caller's own flight bookings, one group at a time.
+      url: '/api/flight-bookings?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
+      // HTL-20: the caller's own hotel reservations, one group at a time.
+      url: '/api/hotel-bookings?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
       // BLG-03: the caller's own posts.
       url: '/api/posts/mine?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
