@@ -12,14 +12,19 @@ import type { AuthUser } from '../../common/auth/auth.types';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import { ItineraryDto } from './dto/itinerary.dto';
-import { ItineraryHotelsDto, ItineraryHotelsQueryDto } from './dto/search.dto';
+import {
+  ItineraryFlightsDto,
+  ItineraryFlightsQueryDto,
+  ItineraryHotelsDto,
+  ItineraryHotelsQueryDto,
+} from './dto/search.dto';
 import { ItinerarySearchService } from './itinerary-search.service';
 import { PublicItinerariesService } from './public-itineraries.service';
 
 const OWNER_ONLY =
   'Only for the owner of the itinerary; another user gets the same 404 as for an unknown itinerary (ACC-11). Admins and moderators get 403.';
 
-/** Cloning a public itinerary (ITN-21) and searches started from an itinerary (ITN-25). */
+/** Cloning a public itinerary (ITN-21) and searches started from an itinerary (ITN-25, ITN-26). */
 @ApiTags('Itineraries')
 @Controller('itineraries/:id')
 export class ItinerarySearchController {
@@ -63,5 +68,22 @@ export class ItinerarySearchController {
     @Query() query: ItineraryHotelsQueryDto,
   ): Promise<ItineraryHotelsDto> {
     return this.search.hotelsForGroup(user, id, query);
+  }
+
+  @Get('flights')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: "ITN-26 Find flights to my itinerary's first city",
+    description: `One-way (default) or round-trip flights from \`origin\` (an airport from GET /api/airports, 400 otherwise, and not in the first day's city) to any airport in the city of the itinerary's first day. The outbound date defaults to the start date and the return date to the last day's date; both can be overridden. The search reuses FLT-11/FLT-12 (passenger types adults, children, infants with no more infants than adults; optional cabin class), earliest departure first. \`page\` pages the outbound list and \`returnPage\` the return list, 10 per page. An itinerary without days is 400. ${OWNER_ONLY}`,
+  })
+  @ApiParam({ name: 'id', description: 'Itinerary id' })
+  @ApiOkResponse({ type: ItineraryFlightsDto })
+  @ApiErrorResponses(400, 404)
+  flights(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: ItineraryFlightsQueryDto,
+  ): Promise<ItineraryFlightsDto> {
+    return this.search.flightsToStart(user, id, query);
   }
 }

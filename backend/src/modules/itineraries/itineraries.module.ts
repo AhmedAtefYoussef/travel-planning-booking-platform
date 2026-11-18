@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
+import { FlightsModule } from '../flights';
 import { HotelsModule } from '../hotels';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
@@ -24,6 +25,7 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
  */
 @Module({
   imports: [
+    FlightsModule,
     // Provides HOTELS_SEARCH (HTL-11) to ITN-25 once it exists; HotelsModule is not global.
     HotelsModule,
     MongooseModule.forFeature([

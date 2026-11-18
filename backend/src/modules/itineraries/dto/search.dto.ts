@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsIn,
   IsOptional,
   IsString,
   Length,
@@ -9,8 +10,10 @@ import {
   Min,
   ValidateBy,
 } from 'class-validator';
+import type { CabinClass } from '../../../common/contracts';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { IsWholeNumber } from '../../../common/validation';
+import { IsCalendarDate } from '../../hotels';
 import { MAX_ITINERARY_DAYS } from '../schemas/itinerary.schema';
 import {
   CityGroupDto,
@@ -203,4 +206,172 @@ export class ItineraryHotelsDto {
 
   @ApiProperty({ type: HotelSearchPageDto, description: 'HTL-11 results' })
   hotels!: HotelSearchPageDto;
+}
+
+export const TRIP_TYPES = ['ONE_WAY', 'ROUND_TRIP'] as const;
+export type TripType = (typeof TRIP_TYPES)[number];
+const CABIN_CLASSES: readonly CabinClass[] = [
+  'ECONOMY',
+  'PREMIUM_ECONOMY',
+  'BUSINESS',
+  'FIRST',
+];
+
+/** FLT-12: no more infants than adults (each infant travels on an adult's lap). */
+function AtMostAdults() {
+  return ValidateBy({
+    name: 'atMostAdults',
+    validator: {
+      validate: (value: unknown, args) => {
+        const adults = (args?.object as ItineraryFlightsQueryDto).adults ?? 1;
+        return typeof value !== 'number' || value <= adults;
+      },
+      defaultMessage: () => 'infants cannot outnumber adults',
+    },
+  });
+}
+
+/** ITN-26: flights from an origin airport to the city of the itinerary's first day. */
+export class ItineraryFlightsQueryDto extends PaginationQueryDto {
+  @ApiProperty({
+    example: 'RUH',
+    description: 'Origin airport IATA code (GET /api/airports)',
+  })
+  @Transform(upper)
+  @IsString()
+  @Matches(/^[A-Z]{3}$/, { message: 'origin must be a three-letter IATA code' })
+  origin!: string;
+
+  @ApiPropertyOptional({ enum: TRIP_TYPES, default: 'ONE_WAY' })
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(TRIP_TYPES, {
+    message: `tripType must be one of: ${TRIP_TYPES.join(', ')}`,
+  })
+  tripType?: TripType;
+
+  @ApiPropertyOptional({
+    description:
+      "Outbound date (YYYY-MM-DD, local at the origin), e.g. 2027-03-01. Leave empty for the itinerary's start date",
+  })
+  @IsOptional()
+  @IsString()
+  @IsCalendarDate()
+  departureDate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Return date for ROUND_TRIP (YYYY-MM-DD), e.g. 2027-03-10. Leave empty for the itinerary's last day; not allowed for ONE_WAY",
+  })
+  @IsOptional()
+  @IsString()
+  @IsCalendarDate()
+  returnDate?: string;
+
+  @ApiPropertyOptional({ example: 1, minimum: 1, default: 1 })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsWholeNumber('adults must be a whole number')
+  @Min(1)
+  @Max(9)
+  adults?: number;
+
+  @ApiPropertyOptional({ example: 0, minimum: 0, default: 0 })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsWholeNumber('children must be a whole number')
+  @Min(0)
+  @Max(9)
+  children?: number;
+
+  @ApiPropertyOptional({ example: 0, minimum: 0, default: 0 })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsWholeNumber('infants must be a whole number')
+  @Min(0)
+  @Max(9)
+  @AtMostAdults()
+  infants?: number;
+
+  @ApiPropertyOptional({ enum: CABIN_CLASSES })
+  @IsOptional()
+  @Transform(upper)
+  @IsIn(CABIN_CLASSES, {
+    message: `cabinClass must be one of: ${CABIN_CLASSES.join(', ')}`,
+  })
+  cabinClass?: CabinClass;
+
+  @ApiPropertyOptional({
+    example: 1,
+    minimum: 1,
+    default: 1,
+    description:
+      'Page of the return list (ROUND_TRIP); `page` pages the outbound list',
+  })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsWholeNumber('returnPage must be a whole number')
+  @Min(1)
+  @Max(100000)
+  returnPage?: number;
+}
+
+export class FlightResultItemDto {
+  @ApiProperty() flightId!: string;
+  @ApiProperty() airlineId!: string;
+  @ApiProperty() flightNumber!: string;
+  @ApiProperty({ example: 'RUH' }) from!: string;
+  @ApiProperty({ example: 'CAI' }) to!: string;
+  @ApiProperty() departureUtc!: Date;
+  @ApiProperty() arrivalUtc!: Date;
+  @ApiProperty() durationMinutes!: number;
+  @ApiProperty({ enum: CABIN_CLASSES }) cabinClass!: CabinClass;
+  @ApiProperty() seatsLeft!: number;
+  @ApiProperty({ description: 'Total for the party, minor units' })
+  totalPriceMinor!: number;
+}
+
+export class FlightResultPageDto {
+  @ApiProperty({ type: [FlightResultItemDto] })
+  items!: FlightResultItemDto[];
+  @ApiProperty() page!: number;
+  @ApiProperty() limit!: number;
+  @ApiProperty() total!: number;
+  @ApiProperty() totalPages!: number;
+}
+
+export class ItineraryFlightsDto {
+  @ApiProperty({ example: 'RUH' }) origin!: string;
+
+  @ApiProperty({
+    example: 'cairo',
+    description: "City of the itinerary's first day",
+  })
+  destinationCityId!: string;
+
+  @ApiProperty({
+    type: [String],
+    example: ['CAI'],
+    description: 'Every airport of that city that was searched',
+  })
+  destinationAirports!: string[];
+
+  @ApiProperty({ enum: TRIP_TYPES }) tripType!: TripType;
+  @ApiProperty({ example: '2027-03-01' }) departureDate!: string;
+
+  @ApiProperty({ example: '2027-03-10', nullable: true, type: String })
+  returnDate!: string | null;
+
+  @ApiProperty({
+    type: FlightResultPageDto,
+    description: 'Origin -> destination city',
+  })
+  outbound!: FlightResultPageDto;
+
+  @ApiProperty({
+    type: FlightResultPageDto,
+    nullable: true,
+    description: 'Destination city -> origin (ROUND_TRIP only)',
+  })
+  return!: FlightResultPageDto | null;
 }

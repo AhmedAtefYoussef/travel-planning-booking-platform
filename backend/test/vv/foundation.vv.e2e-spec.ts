@@ -37,6 +37,7 @@ import { Attraction } from '../../src/modules/reference/schemas/attraction.schem
 import { City } from '../../src/modules/reference/schemas/city.schema';
 import { Country } from '../../src/modules/reference/schemas/country.schema';
 import { Currency } from '../../src/modules/reference/schemas/currency.schema';
+import { Itinerary } from '../../src/modules/itineraries';
 import { User } from '../../src/modules/users';
 import { loginAs } from '../support/auth';
 import { createTestApp } from '../support/create-test-app';
@@ -493,6 +494,9 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   let app: INestApplication<App>;
   const http = () => request(app.getHttpServer());
   const ROUTE = { from: 'RUH', to: 'CDG', date: '2028-02-29' };
+  /** ITN-26: an itinerary of USER whose first day is in Paris, so its flight search is ROUTE. */
+  const ITN_USER = '6af0f1c2c77901aa9f228701';
+  const ITN_ID = '6af0f1c2c77901aa9f2287aa';
 
   /** Every list endpoint in the app, with what it needs to answer 200. */
   // FLT-29, HTL-22: a flight and a hotel of the stub moderators below, inserted in beforeAll, so their
@@ -614,6 +618,13 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     { url: '/api/posts?' },
     // ITN-21: public itinerary search, open to guests.
     { url: '/api/itineraries/public/search?' },
+    {
+      // ITN-26: two lists like FLT-12; `page` pages the outbound list (returnPage the other).
+      url: `/api/itineraries/${ITN_ID}/flights?origin=${ROUTE.from}&`,
+      docPath: '/api/itineraries/{id}/flights',
+      headers: { 'x-dev-user': `USER:${ITN_USER}` },
+      envelope: (body) => body.outbound as Record<string, unknown>,
+    },
   ];
   /**
    * Lists whose page is passed straight to another module's search, which carries its own GEN-05
@@ -627,6 +638,15 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   beforeAll(async () => {
     app = await createTestApp();
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
+    // ITN-26: USER's itinerary whose first day is in Paris, so its flight search is ROUTE.
+    await app.get<Model<Itinerary>>(getModelToken(Itinerary.name)).create({
+      _id: new Types.ObjectId(ITN_ID),
+      ownerId: new Types.ObjectId(ITN_USER),
+      title: 'GEN-05 flights',
+      countries: ['FR'],
+      startDate: ROUTE.date,
+      days: [{ order: 1, cityId: 'paris', notes: '' }],
+    });
     const users = app.get<Model<User>>(getModelToken(User.name));
     await users.collection.insertOne({
       _id: new Types.ObjectId(VV_AUTHOR),
