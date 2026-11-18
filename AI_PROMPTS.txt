@@ -1516,3 +1516,16 @@ findings to move HTL-01 to Done (GEN-08 landed in #66), correct the owners of tw
 HTL-09 and replace the stale "Karim" ownership notes in the architecture docs. The Jira changes were made in Jira
 itself; this PR only brings the repo docs in line. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-22, HTL-23, HTL-24, GEN-03
+Prompt:
+Reassign Karim's tasks back to him.
+How the output was used:
+Claude restored Karim as assignee, label and description owner on his twelve Jira items, then restored him as
+owner of his nine matrix rows and of the reviews schema in the ERD, undoing the owner changes that #103 merged.
+HTL-21, GEN-09 and GEN-10 stay with Ahmed, as in Jira. I reviewed the diff.
+================================================

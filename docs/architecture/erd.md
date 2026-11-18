@@ -56,7 +56,7 @@ erDiagram
 | `rooms` | Sandra (TRVL-140) | hotelId, number, type, beds, maxOccupancy, priceMinor, isActive | unique {hotelId, number} |
 | `room_nights` | Sandra (TRVL-140) | roomId, date (YYYY-MM-DD), reservationId, state HELD/BOOKED, holdExpiresAt | **unique {roomId, date}**: the database refuses double booking (ADR-0002) |
 | `hotel_reservations` | bookings module (TRVL-139), **implemented** | userId, hotelId, checkIn, checkOut (hotel-local dates), nights, timeZone, rooms[{roomId, roomNumber, adults, childrenAges (0-17), nightlyPriceMinor, subtotalMinor}], totalMinor, currency, status, holdExpiresAt, startsAt (start of the check-in day) / endsAt (end of the check-out day) in the hotel's zone, policySnapshot, policiesAcceptedAt, paymentId, refundId, reference | as flight_bookings, plus {hotelId, status}. Validated: checkOut > checkIn |
-| `reviews` | Ahmed / Sandra (TRVL-140) | reservationId, hotelId, userId, rating, text, isHidden | unique `reservationId` |
+| `reviews` | Karim / Sandra (TRVL-140) | reservationId, hotelId, userId, rating, text, isHidden | unique `reservationId` |
 | `payments` | Ahmed (TRVL-161), **implemented** | bookingType, bookingId, userId, stripePaymentIntentId, amountMinor, currency, status, attempts | unique `stripePaymentIntentId`; unique {bookingType, bookingId} where SUCCEEDED |
 | `refunds` | Ahmed (TRVL-161), **implemented** | paymentId, booking ref, amountMinor, refundPercent, tierApplied, reason, status, stripeRefundId | unique {bookingType, bookingId}; unique `stripeRefundId` when present |
 | `stripe_events` | Ahmed (TRVL-161), **implemented** | stripeEventId, type, processedAt | unique `stripeEventId`; TTL 30 days |
