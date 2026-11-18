@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
 import { ItinerariesController } from './itineraries.controller';
+import { ItineraryDaysController } from './itinerary-days.controller';
+import { ItineraryDaysService } from './itinerary-days.service';
 import { ItinerariesService } from './itineraries.service';
 import { PublicItinerariesProvider } from './public-itineraries.provider';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
@@ -9,7 +11,8 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
 
 /**
  * Itineraries (ITN-01..ITN-26). Budget entries and transport costs live in the budgets module and are
- * reached through the optional ITINERARY_BUDGETS port (common/contracts).
+ * reached through the optional ITINERARY_BUDGETS port (common/contracts). PUBLIC_ITINERARIES gives the blog
+ * an author's public itineraries (BLG-12).
  */
 @Module({
   imports: [
@@ -18,9 +21,10 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
       { name: Activity.name, schema: ActivitySchema },
     ]),
   ],
-  controllers: [ItinerariesController],
+  controllers: [ItinerariesController, ItineraryDaysController],
   providers: [
     ItinerariesService,
+    ItineraryDaysService,
     PublicItinerariesProvider,
     { provide: PUBLIC_ITINERARIES, useExisting: PublicItinerariesProvider },
   ],
