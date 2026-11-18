@@ -209,7 +209,7 @@ describe('Provider booking views (e2e): FLT-29, HTL-22', () => {
       const kept = await holdFlight(owner, economy, [
         passenger('Mona', 'Zaki'),
         passenger('Omar', 'Adel', 'CHILD', '2020-01-01'),
-        passenger('Lina', 'Zaki', 'INFANT', '2027-06-01'),
+        passenger('Lina', 'Zaki', 'INFANT', '2026-07-01'),
       ]);
       await pay(owner, 'flight', kept);
       const second = await loginAs(app, Role.User);
