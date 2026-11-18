@@ -15,6 +15,7 @@
  *   AUDIT_SERVICE (Ahmed)           ->  admin, moderation
  *   NOTIFICATIONS_SERVICE (Ahmed)   ->  bookings, payments, admin, flights
  *   FLIGHT_BOOKINGS_LOOKUP (bookings) ->  flights (FLT-05 schedule-change notifications)
+ *   FLIGHT_BOOKING_CANCELLATIONS (bookings) -> flights (FLT-06 flight cancellation)
  *   UPLOADS_SERVICE (Ahmed)         ->  blog, itineraries, hotels, airlines
  *   SESSION_VALIDATOR (Abdelrahman) ->  common/auth AuthGuard (ACC-06 idle expiry, logout)
  *   UPCOMING_BOOKINGS (bookings)    ->  users (ACC-12 self-deactivation)
@@ -40,6 +41,9 @@ export const AUDIT_SERVICE = Symbol('AUDIT_SERVICE');
 export const NOTIFICATIONS_SERVICE = Symbol('NOTIFICATIONS_SERVICE');
 export const UPLOADS_SERVICE = Symbol('UPLOADS_SERVICE');
 export const FLIGHT_BOOKINGS_LOOKUP = Symbol('FLIGHT_BOOKINGS_LOOKUP');
+export const FLIGHT_BOOKING_CANCELLATIONS = Symbol(
+  'FLIGHT_BOOKING_CANCELLATIONS',
+);
 export const SESSION_VALIDATOR = Symbol('SESSION_VALIDATOR');
 export const UPCOMING_BOOKINGS = Symbol('UPCOMING_BOOKINGS');
 export const ACCOUNT_ADMIN = Symbol('ACCOUNT_ADMIN');
