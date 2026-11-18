@@ -4,6 +4,9 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { HOTELS_SEARCH } from '../src/common/contracts';
+import type { HotelsSearch } from '../src/common/contracts/services.contract';
+import { ValidationFailedException } from '../src/common/errors/app.exception';
 import { Review } from '../src/modules/hotels';
 import {
   loadReferenceDataset,
@@ -160,5 +163,33 @@ describe('Hotel search filters and sort (e2e): HTL-12', () => {
     expect(await field({ minRating: 6 })).toEqual(['minRating']);
     expect(await field({ minRating: 4.25 })).toEqual(['minRating']);
     expect(await field({ sort: 'name' })).toEqual(['sort']);
+  });
+
+  it('applies the same filter rules to HOTELS_SEARCH callers, and filters for them too', async () => {
+    const service = app.get<HotelsSearch>(HOTELS_SEARCH);
+    const base = { ...stay, rooms: 1, page: 1 };
+    const fieldOf = async (change: object) => {
+      const error = (await service
+        .search({ ...base, ...change })
+        .catch((e: unknown) => e)) as ValidationFailedException;
+      expect(error).toBeInstanceOf(ValidationFailedException);
+      return error.fieldErrors?.[0]?.field;
+    };
+    expect(await fieldOf({ minPriceMinor: -1 })).toBe('minPriceMinor');
+    expect(await fieldOf({ maxPriceMinor: 99.5 })).toBe('maxPriceMinor');
+    expect(await fieldOf({ minPriceMinor: 9000, maxPriceMinor: 8000 })).toBe(
+      'maxPriceMinor',
+    );
+    expect(await fieldOf({ minRating: 0 })).toBe('minRating');
+    expect(await fieldOf({ minRating: Number.NaN })).toBe('minRating');
+    expect(await fieldOf({ minRating: 4.25 })).toBe('minRating');
+    expect(await fieldOf({ sort: 'name' })).toBe('sort');
+
+    const page = await service.search({
+      ...base,
+      minRating: 4.5,
+      sort: 'rating',
+    });
+    expect(page.items.map((i) => i.name)).toEqual(['Lux', 'Mid']);
   });
 });

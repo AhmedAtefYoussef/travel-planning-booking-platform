@@ -14,7 +14,11 @@ import type {
   HotelSearchResultDto,
 } from './dto/hotel-search.dto';
 import { MAX_DETAILS_STAY_NIGHTS } from './dto/hotel-details.dto';
-import { MAX_SEARCH_GUESTS, MAX_SEARCH_ROOMS } from './dto/hotel-search.dto';
+import {
+  HOTEL_SORTS,
+  MAX_SEARCH_GUESTS,
+  MAX_SEARCH_ROOMS,
+} from './dto/hotel-search.dto';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import { type FreeRoom, HotelDetailsService } from './hotel-details.service';
 import { HotelsService } from './hotels.service';
@@ -49,20 +53,7 @@ export class HotelSearchService implements HotelsSearch {
     query: HotelSearchQueryDto | HotelSearchQuery,
   ): Promise<Page<HotelSearchResultDto>> {
     const where = placeOf(query);
-    // HTL-12: min > max is an error, not an empty result; checked here so contract callers get it too.
-    const { minPriceMinor, maxPriceMinor, minRating } = query;
-    if (
-      minPriceMinor !== undefined &&
-      maxPriceMinor !== undefined &&
-      minPriceMinor > maxPriceMinor
-    ) {
-      throw new ValidationFailedException([
-        {
-          field: 'maxPriceMinor',
-          message: `maxPriceMinor (${maxPriceMinor}) must be greater than or equal to minPriceMinor (${minPriceMinor})`,
-        },
-      ]);
-    }
+    const { minPriceMinor, maxPriceMinor, minRating } = checkFilters(query);
     const nights = checkStay(query);
     // A quick bound before any hotel is read; each hotel's own local date is checked below.
     if (query.checkIn < todayIn(EARLIEST_ZONE)) throw pastCheckIn();
@@ -256,4 +247,56 @@ function pastCheckIn(): ValidationFailedException {
       message: 'checkIn cannot be before today at the hotel',
     },
   ]);
+}
+
+/**
+ * The HTL-12 filter rules, checked here as well as in the query DTO so HOTELS_SEARCH callers get the
+ * same 400s: whole non-negative prices, min not above max, minRating 1-5 with up to one decimal, and
+ * a known sort key.
+ */
+function checkFilters(query: HotelSearchQuery) {
+  const bad = (field: string, message: string) =>
+    new ValidationFailedException([{ field, message }]);
+  const { minPriceMinor, maxPriceMinor, minRating, sort } = query;
+  for (const [field, value] of [
+    ['minPriceMinor', minPriceMinor],
+    ['maxPriceMinor', maxPriceMinor],
+  ] as const) {
+    if (value !== undefined && !(Number.isSafeInteger(value) && value >= 0)) {
+      throw bad(field, `${field} must be a whole number of minor units`);
+    }
+  }
+  // min > max is an error, not an empty result.
+  if (
+    minPriceMinor !== undefined &&
+    maxPriceMinor !== undefined &&
+    minPriceMinor > maxPriceMinor
+  ) {
+    throw bad(
+      'maxPriceMinor',
+      `maxPriceMinor (${maxPriceMinor}) must be greater than or equal to minPriceMinor (${minPriceMinor})`,
+    );
+  }
+  if (
+    minRating !== undefined &&
+    !(
+      Number.isFinite(minRating) &&
+      minRating >= 1 &&
+      minRating <= 5 &&
+      // Up to one decimal, counted the way the DTO's maxDecimalPlaces counts it.
+      (String(minRating).split('.')[1] ?? '').length <= 1
+    )
+  ) {
+    throw bad(
+      'minRating',
+      'minRating must be a number from 1 to 5 with up to one decimal',
+    );
+  }
+  if (
+    sort !== undefined &&
+    !(HOTEL_SORTS as readonly string[]).includes(sort)
+  ) {
+    throw bad('sort', `sort must be one of: ${HOTEL_SORTS.join(', ')}`);
+  }
+  return { minPriceMinor, maxPriceMinor, minRating };
 }
