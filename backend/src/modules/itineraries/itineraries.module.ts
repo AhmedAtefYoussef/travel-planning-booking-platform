@@ -4,6 +4,7 @@ import { ItinerariesController } from './itineraries.controller';
 import { ItineraryDaysController } from './itinerary-days.controller';
 import { ItineraryDaysService } from './itinerary-days.service';
 import { ItinerariesService } from './itineraries.service';
+import { ItineraryModerationAdapter } from './itinerary-moderation.adapter';
 import { Activity, ActivitySchema } from './schemas/activity.schema';
 import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
 
@@ -19,7 +20,11 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
     ]),
   ],
   controllers: [ItinerariesController, ItineraryDaysController],
-  providers: [ItinerariesService, ItineraryDaysService],
+  providers: [
+    ItinerariesService,
+    ItineraryDaysService,
+    ItineraryModerationAdapter,
+  ],
   exports: [MongooseModule],
 })
 export class ItinerariesModule {}
