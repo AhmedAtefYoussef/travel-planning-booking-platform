@@ -137,11 +137,11 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75 | Partial: create as Draft/Published done; images via BLG-10 (GEN-08); published posts listed once BLG-02, BLG-09 and BLG-12 land |
 | BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | - | Not started |
 | BLG-03 | Mandatory | GET /api/posts/mine; GET /api/posts/mine/:id | Malak | TRVL-87 | #94 | Done |
-| BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | - | Not started |
+| BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | #95 | Done |
 | BLG-05 | Mandatory | POST /api/posts/:id/comments | Malak | TRVL-89 | - | Not started |
-| BLG-06 | Mandatory | POST\|DELETE /api/posts/:id/like | Malak | TRVL-90 | - | Not started |
+| BLG-06 | Mandatory | POST\|DELETE /api/posts/:id/like | Malak | TRVL-90 | #98 | Done |
 | BLG-07 | Mandatory | PATCH\|DELETE /api/comments/:id | Malak | TRVL-91 | - | Not started |
-| BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | - | Not started |
+| BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | #93, #95, #99 | Partial: tags on create (#75) and tag pages done; editing tags with BLG-04, tag search with BLG-09 |
 | BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | - | Not started |
 | BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | - | Not started |
 | BLG-12 | Mandatory | GET /api/authors/:id (posts; public itineraries through PUBLIC_ITINERARIES) | Malak | TRVL-95 | #101 | Done |
