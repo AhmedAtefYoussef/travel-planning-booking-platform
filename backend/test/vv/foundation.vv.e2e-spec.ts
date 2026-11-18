@@ -541,6 +541,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/hotels/search?cityId=cairo&checkIn=2028-03-01&checkOut=2028-03-03&guests=1&',
     },
     { url: '/api/admin/audit-logs?', headers: { 'x-dev-user': 'ADMIN' } },
+    // ACC-17: every flight booking and hotel reservation, for admins.
+    { url: '/api/admin/bookings?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       // GEN-01: the caller's own notifications.
       url: '/api/notifications?',

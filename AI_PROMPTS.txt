@@ -1731,6 +1731,23 @@ the diff.
 
 ================================================
 Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: ACC-17 (TRVL-27)
+Prompt:
+Implement my assigned stories to their Definition of Done. For ACC-17: give the admin a read-only list of every
+flight booking and hotel reservation (reference, user, provider, dates, amount, status), filterable by type, status
+and date range.
+How the output was used:
+Claude added GET /api/admin/bookings with one $unionWith aggregation over both collections, so the newest-first
+order and the 10-per-page paging are exact across them, user names through UsersService and airline names through
+AIRLINE_STATUS, and a travel-date range filter (trips overlapping the range, UTC days, "to" before "from" is 400).
+Unit specs check the pipeline and the row mapping; the e2e suite books through the real flow in a month no other
+suite uses. I chose the travel dates (not the booking date) for the range and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
 Student: Sarah Eldahaby
 Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: ITN-07 (TRVL-73)
