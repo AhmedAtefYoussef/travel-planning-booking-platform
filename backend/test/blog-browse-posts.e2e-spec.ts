@@ -118,7 +118,7 @@ describe('Blog browse and view (e2e): BLG-02', () => {
     await http().get('/api/posts/not-an-id').expect(400);
   });
 
-  it("ACC-12 a deactivated author's posts are hidden from browse and the post page", async () => {
+  it("ACC-12 a deactivated author's posts are hidden from browse and the post page and cannot be liked", async () => {
     const leaver = await loginAs(ctx.app, Role.User);
     const gone = await publish(leaver, 'Soon hidden');
     const kept = await publish(ctx.author, 'Still listed');
@@ -134,5 +134,13 @@ describe('Blog browse and view (e2e): BLG-02', () => {
     expect(ids).not.toContain(gone.id);
     expect(ids).toContain(kept.id);
     await http().get(`/api/posts/${gone.id}`).expect(404);
+    await http()
+      .post(`/api/posts/${gone.id}/like`)
+      .set('Cookie', ctx.reader.cookie)
+      .expect(404);
+    await http()
+      .post(`/api/posts/${kept.id}/like`)
+      .set('Cookie', ctx.reader.cookie)
+      .expect(200);
   });
 });

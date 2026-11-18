@@ -1644,3 +1644,17 @@ Claude merged develop (develop's log and rows kept, mine re-applied), added Post
 "Deleted user" for a deactivated account, and added a read-only UsersService.findIdsByStatus so the blog
 never reads the users collection. Unit and e2e tests added. I reviewed the diff and ran the checks.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-02, BLG-06, ACC-12
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #93
+and close the ACC-12 gap where a deactivated author's post could still be liked.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop; this PR's browse and post page re-applied on top),
+made LikesService use PostsService.publicFilter() so a deactivated author's post answers 404 to a like, and
+extended the ACC-12 e2e test. I reviewed the diff and ran the full CI checks locally.
+================================================
