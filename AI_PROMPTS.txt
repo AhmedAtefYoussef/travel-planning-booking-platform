@@ -1476,3 +1476,16 @@ edit, DELETE .../rooms/:roomId, all inside one transaction that first writes the
 conflicts, plus unit and e2e tests. I chose separate /blocks routes over PATCH .../availability because that
 route already replaces the bookable ranges (HTL-05).
 ================================================
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-06 (TRVL-52), HTL-02, ITN-01, ITN-03, ITN-20, FLT-05, BLG-01
+Prompt:
+Validate and verify every open PR against the workbook, the Jira Definition of Done and the review checklist,
+and test their endpoints through Swagger. Then merge the approved ones and sync Jira.
+How the output was used:
+Claude ran npm run verify on all open PRs merged together, a live Swagger/API probe on a throw-away in-memory
+database (115 checks, races included) and mutation checks on the FLT-05 test, then drafted the reviews I posted.
+It found that HTL-06 cannot be Done until HTL-11 search exists, so this PR sets the row to Partial.
+================================================
