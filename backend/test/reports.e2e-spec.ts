@@ -24,8 +24,8 @@ const DATA_DIR = join(__dirname, '..', 'seed', 'data');
 
 /**
  * GEN-09: a registered user reports a post, comment, review or itinerary with a reason, at most once per
- * item. Posts, comments and reviews go through test adapters of the CONTENT_MODERATION port; itineraries
- * through the real one.
+ * item. Comments go through a test adapter of the CONTENT_MODERATION port; posts and itineraries through
+ * the real ones (reviews: review-reports.e2e-spec.ts).
  */
 describe('Reports (e2e): GEN-09 report content once per item', () => {
   let app: INestApplication<App>;
@@ -161,9 +161,9 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
     });
 
     it('keeps exactly one report when five identical requests arrive at once', async () => {
-      const id = content.add(ModeratableContentType.Review);
+      const id = content.add(ModeratableContentType.Comment);
       const results = await Promise.all(
-        Array.from({ length: 5 }, () => report(bob, body('REVIEW', id))),
+        Array.from({ length: 5 }, () => report(bob, body('COMMENT', id))),
       );
       const statuses = results.map((r) => r.status).sort();
       expect(statuses).toEqual([201, 409, 409, 409, 409]);
