@@ -1563,3 +1563,16 @@ race up to three times before a 409, so concurrent adds never leave gaps or a 61
 ITINERARY_DAY_LIMIT). I checked the e2e cases (60th and 61st day, concurrent adds, null and empty edits,
 unknown cities, a stranger getting 404) and ran them in Swagger.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-03
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-03 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added GET /api/posts/mine (the caller's posts, drafts and hidden ones included, with status, date, like and comment counts) and GET /api/posts/mine/:id (404 for another user's post), the page-size verification entry, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
