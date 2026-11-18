@@ -27,6 +27,11 @@ import {
 } from './schemas/flight-booking.schema';
 import { HoldGuard, HoldGuardSchema } from './schemas/hold-guard.schema';
 import {
+  AirlineFlightBookingsController,
+  HotelReservationsController,
+} from './provider-bookings.controller';
+import { ProviderBookingsService } from './provider-bookings.service';
+import {
   HotelReservation,
   HotelReservationSchema,
 } from './schemas/hotel-reservation.schema';
@@ -51,6 +56,8 @@ import {
   ],
   controllers: [
     FlightBookingsController,
+    AirlineFlightBookingsController,
+    HotelReservationsController,
     HotelBookingsController,
     BookingPoliciesController,
     MyFlightBookingsController,
@@ -58,6 +65,7 @@ import {
   ],
   providers: [
     BookingLifecycleService,
+    ProviderBookingsService,
     FlightBookingsService,
     { provide: FLIGHT_PAYABLE_BOOKING, useExisting: FlightBookingsService },
     HotelBookingsService,
