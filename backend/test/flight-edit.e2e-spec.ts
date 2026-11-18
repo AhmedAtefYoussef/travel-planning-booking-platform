@@ -21,7 +21,11 @@ import { createTestApp } from './support/create-test-app';
 
 const DATA_DIR = join(__dirname, '..', 'seed', 'data');
 
-/** Stand-ins for Karim's flight-bookings (FLIGHT_BOOKINGS_LOOKUP) and notifications (GEN-01). */
+/**
+ * Stand-ins for the flight-bookings lookup and GEN-01 notifications, so these cases check the edit
+ * rules quickly and that a rejected edit notifies nobody. That a real time change reaches a real
+ * Confirmed passenger is covered once, end to end, in flight-schedule-notification.e2e-spec.ts.
+ */
 const confirmed = new Map<string, ConfirmedFlightBooking[]>();
 const sent: NotificationInput[] = [];
 const lookup: FlightBookingsLookup = {
@@ -106,12 +110,8 @@ describe('Edit flights (e2e): FLT-05', () => {
     await app.close();
   });
 
-  it('the moderator changes the times; Confirmed passengers get an in-app notification', async () => {
+  it('the moderator changes the times in airport-local time', async () => {
     const id = await newFlight('FE100');
-    confirmed.set(id, [
-      { bookingId: 'booking-1', userId: 'user-1' },
-      { bookingId: 'booking-2', userId: 'user-2' },
-    ]);
     const res = await edit(id, {
       departureLocal: '2027-12-01T12:30',
       arrivalLocal: '2027-12-01T13:45',
@@ -125,16 +125,6 @@ describe('Edit flights (e2e): FLT-05', () => {
       arrival: { airport: 'FRA', local: '2027-12-01T13:45:00.000+01:00' },
       durationMinutes: 75,
     });
-    expect(sent).toEqual([
-      expect.objectContaining({
-        userId: 'user-1',
-        type: 'FLIGHT_SCHEDULE_CHANGED',
-        title: 'Flight FE100 has a new schedule',
-        body: 'CDG → FRA now departs 2027-12-01 12:30 and arrives 2027-12-01 13:45 (local times).',
-        link: '/bookings/flights/booking-1',
-      }),
-      expect.objectContaining({ userId: 'user-2' }),
-    ]);
   });
 
   it('a time not sent keeps its local time; the local date follows the new departure', async () => {
