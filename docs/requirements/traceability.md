@@ -78,13 +78,13 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | HTL-01 | Mandatory | POST /api/hotels; PATCH /api/hotels/:id | Sandra | TRVL-47 | #22, #55 | Partial: photos are URLs until GEN-08 |
-| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | - | Not started |
+| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | #89 | Done |
 | HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | #23 | Done |
 | HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | #24, #55 | Done |
 | HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |
 | HTL-06 | Mandatory | DELETE /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-52 | - | Not started |
 | HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | - | Not started |
-| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #56, #86 | Partial: set and returned on every hotel response and the pre-payment booking summary (PAY-02); shown on the public hotel page once HTL-02 (GET /api/hotels/:id) lands |
+| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #56, #86, #89 | Done |
 | HTL-10 | Mandatory | PUT /api/hotels/:id/policies | Ahmed | TRVL-55 | #4, #86 | Done |
 | HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | - | Not started |
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
