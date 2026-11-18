@@ -1628,3 +1628,18 @@ How the output was used:
 Claude added POST /api/posts/:id/comments (1-500 characters, published posts only, commentCount raised in the same transaction) and GET /api/posts/:id/comments (oldest first, 10 per page), the public-route and page-size verification entries with a fixed post fixture, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
 I reviewed the diff and ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-05, ACC-12
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #97
+and stop comments on a deactivated author's posts (ACC-12: their posts are hidden).
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop; comments re-applied next to likes), and made
+CommentsService answer 404 to listing or adding comments when the post's author is DEACTIVATED, read
+through UsersService.findProfile. An ACC-12 e2e test and CommentsService unit tests were added (the
+src/modules/ branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
+================================================

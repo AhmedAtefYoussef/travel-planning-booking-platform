@@ -11,6 +11,7 @@ import {
   skipFor,
   toPage,
 } from '../../common/pagination/pagination';
+import { AccountStatus, UsersService } from '../users';
 import { PUBLIC_POST_FILTER } from './blog-rules';
 import type { CommentDto } from './dto/comment.dto';
 import { PostsService } from './posts.service';
@@ -23,7 +24,8 @@ type CommentLike = Pick<
 > & { _id: Types.ObjectId };
 
 /**
- * Comments (BLG-05). Only published, non-hidden posts take comments. The post's commentCount and
+ * Comments (BLG-05). Only public posts take comments: published, not hidden, and not written by a
+ * deactivated account (ACC-12: their posts are hidden). The post's commentCount and
  * interactionScore change in the same transaction as the comment, so the counts never drift.
  */
 @Injectable()
@@ -33,6 +35,7 @@ export class CommentsService {
     @InjectModel(Comment.name) private readonly comments: Model<Comment>,
     @InjectConnection() private readonly connection: Connection,
     private readonly postsService: PostsService,
+    private readonly users: UsersService,
   ) {}
 
   /** BLG-05: a published post's visible comments, oldest first. */
@@ -64,6 +67,7 @@ export class CommentsService {
 
   /** BLG-05: comment on a published post (1-500 characters, checked by the DTO and the schema). */
   async add(user: AuthUser, postId: string, body: string): Promise<CommentDto> {
+    await this.assertPublicPost(postId);
     const comment = await this.connection.transaction(async (session) => {
       const post = await this.posts
         .findOneAndUpdate(
@@ -88,11 +92,15 @@ export class CommentsService {
     return this.toDto(comment);
   }
 
+  /** 404 unless the post is published, not hidden, and its author is not deactivated (ACC-12). */
   private async assertPublicPost(postId: string): Promise<void> {
-    const exists = await this.posts
-      .exists({ _id: postId, ...PUBLIC_POST_FILTER })
+    const post = await this.posts
+      .findOne({ _id: postId, ...PUBLIC_POST_FILTER }, { authorId: 1 })
+      .lean<{ authorId: Types.ObjectId }>()
       .exec();
-    if (!exists) throw postNotFound();
+    if (!post) throw postNotFound();
+    const author = await this.users.findProfile(post.authorId.toHexString());
+    if (author?.status === AccountStatus.Deactivated) throw postNotFound();
   }
 
   private async toDto(comment: CommentLike): Promise<CommentDto> {

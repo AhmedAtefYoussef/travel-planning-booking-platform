@@ -109,4 +109,26 @@ describe('Blog comments (e2e): BLG-05', () => {
       .send({ body: 'hi' })
       .expect(401);
   });
+
+  it("ACC-12 a deactivated author's posts take no comments and their comments are not listed (404)", async () => {
+    const leaver = await loginAs(ctx.app, Role.User);
+    const post = await publish(leaver, 'Soon hidden');
+    await http()
+      .post(`/api/posts/${post.id}/comments`)
+      .set('Cookie', ctx.reader.cookie)
+      .send({ body: 'before' })
+      .expect(201);
+    await ctx.connection
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(leaver.userId) },
+        { $set: { status: 'DEACTIVATED' } },
+      );
+    await http().get(`/api/posts/${post.id}/comments`).expect(404);
+    await http()
+      .post(`/api/posts/${post.id}/comments`)
+      .set('Cookie', ctx.reader.cookie)
+      .send({ body: 'after' })
+      .expect(404);
+  });
 });
