@@ -518,6 +518,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: '/api/notifications?',
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
+    {
+      // ITN-03: the caller's own itineraries.
+      url: '/api/itineraries?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
@@ -744,6 +749,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/currencies/convert',
         'GET /api/airlines/:id',
         'GET /api/airlines/:id/cancellation-policy/refund-preview',
+        // HTL-02: the hotel details page is for guests too.
+        'GET /api/hotels/:id',
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
@@ -1042,7 +1049,7 @@ describe('Swagger contract as an evaluator sees it (vv): GEN-02', () => {
         accepted.push(`${ex.operation} [${ex.name}]`);
     }
     // These pass the DTO on purpose: the service rejects them (FLT-03, FLT-05, FLT-09, FLT-12/FLT-19, HTL-04,
-    // HTL-05, ACC-04).
+    // HTL-05, HTL-10, ACC-04).
     expect(accepted.sort()).toEqual(
       [
         'PATCH /api/flights/{id} [invalid]',
@@ -1056,6 +1063,7 @@ describe('Swagger contract as an evaluator sees it (vv): GEN-02', () => {
         'POST /api/flights [unknownAirport]',
         'POST /api/hotels/{id}/rooms/{roomId}/availability [overlapping]',
         'PUT /api/airlines/{id}/cancellation-policy [duplicate]',
+        'PUT /api/hotels/{id}/policies [duplicateThreshold]',
       ].sort(),
     );
   });

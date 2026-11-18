@@ -491,10 +491,11 @@ export class HotelBookingsService implements PayableBooking {
         `Room ${roomIds[missing]} is not a room of this hotel`,
       );
     }
+    // HOTEL_INVENTORY sets the stay-level reason only for a hotel an admin deactivated (ACC-15).
     if (stay.unavailableReason) {
       throw new AppException(
         HttpStatus.CONFLICT,
-        ErrorCode.CONFLICT,
+        ErrorCode.PROVIDER_INACTIVE,
         stay.unavailableReason,
       );
     }

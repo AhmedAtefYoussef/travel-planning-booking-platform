@@ -2,9 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   Param,
   Patch,
   Post,
+  Put,
+  Query,
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
@@ -17,7 +20,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import {
@@ -28,6 +31,9 @@ import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
 import { ImageFilesInterceptor } from '../uploads';
 import { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
+import { SetHotelPoliciesDto } from './dto/hotel-policy.dto';
+import { HotelDetailsDto, HotelDetailsQueryDto } from './dto/hotel-details.dto';
+import { HotelDetailsService } from './hotel-details.service';
 import { HotelsService } from './hotels.service';
 
 /**
@@ -37,7 +43,10 @@ import { HotelsService } from './hotels.service';
 @ApiTags('Hotels')
 @Controller('hotels')
 export class HotelsController {
-  constructor(private readonly hotels: HotelsService) {}
+  constructor(
+    private readonly hotels: HotelsService,
+    private readonly hotelDetails: HotelDetailsService,
+  ) {}
 
   @Post()
   @Roles(Role.Admin)
@@ -177,5 +186,93 @@ export class HotelsController {
     @Param('imageId') imageId: string,
   ): Promise<HotelDto> {
     return this.hotels.removeImage(user, id, imageId);
+  }
+
+  @Put(':id/policies')
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary:
+      'HTL-09 HTL-10 Hotel moderator sets the check-in/check-out times and cancellation tiers',
+    description:
+      "Replaces the hotel's policy.\n\n" +
+      '- **HTL-09:** the standard check-in and check-out times, shown on the hotel page and the booking summary. Both are required, as 24-hour local time HH:mm (00:00 to 23:59); check-out may be earlier than check-in.\n' +
+      '- **HTL-10:** the full list of cancellation tiers, each a unique whole-day threshold before check-in (>= 0) with a refund of 0-100% (up to two decimals). A cancellation uses the FLT-09 rule: the tier with the highest threshold not exceeding the days remaining, else 0%. `[]` means every cancellation refunds 0%. Tiers are stored sorted; reservations already made keep the tiers they accepted (PAY-02).\n\n' +
+      'Only the moderator assigned to this hotel may do this (403 otherwise, ACC-11), and not while an admin has deactivated it (ACC-15).',
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiBody({
+    type: SetHotelPoliciesDto,
+    examples: {
+      valid: {
+        summary:
+          'Check in 14:00, out by 12:00; full refund 7+ days ahead, half 2+ days ahead',
+        value: {
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
+          cancellationTiers: [
+            { daysBefore: 7, refundPercent: 100 },
+            { daysBefore: 2, refundPercent: 50 },
+          ],
+        },
+      },
+      noRefunds: {
+        summary: 'No tiers: every cancellation refunds 0%',
+        value: {
+          checkInTime: '15:00',
+          checkOutTime: '11:00',
+          cancellationTiers: [],
+        },
+      },
+      invalidTimes: {
+        summary: 'Invalid (400): a 12-hour time and hour 24',
+        value: {
+          checkInTime: '2pm',
+          checkOutTime: '24:00',
+          cancellationTiers: [],
+        },
+      },
+      duplicateThreshold: {
+        summary: 'Invalid (400): two tiers with the same threshold',
+        value: {
+          checkInTime: '14:00',
+          checkOutTime: '12:00',
+          cancellationTiers: [
+            { daysBefore: 3, refundPercent: 20 },
+            { daysBefore: 3, refundPercent: 40 },
+          ],
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    type: HotelDto,
+    description:
+      'The hotel with its new checkInTime, checkOutTime and cancellationTiers',
+  })
+  @ApiErrorResponses(400, 404, 409)
+  setPolicies(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: SetHotelPoliciesDto,
+  ): Promise<HotelDto> {
+    return this.hotels.setPolicies(user, id, dto);
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary:
+      'HTL-02 Hotel details page: profile, policies, rating, reviews and rooms',
+    description:
+      "Public (guests too). Returns the hotel profile with photos and amenities, its check-in/check-out times (HTL-09) and cancellation tiers (HTL-10), the average rating and count of visible reviews with the 10 newest (hidden reviews are left out, GEN-10), and its rooms. Without dates every active room is listed. With checkIn and checkOut (the hotel's local dates, checkOut after checkIn, at most 30 nights, checkIn not before today at the hotel; send both or neither) only the rooms free for every night are listed, each with its stayTotalMinor: a room is free when every night lies inside its bookable ranges and no night is booked, held or blocked. A deactivated hotel is 404, like an unknown one (ACC-15).",
+  })
+  @ApiParam({ name: 'id', description: 'Hotel id' })
+  @ApiOkResponse({ type: HotelDetailsDto })
+  @ApiErrorResponses(400, 404)
+  details(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: HotelDetailsQueryDto,
+  ): Promise<HotelDetailsDto> {
+    return this.hotelDetails.details(id, query);
   }
 }

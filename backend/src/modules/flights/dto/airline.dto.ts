@@ -4,7 +4,6 @@ import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
-  IsNumber,
   IsOptional,
   IsString,
   Length,
@@ -16,6 +15,7 @@ import {
 } from 'class-validator';
 import {
   IsImageUrl,
+  IsTwoDecimalNumber,
   IsWholeNumber,
   Omittable,
 } from '../../../common/validation';
@@ -143,10 +143,7 @@ export class CancellationTierInputDto {
     maximum: 100,
     description: 'Refund percentage, 0-100, up to two decimals',
   })
-  @IsNumber(
-    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 2 },
-    { message: 'refundPercent must be a number with up to two decimals' },
-  )
+  @IsTwoDecimalNumber('refundPercent must be a number with up to two decimals')
   @Min(0)
   @Max(100)
   refundPercent!: number;

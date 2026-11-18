@@ -29,6 +29,7 @@ These rules came out of the flights review (PRs #11 and #18). Each one fixed a r
 |---|---|---|
 | `@Omittable()` on every optional field of an edit (PATCH) DTO | `@IsOptional()`, `PartialType(...)` | `IsOptional` skips the validators for `null` too, so `{"seats": null}` was saved. `Omittable` lets a field be left out but still validates `null`. Keep `@IsOptional()` for query DTOs and for a field where `null` means "remove" (documented on the field). |
 | `@IsWholeNumber('<field> must be a whole number')` | `@IsInt()` | `IsInt` accepts `1e20`. Above 2^53 `$inc` and money sums lose precision. |
+| `@IsTwoDecimalNumber('<field> must be a number with up to two decimals')` | `@IsNumber({ maxDecimalPlaces: 2 })` | `maxDecimalPlaces` throws a TypeError on exponent forms like `1e-7`, so the client gets a 500 instead of a 400. |
 | `validate: safeInteger('<field>')` in a `@Prop` | `Number.isInteger`, a local `integer()` helper | The same rule on the schema side. |
 | `runValidators: true` on every `findOneAndUpdate` / `updateOne` | the default | Schema validators are skipped on updates without it. They never run on `$inc`, so also guard the value in the filter (`{ seatsAvailable: { $gte: n } }`). |
 

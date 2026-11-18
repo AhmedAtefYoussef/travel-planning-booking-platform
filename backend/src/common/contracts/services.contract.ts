@@ -3,7 +3,7 @@ import type {
   AirlinePolicySnapshot,
   HotelPolicySnapshot,
 } from './policies.contract';
-import type { AuthUser, Role } from '../auth/auth.types';
+import type { AuthUser, ProviderType, Role } from '../auth/auth.types';
 import type { Page } from '../pagination/pagination';
 
 /* ----------------------------------------------------------------------------------------------
@@ -488,4 +488,113 @@ export interface UpcomingBookings {
    * be confirmed by the webhook. Throws on a malformed id (fail closed).
    */
   countUpcomingConfirmed(userId: string, now: Date): Promise<number>;
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Account administration (ACC-15, ACC-16). The users module owns accounts and sessions and provides
+ * this under ACCOUNT_ADMIN. The admin module suspends and reactivates through it inside its own
+ * transaction, so the status change, the session revocation, the audit entry (GEN-07) and the
+ * notification (GEN-01) commit together or not at all.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface AdministeredAccount {
+  id: string;
+  name: string;
+  role: Role;
+  status: SessionAccountStatus;
+}
+
+export interface AccountAdmin {
+  /** The account, or null when no account has this id. */
+  find(
+    userId: string,
+    session?: ClientSession,
+  ): Promise<AdministeredAccount | null>;
+  /**
+   * Status-conditioned update (`{ _id, status: from }`). Returns false, changing nothing, when the
+   * account is no longer in `from` (another admin changed it first).
+   */
+  changeStatus(
+    userId: string,
+    from: SessionAccountStatus,
+    to: SessionAccountStatus,
+    session: ClientSession,
+  ): Promise<boolean>;
+  /** Ends every open session of the account: its cookies and refresh tokens stop working at once. */
+  revokeAllSessions(userId: string, session: ClientSession): Promise<void>;
+  /** Ids of the moderators assigned to this airline or hotel (ACC-13), whatever their status. */
+  moderatorsOf(
+    type: ProviderType,
+    providerId: string,
+    session?: ClientSession,
+  ): Promise<string[]>;
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Provider status (ACC-15). The flights module provides it for airlines under AIRLINE_STATUS and the
+ * hotels module for hotels under HOTEL_STATUS. Deactivation only flips `isActive`: search and booking
+ * already read it (ACTIVE_PROVIDER_FILTER, FLIGHT_INVENTORY, HOTEL_INVENTORY), and Confirmed bookings
+ * are never touched.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface ProviderState {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+export interface ProviderStatus {
+  /** The provider, or null when none of this type has the id (also for a malformed id). */
+  find(
+    providerId: string,
+    session?: ClientSession,
+  ): Promise<ProviderState | null>;
+  /**
+   * Sets `isActive` only if it currently has the other value (one conditional update). Returns false,
+   * changing nothing, when it already had that value or does not exist.
+   */
+  setActive(
+    providerId: string,
+    active: boolean,
+    session: ClientSession,
+  ): Promise<boolean>;
+}
+
+/* ----------------------------------------------------------------------------------------------
+ * Itinerary budgets (ITN-14, ITN-16, Malak -> itineraries). The budgets module provides it under
+ * ITINERARY_BUDGETS. Itineraries inject it with @Optional(): until it is provided, day subtotals
+ * (ITN-09) count activity costs only, and deleting or cloning an itinerary (ITN-01, ITN-07, ITN-21)
+ * has no budget rows to touch. Amounts stay in their own currency; conversion is ITN-18's job.
+ * -------------------------------------------------------------------------------------------- */
+
+export interface MoneyAmount {
+  /** Uppercase ISO 4217 code. */
+  currency: string;
+  /** Integer minor units (ADR-0004). */
+  amountMinor: number;
+}
+
+export interface ItineraryDayBudget {
+  /** The embedded itinerary day's _id. */
+  dayId: string;
+  /** Budget entries and transport costs of that day, summed per currency. */
+  amounts: MoneyAmount[];
+}
+
+export interface ItineraryBudgets {
+  /** Per-day totals of budget entries and transport costs, for days that have any. */
+  dayTotals(itineraryId: string): Promise<ItineraryDayBudget[]>;
+  /** ITN-07: removes the budget rows of deleted days. */
+  deleteForDays(itineraryId: string, dayIds: string[]): Promise<void>;
+  /** ITN-01: removes every budget row of a deleted itinerary. */
+  deleteForItinerary(itineraryId: string): Promise<void>;
+  /**
+   * ITN-21: copies every budget row of `sourceId` to `targetId`, mapping each source day id to the
+   * clone's day id. Rows of days missing from the map are skipped.
+   */
+  cloneForItinerary(
+    sourceId: string,
+    targetId: string,
+    dayIdMap: ReadonlyMap<string, string>,
+  ): Promise<void>;
 }
