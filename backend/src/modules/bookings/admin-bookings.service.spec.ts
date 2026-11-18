@@ -173,7 +173,7 @@ describe('AdminBookingsService (ACC-17)', () => {
       from: '2028-06-01',
       to: '2028-06-30',
     });
-    expect((pipelines[0].pipeline as unknown[])[0]).toEqual({
+    expect(pipelines[0].pipeline[0]).toEqual({
       $match: {
         status: BookingStatus.Cancelled,
         endsAt: { $gt: new Date('2028-06-01T00:00:00Z') },

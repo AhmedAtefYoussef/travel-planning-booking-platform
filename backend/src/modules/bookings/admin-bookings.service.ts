@@ -116,7 +116,7 @@ export class AdminBookingsService {
     const match = matchFor(query);
     const rowsOf = (shape: Record<string, unknown>): PipelineStage[] => [
       { $match: match },
-      { $project: shape } as PipelineStage,
+      { $project: shape },
     ];
     const page: PipelineStage[] = [
       { $sort: { createdAt: -1, _id: -1 } },
