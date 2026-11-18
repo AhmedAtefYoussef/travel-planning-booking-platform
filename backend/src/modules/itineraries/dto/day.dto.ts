@@ -1,8 +1,17 @@
 import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
-import { Omittable } from '../../../common/validation';
+import {
+  IsMongoId,
+  IsOptional,
+  IsString,
+  Length,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
+import { IsWholeNumber, Omittable } from '../../../common/validation';
+import { MAX_ITINERARY_DAYS } from '../schemas/itinerary.schema';
 
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -43,4 +52,25 @@ export class UpdateDayDto {
   @Omittable()
   @NotesRules()
   notes?: string;
+}
+
+/** ITN-08: moves one day to a new position (1 = first). */
+export class MoveDayDto {
+  @ApiProperty({
+    example: '6720c0a9e4b0a1b2c3d4e5f8',
+    description: 'Id of the day to move',
+  })
+  @IsMongoId({ message: 'dayId must be a 24-character hexadecimal id' })
+  dayId!: string;
+
+  @ApiProperty({
+    example: 1,
+    minimum: 1,
+    maximum: MAX_ITINERARY_DAYS,
+    description: 'Its new day number, from 1 to the number of days',
+  })
+  @IsWholeNumber('position must be a whole number')
+  @Min(1)
+  @Max(MAX_ITINERARY_DAYS)
+  position!: number;
 }

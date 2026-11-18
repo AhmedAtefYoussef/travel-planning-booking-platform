@@ -104,7 +104,7 @@ function setup(
   };
 }
 
-describe('ItineraryDaysService (ITN-05, ITN-07)', () => {
+describe('ItineraryDaysService (ITN-05, ITN-07, ITN-08)', () => {
   it('ITN-05: appends the next day number, guarded by the revision', async () => {
     const stored = storedWithDays(['cairo']);
     const { service, itineraries, writtenDays } = setup(stored);
@@ -249,5 +249,34 @@ describe('ItineraryDaysService (ITN-05, ITN-07)', () => {
     await expect(
       service.deleteDay(user, stored.id, stored.days[0]._id.toHexString()),
     ).resolves.toBeDefined();
+  });
+
+  it('ITN-08: moves a day and renumbers every day', async () => {
+    const stored = storedWithDays(['cairo', 'dubai', 'cairo']);
+    const { service, writtenDays } = setup(stored);
+    await service.moveDay(user, stored.id, {
+      dayId: stored.days[0]._id.toHexString(),
+      position: 3,
+    });
+    expect(writtenDays().map((d) => [d.order, d.cityId])).toEqual([
+      [1, 'dubai'],
+      [2, 'cairo'],
+      [3, 'cairo'],
+    ]);
+  });
+
+  it('ITN-08: a position past the last day is a field error', async () => {
+    const stored = storedWithDays(['cairo', 'dubai']);
+    const { service, itineraries } = setup(stored);
+    await expect(
+      service.moveDay(user, stored.id, {
+        dayId: stored.days[0]._id.toHexString(),
+        position: 3,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      fieldErrors: [expect.objectContaining({ field: 'position' })],
+    });
+    expect(itineraries.findOneAndUpdate).not.toHaveBeenCalled();
   });
 });

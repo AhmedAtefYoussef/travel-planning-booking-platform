@@ -15,7 +15,7 @@ import {
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import type { AddDayDto, UpdateDayDto } from './dto/day.dto';
+import type { AddDayDto, MoveDayDto, UpdateDayDto } from './dto/day.dto';
 import type { ItineraryDto } from './dto/itinerary.dto';
 import { ItinerariesService } from './itineraries.service';
 import { Activity } from './schemas/activity.schema';
@@ -40,7 +40,7 @@ interface StoredDay {
 }
 
 /**
- * Itinerary days (ITN-05, ITN-07). Days are embedded, numbered 1..n with no gaps and
+ * Itinerary days (ITN-05, ITN-07, ITN-08). Days are embedded, numbered 1..n with no gaps and
  * at most 60; their dates are derived from the start date and are never stored, so renumbering is all
  * it takes to move every date (ITN-07, ITN-08). Each change rewrites the day list in one update guarded by the
  * itinerary's revision (__v), so two concurrent changes can never leave gaps, duplicates or a 61st
@@ -168,6 +168,33 @@ export class ItineraryDaysService {
     await this.budgets?.deleteForDays(deleted.id as string, [dayId]);
     await this.itineraryService.deleteUnusedImages(images);
     return this.itineraryService.toDetail(deleted);
+  }
+
+  /**
+   * ITN-08: moves a day to `position` (1..n). Every day keeps its id, city, notes and activities; only
+   * the numbers change, so the dates and the city groups follow the new order.
+   */
+  async moveDay(
+    user: AuthUser,
+    itineraryId: string,
+    dto: MoveDayDto,
+  ): Promise<ItineraryDto> {
+    const saved = await this.rewriteDays(user, itineraryId, (days) => {
+      const index = indexOfDay(days, dto.dayId);
+      if (dto.position > days.length) {
+        throw new ValidationFailedException([
+          {
+            field: 'position',
+            message: `position must be between 1 and ${days.length}, the number of days`,
+          },
+        ]);
+      }
+      const reordered = [...days];
+      const [moved] = reordered.splice(index, 1);
+      reordered.splice(dto.position - 1, 0, moved);
+      return renumber(reordered);
+    });
+    return this.itineraryService.toDetail(saved);
   }
 
   /**
