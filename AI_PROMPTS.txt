@@ -1693,3 +1693,20 @@ city starts a new group. Subtotals stay per currency with no conversion (that is
 through the optional ITINERARY_BUDGETS port, so the row stays Partial until ITN-14/ITN-16 provide it. I checked
 the A,A,B,A grouping, the subtotals with a fake budgets module and a city change merging groups, in e2e and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-25 (TRVL-44), HTL-20 (TRVL-62)
+Prompt:
+Analyze the project description, the requirements workbook, my Jira tasks and the develop branch, then plan and
+implement my assigned stories to their Definition of Done, following the repo's conventions and requirement IDs.
+For FLT-25 and HTL-20: list my flight bookings and hotel reservations grouped as Upcoming, Past and Cancelled.
+How the output was used:
+Claude added GET /api/flight-bookings and GET /api/hotel-bookings with ?group=UPCOMING|PAST|CANCELLED (owner
+filter inside the query, 10 per page), the group rules in bookings/booking-groups.ts (a confirmed trip that has
+ended is already PAST and reads COMPLETED before the minute job runs; an expired hold is in no group), flight times
+in each airport's local time (GEN-06), unit specs for the rules and the service, and an e2e suite that books
+through hold, policies, payment and webhook. I chose to keep passport numbers out of the list and reviewed the diff.
+================================================
