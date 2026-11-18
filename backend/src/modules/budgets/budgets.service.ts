@@ -22,7 +22,7 @@ import type {
   TransportCostDto,
   UpdateTransportCostDto,
 } from './dto/budget.dto';
-import { TransportCost } from './schemas/transport-cost.schema';
+import { TransportCost, TransportMode } from './schemas/transport-cost.schema';
 
 interface DayLike {
   _id: Types.ObjectId;
@@ -100,8 +100,17 @@ export class BudgetsService {
       );
     }
     if (dto.currency !== undefined) await this.assertCurrency(dto.currency);
-    const set: Record<string, unknown> = { ...dto };
+    // Built field by field from validated values (never the raw body), so no operator can reach the query.
+    const set: Partial<TransportCost> = {};
     if (dto.dayId !== undefined) set.dayId = new Types.ObjectId(dto.dayId);
+    if (dto.mode !== undefined) {
+      set.mode = Object.values(TransportMode).find((m) => m === dto.mode);
+    }
+    if (dto.fromCityId !== undefined) set.fromCityId = String(dto.fromCityId);
+    if (dto.toCityId !== undefined) set.toCityId = String(dto.toCityId);
+    if (dto.amountMinor !== undefined)
+      set.amountMinor = Number(dto.amountMinor);
+    if (dto.currency !== undefined) set.currency = String(dto.currency);
     const updated = await this.transports
       .findOneAndUpdate(
         { _id: cost._id },

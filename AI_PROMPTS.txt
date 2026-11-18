@@ -1609,3 +1609,17 @@ so the itineraries module can inject the token, imported ItinerariesModule for t
 instead of registering it again, and added e2e tests for the four port methods, including Sarah's real
 DELETE /api/itineraries/:id. I reviewed the diff and ran the checks locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+CodeQL flagged "Database query built from user-controlled sources" on PATCH /api/transport-costs/:id in
+PR #92: the $set was a spread of the request body.
+How the output was used:
+Claude rebuilt the update field by field from the validated values (ObjectId for the day, the mode mapped
+through the TransportMode enum, String/Number for the rest), so no raw body value or operator reaches
+the query. The ITN-16 e2e tests still pass. I reviewed the diff.
+================================================
