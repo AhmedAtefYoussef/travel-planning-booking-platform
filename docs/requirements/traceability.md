@@ -135,7 +135,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75 | Partial: create as Draft/Published done; images via BLG-10 (GEN-08); published posts listed once BLG-02, BLG-09 and BLG-12 land |
+| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75, #100 | Partial: create as Draft/Published done; images uploaded to the post (BLG-10, GEN-08); published posts listed once BLG-02, BLG-09 and BLG-12 land |
 | BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | - | Not started |
 | BLG-03 | Mandatory | GET /api/posts/mine; GET /api/posts/mine/:id | Malak | TRVL-87 | #94 | Done |
 | BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | #95 | Done |
@@ -144,7 +144,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | BLG-07 | Mandatory | PATCH\|DELETE /api/comments/:id | Malak | TRVL-91 | - | Not started |
 | BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | #93, #95, #99 | Partial: tags on create (#75) and tag pages done; editing tags with BLG-04, tag search with BLG-09 |
 | BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | - | Not started |
-| BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | - | Not started |
+| BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | #100 | Done |
 | BLG-12 | Mandatory | GET /api/authors/:id | Malak | TRVL-95 | - | Not started |
 | BLG-13 | Bonus | PATCH /api/posts/:id/itinerary | Team | TRVL-125 | - | Not started |
 
