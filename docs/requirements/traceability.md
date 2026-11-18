@@ -12,7 +12,7 @@ that changes module code must cite its own number in its requirement's row. Set 
 the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 ## Notes on the brief vs the workbook
-- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days).
+- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days), ITN-09 (city groups).
 - The brief cites **ACC-03** (`POST /api/auth/register`) and **BLG-11** (`GET /api/posts`, `GET /api/tags/:tag/posts`); neither ID exists in the workbook. Those endpoints are traced to ACC-01 and BLG-02/BLG-08/BLG-09.
 - **HTL-09** (check-in/check-out times) is served by `PUT /api/hotels/:id/policies`; the brief maps that endpoint to HTL-08.
 - `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
@@ -21,6 +21,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 - The `users` and `sessions` schemas (TRVL-137, Jira setup task, not a workbook ID) back ACC-01, ACC-04 to ACC-09, ACC-11 to ACC-14 and ACC-19. Each of those rows changes status when its own endpoints land.
 - The `hotels`, `rooms`, `room_nights` and `reviews` schemas (TRVL-140, Jira setup task, not a workbook ID, PR #21) back the HTL requirements (HTL-01 to HTL-24). Each of those rows changes status when its own endpoints land.
 - The `posts`, `comments` and `likes` schemas (TRVL-142, Jira setup task, not a workbook ID, PR #75) back BLG-01 to BLG-12. Each of those rows changes status when its own endpoints land.
+- The `budget_entries` and `transport_costs` schemas (TRVL-143, Jira setup task, not a workbook ID, PR #92) back ITN-14, ITN-16 and ITN-18. Each of those rows changes status when its own endpoints land.
 
 ## Accounts & Admin
 
@@ -66,9 +67,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | FLT-21 | Mandatory | POST /api/flight-bookings/quote | Ahmed | TRVL-41 | #59, #64 | Done |
 | FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59 | Done |
 | FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62, #70 | Done |
-| FLT-25 | Mandatory | GET /api/flight-bookings; GET /api/flight-bookings/:id | Karim | TRVL-44 | - | Not started |
+| FLT-25 | Mandatory | GET /api/flight-bookings?group=UPCOMING\|PAST\|CANCELLED; GET /api/flight-bookings/:id | Karim | TRVL-44 | #108 | Done |
 | FLT-26 | Mandatory | GET /api/flight-bookings/:id/refund-quote; POST /api/flight-bookings/:id/cancel | Ahmed | TRVL-45 | #72, #85 | Done |
-| FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | - | Not started |
+| FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | #109 | Done |
 | FLT-30 | Mandatory | flight status lifecycle (scheduled job + FLT-06) | Joudy | TRVL-107 | #14 | Done |
 | FLT-27 | Bonus | PATCH /api/flight-bookings/:id/change-flight | Team | TRVL-120 | - | Not started |
 | FLT-28 | Bonus | PATCH /api/flight-bookings/:id/seat | Team | TRVL-121 | - | Not started |
@@ -92,9 +93,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60 | Done |
 | HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60, #62, #71 | Done |
 | HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60 | Done |
-| HTL-20 | Mandatory | GET /api/hotel-bookings; GET /api/hotel-bookings/:id | Karim | TRVL-62 | - | Not started |
+| HTL-20 | Mandatory | GET /api/hotel-bookings?group=UPCOMING\|PAST\|CANCELLED; GET /api/hotel-bookings/:id | Karim | TRVL-62 | #108 | Done |
 | HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Ahmed | TRVL-63 | - | Not started |
-| HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | - | Not started |
+| HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | #109 | Done |
 | HTL-23 | Mandatory | POST /api/hotel-bookings/:id/review; PATCH\|DELETE /api/reviews/:id | Karim | TRVL-65 | - | Not started |
 | HTL-24 | Mandatory | GET /api/hotels/:id/reviews | Karim | TRVL-66 | - | Not started |
 | HTL-26 | Bonus | POST /api/reviews/:id/reply | Team | TRVL-122 | - | Not started |
@@ -117,11 +118,11 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73, #96 | Done |
 | ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | - | Not started |
 | ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | - | Not started |
-| ITN-09 | Mandatory | day city + grouping in itinerary responses | Sarah | TRVL-75 | #73 | Not started |
+| ITN-09 | Mandatory | day city + cityGroups (day count, budget subtotal) in GET /api/itineraries/:id and every day response | Sarah | TRVL-75 | #73, #107 | Partial: groups, day counts and subtotals of activity costs and transport costs (ITN-16, #92) done; budget entries join the subtotals once ITN-14 provides them through ITINERARY_BUDGETS |
 | ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73 | Not started |
 | ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Not started |
 | ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | - | Not started |
-| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id | Malak | TRVL-79 | - | Not started |
+| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id (counted in the itinerary totals once ITN-14 lands) | Malak | TRVL-79 | #92 | Done |
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68 | Partial: rates, cache and convert in place (TRVL-133); itinerary budget conversion pending |
 | ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88 | Partial: visibility set through PATCH /api/itineraries/:id; the public search it controls lands with ITN-21 |
 | ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | - | Not started |
