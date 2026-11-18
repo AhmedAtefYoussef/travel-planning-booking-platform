@@ -23,6 +23,7 @@ import {
   REFUNDS_SERVICE,
   RefundReason,
   type RefundQuote,
+  type RefundRecord,
   type RefundsService,
   type RefundSummary,
   type NotificationsService,
@@ -243,6 +244,33 @@ export class FlightBookingsService implements PayableBooking {
     }
     if (expired) this.logger.log(`Expired ${expired} flight hold(s)`);
     return expired;
+  }
+
+  /**
+   * FLT-06: ends one unpaid hold on a flight the airline cancelled. GEN-11 allows no other way out of
+   * Pending Payment than Expired, so the hold expires now (whatever its holdExpiresAt) and every
+   * segment's seats go back, in one transaction. Returns false, changing nothing, when the hold was paid
+   * or expired meanwhile. A payment Stripe captures afterwards finds the booking EXPIRED and is refunded
+   * in full (PAY-01 late refund).
+   */
+  async releaseHold(bookingId: string): Promise<boolean> {
+    const session = await this.connection.startSession();
+    try {
+      let moved = false;
+      await session.withTransaction(async () => {
+        moved = await transitionBooking(
+          this.bookings,
+          bookingId,
+          BookingStatus.PendingPayment,
+          BookingStatus.Expired,
+          { session },
+        );
+        if (moved) await this.releaseAll(bookingId, session);
+      });
+      return moved;
+    } finally {
+      await session.endSession();
+    }
   }
 
   /**
@@ -515,9 +543,9 @@ export class FlightBookingsService implements PayableBooking {
     bookingId: string,
     options: { reason: CancellationReason },
     now: Date = new Date(),
-  ): Promise<void> {
+  ): Promise<RefundRecord | null> {
     const byUser = options.reason === RefundReason.UserCancellation;
-    await cancelConfirmedBooking(
+    return cancelConfirmedBooking(
       {
         connection: this.connection,
         model: this.bookings,
@@ -547,11 +575,18 @@ export class FlightBookingsService implements PayableBooking {
           quote,
           reason: options.reason,
           release: (s) => this.releaseAll(bookingId, s),
-          notice: {
-            title: `Flight booking ${booking.reference} cancelled`,
-            body: `${trip(booking.segments)}, is cancelled and its seats are released. ${refundLine(quote)}`,
-            link: `/bookings/flights/${bookingId}`,
-          },
+          notice: byUser
+            ? {
+                title: `Flight booking ${booking.reference} cancelled`,
+                body: `${trip(booking.segments)}, is cancelled and its seats are released. ${refundLine(quote)}`,
+                link: `/bookings/flights/${bookingId}`,
+              }
+            : {
+                // FLT-06: the airline cancelled a flight of this booking.
+                title: `Flight booking ${booking.reference} cancelled by the airline`,
+                body: `The airline cancelled a flight of ${trip(booking.segments)}, so this booking is cancelled. ${refundLine(quote)}`,
+                link: `/bookings/flights/${bookingId}`,
+              },
         };
       },
       now,
