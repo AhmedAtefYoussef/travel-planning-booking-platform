@@ -21,6 +21,7 @@
  *   ACCOUNT_ADMIN (users)           ->  admin (ACC-15, ACC-16 suspensions)
  *   AIRLINE_STATUS (flights)        ->  admin (ACC-15 deactivation), bookings (409 PROVIDER_INACTIVE)
  *   HOTEL_STATUS (hotels)           ->  admin (ACC-15 deactivation)
+ *   ITINERARY_BUDGETS (budgets)     ->  itineraries (ITN-07, ITN-09, ITN-21; optional until ITN-14)
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
  * The providing module exports `{ provide: AUDIT_SERVICE, useExisting: AuditLogService }`.
@@ -43,3 +44,4 @@ export const UPCOMING_BOOKINGS = Symbol('UPCOMING_BOOKINGS');
 export const ACCOUNT_ADMIN = Symbol('ACCOUNT_ADMIN');
 export const AIRLINE_STATUS = Symbol('AIRLINE_STATUS');
 export const HOTEL_STATUS = Symbol('HOTEL_STATUS');
+export const ITINERARY_BUDGETS = Symbol('ITINERARY_BUDGETS');
