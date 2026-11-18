@@ -533,6 +533,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
     },
     {
+      // BLG-03: the caller's own posts.
+      url: '/api/posts/mine?',
+      headers: { 'x-dev-user': 'USER:6af0f1c2c77901aa9f228701' },
+    },
+    {
       // BLG-05: a published post's comments; VV_POST is inserted in beforeAll.
       url: `/api/posts/${VV_POST}/comments?`,
       docPath: '/api/posts/{id}/comments',
