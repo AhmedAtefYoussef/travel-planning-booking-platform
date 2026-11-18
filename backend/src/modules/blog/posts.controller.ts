@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
   HttpCode,
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -14,14 +16,27 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
+import {
+  type Page,
+  PaginationQueryDto,
+} from '../../common/pagination/pagination';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
-import { CreatePostDto, PostDto, UpdatePostDto } from './dto/post.dto';
+import {
+  ApiErrorResponses,
+  ApiPaginatedResponse,
+} from '../../common/swagger/api-responses.decorator';
+import {
+  CreatePostDto,
+  PostDto,
+  PostSummaryDto,
+  UpdatePostDto,
+} from './dto/post.dto';
 import { PostsService } from './posts.service';
 
 const POST_ID_PARAM = {
@@ -33,6 +48,16 @@ const POST_ID_PARAM = {
       value: '6af0f1c2c77901aa9f228700',
     },
     invalid: { summary: 'Invalid: 400 (not an id)', value: 'not-an-id' },
+  },
+};
+
+const PAGE_QUERY = {
+  name: 'page',
+  required: false,
+  type: Number,
+  examples: {
+    first: { summary: 'First page', value: 1 },
+    invalid: { summary: 'Invalid: 400 (pages start at 1)', value: 0 },
   },
 };
 
@@ -139,5 +164,40 @@ export class PostsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<void> {
     return this.posts.remove(user, id);
+  }
+
+  /** Declared before GET :id so "mine" is never read as an id. */
+  @Get('mine')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-03 List my posts, drafts included',
+    description:
+      'The caller’s own posts, newest first, 10 per page, with title, status, date, like count and comment count. Drafts and posts hidden by an admin are included.',
+  })
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(PostSummaryDto)
+  @ApiErrorResponses(400)
+  listMine(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
+  ): Promise<Page<PostSummaryDto>> {
+    return this.posts.listMine(user, query.page);
+  }
+
+  @Get('mine/:id')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-03 Open one of my posts, draft included',
+    description:
+      'The full post for its author, whatever its status. Another user’s draft or hidden post is 404; their published post is 403.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  getMine(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<PostDto> {
+    return this.posts.getMine(user, id);
   }
 }

@@ -1,6 +1,6 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+import { Connection, FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import { isOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
@@ -10,6 +10,12 @@ import {
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import {
+  type Page,
+  PAGE_SIZE,
+  skipFor,
+  toPage,
+} from '../../common/pagination/pagination';
 import { localUploadUrlPattern } from '../../common/validation';
 import { UsersService } from '../users';
 import { excerptOf } from './blog-rules';
@@ -45,7 +51,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft).
+ * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft).
  */
 @Injectable()
 export class PostsService {
@@ -118,6 +124,18 @@ export class PostsService {
     await this.discardUnused(post.images);
   }
 
+  /** BLG-03: the caller's own posts, drafts and hidden ones included, newest first. */
+  listMine(user: AuthUser, page: number): Promise<Page<PostSummaryDto>> {
+    return this.page({ authorId: new Types.ObjectId(user.id) }, page, {
+      createdAt: -1,
+    });
+  }
+
+  /** BLG-03: the author opens one of their own posts, draft or hidden included. */
+  async getMine(user: AuthUser, id: string): Promise<PostDto> {
+    return this.toPost(await this.loadOwn(user, id));
+  }
+
   /**
    * The caller's own post. Someone else's post answers 403 when it is public (it visibly exists) and
    * 404 when it is a draft or hidden, exactly like an unknown id (ACC-11).
@@ -134,6 +152,29 @@ export class PostsService {
       );
     }
     throw notFound();
+  }
+
+  private async page(
+    filter: FilterQuery<Post>,
+    page: number,
+    sort: Record<string, SortOrder>,
+  ): Promise<Page<PostSummaryDto>> {
+    const [items, total] = await Promise.all([
+      this.posts
+        .find(filter)
+        .sort({ ...sort, _id: -1 })
+        .skip(skipFor(page))
+        .limit(PAGE_SIZE)
+        .lean<PostLike[]>()
+        .exec(),
+      this.posts.countDocuments(filter).exec(),
+    ]);
+    const authors = await this.authorsOf(items.map((p) => p.authorId));
+    return toPage(
+      items.map((p) => this.summary(p, authors)),
+      total,
+      page,
+    );
   }
 
   /**
