@@ -1,6 +1,6 @@
 import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { assertOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
 import {
@@ -69,6 +69,7 @@ export class ItinerariesService {
     @InjectModel(Activity.name) private readonly activities: Model<Activity>,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
     @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
+    @InjectConnection() private readonly connection: Connection,
     @Optional()
     @Inject(ITINERARY_BUDGETS)
     private readonly budgets?: ItineraryBudgets,
@@ -160,11 +161,25 @@ export class ItinerariesService {
       .find({ itineraryId: itinerary._id }, { images: 1 })
       .lean()
       .exec();
-    const deleted = await this.itineraries
-      .deleteOne({ _id: itinerary._id, ownerId: itinerary.ownerId })
-      .exec();
-    if (deleted.deletedCount === 0) throw itineraryNotFound();
-    await this.activities.deleteMany({ itineraryId: itinerary._id }).exec();
+    // The itinerary and its activities go together or not at all, so a crash cannot leave orphan
+    // activities. Budget rows (the port takes no session) and files are removed only after the commit.
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const deleted = await this.itineraries
+          .deleteOne(
+            { _id: itinerary._id, ownerId: itinerary.ownerId },
+            { session },
+          )
+          .exec();
+        if (deleted.deletedCount === 0) throw itineraryNotFound();
+        await this.activities
+          .deleteMany({ itineraryId: itinerary._id }, { session })
+          .exec();
+      });
+    } finally {
+      await session.endSession();
+    }
     await this.budgets?.deleteForItinerary(itinerary.id as string);
     await this.deleteUnusedImages(activities.flatMap((a) => a.images ?? []));
   }

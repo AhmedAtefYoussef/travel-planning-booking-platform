@@ -1,4 +1,4 @@
-import { Types, type Model } from 'mongoose';
+import { Types, type Connection, type Model } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
 import type {
   ItineraryBudgets,
@@ -115,14 +115,28 @@ function setup(
   const budgets = {
     deleteForItinerary: jest.fn(() => Promise.resolve()),
   } as unknown as ItineraryBudgets;
+  const session = {
+    withTransaction: jest.fn(async (fn: () => Promise<void>) => fn()),
+    endSession: jest.fn(() => Promise.resolve()),
+  };
+  const connection = { startSession: jest.fn(() => Promise.resolve(session)) };
   const service = new ItinerariesService(
     itineraries as unknown as Model<Itinerary>,
     activities as unknown as Model<Activity>,
     reference,
     uploads,
+    connection as unknown as Connection,
     opts.budgets ? budgets : undefined,
   );
-  return { service, itineraries, activities, reference, uploads, budgets };
+  return {
+    service,
+    itineraries,
+    activities,
+    reference,
+    uploads,
+    budgets,
+    session,
+  };
 }
 
 describe('ItinerariesService (ITN-01, ITN-03, ITN-20)', () => {
@@ -261,9 +275,10 @@ describe('ItinerariesService (ITN-01, ITN-03, ITN-20)', () => {
         budgets: true,
       });
       await service.remove(owner, stored.id);
-      expect(activities.deleteMany).toHaveBeenCalledWith({
-        itineraryId: stored._id,
-      });
+      expect(activities.deleteMany).toHaveBeenCalledWith(
+        { itineraryId: stored._id },
+        { session: expect.anything() },
+      );
       expect(budgets.deleteForItinerary).toHaveBeenCalledWith(stored.id);
       expect(uploads.deleteImage).toHaveBeenCalledTimes(1);
       expect(uploads.deleteImage).toHaveBeenCalledWith(url(1));
@@ -280,6 +295,42 @@ describe('ItinerariesService (ITN-01, ITN-03, ITN-20)', () => {
         raced.service.remove(owner, stored.id),
       ).rejects.toMatchObject({ status: 404 });
       expect(raced.activities.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('deletes the itinerary and its activities in one transaction, and files only after it commits', async () => {
+      const stored = storedItinerary();
+      const { service, itineraries, activities, uploads, budgets, session } =
+        setup(stored, {
+          activities: [{ images: [url(1)] }],
+          budgets: true,
+        });
+      await service.remove(owner, stored.id);
+      expect(session.withTransaction).toHaveBeenCalledTimes(1);
+      expect(itineraries.deleteOne).toHaveBeenCalledWith(
+        { _id: stored._id, ownerId: stored.ownerId },
+        { session },
+      );
+      expect(activities.deleteMany).toHaveBeenCalledWith(
+        { itineraryId: stored._id },
+        { session },
+      );
+      expect(session.endSession).toHaveBeenCalled();
+
+      const failing = setup(stored, {
+        activities: [{ images: [url(1)] }],
+        budgets: true,
+      });
+      failing.activities.deleteMany.mockImplementation(() => {
+        throw new Error('crash');
+      });
+      await expect(failing.service.remove(owner, stored.id)).rejects.toThrow(
+        'crash',
+      );
+      expect(failing.session.endSession).toHaveBeenCalled();
+      expect(failing.budgets.deleteForItinerary).not.toHaveBeenCalled();
+      expect(failing.uploads.deleteImage).not.toHaveBeenCalled();
+      expect(budgets.deleteForItinerary).toHaveBeenCalled();
+      expect(uploads.deleteImage).toHaveBeenCalledWith(url(1));
     });
   });
 });
