@@ -96,6 +96,7 @@ onModuleInit() { this.moderation?.register(this); }
   - `remove(id, session)` (GEN-10) deletes the content and what belongs only to it, inside the caller's transaction. It returns `null` when there is nothing to delete; otherwise `{ afterCommit() }`.
 - **Registry:** `register` throws on a second adapter for one type. A type with no adapter behaves as if no such content exists, so `POST /api/reports` answers 404 for it.
 - **afterCommit rule:** the caller runs `afterCommit()` only after its transaction has committed, never inside it. Put there whatever cannot roll back with the transaction: deleting image files and calling ports that take no session. Never do that work inside `remove()`.
+- **Consumer:** the admin moderation service (`modules/moderation/admin-moderation.service.ts`, GEN-10) calls `find`, `setHidden` (HIDE) and `remove` (DELETE) inside its one transaction, and runs `afterCommit()` only after that transaction commits.
 
 ## Implemented in Sprint 0
 - `modules/audit`: `audit_logs` schema, `AuditLogService` (TRVL-162) and `GET /api/admin/audit-logs` (GEN-07, TRVL-102: admin only, newest first, 10 per page, filters `action`, `targetType`, `actorId`, `from`, `to`). The log is append-only at the model level (update/delete hooks throw). Secret-looking metadata keys are stripped. Entries join the caller's transaction when a session is passed.
