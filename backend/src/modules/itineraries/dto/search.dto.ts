@@ -13,6 +13,7 @@ import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { IsWholeNumber } from '../../../common/validation';
 import { MAX_ITINERARY_DAYS } from '../schemas/itinerary.schema';
 import {
+  CityGroupDto,
   ItineraryDto,
   ItinerarySummaryDto,
   MoneyAmountDto,
@@ -134,4 +135,72 @@ export class PublicItineraryDto extends ItineraryDto {
       'The whole budget per currency (not converted): the sum of the city-group subtotals',
   })
   budgetTotal!: MoneyAmountDto[];
+}
+
+/** ITN-25: hotels for one city group of the caller's itinerary. */
+export class ItineraryHotelsQueryDto extends PaginationQueryDto {
+  @ApiProperty({
+    example: 1,
+    minimum: 1,
+    description:
+      'Number of the city group, 1 = first, as listed in cityGroups of GET /api/itineraries/:id',
+  })
+  @Transform(toInteger)
+  @IsWholeNumber('group must be a whole number')
+  @Min(1)
+  @Max(MAX_ITINERARY_DAYS)
+  group!: number;
+
+  @ApiProperty({ example: 2, minimum: 1, maximum: 50 })
+  @Transform(toInteger)
+  @IsWholeNumber('guests must be a whole number')
+  @Min(1)
+  @Max(50)
+  guests!: number;
+
+  @ApiPropertyOptional({ example: 1, minimum: 1, maximum: 20, default: 1 })
+  @IsOptional()
+  @Transform(toInteger)
+  @IsWholeNumber('rooms must be a whole number')
+  @Min(1)
+  @Max(20)
+  rooms?: number;
+}
+
+export class HotelSearchResultItemDto {
+  @ApiProperty() hotelId!: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() cityId!: string;
+  @ApiProperty({ nullable: true, type: Number }) averageRating!: number | null;
+  @ApiProperty({ description: 'Cheapest stay total, minor units' })
+  fromPriceMinor!: number;
+}
+
+export class HotelSearchPageDto {
+  @ApiProperty({ type: [HotelSearchResultItemDto] })
+  items!: HotelSearchResultItemDto[];
+  @ApiProperty() page!: number;
+  @ApiProperty() limit!: number;
+  @ApiProperty() total!: number;
+  @ApiProperty() totalPages!: number;
+}
+
+export class ItineraryHotelsDto {
+  @ApiProperty({ type: CityGroupDto })
+  group!: CityGroupDto;
+
+  @ApiProperty({ example: '2027-03-01', description: "The group's first day" })
+  checkIn!: string;
+
+  @ApiProperty({
+    example: '2027-03-04',
+    description: "The day after the group's last day",
+  })
+  checkOut!: string;
+
+  @ApiProperty({ example: 2 }) guests!: number;
+  @ApiProperty({ example: 1 }) rooms!: number;
+
+  @ApiProperty({ type: HotelSearchPageDto, description: 'HTL-11 results' })
+  hotels!: HotelSearchPageDto;
 }

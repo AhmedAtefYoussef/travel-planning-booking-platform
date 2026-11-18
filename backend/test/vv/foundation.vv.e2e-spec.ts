@@ -615,6 +615,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     // ITN-21: public itinerary search, open to guests.
     { url: '/api/itineraries/public/search?' },
   ];
+  /**
+   * Lists whose page is passed straight to another module's search, which carries its own GEN-05
+   * page check: ITN-25 hands `page` to HTL-11's HOTELS_SEARCH (/api/hotels/search above).
+   */
+  const DELEGATED_TO_ANOTHER_SEARCH = ['/api/itineraries/{id}/hotels'];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
     http().get(url).set(headers);
@@ -725,7 +730,10 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       .map(([path]) => path)
       .sort();
     expect(paginated).toEqual(
-      LISTS.map((l) => l.docPath ?? l.url.split('?')[0]).sort(),
+      [
+        ...LISTS.map((l) => l.docPath ?? l.url.split('?')[0]),
+        ...DELEGATED_TO_ANOTHER_SEARCH,
+      ].sort(),
     );
   });
 

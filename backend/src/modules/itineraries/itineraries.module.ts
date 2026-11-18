@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
+import { HotelsModule } from '../hotels';
 import { ActivitiesController } from './activities.controller';
 import { ActivitiesService } from './activities.service';
 import { ItinerariesController } from './itineraries.controller';
 import { ItineraryDaysController } from './itinerary-days.controller';
 import { ItineraryDaysService } from './itinerary-days.service';
 import { ItinerarySearchController } from './itinerary-search.controller';
+import { ItinerarySearchService } from './itinerary-search.service';
 import { PublicItinerariesController } from './public-itineraries.controller';
 import { PublicItinerariesService } from './public-itineraries.service';
 import { ItinerariesService } from './itineraries.service';
@@ -22,6 +24,8 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
  */
 @Module({
   imports: [
+    // Provides HOTELS_SEARCH (HTL-11) to ITN-25 once it exists; HotelsModule is not global.
+    HotelsModule,
     MongooseModule.forFeature([
       { name: Itinerary.name, schema: ItinerarySchema },
       { name: Activity.name, schema: ActivitySchema },
@@ -43,6 +47,7 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
     PublicItinerariesProvider,
     { provide: PUBLIC_ITINERARIES, useExisting: PublicItinerariesProvider },
     PublicItinerariesService,
+    ItinerarySearchService,
   ],
   exports: [MongooseModule, PUBLIC_ITINERARIES],
 })
