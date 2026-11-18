@@ -8,6 +8,8 @@ import {
 } from '../../common/contracts';
 import { FlightsModule } from '../flights';
 import { HotelsModule } from '../hotels';
+import { AdminBookingsController } from './admin-bookings.controller';
+import { AdminBookingsService } from './admin-bookings.service';
 import { FlightBookingsController } from './flight-bookings.controller';
 import { FlightBookingsService } from './flight-bookings.service';
 import { BookingLifecycleService } from './booking-lifecycle.service';
@@ -45,11 +47,13 @@ import {
     ]),
   ],
   controllers: [
+    AdminBookingsController,
     FlightBookingsController,
     HotelBookingsController,
     BookingPoliciesController,
   ],
   providers: [
+    AdminBookingsService,
     BookingLifecycleService,
     FlightBookingsService,
     { provide: FLIGHT_PAYABLE_BOOKING, useExisting: FlightBookingsService },
