@@ -28,12 +28,20 @@ import {
   type UploadedFileLike,
 } from '../../common/contracts/services.contract';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import {
+  ApiErrorResponses,
+  ApiPaginatedResponse,
+} from '../../common/swagger/api-responses.decorator';
 import { ImageFilesInterceptor } from '../uploads';
 import { CreateHotelDto, HotelDto, UpdateHotelDto } from './dto/hotel.dto';
 import { SetHotelPoliciesDto } from './dto/hotel-policy.dto';
 import { HotelDetailsDto, HotelDetailsQueryDto } from './dto/hotel-details.dto';
+import {
+  HotelSearchQueryDto,
+  HotelSearchResultDto,
+} from './dto/hotel-search.dto';
 import { HotelDetailsService } from './hotel-details.service';
+import { HotelSearchService } from './hotel-search.service';
 import { HotelsService } from './hotels.service';
 
 /**
@@ -46,6 +54,7 @@ export class HotelsController {
   constructor(
     private readonly hotels: HotelsService,
     private readonly hotelDetails: HotelDetailsService,
+    private readonly hotelSearch: HotelSearchService,
   ) {}
 
   @Post()
@@ -256,6 +265,20 @@ export class HotelsController {
     @Body() dto: SetHotelPoliciesDto,
   ): Promise<HotelDto> {
     return this.hotels.setPolicies(user, id, dto);
+  }
+
+  // Declared before GET :id so "search" is never read as a hotel id.
+  @Get('search')
+  @Public()
+  @ApiOperation({
+    summary: 'HTL-11 Search hotels by city or country, dates, guests and rooms',
+    description:
+      "Public. Send exactly one of cityId or countryCode, checkIn and checkOut (the hotel's local dates: checkOut after checkIn, at most 30 nights, checkIn not before today), guests (1-50) and rooms (1-10, default 1, not more than guests). Lists the active hotels that have at least that many rooms free for the whole stay (every night bookable and not booked, held or blocked) that together can hold all the guests. Each result shows the price per night and stay total of the cheapest such set of rooms; results are cheapest first, 10 per page (GEN-05). Price and rating filters and other sorts come with HTL-12.",
+  })
+  @ApiPaginatedResponse(HotelSearchResultDto)
+  @ApiErrorResponses(400)
+  search(@Query() query: HotelSearchQueryDto) {
+    return this.hotelSearch.find(query);
   }
 
   @Get(':id')
