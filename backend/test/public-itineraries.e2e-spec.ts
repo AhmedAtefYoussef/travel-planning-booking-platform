@@ -47,6 +47,12 @@ describe('Public itineraries (e2e): ITN-21, ITN-20', () => {
   let reader: LoggedIn;
   const http = () => request(app.getHttpServer());
 
+  /**
+   * Itineraries this suite made. The e2e suites share one database and others create PUBLIC
+   * itineraries too, so search assertions only look at these.
+   */
+  const madeHere = new Set<string>();
+
   /** Creates an itinerary of `as` with days in `cities`, an activity on day 1, and the visibility. */
   async function make(
     as: LoggedIn,
@@ -67,6 +73,7 @@ describe('Public itineraries (e2e): ITN-21, ITN-20', () => {
         })
         .expect(201)
     ).body.id as string;
+    madeHere.add(id);
     let detail: Detail | undefined;
     for (const cityId of cities) {
       detail = (
@@ -100,7 +107,9 @@ describe('Public itineraries (e2e): ITN-21, ITN-20', () => {
   const search = (qs = '') =>
     http().get(`/api/itineraries/public/search${qs ? `?${qs}` : ''}`);
   const idsOf = (res: request.Response) =>
-    (res.body.items as { id: string }[]).map((i) => i.id);
+    (res.body.items as { id: string }[])
+      .map((i) => i.id)
+      .filter((id) => madeHere.has(id));
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -131,9 +140,11 @@ describe('Public itineraries (e2e): ITN-21, ITN-20', () => {
     });
 
     it('guests find public itineraries only, with author and cities', async () => {
-      const res = await search().expect(200);
-      expect(idsOf(res)).toEqual(expect.arrayContaining([nile.id, gulf.id]));
+      // Keyword searches keep other suites' public itineraries off the page.
+      const res = await search('q=nile').expect(200);
+      expect(idsOf(res)).toEqual([nile.id]);
       expect(idsOf(res)).not.toContain(secret.id);
+      expect(idsOf(await search('q=gulf').expect(200))).toEqual([gulf.id]);
       const row = (res.body.items as Record<string, unknown>[]).find(
         (i) => i.id === nile.id,
       );
@@ -293,6 +304,7 @@ describe('Public itineraries (e2e): ITN-21, ITN-20', () => {
         .set('Cookie', reader.cookie)
         .expect(201);
       const copy = res.body as Detail;
+      madeHere.add(copy.id);
       expect(copy).toMatchObject({
         ownerId: reader.userId,
         title: 'Clone me',
