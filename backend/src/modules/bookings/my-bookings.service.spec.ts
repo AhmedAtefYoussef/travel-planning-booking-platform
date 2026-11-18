@@ -14,16 +14,32 @@ const USER: AuthUser = {
 /** A model whose find() chain returns `rows` and records the filter, sort and skip it was given. */
 function fakeModel(rows: object[], total = rows.length) {
   const calls: { filter?: unknown; sort?: unknown; skip?: number } = {};
-  const chain = {
-    sort: jest.fn((s: unknown) => ((calls.sort = s), chain)),
-    skip: jest.fn((n: number) => ((calls.skip = n), chain)),
-    limit: jest.fn(() => chain),
-    lean: jest.fn(() => chain),
-    exec: jest.fn(() => Promise.resolve(rows)),
+  interface Chain {
+    sort(s: unknown): Chain;
+    skip(n: number): Chain;
+    limit(): Chain;
+    lean(): Chain;
+    exec(): Promise<object[]>;
+  }
+  const chain: Chain = {
+    sort: (s) => {
+      calls.sort = s;
+      return chain;
+    },
+    skip: (n) => {
+      calls.skip = n;
+      return chain;
+    },
+    limit: () => chain,
+    lean: () => chain,
+    exec: () => Promise.resolve(rows),
   };
   const model = {
-    find: jest.fn((filter: unknown) => ((calls.filter = filter), chain)),
-    countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(total) })),
+    find: (filter: unknown) => {
+      calls.filter = filter;
+      return chain;
+    },
+    countDocuments: () => ({ exec: () => Promise.resolve(total) }),
   };
   return { model, calls };
 }
