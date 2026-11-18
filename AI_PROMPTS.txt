@@ -1489,3 +1489,15 @@ Claude ran npm run verify on all open PRs merged together, a live Swagger/API pr
 database (115 checks, races included) and mutation checks on the FLT-05 test, then drafted the reviews I posted.
 It found that HTL-06 cannot be Done until HTL-11 search exists, so this PR sets the row to Partial.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-01
+Prompt:
+Apply the last nit from Ahmed's re-review of PR #75 (raised by Sarah): extend the BLG-01 Partial note
+in the traceability matrix to say images come through BLG-10 (GEN-08).
+How the output was used:
+Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
+================================================
