@@ -8,6 +8,8 @@ import { RoomNightKind, type RoomNight } from './schemas/room-night.schema';
 import { MAX_RANGES_PER_ROOM, type Room } from './schemas/room.schema';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import {
+  joinNights,
+  nightsOf,
   nightsOutside,
   overlapFieldErrors,
   RoomsService,
@@ -449,5 +451,55 @@ describe('nightsOutside (HTL-05)', () => {
     const at = new Date('2027-01-06T05:00:00Z');
     expect(todayIn('Not/AZone', at)).toBe(todayIn(EARLIEST_ZONE, at));
     expect(todayIn('Not/AZone', at)).toBe('2027-01-05');
+  });
+});
+
+describe('block helpers (HTL-06)', () => {
+  it('nightsOf: every night from today on, sorted, without repeats', () => {
+    expect(
+      nightsOf(
+        [
+          { from: '2027-01-12', to: '2027-01-14' },
+          { from: '2027-01-08', to: '2027-01-11' },
+          { from: '2027-01-10', to: '2027-01-13' },
+        ],
+        '2027-01-09',
+      ),
+    ).toEqual([
+      '2027-01-09',
+      '2027-01-10',
+      '2027-01-11',
+      '2027-01-12',
+      '2027-01-13',
+    ]);
+  });
+
+  it('nightsOf: refuses more than a year of nights in one request', () => {
+    expect(() =>
+      nightsOf(
+        [
+          { from: '2027-01-01', to: '2027-12-31' },
+          { from: '2028-01-01', to: '2028-01-05' },
+        ],
+        '2027-01-01',
+      ),
+    ).toThrow(AppException);
+  });
+
+  it('joinNights: consecutive nights become one half-open range', () => {
+    expect(
+      joinNights([
+        '2027-01-10',
+        '2027-01-11',
+        '2027-01-13',
+        '2027-01-31',
+        '2027-02-01',
+      ]),
+    ).toEqual([
+      { from: '2027-01-10', to: '2027-01-12' },
+      { from: '2027-01-13', to: '2027-01-14' },
+      { from: '2027-01-31', to: '2027-02-02' },
+    ]);
+    expect(joinNights([])).toEqual([]);
   });
 });
