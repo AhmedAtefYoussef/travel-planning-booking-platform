@@ -8,10 +8,13 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser, Public, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Roles, Public } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { type Page } from '../../common/pagination/pagination';
+import {
+  type Page,
+  PaginationQueryDto,
+} from '../../common/pagination/pagination';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import {
   ApiErrorResponses,
@@ -19,9 +22,9 @@ import {
 } from '../../common/swagger/api-responses.decorator';
 import {
   CreatePostDto,
-  ListPostsQueryDto,
   PostDto,
   PostSummaryDto,
+  ListPostsQueryDto,
 } from './dto/post.dto';
 import { PostsService } from './posts.service';
 
@@ -115,6 +118,41 @@ export class PostsController {
   @ApiErrorResponses(400)
   list(@Query() query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
     return this.posts.listPublic(query);
+  }
+
+  /** Declared before GET :id so "mine" is never read as an id. */
+  @Get('mine')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-03 List my posts, drafts included',
+    description:
+      'The caller’s own posts, newest first, 10 per page, with title, status, date, like count and comment count. Drafts and posts hidden by an admin are included.',
+  })
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(PostSummaryDto)
+  @ApiErrorResponses(400)
+  listMine(
+    @CurrentUser() user: AuthUser,
+    @Query() query: PaginationQueryDto,
+  ): Promise<Page<PostSummaryDto>> {
+    return this.posts.listMine(user, query.page);
+  }
+
+  @Get('mine/:id')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-03 Open one of my posts, draft included',
+    description:
+      'The full post for its author, whatever its status. Another user’s draft or hidden post is 404; their published post is 403.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  getMine(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ): Promise<PostDto> {
+    return this.posts.getMine(user, id);
   }
 
   @Get(':id')
