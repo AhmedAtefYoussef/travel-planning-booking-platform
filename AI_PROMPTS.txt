@@ -1874,3 +1874,19 @@ Claude merged develop (BLG-03/04/06/08 and ITN-05 kept as on develop) and re-app
 page, the PUBLIC_ITINERARIES provider and its verification entries on top; it checked the provider still
 matches the itinerary schema after ITN-05. I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-11 (TRVL-106)
+Prompt:
+Write the GEN-11 booking lifecycle proof: a unit matrix over all 25 ordered status pairs for flight and hotel
+bookings (the four allowed edges, and the 21 other pairs refused with 409 INVALID_STATE_TRANSITION and no
+write), plus e2e tests over HTTP for hold, confirm, complete, expire, user and provider cancel, and the jobs.
+How the output was used:
+A delegated subagent wrote the transition matrix tests from a written spec. The four allowed edges are
+spelled out in the spec, so the code cannot rewrite its own proof. To check the tests catch a bug, I
+made a temporary mutation (an extra Completed->Cancelled edge); 12 tests failed, and I reverted it. My
+brief wrongly said five edges; the agent corrected it to four. I reviewed the diff myself before committing.
+================================================
