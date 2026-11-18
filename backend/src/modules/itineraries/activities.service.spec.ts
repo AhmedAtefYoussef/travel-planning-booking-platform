@@ -1,7 +1,11 @@
 import { HttpStatus } from '@nestjs/common';
 import { Types, type Model } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
-import type { ReferenceService } from '../../common/contracts/services.contract';
+import type {
+  ReferenceService,
+  StoredImage,
+  UploadedFileLike,
+} from '../../common/contracts/services.contract';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { ActivitiesService, ACTIVITY_NOT_FOUND } from './activities.service';
@@ -20,6 +24,13 @@ const user: AuthUser = {
   id: new Types.ObjectId().toHexString(),
   role: Role.User,
 };
+const file: UploadedFileLike = {
+  originalname: 'a.png',
+  mimetype: 'image/png',
+  size: 8,
+  buffer: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+};
+
 function fakeActivity(over: Partial<Record<string, unknown>> = {}) {
   const _id = new Types.ObjectId();
   const doc = {
@@ -49,6 +60,7 @@ function setup(
     deletedCount?: number;
   } = {},
 ) {
+  let seq = 10;
   const dayId = new Types.ObjectId();
   const itinerary = {
     _id: stored?.itineraryId ?? new Types.ObjectId(),
@@ -92,15 +104,27 @@ function setup(
       Promise.resolve([{ code: 'EGP', name: 'Pound', minorUnits: 2 }]),
     ),
   } as unknown as ReferenceService;
+  const uploads = {
+    saveImages: jest.fn((files: UploadedFileLike[]): Promise<StoredImage[]> =>
+      Promise.resolve(
+        files.map(() => {
+          seq += 1;
+          return { imageId: IMG(seq), url: urlOf(seq) };
+        }),
+      ),
+    ),
+    deleteImage: jest.fn(() => Promise.resolve()),
+  };
   const service = new ActivitiesService(
     activities as unknown as Model<Activity>,
     itineraryService as unknown as ItinerariesService,
     reference,
+    uploads,
   );
-  return { service, activities, itineraryService, dayId, itinerary };
+  return { service, activities, itineraryService, uploads, dayId, itinerary };
 }
 
-describe('ActivitiesService (ITN-10)', () => {
+describe('ActivitiesService (ITN-10, ITN-12)', () => {
   describe('create', () => {
     it('adds an activity to an existing day and touches the itinerary', async () => {
       const { service, activities, itineraryService, dayId, itinerary } =
@@ -254,6 +278,79 @@ describe('ActivitiesService (ITN-10)', () => {
       await expect(service.remove(user, stored.id)).rejects.toMatchObject({
         status: 404,
       });
+    });
+  });
+
+  describe('images (ITN-12, GEN-08)', () => {
+    it('pushes the stored URLs with a size-guarded update', async () => {
+      const stored = fakeActivity({ images: [urlOf(1)] });
+      const { service, activities, uploads } = setup(stored);
+      await service.addImages(user, stored.id, [file, file]);
+      expect(uploads.saveImages).toHaveBeenCalledWith([file, file], {
+        entityType: 'ACTIVITY',
+        entityId: stored.id,
+        existingCount: 1,
+      });
+      expect(activities.findOneAndUpdate.mock.calls[0]).toEqual([
+        {
+          _id: stored._id,
+          $expr: { $lte: [{ $size: '$images' }, 3] },
+        },
+        { $push: { images: { $each: [urlOf(11), urlOf(12)] } } },
+        { new: true },
+      ]);
+    });
+
+    it('deletes the new files when a concurrent upload filled the activity', async () => {
+      const stored = fakeActivity();
+      const { service, uploads } = setup(stored, { writeResult: null });
+      await expect(
+        service.addImages(user, stored.id, [file]),
+      ).rejects.toMatchObject({
+        status: 400,
+      });
+      expect(uploads.deleteImage).toHaveBeenCalledWith(urlOf(11));
+    });
+
+    it('deletes the new files when the write fails', async () => {
+      const stored = fakeActivity();
+      const { service, uploads } = setup(stored, {
+        writeError: new Error('boom'),
+      });
+      await expect(service.addImages(user, stored.id, [file])).rejects.toThrow(
+        'boom',
+      );
+      expect(uploads.deleteImage).toHaveBeenCalledWith(urlOf(11));
+    });
+
+    it('removes an image by its id and frees the file when unused', async () => {
+      const stored = fakeActivity({ images: [urlOf(1), urlOf(2)] });
+      const { service, activities, itineraryService } = setup(stored);
+      await service.removeImage(user, stored.id, IMG(2));
+      expect(activities.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: stored._id, images: urlOf(2) },
+        { $pull: { images: urlOf(2) } },
+        { new: true },
+      );
+      expect(itineraryService.deleteUnusedImages).toHaveBeenCalledWith([
+        urlOf(2),
+      ]);
+    });
+
+    it('400 for a malformed image id, 404 for one the activity does not have', async () => {
+      const stored = fakeActivity({ images: [urlOf(1)] });
+      const { service, activities } = setup(stored);
+      await expect(
+        service.removeImage(user, stored.id, 'nope'),
+      ).rejects.toMatchObject({
+        status: 400,
+      });
+      await expect(
+        service.removeImage(user, stored.id, IMG(9)),
+      ).rejects.toMatchObject({
+        status: 404,
+      });
+      expect(activities.findOneAndUpdate).not.toHaveBeenCalled();
     });
   });
 });

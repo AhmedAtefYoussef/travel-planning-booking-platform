@@ -1,3 +1,9 @@
+// Must be the first import: it points UPLOAD_DIR at a fresh temp folder before AppModule is loaded.
+import {
+  removeTempUploadDir,
+  TEMP_UPLOAD_DIR,
+} from './support/temp-upload-dir';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { INestApplication } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
@@ -14,10 +20,29 @@ import { asUser, loginAs, type LoggedIn } from './support/auth';
 import { createTestApp } from './support/create-test-app';
 
 const DATA_DIR = join(__dirname, '..', 'seed', 'data');
+const MB = 1024 * 1024;
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff, 0xe0];
+const UUID =
+  '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
+const ACTIVITY_URL = new RegExp(`^/uploads/activities/(${UUID})\\.(png|jpg)$`);
+
+function img(signature: number[], size = 128, fill = 0): Buffer {
+  const buf = Buffer.alloc(size, fill);
+  Buffer.from(signature).copy(buf);
+  return buf;
+}
+const png = (fill = 1, size = 128) => img(PNG_SIGNATURE, size, fill);
+const jpeg = (fill = 2) => img(JPEG_SIGNATURE, 128, fill);
+const onDisk = (url: string) =>
+  existsSync(join(TEMP_UPLOAD_DIR, ...url.split('/').slice(2)));
+const imageIdOf = (url: string) => ACTIVITY_URL.exec(url)?.[1] as string;
+
 /**
  * ITN-10: add, edit and delete activities of a day (name, description, optional time and cost).
+ * ITN-12: attach and remove activity images under the GEN-08 rules (JPG/PNG, 5 MB, 5 per activity).
  */
-describe('Activities (e2e): ITN-10', () => {
+describe('Activities (e2e): ITN-10, ITN-12', () => {
   let app: INestApplication<App>;
   let activities: Model<Activity>;
   let owner: LoggedIn;
@@ -41,6 +66,19 @@ describe('Activities (e2e): ITN-10', () => {
     ).body as { id: string; images: string[] };
   const patch = (id: string, body: object, as: LoggedIn = owner) =>
     http().patch(`/api/activities/${id}`).set('Cookie', as.cookie).send(body);
+  const upload = (id: string, files: Buffer[], as: LoggedIn = owner) => {
+    let req = http()
+      .post(`/api/activities/${id}/images`)
+      .set('Cookie', as.cookie);
+    files.forEach((buf, i) => {
+      const isPng = buf[0] === 0x89;
+      req = req.attach('images', buf, {
+        filename: `photo-${i}.${isPng ? 'png' : 'jpg'}`,
+        contentType: isPng ? 'image/png' : 'image/jpeg',
+      });
+    });
+    return req;
+  };
   const detail = async () =>
     (
       await http()
@@ -82,6 +120,7 @@ describe('Activities (e2e): ITN-10', () => {
 
   afterAll(async () => {
     await app.close();
+    removeTempUploadDir();
   });
 
   describe('ITN-10 add', () => {
@@ -256,6 +295,7 @@ describe('Activities (e2e): ITN-10', () => {
         .delete(`/api/activities/${a.id}`)
         .set('Cookie', stranger.cookie)
         .expect(404);
+      await upload(a.id, [png()], stranger).expect(404);
       await http()
         .patch(`/api/activities/${a.id}`)
         .send({ name: 'x' })
@@ -268,6 +308,108 @@ describe('Activities (e2e): ITN-10', () => {
       expect((await activities.findById(a.id).lean().exec())?.name).toBe(
         'Giza Pyramids',
       );
+    });
+  });
+
+  describe('ITN-12 images (GEN-08)', () => {
+    it('uploads JPG and PNG images and removes one, deleting its file', async () => {
+      const a = await addOk();
+      const res = await upload(a.id, [png(1), jpeg(2)]).expect(201);
+      expect(res.body.images).toHaveLength(2);
+      for (const url of res.body.images as string[]) {
+        expect(url).toMatch(ACTIVITY_URL);
+        expect(onDisk(url)).toBe(true);
+      }
+      const [first, second] = res.body.images as string[];
+      const removed = await http()
+        .delete(`/api/activities/${a.id}/images/${imageIdOf(first)}`)
+        .set('Cookie', owner.cookie)
+        .expect(200);
+      expect(removed.body.images).toEqual([second]);
+      expect(onDisk(first)).toBe(false);
+      expect(onDisk(second)).toBe(true);
+    });
+
+    it('allows 5 images in all and refuses a batch that would pass 5', async () => {
+      const a = await addOk();
+      await upload(a.id, [png(1), png(2), png(3)]).expect(201);
+      const tooMany = await upload(a.id, [png(4), png(5), png(6)]).expect(400);
+      expect(tooMany.body.fieldErrors).toEqual([
+        expect.objectContaining({ field: 'images' }),
+      ]);
+      await upload(a.id, [png(4), png(5)]).expect(201);
+      await upload(a.id, [png(6)]).expect(400);
+      expect(
+        (await activities.findById(a.id).lean().exec())?.images,
+      ).toHaveLength(5);
+    });
+
+    it('refuses files that are not JPG/PNG or larger than 5 MB', async () => {
+      const a = await addOk();
+      await http()
+        .post(`/api/activities/${a.id}/images`)
+        .set('Cookie', owner.cookie)
+        .attach('images', Buffer.from('not an image'), {
+          filename: 'fake.png',
+          contentType: 'image/png',
+        })
+        .expect(400);
+      await upload(a.id, [png(1, 5 * MB + 1)]).expect((r) =>
+        expect([400, 413]).toContain(r.status),
+      );
+      await http()
+        .post(`/api/activities/${a.id}/images`)
+        .set('Cookie', owner.cookie)
+        .expect(400);
+      expect((await activities.findById(a.id).lean().exec())?.images).toEqual(
+        [],
+      );
+    });
+
+    it('validates the image id', async () => {
+      const a = await addOk();
+      await http()
+        .delete(`/api/activities/${a.id}/images/not-a-uuid`)
+        .set('Cookie', owner.cookie)
+        .expect(400);
+      await http()
+        .delete(
+          `/api/activities/${a.id}/images/3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e`,
+        )
+        .set('Cookie', owner.cookie)
+        .expect(404);
+    });
+
+    it('keeps a file another activity still shows (a clone) and deletes it with the last one', async () => {
+      const a = await addOk();
+      const [url] = (await upload(a.id, [png(7)]).expect(201)).body
+        .images as string[];
+      // A clone (ITN-21) points at the same file.
+      const clone = await activities.create({
+        itineraryId: new Types.ObjectId(),
+        dayId: new Types.ObjectId(),
+        name: 'Copy',
+        description: 'Copy',
+        images: [url],
+      });
+      await http()
+        .delete(`/api/activities/${a.id}`)
+        .set('Cookie', owner.cookie)
+        .expect(204);
+      expect(onDisk(url)).toBe(true);
+      await activities.deleteOne({ _id: clone._id }).exec();
+    });
+
+    it('deleting a day or the itinerary deletes its activities and their files', async () => {
+      const a = await addOk({});
+      const [url] = (await upload(a.id, [png(8)]).expect(201)).body
+        .images as string[];
+      await http()
+        .delete(`/api/itineraries/${itineraryId}/days/${dayIds[0]}`)
+        .set('Cookie', owner.cookie)
+        .expect(200);
+      expect(await activities.exists({ _id: a.id }).exec()).toBeNull();
+      expect(onDisk(url)).toBe(false);
     });
   });
 });
