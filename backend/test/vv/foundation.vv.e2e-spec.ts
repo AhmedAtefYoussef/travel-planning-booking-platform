@@ -512,6 +512,10 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       envelope: (body) => body.outbound as Record<string, unknown>,
     },
     { url: '/api/diagnostics/rows?' },
+    {
+      // HTL-11: hotel search, 10 per page like every list.
+      url: '/api/hotels/search?cityId=cairo&checkIn=2028-03-01&checkOut=2028-03-03&guests=1&',
+    },
     { url: '/api/admin/audit-logs?', headers: { 'x-dev-user': 'ADMIN' } },
     {
       // GEN-01: the caller's own notifications.
@@ -751,6 +755,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/currencies/convert',
         'GET /api/airlines/:id',
         'GET /api/airlines/:id/cancellation-policy/refund-preview',
+        // HTL-11: hotel search is for guests too.
+        'GET /api/hotels/search',
         // HTL-02: the hotel details page is for guests too.
         'GET /api/hotels/:id',
         'GET /api/flights/search',
