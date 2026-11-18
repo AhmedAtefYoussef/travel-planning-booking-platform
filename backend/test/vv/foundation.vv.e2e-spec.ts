@@ -749,6 +749,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/currencies/convert',
         'GET /api/airlines/:id',
         'GET /api/airlines/:id/cancellation-policy/refund-preview',
+        // HTL-02: the hotel details page is for guests too.
+        'GET /api/hotels/:id',
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',

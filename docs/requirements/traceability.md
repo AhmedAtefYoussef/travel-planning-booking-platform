@@ -20,6 +20,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 - The `airlines` and `flights` schemas (TRVL-138, Jira setup task, not a workbook ID) back FLT-01, FLT-03, FLT-04, FLT-08, FLT-09, FLT-22 and FLT-30. Each of those rows changes status when its own endpoints land.
 - The `users` and `sessions` schemas (TRVL-137, Jira setup task, not a workbook ID) back ACC-01, ACC-04 to ACC-09, ACC-11 to ACC-14 and ACC-19. Each of those rows changes status when its own endpoints land.
 - The `hotels`, `rooms`, `room_nights` and `reviews` schemas (TRVL-140, Jira setup task, not a workbook ID, PR #21) back the HTL requirements (HTL-01 to HTL-24). Each of those rows changes status when its own endpoints land.
+- The `posts`, `comments` and `likes` schemas (TRVL-142, Jira setup task, not a workbook ID, PR #75) back BLG-01 to BLG-12. Each of those rows changes status when its own endpoints land.
 
 ## Accounts & Admin
 
@@ -77,13 +78,13 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | HTL-01 | Mandatory | POST /api/hotels; PATCH /api/hotels/:id | Sandra | TRVL-47 | #22, #55 | Partial: photos are URLs until GEN-08 |
-| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | - | Not started |
+| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | #89 | Done |
 | HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | #23 | Done |
 | HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | #24, #55 | Done |
 | HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |
 | HTL-06 | Mandatory | DELETE /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-52 | - | Not started |
 | HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | - | Not started |
-| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #56, #86 | Partial: set and returned on every hotel response and the pre-payment booking summary (PAY-02); shown on the public hotel page once HTL-02 (GET /api/hotels/:id) lands |
+| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #56, #86, #89 | Done |
 | HTL-10 | Mandatory | PUT /api/hotels/:id/policies | Ahmed | TRVL-55 | #4, #86 | Done |
 | HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | - | Not started |
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
@@ -133,7 +134,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
-| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | - | Not started |
+| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75 | Partial: create as Draft/Published done; published posts listed once BLG-02, BLG-09 and BLG-12 land |
 | BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | - | Not started |
 | BLG-03 | Mandatory | GET /api/posts/mine | Malak | TRVL-87 | - | Not started |
 | BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | - | Not started |
