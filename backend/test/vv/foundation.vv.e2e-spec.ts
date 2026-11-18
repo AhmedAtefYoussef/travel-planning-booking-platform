@@ -492,6 +492,9 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   const ROUTE = { from: 'RUH', to: 'CDG', date: '2028-02-29' };
 
   /** Every list endpoint in the app, with what it needs to answer 200. */
+  // HTL-24: an active hotel, inserted in beforeAll, whose public reviews list answers 200.
+  const VV_REVIEWED_HOTEL = '6af0f1c2c77901aa9f2287b4';
+
   const LISTS: {
     url: string;
     headers?: Record<string, string>;
@@ -536,6 +539,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     },
     // BLG-08: the posts behind a tag link.
     { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
+    {
+      // HTL-24: a hotel's reviews, public; the hotel is inserted in beforeAll.
+      url: `/api/hotels/${VV_REVIEWED_HOTEL}/reviews?`,
+      docPath: '/api/hotels/{id}/reviews',
+    },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
@@ -548,6 +556,16 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
 
   afterAll(async () => {
     await app.close();
+  });
+
+  beforeAll(async () => {
+    await app.get<Model<unknown>>(getModelToken('Hotel')).create({
+      _id: VV_REVIEWED_HOTEL,
+      name: 'VV Reviewed Hotel',
+      address: '2 Paging street',
+      cityId: 'cairo',
+      countryCode: 'EG',
+    });
   });
 
   it('the paginated routes are exactly the documented ones', () => {
@@ -768,6 +786,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/hotels/search',
         // HTL-02: the hotel details page is for guests too.
         'GET /api/hotels/:id',
+        // HTL-24: the hotel rating summary and reviews are for guests too.
+        'GET /api/hotels/:id/reviews',
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
