@@ -1381,11 +1381,13 @@ Student: Joudy Khaled Hagar
 Tool: Claude (Claude Opus, agentic coding session)
 Related Requirement: FLT-05 (TRVL-32) closing test, with GEN-01
 Prompt:
-FLT-05 stays In Progress until a test shows the time-change notification reaching a Confirmed passenger. Now that
-the bookings module provides FLIGHT_BOOKINGS_LOOKUP and GEN-01 provides NOTIFICATIONS_SERVICE, add an e2e test that
-uses the real modules (no stand-ins): Confirmed, Pending and Cancelled bookings on one flight, the moderator changes
-its times, and each passenger's inbox is read through GET /api/notifications.
+FLT-05 stays In Progress until a test shows the time-change notification reaching a Confirmed passenger. Add an e2e
+test with the real bookings, payments and notifications modules (only Stripe faked): passengers book through hold,
+accept-policies, pay and the Stripe webhook (one Confirmed, one left Pending, one paid then cancelled), the moderator
+changes the times, and each inbox is read through GET /api/notifications. After Sarah's review: also prove that a
+same-value time edit, a price-only and a seat-only edit notify nobody, that the paid fare survives a price change
+while a new booking gets the new fare, and remove the duplicated stand-in notification check from flight-edit.
 How the output was used:
-Claude wrote the test with real logins; I checked it asserts that only the Confirmed passenger is notified, with the
-link to their booking, and that a later price change leaves the booking's paid fare unchanged (FLT-22 snapshot).
+Claude wrote the test following the existing flight-cancellation suite's payment flow; I checked each case against
+the FLT-05 rules and that the fare assertion can now fail.
 ================================================
