@@ -136,10 +136,10 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75, #100 | Partial: create as Draft/Published done; images uploaded to the post (BLG-10, GEN-08); published posts listed once BLG-02, BLG-09 and BLG-12 land |
-| BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | - | Not started |
+| BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | #93 | Partial: browse (10 per page, newest first, tag filter) and the post page done; comments on the post page once BLG-05 lands |
 | BLG-03 | Mandatory | GET /api/posts/mine; GET /api/posts/mine/:id | Malak | TRVL-87 | #94 | Done |
 | BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | #95 | Done |
-| BLG-05 | Mandatory | POST /api/posts/:id/comments | Malak | TRVL-89 | - | Not started |
+| BLG-05 | Mandatory | POST\|GET /api/posts/:id/comments | Malak | TRVL-89 | #97 | Done |
 | BLG-06 | Mandatory | POST\|DELETE /api/posts/:id/like | Malak | TRVL-90 | #98 | Done |
 | BLG-07 | Mandatory | PATCH\|DELETE /api/comments/:id | Malak | TRVL-91 | - | Not started |
 | BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | #93, #95, #99 | Partial: tags on create (#75) and tag pages done; editing tags with BLG-04, tag search with BLG-09 |

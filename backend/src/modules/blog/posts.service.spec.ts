@@ -97,4 +97,13 @@ describe('PostsService.create (BLG-01)', () => {
     const post = await service.create(ghost, dto());
     expect(post.author).toEqual({ id: ghost.id, name: 'Deleted user' });
   });
+
+  it('shows "Deleted user" for a deactivated author (ACC-12)', async () => {
+    users.findProfile.mockResolvedValueOnce({
+      name: 'Malak',
+      status: 'DEACTIVATED',
+    } as never);
+    const post = await service.create(author, dto());
+    expect(post.author).toEqual({ id: author.id, name: 'Deleted user' });
+  });
 });
