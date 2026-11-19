@@ -33,7 +33,7 @@ export class TagsController {
   @ApiOperation({
     summary: 'BLG-08 List the published posts with a tag',
     description:
-      'Published, non-hidden posts carrying the tag (matched ignoring case), newest first, 10 per page.',
+      "Published, non-hidden posts carrying the tag (matched ignoring case), newest first, 10 per page. A deactivated author's posts are not listed (ACC-12).",
   })
   @ApiParam({
     name: 'tag',

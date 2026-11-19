@@ -22,7 +22,7 @@ import {
   ApiTags,
   ApiConsumes,
 } from '@nestjs/swagger';
-import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
+import { CurrentUser, Roles, Public } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
 import {
@@ -37,12 +37,15 @@ import {
 import { LikeStateDto } from './dto/like.dto';
 import {
   CreatePostDto,
+  ListPostsQueryDto,
   PostDto,
   PostSummaryDto,
   UpdatePostDto,
 } from './dto/post.dto';
 import { LikesService } from './likes.service';
 import { PostsService } from './posts.service';
+import { CommentsService } from './comments.service';
+import { CommentBodyDto, CommentDto } from './dto/comment.dto';
 import {
   UPLOAD_LIMITS,
   type UploadedFileLike,
@@ -78,6 +81,7 @@ export class PostsController {
   constructor(
     private readonly posts: PostsService,
     private readonly likes: LikesService,
+    private readonly comments: CommentsService,
   ) {}
 
   @Post()
@@ -177,6 +181,21 @@ export class PostsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<void> {
     return this.posts.remove(user, id);
+  }
+
+  @Get()
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 Browse published posts',
+    description:
+      'Published, non-hidden posts with title, author, date, excerpt, tags, like and comment counts; newest first, 10 per page. tag filters by one tag (BLG-08), ignoring case.',
+  })
+  @ApiQuery({ name: 'tag', required: false, example: 'egypt' })
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(PostSummaryDto)
+  @ApiErrorResponses(400)
+  list(@Query() query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    return this.posts.listPublic(query);
   }
 
   /** Declared before GET :id so "mine" is never read as an id. */
@@ -311,5 +330,65 @@ export class PostsController {
     @Param('imageId') imageId: string,
   ): Promise<PostDto> {
     return this.posts.removeImage(user, id, imageId);
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 View a published post',
+    description:
+      'Title, author, date, body, tags, images and like and comment counts. Comments are listed separately (added by BLG-05). Drafts and hidden posts are 404 here; their author opens them from their own posts (added by BLG-03).',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  get(@Param('id', ParseObjectIdPipe) id: string): Promise<PostDto> {
+    return this.posts.getPublic(id);
+  }
+
+  @Get(':id/comments')
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-05 List the comments of a published post',
+    description:
+      'Visible comments in chronological order (oldest first), 10 per page. A draft or hidden post is 404.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(CommentDto)
+  @ApiErrorResponses(400, 404)
+  listComments(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: PaginationQueryDto,
+  ): Promise<Page<CommentDto>> {
+    return this.comments.list(id, query.page);
+  }
+
+  @Post(':id/comments')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-05 Comment on a published post',
+    description:
+      'The comment is 1-500 characters after trimming. Only published, non-hidden posts take comments (404 otherwise). The post’s comment count goes up by one.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiBody({
+    type: CommentBodyDto,
+    examples: {
+      valid: { summary: 'A comment', value: { body: 'Great tips, thanks!' } },
+      invalid: {
+        summary: 'Invalid: blank comment',
+        value: { body: '   ' },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: CommentDto })
+  @ApiErrorResponses(400, 404)
+  addComment(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: CommentBodyDto,
+  ): Promise<CommentDto> {
+    return this.comments.add(user, id, dto.body);
   }
 }
