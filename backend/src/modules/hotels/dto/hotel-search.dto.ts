@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsString, Length, Matches, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsString,
+  Length,
+  Matches,
+  Max,
+  Min,
+  ValidateBy,
+} from 'class-validator';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { IsWholeNumber, Omittable } from '../../../common/validation';
 import { MAX_DETAILS_STAY_NIGHTS } from './hotel-details.dto';
@@ -8,12 +16,51 @@ import { IsCalendarDate, IsRangeEnd } from './validators';
 
 /** Most rooms one search asks for (same cap as one hotel reservation, HTL-16). */
 export const MAX_SEARCH_ROOMS = 10;
+/** HTL-12 sort keys: price = cheapest first, rating = highest rated first. */
+export const HOTEL_SORTS = ['price', 'rating'] as const;
+export type HotelSort = (typeof HOTEL_SORTS)[number];
+
+/**
+ * HTL-12 filter rules, shared with HotelSearchService so HOTELS_SEARCH callers get the same 400s.
+ * Each is one check with one message, so a bad value (even "abc") gives exactly one field error.
+ */
+export const isMinorUnits = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+export const minorUnitsMessage = (field: string) =>
+  `${field} must be a whole number of minor units, 0 or more`;
+export const isRating = (value: unknown): value is number =>
+  typeof value === 'number' &&
+  Number.isFinite(value) &&
+  value >= 1 &&
+  value <= 5 &&
+  // Up to one decimal place, counted in the number as written.
+  (String(value).split('.')[1] ?? '').length <= 1;
+export const RATING_MESSAGE =
+  'minRating must be a number from 1 to 5 with up to one decimal';
+
+const IsMinorUnits = () =>
+  ValidateBy({
+    name: 'isMinorUnits',
+    validator: {
+      validate: isMinorUnits,
+      defaultMessage: (args) => minorUnitsMessage(args?.property ?? 'value'),
+    },
+  });
+const IsRating = () =>
+  ValidateBy({
+    name: 'isRating',
+    validator: { validate: isRating, defaultMessage: () => RATING_MESSAGE },
+  });
+
 /** Most guests one search asks for. */
 export const MAX_SEARCH_GUESTS = 50;
 
-/** "4" -> 4 for query strings; anything else is left for the validators to reject. */
+/**
+ * Numeric query strings ("4", "-1", "4.5") become numbers, so each field fails exactly one rule with
+ * one message (GEN-02); anything else is left for the validators to reject.
+ */
 const toNumber = ({ value }: { value: unknown }) =>
-  typeof value === 'string' && /^\d+$/.test(value.trim())
+  typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())
     ? Number(value)
     : value;
 const trimLower = ({ value }: { value: unknown }) =>
@@ -23,7 +70,7 @@ const trimUpper = ({ value }: { value: unknown }) =>
 
 /**
  * HTL-11: search hotels by city or country (exactly one), stay dates, guests and rooms. Page size is
- * fixed at 10 (GEN-05). HTL-12 adds the price and rating filters and the sort choice.
+ * fixed at 10 (GEN-05). HTL-12: price per night and minimum rating filters, and the sort.
  */
 export class HotelSearchQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -82,6 +129,52 @@ export class HotelSearchQueryDto extends PaginationQueryDto {
   @Min(1)
   @Max(MAX_SEARCH_ROOMS)
   rooms: number = 1;
+
+  @ApiPropertyOptional({
+    example: 5000,
+    minimum: 0,
+    description:
+      'HTL-12: lowest "from" price per night (fromPricePerNightMinor: the cheapest rooms that hold the guests), inclusive, in minor units (5000 = 50.00)',
+  })
+  @Omittable()
+  @Transform(toNumber)
+  @IsMinorUnits()
+  minPriceMinor?: number;
+
+  @ApiPropertyOptional({
+    example: 20000,
+    minimum: 0,
+    description:
+      'HTL-12: highest "from" price per night (fromPricePerNightMinor), inclusive, in minor units; must be >= minPriceMinor',
+  })
+  @Omittable()
+  @Transform(toNumber)
+  @IsMinorUnits()
+  maxPriceMinor?: number;
+
+  @ApiPropertyOptional({
+    example: 4,
+    minimum: 1,
+    maximum: 5,
+    description:
+      'HTL-12: minimum average rating (1-5, up to one decimal). Hotels without reviews are left out when it is set',
+  })
+  @Omittable()
+  @Transform(toNumber)
+  @IsRating()
+  minRating?: number;
+
+  @ApiPropertyOptional({
+    enum: HOTEL_SORTS,
+    default: 'price',
+    description:
+      'HTL-12: price = cheapest price per night first; rating = highest average rating first (unrated last). Ties go to the cheaper hotel, then the name',
+  })
+  @Omittable()
+  @IsIn(HOTEL_SORTS, {
+    message: `sort must be one of: ${HOTEL_SORTS.join(', ')}`,
+  })
+  sort?: HotelSort;
 }
 
 export class HotelSearchResultDto {
