@@ -10,10 +10,12 @@ import {
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { PAGE_SIZE, type Page } from '../../common/pagination/pagination';
 import { eachNight } from '../../common/utils/dates';
 import {
   DETAILS_REVIEW_LIMIT,
   type HotelDetailsDto,
+  type AvailableRoomsQueryDto,
   type HotelDetailsQueryDto,
   type HotelRoomSummaryDto,
   type HotelStayDto,
@@ -84,6 +86,37 @@ export class HotelDetailsService {
       reviews,
       stay,
       rooms,
+    };
+  }
+
+  /**
+   * HTL-15: one page of the hotel's rooms free for every night of the stay (the same rule as the
+   * details page), cheapest first, each with its stay total. The ids are what a booking (HTL-16)
+   * takes. A deactivated hotel is 404, like an unknown one (ACC-15).
+   */
+  async availableRooms(
+    id: string,
+    query: AvailableRoomsQueryDto,
+  ): Promise<Page<HotelRoomSummaryDto>> {
+    const hotel = await this.hotelModel
+      .findOne({ _id: id, ...ACTIVE_PROVIDER_FILTER })
+      .exec();
+    if (!hotel) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Hotel not found',
+      );
+    }
+    const stay = await this.stayOf(hotel, query);
+    const rooms = stay ? await this.freeRooms(hotel._id, stay) : [];
+    const page = query.page ?? 1;
+    return {
+      items: rooms.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+      page,
+      limit: PAGE_SIZE,
+      total: rooms.length,
+      totalPages: Math.ceil(rooms.length / PAGE_SIZE),
     };
   }
 
