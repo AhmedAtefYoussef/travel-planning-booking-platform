@@ -1886,9 +1886,7 @@ branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tes
 How the output was used:
 Claude added GET /api/posts (published posts, newest first, 10 per page, optional tag filter) and GET /api/posts/:id (404 for drafts and hidden posts), the public-route and page-size verification entries, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
 I reviewed the diff and ran the checks locally.
-================================================
 
-================================================
 Date: 2026-11-18
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus 5.5)
@@ -1902,9 +1900,7 @@ Claude merged develop (develop's log and rows kept, mine re-applied), added Post
 (published, not hidden, author not DEACTIVATED) for browse and the post page, made authorsOf show
 "Deleted user" for a deactivated account, and added a read-only UsersService.findIdsByStatus so the blog
 never reads the users collection. Unit and e2e tests added. I reviewed the diff and ran the checks.
-================================================
 
-================================================
 Date: 2026-11-18
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus 5.5)
@@ -1916,9 +1912,7 @@ How the output was used:
 Claude merged develop (BLG-03/04/06/08 kept as on develop; this PR's browse and post page re-applied on top),
 made LikesService use PostsService.publicFilter() so a deactivated author's post answers 404 to a like, and
 extended the ACC-12 e2e test. I reviewed the diff and ran the full CI checks locally.
-================================================
 
-================================================
 Date: 2026-11-18
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus 5.5)
@@ -1930,4 +1924,27 @@ How the output was used:
 Claude made PostsService.listByTag use publicFilter() (published, not hidden, author not DEACTIVATED), noted
 it in the tag page's Swagger description, extended the ACC-12 e2e test to the tag page, and merged the latest
 develop (AI log only). I reviewed the diff and ran the full CI checks locally.
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-09, GEN-11
+Prompt:
+Review develop against the completed Jira tasks and the open PRs, verify the open PRs through Swagger, then
+sync the traceability matrix.
+How the output was used:
+Claude found two stale rows that no open PR touches: GEN-09 still said reviews could not be created
+(HTL-23 merged in #112), and GEN-11 did not cite FLT-06 (#111), which cancels bookings through the shared
+cancellation core. It updated both rows, checked that the five open PRs still merge without new conflicts,
+and ran the traceability and hygiene checks. I reviewed the diff.
+
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-136
+Prompt:
+Delete everything left over from earlier Claude Code sessions (worktrees, branches and the old V&V workflow)
+so the next session starts fresh.
+How the output was used:
+Claude removed the docs/qa/vv-m1 V&V reports and the two test comments that linked to them. The V&V test
+specs under backend/test/vv stay, because they still guard behaviour. I reviewed the diff.
 ================================================
