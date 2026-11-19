@@ -2018,3 +2018,51 @@ transaction, then removes the budget rows through ITINERARY_BUDGETS and the imag
 only after the commit. I checked renumbering, re-dating, subtotals, deleting the only day, an unknown day and a
 stranger getting 404 in e2e and Swagger, and the failure path in the unit tests.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-14
+Prompt:
+Second budgets pull request (one per feature, as Ahmed asked): ITN-14, add, edit and delete
+non-negative budget entries per day for food, accommodation, in-city transport and activities in a
+selected currency, and show the itinerary total by category and by day, including activity costs and
+intercity transport.
+How the output was used:
+Claude added the budget-entry DTOs, service methods and routes (owner only, the day must belong to the
+itinerary, seeded currencies only) and GET /api/itineraries/:id/budget-summary, which sums entries,
+activity costs (under ACTIVITIES) and transport costs per day, category and currency and converts each
+group once to the platform currency through CURRENCY_SERVICE (503 when no rate is cached), with unit and
+e2e tests. After the rebase onto develop, budget entries also joined Sarah's ITINERARY_BUDGETS port
+(day totals, day/itinerary deletes, clone), with e2e tests. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-14
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: bring ITN-14 up to date with the
+reviewed ITN-16 (#92) and fix what blocked #92 before this pull request hits it too.
+How the output was used:
+Claude merged the reviewed ITN-16 branch (develop, the CodeQL fix and its unit tests), built the budget
+entry update field by field from validated values instead of passing the body to $set (the CodeQL query
+injection alert on #92), and added BudgetsService unit tests for budget entries and the summary (the
+src/modules/ branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-14
+Prompt:
+Apply Ahmed's V&V of PR #114: amountMinor null returns three validation messages for one field (fix it
+test-first), and update the ITN-09 traceability row now that budget entries join the city-group subtotals.
+How the output was used:
+Claude wrote budget.dto.spec.ts first (null, text, decimals, unsafe, negative and too-large amounts each
+give exactly one message), then replaced the stacked IsWholeNumber/Min/Max with one validator in the
+budgets DTO, and updated the ITN-09 row (still Partial). I reviewed the diff and ran the full CI locally.
+================================================
