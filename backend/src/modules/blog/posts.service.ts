@@ -68,7 +68,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts of active authors are public; anything else answers 404. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-12: the public author page shows the author's name, join date and published posts.
+ * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts of active authors are public; anything else answers 404. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-12: the public author page shows the author's name, join date and published posts. BLG-05: comments live in CommentsService.
  */
 @Injectable()
 export class PostsService {
