@@ -16,8 +16,12 @@ import type {
 import { MAX_DETAILS_STAY_NIGHTS } from './dto/hotel-details.dto';
 import {
   HOTEL_SORTS,
+  isMinorUnits,
+  isRating,
   MAX_SEARCH_GUESTS,
   MAX_SEARCH_ROOMS,
+  minorUnitsMessage,
+  RATING_MESSAGE,
 } from './dto/hotel-search.dto';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import { type FreeRoom, HotelDetailsService } from './hotel-details.service';
@@ -262,8 +266,8 @@ function checkFilters(query: HotelSearchQuery) {
     ['minPriceMinor', minPriceMinor],
     ['maxPriceMinor', maxPriceMinor],
   ] as const) {
-    if (value !== undefined && !(Number.isSafeInteger(value) && value >= 0)) {
-      throw bad(field, `${field} must be a whole number of minor units`);
+    if (value !== undefined && !isMinorUnits(value)) {
+      throw bad(field, minorUnitsMessage(field));
     }
   }
   // min > max is an error, not an empty result.
@@ -277,20 +281,8 @@ function checkFilters(query: HotelSearchQuery) {
       `maxPriceMinor (${maxPriceMinor}) must be greater than or equal to minPriceMinor (${minPriceMinor})`,
     );
   }
-  if (
-    minRating !== undefined &&
-    !(
-      Number.isFinite(minRating) &&
-      minRating >= 1 &&
-      minRating <= 5 &&
-      // Up to one decimal, counted the way the DTO's maxDecimalPlaces counts it.
-      (String(minRating).split('.')[1] ?? '').length <= 1
-    )
-  ) {
-    throw bad(
-      'minRating',
-      'minRating must be a number from 1 to 5 with up to one decimal',
-    );
+  if (minRating !== undefined && !isRating(minRating)) {
+    throw bad('minRating', RATING_MESSAGE);
   }
   if (
     sort !== undefined &&

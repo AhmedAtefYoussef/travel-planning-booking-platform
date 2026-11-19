@@ -2,12 +2,12 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsIn,
-  IsNumber,
   IsString,
   Length,
   Matches,
   Max,
   Min,
+  ValidateBy,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { IsWholeNumber, Omittable } from '../../../common/validation';
@@ -19,6 +19,38 @@ export const MAX_SEARCH_ROOMS = 10;
 /** HTL-12 sort keys: price = cheapest first, rating = highest rated first. */
 export const HOTEL_SORTS = ['price', 'rating'] as const;
 export type HotelSort = (typeof HOTEL_SORTS)[number];
+
+/**
+ * HTL-12 filter rules, shared with HotelSearchService so HOTELS_SEARCH callers get the same 400s.
+ * Each is one check with one message, so a bad value (even "abc") gives exactly one field error.
+ */
+export const isMinorUnits = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+export const minorUnitsMessage = (field: string) =>
+  `${field} must be a whole number of minor units, 0 or more`;
+export const isRating = (value: unknown): value is number =>
+  typeof value === 'number' &&
+  Number.isFinite(value) &&
+  value >= 1 &&
+  value <= 5 &&
+  // Up to one decimal place, counted in the number as written.
+  (String(value).split('.')[1] ?? '').length <= 1;
+export const RATING_MESSAGE =
+  'minRating must be a number from 1 to 5 with up to one decimal';
+
+const IsMinorUnits = () =>
+  ValidateBy({
+    name: 'isMinorUnits',
+    validator: {
+      validate: isMinorUnits,
+      defaultMessage: (args) => minorUnitsMessage(args?.property ?? 'value'),
+    },
+  });
+const IsRating = () =>
+  ValidateBy({
+    name: 'isRating',
+    validator: { validate: isRating, defaultMessage: () => RATING_MESSAGE },
+  });
 
 /** Most guests one search asks for. */
 export const MAX_SEARCH_GUESTS = 50;
@@ -106,8 +138,7 @@ export class HotelSearchQueryDto extends PaginationQueryDto {
   })
   @Omittable()
   @Transform(toNumber)
-  @IsWholeNumber('minPriceMinor must be a whole number of minor units')
-  @Min(0)
+  @IsMinorUnits()
   minPriceMinor?: number;
 
   @ApiPropertyOptional({
@@ -118,8 +149,7 @@ export class HotelSearchQueryDto extends PaginationQueryDto {
   })
   @Omittable()
   @Transform(toNumber)
-  @IsWholeNumber('maxPriceMinor must be a whole number of minor units')
-  @Min(0)
+  @IsMinorUnits()
   maxPriceMinor?: number;
 
   @ApiPropertyOptional({
@@ -131,18 +161,7 @@ export class HotelSearchQueryDto extends PaginationQueryDto {
   })
   @Omittable()
   @Transform(toNumber)
-  @IsNumber(
-    { allowNaN: false, allowInfinity: false, maxDecimalPlaces: 1 },
-    {
-      message: 'minRating must be a number from 1 to 5 with up to one decimal',
-    },
-  )
-  @Min(1, {
-    message: 'minRating must be a number from 1 to 5 with up to one decimal',
-  })
-  @Max(5, {
-    message: 'minRating must be a number from 1 to 5 with up to one decimal',
-  })
+  @IsRating()
   minRating?: number;
 
   @ApiPropertyOptional({

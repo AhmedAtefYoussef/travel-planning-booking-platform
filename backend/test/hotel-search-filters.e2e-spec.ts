@@ -163,6 +163,18 @@ describe('Hotel search filters and sort (e2e): HTL-12', () => {
     expect(await field({ minRating: 6 })).toEqual(['minRating']);
     expect(await field({ minRating: 4.25 })).toEqual(['minRating']);
     expect(await field({ sort: 'name' })).toEqual(['sort']);
+    // Not a number at all: still one error each, with the whole-number message (GEN-02).
+    expect(await field({ minPriceMinor: 'abc' })).toEqual(['minPriceMinor']);
+    expect(await field({ maxPriceMinor: 'abc' })).toEqual(['maxPriceMinor']);
+    expect(await field({ minRating: 'abc' })).toEqual(['minRating']);
+    const abc = await search({ minPriceMinor: 'abc' }).expect(400);
+    expect(abc.body.fieldErrors).toEqual([
+      expect.objectContaining({
+        field: 'minPriceMinor',
+        message:
+          'minPriceMinor must be a whole number of minor units, 0 or more',
+      }),
+    ]);
   });
 
   it('applies the same filter rules to HOTELS_SEARCH callers, and filters for them too', async () => {
