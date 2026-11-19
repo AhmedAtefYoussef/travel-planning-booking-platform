@@ -2,7 +2,7 @@
  * V&V track D (foundation, reference data, API contract): GEN-02, GEN-05, GEN-12, GEN-13 and the
  * Swagger contract seen by an evaluator. Cases already covered by test/common-layer, diagnostics,
  * reference, contracts-schemas and users-schemas specs are not repeated here.
- * Defects are asserted as the CORRECT behaviour inside it.failing (see docs/qa/vv-m1/rtm-foundation.md).
+ * Defects are asserted as the CORRECT behaviour inside it.failing.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -43,6 +43,9 @@ import { createTestApp } from '../support/create-test-app';
 
 const BACKEND = join(__dirname, '..', '..');
 const DATA_DIR = join(BACKEND, 'seed', 'data');
+/** Fixed blog fixture for the paginated-list checks (GEN-05). */
+const VV_AUTHOR = '6af0f1c2c77901aa9f2287a1';
+const VV_POST = '6af0f1c2c77901aa9f2287a2';
 
 /** The official mock records (brief section 5.1), exactly as published. */
 const COUNTRIES = [
@@ -500,8 +503,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   // HTL-24: an active hotel, inserted in beforeAll, whose public reviews list answers 200.
   const VV_REVIEWED_HOTEL = '6af0f1c2c77901aa9f2287b4';
   // BLG-05: a published post, inserted in beforeAll, whose public comments list answers 200.
-  const VV_POST_AUTHOR = '6af0f1c2c77901aa9f2287c1';
-  const VV_POST = '6af0f1c2c77901aa9f2287c2';
+  const VV_COMMENTED_POST_AUTHOR = '6af0f1c2c77901aa9f2287c1';
+  const VV_COMMENTED_POST = '6af0f1c2c77901aa9f2287c2';
 
   const LISTS: {
     url: string;
@@ -577,7 +580,7 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     { url: '/api/tags/egypt/posts?', docPath: '/api/tags/{tag}/posts' },
     {
       // BLG-05: a published post's comments; the post is inserted in beforeAll.
-      url: `/api/posts/${VV_POST}/comments?`,
+      url: `/api/posts/${VV_COMMENTED_POST}/comments?`,
       docPath: '/api/posts/{id}/comments',
     },
     {
@@ -585,6 +588,14 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: `/api/hotels/${VV_REVIEWED_HOTEL}/reviews?`,
       docPath: '/api/hotels/{id}/reviews',
     },
+    {
+      // BLG-12: the author's posts are the page; VV_AUTHOR is inserted in beforeAll.
+      url: `/api/authors/${VV_AUTHOR}?`,
+      docPath: '/api/authors/{id}',
+      envelope: (body) => body.posts as Record<string, unknown>,
+    },
+    // BLG-02: published posts.
+    { url: '/api/posts?' },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
@@ -593,6 +604,32 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   beforeAll(async () => {
     app = await createTestApp();
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    await users.collection.insertOne({
+      _id: new Types.ObjectId(VV_AUTHOR),
+      name: 'VV Author',
+      email: `vv.author.${VV_AUTHOR}@example.com`,
+      passwordHash: 'x',
+      role: Role.User,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await users.db.collection('posts').insertOne({
+      _id: new Types.ObjectId(VV_POST),
+      authorId: new Types.ObjectId(VV_AUTHOR),
+      title: 'VV post',
+      body: 'VV body',
+      tags: ['egypt'],
+      images: [],
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+      isHidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      interactionScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   });
 
   beforeAll(async () => {
@@ -633,17 +670,17 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   beforeAll(async () => {
     const users = app.get<Model<User>>(getModelToken(User.name));
     await users.collection.insertOne({
-      _id: new Types.ObjectId(VV_POST_AUTHOR),
+      _id: new Types.ObjectId(VV_COMMENTED_POST_AUTHOR),
       name: 'VV Author',
-      email: `vv.author.${VV_POST_AUTHOR}@example.com`,
+      email: `vv.author.${VV_COMMENTED_POST_AUTHOR}@example.com`,
       passwordHash: 'x',
       role: Role.User,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
     await users.db.collection('posts').insertOne({
-      _id: new Types.ObjectId(VV_POST),
-      authorId: new Types.ObjectId(VV_POST_AUTHOR),
+      _id: new Types.ObjectId(VV_COMMENTED_POST),
+      authorId: new Types.ObjectId(VV_COMMENTED_POST_AUTHOR),
       title: 'VV post',
       body: 'VV body',
       tags: ['egypt'],
@@ -882,10 +919,15 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/flights/search',
         'GET /api/flights/search/round-trip',
         'GET /api/flights/:id',
+        // BLG-02: guests read published posts (brief section 4).
+        'GET /api/posts',
+        'GET /api/posts/:id',
         // BLG-08: guests open tag pages.
         'GET /api/tags/:tag/posts',
         // BLG-05: guests read the comments of published posts.
         'GET /api/posts/:id/comments',
+        // BLG-12: guests open public author pages.
+        'GET /api/authors/:id',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',

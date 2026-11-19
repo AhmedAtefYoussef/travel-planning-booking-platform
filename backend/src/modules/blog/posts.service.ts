@@ -1,10 +1,14 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, FilterQuery, Model, SortOrder, Types } from 'mongoose';
 import { isOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
+import {
+  PUBLIC_ITINERARIES,
+  UPLOADS_SERVICE,
+} from '../../common/contracts/tokens';
 import type {
+  PublicItineraries,
   UploadedFileLike,
   UploadsService,
 } from '../../common/contracts/services.contract';
@@ -25,10 +29,12 @@ import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
   CreatePostDto,
+  ListPostsQueryDto,
   PostDto,
   PostSummaryDto,
   UpdatePostDto,
 } from './dto/post.dto';
+import type { AuthorPageDto } from './dto/author.dto';
 import { Comment } from './schemas/comment.schema';
 import { Like } from './schemas/like.schema';
 import {
@@ -62,7 +68,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-05: comments live in CommentsService.
+ * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts of active authors are public; anything else answers 404. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-12: the public author page shows the author's name, join date and published posts. BLG-05: comments live in CommentsService.
  */
 @Injectable()
 export class PostsService {
@@ -73,6 +79,9 @@ export class PostsService {
     private readonly users: UsersService,
     @InjectConnection() private readonly connection: Connection,
     @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
+    @Optional()
+    @Inject(PUBLIC_ITINERARIES)
+    private readonly itineraries?: PublicItineraries,
   ) {}
 
   /** BLG-01: a draft by default; publishing stamps publishedAt. */
@@ -136,14 +145,15 @@ export class PostsService {
   }
 
   /** BLG-08: the posts behind a clickable tag. */
-  listByTag(tag: string, page: number): Promise<Page<PostSummaryDto>> {
+  async listByTag(tag: string, page: number): Promise<Page<PostSummaryDto>> {
     const clean = tag.trim().toLowerCase();
     if (clean.length < 1 || clean.length > MAX_TAG_LENGTH) {
       throw new ValidationFailedException([
         { field: 'tag', message: `tag must be 1-${MAX_TAG_LENGTH} characters` },
       ]);
     }
-    return this.page({ ...PUBLIC_POST_FILTER, tags: clean }, page, {
+    // ACC-12: the same public filter as browse, so a deactivated author's posts are not listed.
+    return this.page({ ...(await this.publicFilter()), tags: clean }, page, {
       publishedAt: -1,
     });
   }
@@ -229,6 +239,44 @@ export class PostsService {
     return this.toPost(updated);
   }
 
+  /** BLG-12: public author page with the author's published posts, newest first. */
+  async authorPage(
+    authorId: string,
+    page: number,
+    itinerariesPage = 1,
+  ): Promise<AuthorPageDto> {
+    const author = await this.users.findProfile(authorId);
+    // ACC-12: a deactivated user's posts and public itineraries are hidden, so their page is too.
+    if (!author || author.status === AccountStatus.Deactivated) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Author not found',
+      );
+    }
+    const [posts, itineraries] = await Promise.all([
+      this.page(
+        { ...PUBLIC_POST_FILTER, authorId: new Types.ObjectId(author.id) },
+        page,
+        { publishedAt: -1 },
+      ),
+      this.itineraries
+        ? this.itineraries.ofAuthor(author.id, itinerariesPage)
+        : Promise.resolve({ items: [], total: 0 }),
+    ]);
+    return {
+      id: author.id,
+      name: author.name,
+      joinedAt: new Date(author.createdAt),
+      posts,
+      itineraries: toPage(
+        itineraries.items,
+        itineraries.total,
+        itinerariesPage,
+      ),
+    };
+  }
+
   /** BLG-03: the caller's own posts, drafts and hidden ones included, newest first. */
   listMine(user: AuthUser, page: number): Promise<Page<PostSummaryDto>> {
     return this.page({ authorId: new Types.ObjectId(user.id) }, page, {
@@ -280,6 +328,37 @@ export class PostsService {
       total,
       page,
     );
+  }
+
+  /**
+   * What anyone may read: published, not hidden by an admin (GEN-10) and not written by a deactivated
+   * account (ACC-12: "their posts ... are hidden"). Browse, the post page, comments and likes all use it.
+   */
+  async publicFilter(): Promise<FilterQuery<Post>> {
+    const deactivated = await this.users.findIdsByStatus(
+      AccountStatus.Deactivated,
+    );
+    return {
+      ...PUBLIC_POST_FILTER,
+      authorId: { $nin: deactivated.map((id) => new Types.ObjectId(id)) },
+    };
+  }
+
+  /** BLG-02: published posts, newest first, optionally one tag (BLG-08). */
+  async listPublic(query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    const filter: FilterQuery<Post> = await this.publicFilter();
+    if (query.tag) filter.tags = query.tag;
+    return this.page(filter, query.page, { publishedAt: -1 });
+  }
+
+  /** BLG-02: the public post page. Drafts and hidden posts answer 404 here. */
+  async getPublic(id: string): Promise<PostDto> {
+    const post = await this.posts
+      .findOne({ _id: id, ...(await this.publicFilter()) })
+      .lean<PostLike>()
+      .exec();
+    if (!post) throw notFound();
+    return this.toPost(post);
   }
 
   /**

@@ -136,7 +136,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
 |---|---|---|---|---|---|---|
 | BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75, #100 | Partial: create as Draft/Published done; images uploaded to the post (BLG-10, GEN-08); published posts listed once BLG-02, BLG-09 and BLG-12 land |
-| BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | - | Not started |
+| BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | #93 | Partial: browse (10 per page, newest first, tag filter) and the post page done; comments on the post page once BLG-05 lands |
 | BLG-03 | Mandatory | GET /api/posts/mine; GET /api/posts/mine/:id | Malak | TRVL-87 | #94 | Done |
 | BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | #95 | Done |
 | BLG-05 | Mandatory | POST\|GET /api/posts/:id/comments | Malak | TRVL-89 | #97 | Done |
@@ -145,7 +145,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | #93, #95, #99 | Partial: tags on create (#75) and tag pages done; editing tags with BLG-04, tag search with BLG-09 |
 | BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | - | Not started |
 | BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | #100 | Done |
-| BLG-12 | Mandatory | GET /api/authors/:id | Malak | TRVL-95 | - | Not started |
+| BLG-12 | Mandatory | GET /api/authors/:id (posts; public itineraries through PUBLIC_ITINERARIES) | Malak | TRVL-95 | #101 | Done |
 | BLG-13 | Bonus | PATCH /api/posts/:id/itinerary | Team | TRVL-125 | - | Not started |
 
 ## Cross-cutting
@@ -160,9 +160,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4, #69, #84 | Partial: suspensions audited; deletions with GEN-10 |
 | GEN-08 | Mandatory | UPLOADS_SERVICE + ImageFilesInterceptor; POST /api/hotels/:id/images; DELETE /api/hotels/:id/images/:imageId; PUT /api/airlines/:id/logo; GET /uploads/... (static); posts and activities via BLG-10, ITN-12 | Ahmed | TRVL-103 | #66 | Done |
-| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106 | Partial: report endpoint, once-per-item index, CONTENT_MODERATION port, itinerary and post adapters done; comment and review adapters once those modules can create content |
+| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106 | Partial: report endpoint, once-per-item index, CONTENT_MODERATION port, itinerary and post adapters done; reviews can now be created (HTL-23, #112) but have no adapter yet; comments need one once BLG-05 lands (TRVL-180) |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | - | Not started |
-| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105 | Partial: transition guard, schemas, Confirmed -> Completed job (#57), Pending -> Expired for flight holds (#59) and hotel holds (#60) done; Confirmed -> Cancelled: the flight half is done (FLT-26, #72, #85) and the hotel half is done through HTL-21 (#105), both on the shared cancellation core in bookings/booking-cancellation.ts; only the full transition-matrix test (a later PR) remains |
+| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111 | Partial: transition guard, schemas, Confirmed -> Completed job (#57), Pending -> Expired for flight holds (#59) and hotel holds (#60) done; Confirmed -> Cancelled: the flight half is done (FLT-26, #72, #85) and the hotel half is done through HTL-21 (#105), both on the shared cancellation core in bookings/booking-cancellation.ts; an airline cancelling a flight (FLT-06, #111) cancels its Confirmed bookings through the same core and moves its holds to Expired; only the full transition-matrix test (a later PR) remains |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3, #55 | Done |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | #43 | Done |

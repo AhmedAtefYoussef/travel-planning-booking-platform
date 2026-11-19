@@ -24,6 +24,7 @@
  *   HOTEL_STATUS (hotels)           ->  admin (ACC-15 deactivation)
  *   ITINERARY_BUDGETS (budgets)     ->  itineraries (ITN-07, ITN-09, ITN-21; optional until ITN-14)
  *   CONTENT_MODERATION (moderation) ->  posts, comments, reviews, itineraries register adapters (GEN-09, GEN-10)
+ *   PUBLIC_ITINERARIES (itineraries) ->  blog (BLG-12 author page)
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
  * The providing module exports `{ provide: AUDIT_SERVICE, useExisting: AuditLogService }`.
@@ -51,3 +52,4 @@ export const AIRLINE_STATUS = Symbol('AIRLINE_STATUS');
 export const HOTEL_STATUS = Symbol('HOTEL_STATUS');
 export const ITINERARY_BUDGETS = Symbol('ITINERARY_BUDGETS');
 export const CONTENT_MODERATION = Symbol('CONTENT_MODERATION');
+export const PUBLIC_ITINERARIES = Symbol('PUBLIC_ITINERARIES');

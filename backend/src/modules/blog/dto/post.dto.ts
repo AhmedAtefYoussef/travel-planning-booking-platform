@@ -18,6 +18,7 @@ import {
   MAX_TAG_LENGTH,
   PostStatus,
 } from '../schemas/post.schema';
+import { PaginationQueryDto } from '../../../common/pagination/pagination';
 import { normalizeTags } from '../blog-rules';
 
 import { localUploadUrlPattern, Omittable } from '../../../common/validation';
@@ -154,6 +155,23 @@ export class UpdatePostDto {
   @Omittable()
   @StatusRules()
   status?: PostStatus;
+}
+
+/** BLG-02 browse, optionally filtered by one tag (BLG-08). */
+export class ListPostsQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    description: 'Only posts with this tag (BLG-08), matched ignoring case',
+    example: 'egypt',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
+  @IsString()
+  @Length(1, MAX_TAG_LENGTH, {
+    message: `tag must be 1-${MAX_TAG_LENGTH} characters`,
+  })
+  tag?: string;
 }
 
 export class AuthorRefDto {

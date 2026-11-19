@@ -37,6 +37,7 @@ import {
 import { LikeStateDto } from './dto/like.dto';
 import {
   CreatePostDto,
+  ListPostsQueryDto,
   PostDto,
   PostSummaryDto,
   UpdatePostDto,
@@ -182,6 +183,21 @@ export class PostsController {
     return this.posts.remove(user, id);
   }
 
+  @Get()
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 Browse published posts',
+    description:
+      'Published, non-hidden posts with title, author, date, excerpt, tags, like and comment counts; newest first, 10 per page. tag filters by one tag (BLG-08), ignoring case.',
+  })
+  @ApiQuery({ name: 'tag', required: false, example: 'egypt' })
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(PostSummaryDto)
+  @ApiErrorResponses(400)
+  list(@Query() query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    return this.posts.listPublic(query);
+  }
+
   /** Declared before GET :id so "mine" is never read as an id. */
   @Get('mine')
   @Roles(Role.User)
@@ -314,6 +330,20 @@ export class PostsController {
     @Param('imageId') imageId: string,
   ): Promise<PostDto> {
     return this.posts.removeImage(user, id, imageId);
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 View a published post',
+    description:
+      'Title, author, date, body, tags, images and like and comment counts. Comments are listed separately (added by BLG-05). Drafts and hidden posts are 404 here; their author opens them from their own posts (added by BLG-03).',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  get(@Param('id', ParseObjectIdPipe) id: string): Promise<PostDto> {
+    return this.posts.getPublic(id);
   }
 
   @Get(':id/comments')

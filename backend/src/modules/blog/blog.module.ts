@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ItinerariesModule } from '../itineraries';
+import { AuthorsController } from './authors.controller';
 import { CommentsService } from './comments.service';
 import { LikesService } from './likes.service';
 import { PostsController } from './posts.controller';
@@ -22,8 +24,10 @@ import { Post, PostSchema } from './schemas/post.schema';
       { name: Comment.name, schema: CommentSchema },
       { name: Like.name, schema: LikeSchema },
     ]),
+    // PUBLIC_ITINERARIES for the BLG-12 author page.
+    ItinerariesModule,
   ],
-  controllers: [PostsController, TagsController],
+  controllers: [PostsController, TagsController, AuthorsController],
   providers: [
     PostsService,
     LikesService,
