@@ -44,6 +44,8 @@ import {
 } from './dto/post.dto';
 import { LikesService } from './likes.service';
 import { PostsService } from './posts.service';
+import { CommentsService } from './comments.service';
+import { CommentBodyDto, CommentDto } from './dto/comment.dto';
 import {
   UPLOAD_LIMITS,
   type UploadedFileLike,
@@ -79,6 +81,7 @@ export class PostsController {
   constructor(
     private readonly posts: PostsService,
     private readonly likes: LikesService,
+    private readonly comments: CommentsService,
   ) {}
 
   @Post()
@@ -341,5 +344,51 @@ export class PostsController {
   @ApiErrorResponses(400, 404)
   get(@Param('id', ParseObjectIdPipe) id: string): Promise<PostDto> {
     return this.posts.getPublic(id);
+  }
+
+  @Get(':id/comments')
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-05 List the comments of a published post',
+    description:
+      'Visible comments in chronological order (oldest first), 10 per page. A draft or hidden post is 404.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(CommentDto)
+  @ApiErrorResponses(400, 404)
+  listComments(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: PaginationQueryDto,
+  ): Promise<Page<CommentDto>> {
+    return this.comments.list(id, query.page);
+  }
+
+  @Post(':id/comments')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-05 Comment on a published post',
+    description:
+      'The comment is 1-500 characters after trimming. Only published, non-hidden posts take comments (404 otherwise). The post’s comment count goes up by one.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiBody({
+    type: CommentBodyDto,
+    examples: {
+      valid: { summary: 'A comment', value: { body: 'Great tips, thanks!' } },
+      invalid: {
+        summary: 'Invalid: blank comment',
+        value: { body: '   ' },
+      },
+    },
+  })
+  @ApiCreatedResponse({ type: CommentDto })
+  @ApiErrorResponses(400, 404)
+  addComment(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: CommentBodyDto,
+  ): Promise<CommentDto> {
+    return this.comments.add(user, id, dto.body);
   }
 }
