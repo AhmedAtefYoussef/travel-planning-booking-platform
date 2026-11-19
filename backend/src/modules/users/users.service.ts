@@ -180,6 +180,18 @@ export class UsersService {
     return user ? toUserProfile(user) : null;
   }
 
+  /**
+   * ACC-12: ids of the accounts in `status` (e.g. DEACTIVATED), so other modules can hide a deactivated
+   * user's content without reading the users collection themselves. Only ids leave this module.
+   */
+  async findIdsByStatus(status: AccountStatus): Promise<string[]> {
+    const users = await this.users
+      .find({ status }, { _id: 1 })
+      .lean<{ _id: Types.ObjectId }[]>()
+      .exec();
+    return users.map((u) => u._id.toHexString());
+  }
+
   /** Upgrades a hash made with an older bcrypt cost after a successful login. */
   async replacePasswordHash(id: string, passwordHash: string): Promise<void> {
     await this.users.updateOne({ _id: id }, { $set: { passwordHash } });
