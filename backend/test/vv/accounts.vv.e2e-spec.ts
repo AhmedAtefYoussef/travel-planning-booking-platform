@@ -14,8 +14,7 @@ import { asUser, loginAs } from '../support/auth';
 import { createTestApp } from '../support/create-test-app';
 
 /**
- * V&V Track A (Accounts/Auth), milestone 1. Only rules that no existing spec covers; see
- * docs/qa/vv-m1/rtm-accounts.md for the traceability matrix and the findings (F-A-nn).
+ * V&V Track A (Accounts/Auth), milestone 1. Only rules that no existing spec covers.
  */
 
 const DATA_DIR = join(__dirname, '..', '..', 'seed', 'data');

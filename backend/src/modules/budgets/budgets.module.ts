@@ -13,9 +13,9 @@ import {
 } from './schemas/transport-cost.schema';
 
 /**
- * Itinerary budgets (brief section 6.5). Both TRVL-143 collections are registered here so their indexes
- * are built at startup; ITN-16 transport costs come first, ITN-14 and ITN-18 follow in their own PRs.
- * Itinerary models come from ItinerariesModule (ownership, days); the currency module is global
+ * Itinerary budgets (brief section 6.5): ITN-14 budget entries and totals, ITN-16 transport costs; ITN-18
+ * follows in its own PR. Itinerary and activity models come from ItinerariesModule (ownership, days,
+ * activity costs); the currency module is global
  * (CURRENCY_SERVICE). Global so the itineraries module can inject ITINERARY_BUDGETS (ITN-01, ITN-07,
  * ITN-09, ITN-21) without importing this module.
  */
