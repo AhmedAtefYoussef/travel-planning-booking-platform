@@ -50,10 +50,13 @@ export class RoomCalendarNightDto {
   reference!: string | null;
 
   @ApiProperty({
+    // null: the example night above is BOOKED, and only HELD nights carry a hold expiry.
+    example: null,
     nullable: true,
     type: String,
     format: 'date-time',
-    description: 'When the payment hold ends, for HELD nights; null otherwise',
+    description:
+      'When the payment hold ends, for HELD nights (e.g. 2027-01-09T14:30:00.000Z); null otherwise',
   })
   holdExpiresAt!: Date | null;
 }
