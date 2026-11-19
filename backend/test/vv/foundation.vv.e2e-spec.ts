@@ -43,6 +43,9 @@ import { createTestApp } from '../support/create-test-app';
 
 const BACKEND = join(__dirname, '..', '..');
 const DATA_DIR = join(BACKEND, 'seed', 'data');
+/** Fixed blog fixture for the paginated-list checks (GEN-05). */
+const VV_AUTHOR = '6af0f1c2c77901aa9f2287a1';
+const VV_POST = '6af0f1c2c77901aa9f2287a2';
 
 /** The official mock records (brief section 5.1), exactly as published. */
 const COUNTRIES = [
@@ -577,6 +580,12 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       url: `/api/hotels/${VV_REVIEWED_HOTEL}/reviews?`,
       docPath: '/api/hotels/{id}/reviews',
     },
+    {
+      // BLG-12: the author's posts are the page; VV_AUTHOR is inserted in beforeAll.
+      url: `/api/authors/${VV_AUTHOR}?`,
+      docPath: '/api/authors/{id}',
+      envelope: (body) => body.posts as Record<string, unknown>,
+    },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
@@ -585,6 +594,32 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   beforeAll(async () => {
     app = await createTestApp();
     await app.get(ReferenceSeedService).seed(loadReferenceDataset(DATA_DIR));
+    const users = app.get<Model<User>>(getModelToken(User.name));
+    await users.collection.insertOne({
+      _id: new Types.ObjectId(VV_AUTHOR),
+      name: 'VV Author',
+      email: `vv.author.${VV_AUTHOR}@example.com`,
+      passwordHash: 'x',
+      role: Role.User,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await users.db.collection('posts').insertOne({
+      _id: new Types.ObjectId(VV_POST),
+      authorId: new Types.ObjectId(VV_AUTHOR),
+      title: 'VV post',
+      body: 'VV body',
+      tags: ['egypt'],
+      images: [],
+      status: 'PUBLISHED',
+      publishedAt: new Date(),
+      isHidden: false,
+      likeCount: 0,
+      commentCount: 0,
+      interactionScore: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
   });
 
   beforeAll(async () => {
@@ -847,6 +882,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/flights/:id',
         // BLG-08: guests open tag pages.
         'GET /api/tags/:tag/posts',
+        // BLG-12: guests open public author pages.
+        'GET /api/authors/:id',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',

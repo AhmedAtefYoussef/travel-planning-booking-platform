@@ -1798,6 +1798,85 @@ Confirmed with its nights kept) and a documentation sentence on refund timing. I
 
 ================================================
 Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5 for the design and implementation, reviewed by a second Opus review pass)
+Related Requirement: GEN-09 (TRVL-104)
+Prompt:
+Implement GEN-09 from a written spec: a registered user reports a post, comment, review or itinerary with a reason of 1-500 characters, at most once per item, through POST /api/reports. Moderation gets a CONTENT_MODERATION port with a registry, so each content module registers its own adapter and moderation never imports those modules.
+How the output was used:
+A delegated subagent designed and implemented the moderation module and the port from that spec. An adversarial review found that posts could not be reported, that remove() needed an after-commit hook and that two adapter methods lacked id guards; those were fixed in a second commit. I reviewed the diff. The GEN-09 traceability row, the reports collection in the ERD, the contracts section, the demo steps and the RTM rows were written with Claude Code from the code and backend/test/reports.e2e-spec.ts.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-10
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-10 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added POST /api/posts/:id/images and DELETE /api/posts/:id/images/:imageId using the shared UPLOADS_SERVICE and ImageFilesInterceptor (JPG/PNG, 5 MB, at most 5 per post), author only, files deleted when no post uses them any more, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-10, BLG-01
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #100.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop, including BLG-04's image cleanup) and re-applied
+only this PR's upload and remove-image endpoints on top, and noted on the BLG-01 row that images are now
+uploaded to the post (#100). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-12
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-12 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added GET /api/authors/:id (name, join date and the author's published posts, newest first, 10 per page), the public-route and page-size verification entries with a fixed author fixture, and e2e tests. Public itineraries follow once ITN-20 is available. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-12, ITN-20, ACC-12
+Prompt:
+Apply Ahmed's review of PR #101: merge develop, list the author's public itineraries on the author page
+through a small port in common/contracts provided by the itineraries module, and return 404 for a
+deactivated author (ACC-12).
+How the output was used:
+Claude added the PUBLIC_ITINERARIES token and PublicItineraries interface, a PublicItinerariesProvider in
+the itineraries module (PUBLIC, not hidden, newest update first, 10 per page), the itineraries page on
+GET /api/authors/:id with its own itinerariesPage parameter, a 404 for DEACTIVATED authors, the contracts
+row and e2e tests. I reviewed the diff and ran the checks.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-12
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #101.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 and ITN-05 kept as on develop) and re-applied only this PR's author
+page, the PUBLIC_ITINERARIES provider and its verification entries on top; it checked the provider still
+matches the itinerary schema after ITN-05. I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
 Student: Sarah Eldahaby
 Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: ITN-07 (TRVL-73)
