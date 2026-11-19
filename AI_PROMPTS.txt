@@ -1961,3 +1961,17 @@ Claude rebuilt BLG-09 on the reviewed BLG-02 branch (develop merged, ACC-12 filt
 author's posts are never found) and re-applied only the keyword search (title, tags, author name, ranked by
 likes + comments). I reviewed the diff and ran the full CI checks locally.
 ================================================
+
+================================================
+Date: 2026-11-19
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-09, ACC-12
+Prompt:
+Finish my remaining Jira tasks one by one, locally: bring BLG-09 up to date with the reviewed BLG-02
+(tag-page ACC-12 fix included) and prove that search never finds a deactivated author's posts.
+How the output was used:
+Claude merged the reviewed BLG-02 branch into BLG-09 (BLG-02's AI log kept, the BLG-09 entries appended)
+and added an ACC-12 e2e test: a post found by keyword disappears from search, by title, tag and author
+name, once its author deactivates. I reviewed the diff and ran the full CI locally.
+================================================

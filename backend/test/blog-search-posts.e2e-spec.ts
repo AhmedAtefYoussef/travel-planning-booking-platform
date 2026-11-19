@@ -105,4 +105,32 @@ describe('Blog search (e2e): BLG-09', () => {
     const none = await http().get('/api/posts?q=(.*)zz-none').expect(200);
     expect(none.body).toMatchObject({ total: 0, items: [] });
   });
+
+  it("ACC-12 a deactivated author's posts are never found, by title, tag or name", async () => {
+    const leaver = await loginAs(ctx.app, Role.User);
+    const unique = `Leaver${new Types.ObjectId().toHexString().slice(-8)}`;
+    await ctx.connection
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(leaver.userId) },
+        { $set: { name: unique } },
+      );
+    const word = `acc${new Types.ObjectId().toHexString().slice(-8)}`;
+    const gone = await publish(leaver, `Gone ${word}`, { tags: [word] });
+    const kept = await publish(ctx.author, `Kept ${word}`);
+    const found = async (q: string) =>
+      (
+        (await http().get(`/api/posts?q=${q}`).expect(200)).body
+          .items as PostBody[]
+      ).map((p) => p.id);
+    expect(await found(word)).toEqual(expect.arrayContaining([gone.id]));
+    await ctx.connection
+      .collection('users')
+      .updateOne(
+        { _id: new Types.ObjectId(leaver.userId) },
+        { $set: { status: 'DEACTIVATED' } },
+      );
+    expect(await found(word)).toEqual([kept.id]);
+    expect(await found(unique)).toEqual([]);
+  });
 });
