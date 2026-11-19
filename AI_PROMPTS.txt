@@ -1902,3 +1902,18 @@ How the output was used:
 Claude removed the docs/qa/vv-m1 V&V reports and the two test comments that linked to them. The V&V test
 specs under backend/test/vv stay, because they still guard behaviour. I reviewed the diff.
 ================================================
+
+================================================
+Date: 2026-11-16
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-12 (TRVL-57)
+Prompt:
+Implement HTL-12 on the hotel search: inclusive minimum and maximum price per night of the cheapest
+qualifying room, minimum average rating 1-5 with unrated hotels excluded when set, and sort by price or
+rating, following the flight search filters (FLT-15).
+How the output was used:
+Claude added minPriceMinor, maxPriceMinor, minRating and sort to the search DTO (one field error per bad
+value), the min-above-max 400 in the service so contract callers get it too, the filters and the rating
+sort (unrated last, ties by price), and e2e tests on hotels in a city no other test uses.
+================================================
