@@ -14,7 +14,15 @@ import type {
   HotelSearchResultDto,
 } from './dto/hotel-search.dto';
 import { MAX_DETAILS_STAY_NIGHTS } from './dto/hotel-details.dto';
-import { MAX_SEARCH_GUESTS, MAX_SEARCH_ROOMS } from './dto/hotel-search.dto';
+import {
+  HOTEL_SORTS,
+  isMinorUnits,
+  isRating,
+  MAX_SEARCH_GUESTS,
+  MAX_SEARCH_ROOMS,
+  minorUnitsMessage,
+  RATING_MESSAGE,
+} from './dto/hotel-search.dto';
 import { EARLIEST_ZONE, todayIn } from './dto/validators';
 import { type FreeRoom, HotelDetailsService } from './hotel-details.service';
 import { HotelsService } from './hotels.service';
@@ -29,7 +37,8 @@ type HotelLean = Pick<
  * HTL-11 hotel search, also the HOTELS_SEARCH contract (itineraries, ITN-25). Lists active hotels in
  * the city or country that have at least `rooms` rooms free for the whole stay (the HTL-02 free-room
  * rule) that together can hold `guests`. The "from" price is the cheapest such set of rooms, so it
- * is always a price the guests can actually book. Cheapest first.
+ * is always a price the guests can actually book. HTL-12 filters by that price per night and the
+ * visible average rating, and sorts by price (default) or rating.
  */
 @Injectable()
 export class HotelSearchService implements HotelsSearch {
@@ -48,6 +57,7 @@ export class HotelSearchService implements HotelsSearch {
     query: HotelSearchQueryDto | HotelSearchQuery,
   ): Promise<Page<HotelSearchResultDto>> {
     const where = placeOf(query);
+    const { minPriceMinor, maxPriceMinor, minRating } = checkFilters(query);
     const nights = checkStay(query);
     // A quick bound before any hotel is read; each hotel's own local date is checked below.
     if (query.checkIn < todayIn(EARLIEST_ZONE)) throw pastCheckIn();
@@ -75,6 +85,14 @@ export class HotelSearchService implements HotelsSearch {
       const rooms = free.get(hotel._id.toHexString()) ?? [];
       const perNight = cheapestFit(rooms, query.rooms, query.guests);
       if (perNight === null) continue;
+      // HTL-12: the "from" price per night, inclusive bounds.
+      if (minPriceMinor !== undefined && perNight < minPriceMinor) continue;
+      if (maxPriceMinor !== undefined && perNight > maxPriceMinor) continue;
+      const rating = ratings.get(hotel._id.toHexString())?.avg ?? null;
+      // HTL-12: unrated hotels are excluded when a rating filter is set.
+      if (minRating !== undefined && (rating === null || rating < minRating)) {
+        continue;
+      }
       results.push({
         hotelId: hotel._id.toHexString(),
         name: hotel.name,
@@ -82,16 +100,20 @@ export class HotelSearchService implements HotelsSearch {
         countryCode: hotel.countryCode,
         starClass: hotel.starClass ?? null,
         photo: hotel.photos?.[0] ?? null,
-        averageRating: ratings.get(hotel._id.toHexString())?.avg ?? null,
+        averageRating: rating,
         fromPricePerNightMinor: perNight,
         fromPriceMinor: perNight * nights.length,
         freeRooms: rooms.length,
       });
     }
+    const byPrice = (a: HotelSearchResultDto, b: HotelSearchResultDto) =>
+      a.fromPricePerNightMinor - b.fromPricePerNightMinor ||
+      a.name.localeCompare(b.name);
     results.sort(
-      (a, b) =>
-        a.fromPricePerNightMinor - b.fromPricePerNightMinor ||
-        a.name.localeCompare(b.name),
+      query.sort === 'rating'
+        ? (a, b) =>
+            (b.averageRating ?? -1) - (a.averageRating ?? -1) || byPrice(a, b)
+        : byPrice,
     );
     const page = query.page ?? 1;
     return {
@@ -229,4 +251,44 @@ function pastCheckIn(): ValidationFailedException {
       message: 'checkIn cannot be before today at the hotel',
     },
   ]);
+}
+
+/**
+ * The HTL-12 filter rules, checked here as well as in the query DTO so HOTELS_SEARCH callers get the
+ * same 400s: whole non-negative prices, min not above max, minRating 1-5 with up to one decimal, and
+ * a known sort key.
+ */
+function checkFilters(query: HotelSearchQuery) {
+  const bad = (field: string, message: string) =>
+    new ValidationFailedException([{ field, message }]);
+  const { minPriceMinor, maxPriceMinor, minRating, sort } = query;
+  for (const [field, value] of [
+    ['minPriceMinor', minPriceMinor],
+    ['maxPriceMinor', maxPriceMinor],
+  ] as const) {
+    if (value !== undefined && !isMinorUnits(value)) {
+      throw bad(field, minorUnitsMessage(field));
+    }
+  }
+  // min > max is an error, not an empty result.
+  if (
+    minPriceMinor !== undefined &&
+    maxPriceMinor !== undefined &&
+    minPriceMinor > maxPriceMinor
+  ) {
+    throw bad(
+      'maxPriceMinor',
+      `maxPriceMinor (${maxPriceMinor}) must be greater than or equal to minPriceMinor (${minPriceMinor})`,
+    );
+  }
+  if (minRating !== undefined && !isRating(minRating)) {
+    throw bad('minRating', RATING_MESSAGE);
+  }
+  if (
+    sort !== undefined &&
+    !(HOTEL_SORTS as readonly string[]).includes(sort)
+  ) {
+    throw bad('sort', `sort must be one of: ${HOTEL_SORTS.join(', ')}`);
+  }
+  return { minPriceMinor, maxPriceMinor, minRating };
 }

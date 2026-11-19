@@ -1,9 +1,15 @@
-import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { HttpStatus, Inject, Injectable, Optional } from '@nestjs/common';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { ClientSession, Connection, Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { REFERENCE_SERVICE } from '../../common/contracts/tokens';
-import type { ReferenceService } from '../../common/contracts/services.contract';
+import {
+  ITINERARY_BUDGETS,
+  REFERENCE_SERVICE,
+} from '../../common/contracts/tokens';
+import type {
+  ItineraryBudgets,
+  ReferenceService,
+} from '../../common/contracts/services.contract';
 import {
   AppException,
   ValidationFailedException,
@@ -12,6 +18,7 @@ import { ErrorCode } from '../../common/errors/error-codes';
 import type { AddDayDto, UpdateDayDto } from './dto/day.dto';
 import type { ItineraryDto } from './dto/itinerary.dto';
 import { ItinerariesService } from './itineraries.service';
+import { Activity } from './schemas/activity.schema';
 import {
   Itinerary,
   ItineraryDocument,
@@ -33,7 +40,7 @@ interface StoredDay {
 }
 
 /**
- * Itinerary days (ITN-05). Days are embedded, numbered 1..n with no gaps and
+ * Itinerary days (ITN-05, ITN-07). Days are embedded, numbered 1..n with no gaps and
  * at most 60; their dates are derived from the start date and are never stored, so renumbering is all
  * it takes to move every date (ITN-07, ITN-08). Each change rewrites the day list in one update guarded by the
  * itinerary's revision (__v), so two concurrent changes can never leave gaps, duplicates or a 61st
@@ -44,8 +51,13 @@ export class ItineraryDaysService {
   constructor(
     @InjectModel(Itinerary.name)
     private readonly itineraries: Model<Itinerary>,
+    @InjectModel(Activity.name) private readonly activities: Model<Activity>,
     private readonly itineraryService: ItinerariesService,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
+    @InjectConnection() private readonly connection: Connection,
+    @Optional()
+    @Inject(ITINERARY_BUDGETS)
+    private readonly budgets?: ItineraryBudgets,
   ) {}
 
   /** ITN-05: appends a day in a city from the predefined list; 409 once the itinerary has 60 days. */
@@ -107,6 +119,58 @@ export class ItineraryDaysService {
   }
 
   /**
+   * ITN-07: deletes a day with its activities (and their image files no clone still uses) and its
+   * budget rows. The days after it move up one number, so their dates move one day earlier, and the
+   * returned groups and subtotals are recomputed. The client asks for confirmation first (GEN-03).
+   * The day list and the day's activities change in one transaction, so a crash cannot leave
+   * activities of a deleted day; budget rows (the port takes no session) and files go after it commits.
+   */
+  async deleteDay(
+    user: AuthUser,
+    itineraryId: string,
+    dayId: string,
+  ): Promise<ItineraryDto> {
+    const dayObjectId = new Types.ObjectId(dayId);
+    let saved: ItineraryDocument | undefined;
+    let images: string[] = [];
+    const session = await this.connection.startSession();
+    try {
+      await session.withTransaction(async () => {
+        saved = await this.rewriteDays(
+          user,
+          itineraryId,
+          (days) => {
+            const index = indexOfDay(days, dayId);
+            return renumber(days.filter((_day, i) => i !== index));
+          },
+          session,
+        );
+        const removed = await this.activities
+          .find(
+            { itineraryId: saved._id, dayId: dayObjectId },
+            { images: 1 },
+            { session },
+          )
+          .lean()
+          .exec();
+        images = removed.flatMap((a) => a.images ?? []);
+        await this.activities
+          .deleteMany(
+            { itineraryId: saved._id, dayId: dayObjectId },
+            { session },
+          )
+          .exec();
+      });
+    } finally {
+      await session.endSession();
+    }
+    const deleted = saved as ItineraryDocument;
+    await this.budgets?.deleteForDays(deleted.id as string, [dayId]);
+    await this.itineraryService.deleteUnusedImages(images);
+    return this.itineraryService.toDetail(deleted);
+  }
+
+  /**
    * Loads the owner's itinerary (404 for anyone else, ACC-11), lets `change` compute the new day list
    * from the current one, and writes it only if nobody changed the itinerary meanwhile.
    */
@@ -114,6 +178,7 @@ export class ItineraryDaysService {
     user: AuthUser,
     itineraryId: string,
     change: (days: StoredDay[]) => StoredDay[],
+    session?: ClientSession,
   ): Promise<ItineraryDocument> {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const itinerary = await this.itineraryService.loadOwned(
@@ -137,7 +202,7 @@ export class ItineraryDaysService {
             __v: itinerary.__v,
           },
           { $set: { days: next }, $inc: { __v: 1 } },
-          { new: true, runValidators: true },
+          { new: true, runValidators: true, session },
         )
         .exec();
       if (saved) return saved;
@@ -165,4 +230,9 @@ function indexOfDay(days: readonly StoredDay[], dayId: string): number {
   const index = days.findIndex((day) => day._id.toHexString() === dayId);
   if (index < 0) throw dayNotFound();
   return index;
+}
+
+/** Days are numbered 1..n in list order (ITN-07, ITN-08). */
+function renumber(days: readonly StoredDay[]): StoredDay[] {
+  return days.map((day, i) => ({ ...day, order: i + 1 }));
 }
