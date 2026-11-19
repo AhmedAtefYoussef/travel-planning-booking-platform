@@ -12,6 +12,11 @@ import { HotelSearchService } from './hotel-search.service';
 import { HotelStatusService } from './hotel-status.service';
 import { HotelsController } from './hotels.controller';
 import { HotelsService } from './hotels.service';
+import {
+  HotelReviewsController,
+  ReviewsController,
+} from './reviews.controller';
+import { ReviewsService } from './reviews.service';
 import { Hotel, HotelSchema } from './schemas/hotel.schema';
 import { Review, ReviewSchema } from './schemas/review.schema';
 import { RoomNight, RoomNightSchema } from './schemas/room-night.schema';
@@ -35,7 +40,12 @@ import { RoomsService } from './rooms.service';
     ]),
     ReferenceModule,
   ],
-  controllers: [HotelsController, RoomsController],
+  controllers: [
+    HotelsController,
+    RoomsController,
+    HotelReviewsController,
+    ReviewsController,
+  ],
   providers: [
     HotelsService,
     HotelDetailsService,
@@ -46,6 +56,7 @@ import { RoomsService } from './rooms.service';
     { provide: HOTEL_INVENTORY, useExisting: HotelInventoryService },
     HotelStatusService,
     { provide: HOTEL_STATUS, useExisting: HotelStatusService },
+    ReviewsService,
   ],
   exports: [
     MongooseModule,
@@ -53,6 +64,7 @@ import { RoomsService } from './rooms.service';
     HOTEL_INVENTORY,
     HOTEL_STATUS,
     HOTELS_SEARCH,
+    ReviewsService,
   ],
 })
 export class HotelsModule {}

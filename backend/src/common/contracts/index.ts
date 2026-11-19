@@ -1,6 +1,7 @@
 export * from './booking.contract';
 export * from './booking-transition';
 export * from './conventions';
+export * from './moderation.contract';
 export * from './payment-gate';
 export * from './policies.contract';
 export * from './refunds.contract';
