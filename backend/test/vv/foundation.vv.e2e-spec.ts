@@ -2,7 +2,7 @@
  * V&V track D (foundation, reference data, API contract): GEN-02, GEN-05, GEN-12, GEN-13 and the
  * Swagger contract seen by an evaluator. Cases already covered by test/common-layer, diagnostics,
  * reference, contracts-schemas and users-schemas specs are not repeated here.
- * Defects are asserted as the CORRECT behaviour inside it.failing (see docs/qa/vv-m1/rtm-foundation.md).
+ * Defects are asserted as the CORRECT behaviour inside it.failing.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
