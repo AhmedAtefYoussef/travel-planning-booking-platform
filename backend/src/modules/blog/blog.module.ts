@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ItinerariesModule } from '../itineraries';
 import { AuthorsController } from './authors.controller';
+import { CommentsService } from './comments.service';
 import { LikesService } from './likes.service';
 import { PostsController } from './posts.controller';
 import { PostModerationAdapter } from './post-moderation.adapter';
@@ -27,6 +28,11 @@ import { Post, PostSchema } from './schemas/post.schema';
     ItinerariesModule,
   ],
   controllers: [PostsController, TagsController, AuthorsController],
-  providers: [PostsService, LikesService, PostModerationAdapter],
+  providers: [
+    PostsService,
+    LikesService,
+    CommentsService,
+    PostModerationAdapter,
+  ],
 })
 export class BlogModule {}
