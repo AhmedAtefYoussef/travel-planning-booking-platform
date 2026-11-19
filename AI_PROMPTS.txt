@@ -2081,3 +2081,18 @@ Claude added minPriceMinor, maxPriceMinor, minRating and sort to the search DTO 
 value), the min-above-max 400 in the service so contract callers get it too, the filters and the rating
 sort (unrated last, ties by price), and e2e tests on hotels in a city no other test uses.
 ================================================
+
+================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-15 (TRVL-58)
+Prompt:
+Implement HTL-15: public GET /api/hotels/:id/rooms/available listing all of a hotel's rooms free for the
+searched dates with type, beds, maximum occupancy, price per night and stay total, to pick rooms to book,
+reusing the HTL-02 free-room rule.
+How the output was used:
+Claude added the required-dates query DTO, HotelDetailsService.availableRooms (same free-room rule, GEN-05
+pages), the route before the :roomId routes, the reviewed public and paginated route entries (with a
+documented path for routes with an id) and e2e tests. I checked the booking path in the description.
+================================================

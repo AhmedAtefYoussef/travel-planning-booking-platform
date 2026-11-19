@@ -500,6 +500,7 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   const VV_AIRLINE = '6af0f1c2c77901aa9f2287a1';
   const VV_FLIGHT = '6af0f1c2c77901aa9f2287a2';
   const VV_HOTEL = '6af0f1c2c77901aa9f2287a3';
+  // HTL-22, HTL-15: VV_HOTEL is also the active hotel whose free-room list answers 200.
   // HTL-24: an active hotel, inserted in beforeAll, whose public reviews list answers 200.
   const VV_REVIEWED_HOTEL = '6af0f1c2c77901aa9f2287b4';
   // BLG-05: a published post, inserted in beforeAll, whose public comments list answers 200.
@@ -543,6 +544,11 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       headers: {
         'x-dev-user': `HOTEL_MODERATOR:6af0f1c2c77901aa9f228703:${VV_HOTEL}`,
       },
+    },
+    {
+      // HTL-15: one hotel's free rooms for the dates (public).
+      url: `/api/hotels/${VV_HOTEL}/rooms/available?checkIn=2028-03-01&checkOut=2028-03-03&`,
+      docPath: '/api/hotels/{id}/rooms/available',
     },
     {
       // HTL-11: hotel search, 10 per page like every list.
@@ -910,6 +916,8 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/currencies/convert',
         'GET /api/airlines/:id',
         'GET /api/airlines/:id/cancellation-policy/refund-preview',
+        // HTL-15: free rooms of a hotel for the searched dates, for guests too.
+        'GET /api/hotels/:id/rooms/available',
         // HTL-11: hotel search is for guests too.
         'GET /api/hotels/search',
         // HTL-02: the hotel details page is for guests too.
