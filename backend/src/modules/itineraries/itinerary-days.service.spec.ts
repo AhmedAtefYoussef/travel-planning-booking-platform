@@ -1,8 +1,12 @@
-import { Types, type Model } from 'mongoose';
+import { Types, type Connection, type Model } from 'mongoose';
 import { Role, type AuthUser } from '../../common/auth/auth.types';
-import type { ReferenceService } from '../../common/contracts/services.contract';
+import type {
+  ItineraryBudgets,
+  ReferenceService,
+} from '../../common/contracts/services.contract';
 import type { ItinerariesService } from './itineraries.service';
 import { ItineraryDaysService } from './itinerary-days.service';
+import type { Activity } from './schemas/activity.schema';
 import type { Itinerary } from './schemas/itinerary.schema';
 
 const query = <T>(value: T) => {
@@ -33,7 +37,10 @@ function storedWithDays(cities: string[]) {
 
 type Stored = ReturnType<typeof storedWithDays>;
 
-function setup(stored: Stored, opts: { conflicts?: number } = {}) {
+function setup(
+  stored: Stored,
+  opts: { conflicts?: number; budgets?: boolean; images?: string[] } = {},
+) {
   let conflicts = opts.conflicts ?? 0;
   const itineraries = {
     findOneAndUpdate: jest.fn(
@@ -46,9 +53,19 @@ function setup(stored: Stored, opts: { conflicts?: number } = {}) {
       },
     ),
   };
+  const activities = {
+    find: jest.fn(() => query([{ images: opts.images ?? [] }])),
+    deleteMany: jest.fn(() => query({ deletedCount: 1 })),
+  };
+  const session = {
+    withTransaction: jest.fn(async (fn: () => Promise<void>) => fn()),
+    endSession: jest.fn(() => Promise.resolve()),
+  };
+  const connection = { startSession: jest.fn(() => Promise.resolve(session)) };
   const itineraryService = {
     loadOwned: jest.fn(() => Promise.resolve(stored)),
     toDetail: jest.fn((doc: unknown) => Promise.resolve(doc)),
+    deleteUnusedImages: jest.fn(() => Promise.resolve()),
   };
   const reference = {
     getCity: jest.fn((cityId: string) =>
@@ -59,10 +76,16 @@ function setup(stored: Stored, opts: { conflicts?: number } = {}) {
       ),
     ),
   } as unknown as ReferenceService;
+  const budgets = {
+    deleteForDays: jest.fn(() => Promise.resolve()),
+  } as unknown as ItineraryBudgets;
   const service = new ItineraryDaysService(
     itineraries as unknown as Model<Itinerary>,
+    activities as unknown as Model<Activity>,
     itineraryService as unknown as ItinerariesService,
     reference,
+    connection as unknown as Connection,
+    opts.budgets ? budgets : undefined,
   );
   const writtenDays = (call = 0) =>
     (
@@ -70,10 +93,18 @@ function setup(stored: Stored, opts: { conflicts?: number } = {}) {
         $set: { days: { order: number; cityId: string; notes: string }[] };
       }
     ).$set.days;
-  return { service, itineraries, itineraryService, writtenDays };
+  return {
+    service,
+    itineraries,
+    activities,
+    itineraryService,
+    budgets,
+    session,
+    writtenDays,
+  };
 }
 
-describe('ItineraryDaysService (ITN-05)', () => {
+describe('ItineraryDaysService (ITN-05, ITN-07)', () => {
   it('ITN-05: appends the next day number, guarded by the revision', async () => {
     const stored = storedWithDays(['cairo']);
     const { service, itineraries, writtenDays } = setup(stored);
@@ -147,5 +178,76 @@ describe('ItineraryDaysService (ITN-05)', () => {
         cityId: 'dubai',
       }),
     ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('ITN-07: deletes the day, renumbers and removes its activities, images and budget rows', async () => {
+    const stored = storedWithDays(['cairo', 'dubai', 'cairo']);
+    const dayId = stored.days[1]._id.toHexString();
+    const {
+      service,
+      itineraries,
+      writtenDays,
+      activities,
+      budgets,
+      itineraryService,
+      session,
+    } = setup(stored, { budgets: true, images: ['/uploads/activities/a.jpg'] });
+    await service.deleteDay(user, stored.id, dayId);
+    expect(writtenDays().map((d) => [d.order, d.cityId])).toEqual([
+      [1, 'cairo'],
+      [2, 'cairo'],
+    ]);
+    // The day list and the day's activities change in the same transaction.
+    expect(session.withTransaction).toHaveBeenCalledTimes(1);
+    expect(
+      (itineraries.findOneAndUpdate.mock.calls[0] as unknown[])[2],
+    ).toMatchObject({
+      session,
+    });
+    expect(activities.deleteMany).toHaveBeenCalledWith(
+      { itineraryId: stored._id, dayId: new Types.ObjectId(dayId) },
+      { session },
+    );
+    expect(session.endSession).toHaveBeenCalled();
+    expect(budgets.deleteForDays).toHaveBeenCalledWith(stored.id, [dayId]);
+    expect(itineraryService.deleteUnusedImages).toHaveBeenCalledWith([
+      '/uploads/activities/a.jpg',
+    ]);
+  });
+
+  it('ITN-07: an unknown day or a failed transaction deletes no budget rows or files', async () => {
+    const stored = storedWithDays(['cairo']);
+    const unknown = setup(stored, { budgets: true });
+    await expect(
+      unknown.service.deleteDay(
+        user,
+        stored.id,
+        new Types.ObjectId().toHexString(),
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(unknown.activities.deleteMany).not.toHaveBeenCalled();
+    expect(unknown.session.endSession).toHaveBeenCalled();
+
+    const failing = setup(stored, { budgets: true, images: ['/x.jpg'] });
+    failing.activities.deleteMany.mockImplementation(() => {
+      throw new Error('crash');
+    });
+    await expect(
+      failing.service.deleteDay(
+        user,
+        stored.id,
+        stored.days[0]._id.toHexString(),
+      ),
+    ).rejects.toThrow('crash');
+    expect(failing.budgets.deleteForDays).not.toHaveBeenCalled();
+    expect(failing.itineraryService.deleteUnusedImages).not.toHaveBeenCalled();
+  });
+
+  it('ITN-07: works without the budgets port', async () => {
+    const stored = storedWithDays(['cairo']);
+    const { service } = setup(stored);
+    await expect(
+      service.deleteDay(user, stored.id, stored.days[0]._id.toHexString()),
+    ).resolves.toBeDefined();
   });
 });

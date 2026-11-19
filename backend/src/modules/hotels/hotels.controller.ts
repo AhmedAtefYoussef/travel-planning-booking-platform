@@ -271,9 +271,10 @@ export class HotelsController {
   @Get('search')
   @Public()
   @ApiOperation({
-    summary: 'HTL-11 Search hotels by city or country, dates, guests and rooms',
+    summary:
+      'HTL-11, HTL-12 Search hotels by place, dates, guests and rooms; filter by price and rating',
     description:
-      "Public. Send exactly one of cityId or countryCode, checkIn and checkOut (the hotel's local dates: checkOut after checkIn, at most 30 nights, checkIn not before today), guests (1-50) and rooms (1-10, default 1, not more than guests). Lists the active hotels that have at least that many rooms free for the whole stay (every night bookable and not booked, held or blocked) that together can hold all the guests. Each result shows the price per night and stay total of the cheapest such set of rooms; results are cheapest first, 10 per page (GEN-05). Price and rating filters and other sorts come with HTL-12.",
+      "Public. Send exactly one of cityId or countryCode, checkIn and checkOut (the hotel's local dates: checkOut after checkIn, at most 30 nights, checkIn not before today), guests (1-50) and rooms (1-10, default 1, not more than guests). Lists the active hotels that have at least that many rooms free for the whole stay (every night bookable and not booked, held or blocked) that together can hold all the guests. Each result shows the price per night and stay total of the cheapest such set of rooms; results are cheapest first, 10 per page (GEN-05). HTL-12: minPriceMinor and maxPriceMinor keep hotels whose cheapest such set of rooms costs between them per night (inclusive; min above max is 400); minRating (1-5) keeps hotels whose visible average rating is at least that, leaving out unrated hotels; sort=price (default, cheapest first) or sort=rating (highest first, unrated last, ties to the cheaper hotel).",
   })
   @ApiPaginatedResponse(HotelSearchResultDto)
   @ApiErrorResponses(400)
