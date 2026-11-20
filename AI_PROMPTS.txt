@@ -2356,6 +2356,86 @@ hidden and private itineraries and the 404s in e2e and Swagger.
 Date: 2026-11-20
 Student: Ahmed Atef Youssef
 Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-129 (repository and CI)
+Prompt:
+Upgrade the GitHub Actions so that mergeability and conflicts are flagged automatically, stale branches are
+reported, Jira issues follow their PRs, and the recurring "the row must cite this PR" governance failure stops.
+How the output was used:
+Claude added the mergeability workflow (git merge-tree on fetched refs under pull_request_target, never running
+PR code; needs-rebase label and one updated comment), a weekly report-only stale-branch issue, a Jira sync
+workflow that comments and transitions cited TRVL issues and no-ops without secrets, and npm run pr:open, which
+replaces a #PR placeholder with the real PR number. The matrix check now rejects a leftover #PR. I reviewed the
+permissions of each workflow and ran the governance script tests.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-09 (TRVL-104), GEN-10 (TRVL-105), TRVL-180
+Prompt:
+Audit develop against the Milestone 1 endpoint list and close the remaining gaps. Reporting or moderating a
+blog comment answered 404 because no comment adapter was registered with CONTENT_MODERATION.
+How the output was used:
+Claude added CommentModerationAdapter, mirroring the post adapter: a comment is public only while its post is
+published and not hidden, hide/unhide is a conditional update, and delete lowers the post's comment count in
+the same transaction as BLG-07. The e2e content factory now writes real comments instead of registering an
+in-memory fake. I checked report, hide and delete of a real comment in unit tests, e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-12 (TRVL-22), TRVL-181
+Prompt:
+ACC-12 says a deactivated user's posts and public itineraries are hidden, but public itinerary search, detail and
+clone still showed them. Also the public blog filter loaded every deactivated user id on each request (TRVL-181).
+How the output was used:
+Claude added UsersService.deactivatedIds(): deactivation is one-way, so an index-covered count of deactivated
+accounts tells whether the cached id list is current, and the list is read again only after a new deactivation,
+which is also correct across instances. The blog filter and a new public-itinerary filter use it. I checked the
+cache with unit tests and the hiding of search, detail and clone in e2e.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-25 (TRVL-83)
+Prompt:
+Let the owner of an itinerary find hotels for one of its city groups: check-in on the group's first day,
+check-out the day after its last, in the group's city, for the guests and rooms they enter. Reuse Sandra's HTL-11
+search instead of searching hotels again, and keep working before HTL-11 is merged.
+How the output was used:
+Claude calls the shared HOTELS_SEARCH token, injected @Optional() so the route answers 503 SERVICE_UNAVAILABLE
+until HTL-11 provides it. It imports HotelsModule, which is not global, so the provider reaches this module as
+soon as it is exported there; a unit test guards that wiring. HTL-11's 400 field errors pass through unchanged.
+I checked the dates and the group choice with a fake search, and, once HTL-11 merged (#102), the real search
+with seeded hotels in e2e; I confirmed the contract with Sandra.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-26 (TRVL-84)
+Prompt:
+Let the owner of an itinerary search flights from an origin airport to the city of its first day, one way or
+round trip, with the start date as the default departure and the last day as the default return. Reuse the
+FLT-11/FLT-12 flight search instead of writing a new one.
+How the output was used:
+Claude resolves every airport of the first day's city and calls the shared FLIGHTS_SEARCH for each, outbound and
+for a round trip back to the origin. One airport passes the page through; several airports are merged, sorted by
+departure and paged by 10 (GEN-05), with returnPage paging the return list. An unknown origin or one in the same
+city, an itinerary without days and a return before departure are 400. I checked the defaults, the merging and
+the errors in unit tests, e2e with real flights and Swagger.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: ITN-09 (TRVL-75), TRVL-136
 Prompt:
 Consolidate the Milestone 1 Swagger screenshots from the nine per-member evidence branches into one branch, capture

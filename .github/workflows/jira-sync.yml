@@ -1,0 +1,83 @@
+name: Jira sync
+
+# Keeps the TRVL Jira project in step with GitHub (brief section 2 traceability):
+# - PR opened/reopened/ready  -> each cited TRVL issue gets a comment with the PR link and moves to "In Progress"
+#                                (only if it is still "To Do");
+# - PR merged into develop    -> each cited issue gets a "merged" comment and moves to "Done", unless the PR body
+#                                says "Partial" for it (then it stays In Progress).
+# Keys come from the PR title, branch name and the "Jira:" line of the PR template.
+# Needs repository secrets JIRA_BASE_URL (https://<site>.atlassian.net), JIRA_USER_EMAIL and JIRA_API_TOKEN;
+# without them the job explains what is missing and succeeds, so it never blocks a merge.
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review, closed]
+    branches: [develop]
+
+permissions:
+  contents: read
+
+jobs:
+  jira:
+    name: jira-sync
+    runs-on: ubuntu-latest
+    # Only branches of this repository (teammates); a fork's PR text must never drive Jira writes.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'closed' || github.event.pull_request.merged == true)
+    steps:
+      - name: Sync cited TRVL issues
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          ACTION: ${{ github.event.action }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          if [ -z "${JIRA_BASE_URL:-}" ] || [ -z "${JIRA_USER_EMAIL:-}" ] || [ -z "${JIRA_API_TOKEN:-}" ]; then
+            echo "::notice::Jira sync skipped: set the JIRA_BASE_URL, JIRA_USER_EMAIL and JIRA_API_TOKEN repository secrets to enable it."
+            exit 0
+          fi
+          keys=$(printf '%s\n%s\n%s\n' "$PR_TITLE" "$PR_BRANCH" "$PR_BODY" | grep -oE 'TRVL-[0-9]+' | sort -u | head -n 10 || true)
+          if [ -z "$keys" ]; then
+            echo "::notice::No TRVL key cited by this PR."
+            exit 0
+          fi
+          auth=(-u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" -H 'Content-Type: application/json' -H 'Accept: application/json')
+          api="${JIRA_BASE_URL%/}/rest/api/3"
+
+          comment() { # $1 key, $2 text
+            jq -n --arg t "$2" --arg u "$PR_URL" '{body:{type:"doc",version:1,content:[{type:"paragraph",content:[
+              {type:"text",text:$t},{type:"text",text:$u,marks:[{type:"link",attrs:{href:$u}}]}]}]}}' |
+              curl -fsS "${auth[@]}" -X POST "$api/issue/$1/comment" --data @- >/dev/null
+          }
+          transition() { # $1 key, $2 target status name
+            id=$(curl -fsS "${auth[@]}" "$api/issue/$1/transitions" |
+              jq -r --arg s "$2" '.transitions[] | select(.to.name==$s) | .id' | head -n1)
+            if [ -n "$id" ]; then
+              curl -fsS "${auth[@]}" -X POST "$api/issue/$1/transitions" --data "{\"transition\":{\"id\":\"$id\"}}" >/dev/null
+              echo "$1 -> $2"
+            else
+              echo "$1: no transition to $2 from its current status"
+            fi
+          }
+
+          for key in $keys; do
+            status=$(curl -fsS "${auth[@]}" "$api/issue/$key?fields=status" | jq -r '.fields.status.name') || {
+              echo "::warning::$key not found or not accessible"; continue; }
+            if [ "$ACTION" = closed ]; then
+              comment "$key" "Merged into develop in PR #$PR_NUMBER: "
+              if grep -qiE "$key.*partial" <<<"$PR_BODY"; then
+                echo "$key stays $status (PR marks it partial)"
+              elif [ "$status" != Done ]; then
+                transition "$key" Done
+              fi
+            else
+              comment "$key" "Pull request #$PR_NUMBER opened: "
+              [ "$status" = "To Do" ] && transition "$key" "In Progress"
+            fi
+          done

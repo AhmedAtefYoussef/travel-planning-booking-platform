@@ -12,7 +12,7 @@ that changes module code must cite its own number in its requirement's row. Set 
 the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 
 ## Notes on the brief vs the workbook
-- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days), ITN-09 (city groups), ITN-07 (delete a day), ITN-08 (move a day), ITN-10 (activities), ITN-12 (activity images), ITN-21 (public search, view and clone).
+- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days), ITN-09 (city groups), ITN-07 (delete a day), ITN-08 (move a day), ITN-10 (activities), ITN-12 (activity images), ITN-21 (public search, view and clone), ITN-25 (hotels for a city group), ITN-26 (flights to the first city).
 - The brief cites **ACC-03** (`POST /api/auth/register`) and **BLG-11** (`GET /api/posts`, `GET /api/tags/:tag/posts`); neither ID exists in the workbook. Those endpoints are traced to ACC-01 and BLG-02/BLG-08/BLG-09.
 - **HTL-09** (check-in/check-out times) is served by `PUT /api/hotels/:id/policies`; the brief maps that endpoint to HTL-08.
 - `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
@@ -36,7 +36,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
 | ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46, #64 | Done |
-| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57 | Partial: deactivation, password confirmation, logout everywhere and no login done; the upcoming-bookings block is active (UPCOMING_BOOKINGS provided by the bookings module, #57); hiding posts/itineraries and "Deleted user" for the blog, itineraries and reviews modules |
+| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57, #133 | Done |
 | ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | #53, #55 | Done |
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
 | ACC-15 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate (moderators); PATCH /api/admin/providers/:type/:id/deactivate\|reactivate | Ahmed | TRVL-25 | #84 | Done |
@@ -126,8 +126,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68, #125 | Done |
 | ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88, #129 | Done |
 | ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | #129 | Done |
-| ITN-25 | Mandatory | GET /api/itineraries/:id/hotels (brief maps it to ITN-09) | Sarah | TRVL-83 | - | Not started |
-| ITN-26 | Mandatory | GET /api/itineraries/:id/flights | Sarah | TRVL-84 | - | Not started |
+| ITN-25 | Mandatory | GET /api/itineraries/:id/hotels (brief maps it to ITN-09) | Sarah | TRVL-83 | #132 | Done |
+| ITN-26 | Mandatory | GET /api/itineraries/:id/flights | Sarah | TRVL-84 | #132 | Done |
 | ITN-27 | Bonus | POST /api/itineraries/:id/bookings | Team | TRVL-123 | - | Not started |
 | ITN-28 | Bonus | GET /api/itineraries/:id/pdf | Team | TRVL-124 | - | Not started |
 
@@ -160,8 +160,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4, #69, #84, #118 | Done |
 | GEN-08 | Mandatory | UPLOADS_SERVICE + ImageFilesInterceptor; POST /api/hotels/:id/images; DELETE /api/hotels/:id/images/:imageId; PUT /api/airlines/:id/logo; GET /uploads/... (static); posts and activities via BLG-10, ITN-12 | Ahmed | TRVL-103 | #66 | Done |
-| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116 | Partial: report endpoint, once-per-item index, CONTENT_MODERATION port, itinerary, post and review adapters done; the comment adapter remains now that BLG-05 is on develop (#97, TRVL-180) |
-| GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118 | Partial: report list, resolve (dismiss, hide, delete), direct hide and delete for posts and itineraries, audit entries; comment adapter once BLG-05 is on develop, review moderation once #116 lands |
+| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116, #131 | Done |
+| GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; PATCH /api/admin/content/:type/:id/hide; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118, #131 | Done |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111, #117 | Done |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3, #55 | Done |
