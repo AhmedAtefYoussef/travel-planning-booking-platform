@@ -126,8 +126,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68, #125 | Done |
 | ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88, #129 | Done |
 | ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | #129 | Done |
-| ITN-25 | Mandatory | GET /api/itineraries/:id/hotels (brief maps it to ITN-09) | Sarah | TRVL-83 | #PRNUM | Done |
-| ITN-26 | Mandatory | GET /api/itineraries/:id/flights | Sarah | TRVL-84 | #PRNUM | Done |
+| ITN-25 | Mandatory | GET /api/itineraries/:id/hotels (brief maps it to ITN-09) | Sarah | TRVL-83 | #132 | Done |
+| ITN-26 | Mandatory | GET /api/itineraries/:id/flights | Sarah | TRVL-84 | #132 | Done |
 | ITN-27 | Bonus | POST /api/itineraries/:id/bookings | Team | TRVL-123 | - | Not started |
 | ITN-28 | Bonus | GET /api/itineraries/:id/pdf | Team | TRVL-124 | - | Not started |
 
