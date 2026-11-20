@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PUBLIC_ITINERARIES } from '../../common/contracts/tokens';
+import { ActivitiesController } from './activities.controller';
+import { ActivitiesService } from './activities.service';
 import { ItinerariesController } from './itineraries.controller';
 import { ItineraryDaysController } from './itinerary-days.controller';
 import { ItineraryDaysService } from './itinerary-days.service';
@@ -22,10 +24,15 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
       { name: Activity.name, schema: ActivitySchema },
     ]),
   ],
-  controllers: [ItinerariesController, ItineraryDaysController],
+  controllers: [
+    ItinerariesController,
+    ItineraryDaysController,
+    ActivitiesController,
+  ],
   providers: [
     ItinerariesService,
     ItineraryDaysService,
+    ActivitiesService,
     ItineraryModerationAdapter,
     PublicItinerariesProvider,
     { provide: PUBLIC_ITINERARIES, useExisting: PublicItinerariesProvider },
