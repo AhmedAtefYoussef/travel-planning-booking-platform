@@ -2351,3 +2351,19 @@ The clone writes the copy and its activities in one MongoDB transaction with new
 through ITINERARY_BUDGETS and removes the copy again if that fails. I checked search, view, clone independence,
 hidden and private itineraries and the 404s in e2e and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-129 (repository and CI)
+Prompt:
+Upgrade the GitHub Actions so that mergeability and conflicts are flagged automatically, stale branches are
+reported, Jira issues follow their PRs, and the recurring "the row must cite this PR" governance failure stops.
+How the output was used:
+Claude added the mergeability workflow (git merge-tree on fetched refs under pull_request_target, never running
+PR code; needs-rebase label and one updated comment), a weekly report-only stale-branch issue, a Jira sync
+workflow that comments and transitions cited TRVL issues and no-ops without secrets, and npm run pr:open, which
+replaces a #PR placeholder with the real PR number. The matrix check now rejects a leftover #PR. I reviewed the
+permissions of each workflow and ran the governance script tests.
+================================================
