@@ -134,7 +134,7 @@ ends). Only the signature-verified webhook confirms a booking; card details neve
 ### Swagger evidence (Milestone 1)
 
 Every endpoint of the project description, section 8, has Swagger UI screenshots on the evidence-only branch
-[`docs/milestone-1-swagger-evidence`](../../tree/docs/milestone-1-swagger-evidence). It is never merged. Its
+[`docs/milestone-1-swagger-evidence`](https://github.com/AhmedAtefYoussef/travel-planning-booking-platform/tree/docs/milestone-1-swagger-evidence). It is never merged. Its
 README indexes each endpoint with its requirement ID, Jira key and screenshots, and has 0 coverage gaps. To
 regenerate the index, run `node tools/build-index.mjs` on that branch. Pull requests link their screenshots
 there instead of committing images to `develop`.
