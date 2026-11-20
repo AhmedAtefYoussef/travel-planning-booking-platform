@@ -14,6 +14,7 @@ import type {
   ReferenceService,
 } from '../../common/contracts/services.contract';
 import { paginate, type Page } from '../../common/pagination/pagination';
+import { UsersService } from '../users';
 import type { ItineraryDto } from './dto/itinerary.dto';
 import type {
   ItineraryAuthorDto,
@@ -41,7 +42,7 @@ export const UNKNOWN_AUTHOR = 'Former member';
 
 /**
  * Public itineraries (ITN-20, ITN-21). Only PUBLIC itineraries that an admin has not hidden (GEN-10)
- * are found or shown, and the filter is applied on every request, so making an itinerary private or
+ * and whose owner has not deactivated their account (ACC-12) are found or shown, and the filter is applied on every request, so making an itinerary private or
  * deleting it removes it from the search at once. Public itineraries are read-only here; a registered
  * user may clone one into an independent private copy that credits its author.
  */
@@ -54,6 +55,7 @@ export class PublicItinerariesService {
     private readonly itineraryService: ItinerariesService,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
     @Inject(ACCOUNT_ADMIN) private readonly accounts: AccountAdmin,
+    private readonly users: UsersService,
     @InjectConnection() private readonly connection: Connection,
     @Optional()
     @Inject(ITINERARY_BUDGETS)
@@ -78,7 +80,7 @@ export class PublicItinerariesService {
       and.push({ $expr: { $lte: [{ $size: '$days' }, query.maxDays] } });
     }
     const filter: FilterQuery<Itinerary> = {
-      ...publicFilter(),
+      ...(await this.publicFilter()),
       ...(and.length ? { $and: and } : {}),
     };
     const page = await paginate(this.itineraries, filter, query.page, {
@@ -198,10 +200,27 @@ export class PublicItinerariesService {
     return this.itineraryService.toDetail(copy);
   }
 
+  /**
+   * PUBLIC, not hidden by an admin (GEN-10), and not owned by a deactivated account (ACC-12: "their
+   * public itineraries are hidden"). The deactivated ids come from a count-checked cache (TRVL-181).
+   */
+  private async publicFilter(): Promise<FilterQuery<Itinerary>> {
+    const deactivated = await this.users.deactivatedIds();
+    return {
+      visibility: ItineraryVisibility.Public,
+      ...VISIBLE_CONTENT_FILTER,
+      ...(deactivated.length
+        ? { ownerId: { $nin: deactivated.map((id) => new Types.ObjectId(id)) } }
+        : {}),
+    };
+  }
+
   /** A public, not hidden itinerary; anything else is the same 404 as an unknown id. */
   private async loadPublic(id: string): Promise<ItineraryDocument> {
     const itinerary = Types.ObjectId.isValid(id)
-      ? await this.itineraries.findOne({ _id: id, ...publicFilter() }).exec()
+      ? await this.itineraries
+          .findOne({ _id: id, ...(await this.publicFilter()) })
+          .exec()
       : null;
     if (!itinerary) throw itineraryNotFound();
     return itinerary;
@@ -232,8 +251,4 @@ export class PublicItinerariesService {
       ...(cityIds.length ? [{ 'days.cityId': { $in: cityIds } }] : []),
     ];
   }
-}
-
-function publicFilter(): FilterQuery<Itinerary> {
-  return { visibility: ItineraryVisibility.Public, ...VISIBLE_CONTENT_FILTER };
 }

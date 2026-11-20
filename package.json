@@ -8,7 +8,8 @@
   },
   "scripts": {
     "prepare": "husky",
-    "commitlint": "commitlint"
+    "commitlint": "commitlint",
+    "pr:open": "node .github/scripts/open-pr.mjs"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",

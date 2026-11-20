@@ -94,7 +94,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
       return res.body.id as string;
     }
     if (type === ModeratableContentType.Review) return review(author.userId);
-    return fakes.add(type, { authorId: author.userId });
+    return await fakes.add(type, { authorId: author.userId });
   };
 
   const fileReport = async (
@@ -167,7 +167,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
         const c = await review();
         ids.push(await fileReport(alice, ModeratableContentType.Review, c));
       }
-      const comment = fakes.add(ModeratableContentType.Comment);
+      const comment = await fakes.add(ModeratableContentType.Comment);
       const commentReport = await fileReport(
         bob,
         ModeratableContentType.Comment,
@@ -258,7 +258,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     );
 
     it('GEN-10 a resolved report cannot be resolved again (409)', async () => {
-      const id = fakes.add(ModeratableContentType.Comment);
+      const id = await fakes.add(ModeratableContentType.Comment);
       const reportId = await fileReport(
         alice,
         ModeratableContentType.Comment,
@@ -283,7 +283,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
       const unrelated = await fileReport(
         alice,
         ModeratableContentType.Comment,
-        fakes.add(ModeratableContentType.Comment),
+        await fakes.add(ModeratableContentType.Comment),
       );
       const res = await resolve(admin, r1, { action: 'HIDE' }).expect(200);
       expect(res.body.otherReportsResolved).toBe(2);
@@ -321,7 +321,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     });
 
     it('GEN-10 HIDE or DELETE of vanished content is 404, DISMISS still works', async () => {
-      const id = fakes.add(ModeratableContentType.Comment);
+      const id = await fakes.add(ModeratableContentType.Comment);
       const reportId = await fileReport(
         alice,
         ModeratableContentType.Comment,
@@ -350,7 +350,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     });
 
     it('GEN-10 four admins resolving one report at once: one 200, three 409, one audit entry', async () => {
-      const id = fakes.add(ModeratableContentType.Comment);
+      const id = await fakes.add(ModeratableContentType.Comment);
       const reportId = await fileReport(
         alice,
         ModeratableContentType.Comment,

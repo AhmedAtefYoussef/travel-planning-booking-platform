@@ -67,6 +67,11 @@ export function traceabilityProblems(
         `${id} (line ${line}): status "${status.split(':')[0]}" needs the PR number(s) in the PR column`,
       );
     }
+    if (/#PR\b/.test(cols.PR ?? '')) {
+      problems.push(
+        `${id} (line ${line}): the "#PR" placeholder is still in the PR column; open the PR with \`npm run pr:open\` so it becomes the real number`,
+      );
+    }
     const cited = [...(cols.PR ?? '').matchAll(/#(\d+)/g)].map((m) =>
       Number(m[1]),
     );

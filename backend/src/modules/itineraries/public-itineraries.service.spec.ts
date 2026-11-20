@@ -5,6 +5,7 @@ import type {
   ItineraryBudgets,
   ReferenceService,
 } from '../../common/contracts/services.contract';
+import type { UsersService } from '../users';
 import type { ItinerariesService } from './itineraries.service';
 import {
   PublicItinerariesService,
@@ -59,6 +60,7 @@ function setup(
     insertError?: Error;
     budgetCloneError?: Error;
     authorName?: string | null;
+    deactivated?: string[];
   } = {},
 ) {
   const created: Record<string, unknown>[] = [];
@@ -144,6 +146,9 @@ function setup(
     itineraryService as unknown as ItinerariesService,
     reference,
     accounts,
+    {
+      deactivatedIds: jest.fn(() => Promise.resolve(opts.deactivated ?? [])),
+    } as unknown as UsersService,
     connection as unknown as Connection,
     opts.budgets ? budgets : undefined,
   );
@@ -164,6 +169,19 @@ describe('PublicItinerariesService (ITN-20, ITN-21)', () => {
         id: stored.id,
         author: { id: stored.ownerId.toHexString(), name: 'Mona' },
         cityIds: ['dubai', 'cairo'],
+      });
+    });
+
+    it('ACC-12: leaves out itineraries of deactivated accounts', async () => {
+      const gone = new Types.ObjectId().toHexString();
+      const { service, itineraries } = setup(publicItinerary(), {
+        deactivated: [gone],
+      });
+      await service.search({ page: 1 });
+      expect(itineraries.find.mock.calls[0][0]).toEqual({
+        visibility: ItineraryVisibility.Public,
+        isHidden: { $ne: true },
+        ownerId: { $nin: [new Types.ObjectId(gone)] },
       });
     });
 

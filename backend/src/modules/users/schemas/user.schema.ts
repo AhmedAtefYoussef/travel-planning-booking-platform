@@ -130,6 +130,8 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 // ACC-14: admin list sorted by registration date, newest first.
 UserSchema.index({ createdAt: -1 });
+// ACC-12, TRVL-181: the index-covered count of deactivated accounts behind UsersService.deactivatedIds().
+UserSchema.index({ status: 1 });
 
 /**
  * A moderator is linked to exactly one provider of the matching type (ACC-13), and only moderators

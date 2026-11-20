@@ -84,7 +84,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
     it.each(FAKE_CONTENT_TYPES)(
       'files an OPEN report of a %s with the trimmed reason',
       async (type) => {
-        const id = content.add(type);
+        const id = await content.add(type);
         const res = await report(
           alice,
           body(type, id, '  Offensive language  '),
@@ -148,7 +148,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
 
   describe('GEN-09 at most once per item', () => {
     it('refuses a second report of the same item by the same user (409), a different user may', async () => {
-      const id = content.add(ModeratableContentType.Comment);
+      const id = await content.add(ModeratableContentType.Comment);
       await report(alice, body('COMMENT', id)).expect(201);
       const again = await report(alice, body('COMMENT', id, 'Again')).expect(
         409,
@@ -161,7 +161,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
     });
 
     it('keeps exactly one report when five identical requests arrive at once', async () => {
-      const id = content.add(ModeratableContentType.Comment);
+      const id = await content.add(ModeratableContentType.Comment);
       const results = await Promise.all(
         Array.from({ length: 5 }, () => report(bob, body('COMMENT', id))),
       );
@@ -184,7 +184,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
       ['an unknown targetType', { targetType: 'HOTEL' }, 'targetType'],
       ['a malformed targetId', { targetId: '123' }, 'targetId'],
     ])('rejects %s with 400', async (_, over, field) => {
-      const id = content.add(ModeratableContentType.Comment);
+      const id = await content.add(ModeratableContentType.Comment);
       const res = await report(alice, {
         ...body('COMMENT', id),
         ...over,
@@ -194,7 +194,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
     });
 
     it('accepts a 500-character reason', async () => {
-      const id = content.add(ModeratableContentType.Comment);
+      const id = await content.add(ModeratableContentType.Comment);
       await report(alice, body('COMMENT', id, 'a'.repeat(500))).expect(201);
     });
   });
@@ -222,7 +222,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
       const id = await itinerary(bob, 'PUBLIC');
       await itineraries.updateOne({ _id: id }, { $set: { isHidden: true } });
       await report(alice, body('ITINERARY', id)).expect(404);
-      const post = content.add(ModeratableContentType.Comment, {
+      const post = await content.add(ModeratableContentType.Comment, {
         isHidden: true,
       });
       await report(alice, body('COMMENT', post)).expect(404);
@@ -231,7 +231,7 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
 
   describe('GEN-09 only registered users may report', () => {
     it('answers 401 without a session', async () => {
-      const id = content.add(ModeratableContentType.Comment);
+      const id = await content.add(ModeratableContentType.Comment);
       await report(null, body('COMMENT', id)).expect(401);
     });
 
@@ -239,15 +239,16 @@ describe('Reports (e2e): GEN-09 report content once per item', () => {
       'answers 403 to %s',
       async (role) => {
         const as = await loginAs(app, role);
-        const id = content.add(ModeratableContentType.Comment);
+        const id = await content.add(ModeratableContentType.Comment);
         await report(as, body('COMMENT', id)).expect(403);
       },
     );
   });
 });
 
-describe('Reports (e2e): GEN-09 content type whose module has not registered', () => {
+describe('Reports (e2e): GEN-09, GEN-10 comments through the real adapter (TRVL-180)', () => {
   let app: INestApplication<App>;
+  const http = () => request(app.getHttpServer());
 
   beforeAll(async () => {
     app = await createTestApp();
@@ -257,16 +258,79 @@ describe('Reports (e2e): GEN-09 content type whose module has not registered', (
     await app.close();
   });
 
-  it('answers 404 for a comment while no comments adapter is registered', async () => {
-    const user = await loginAs(app, Role.User);
-    await request(app.getHttpServer())
+  const publishedPostWithComment = async (
+    author: LoggedIn,
+    commenter: LoggedIn,
+  ) => {
+    const post = await http()
+      .post('/api/posts')
+      .set('Cookie', author.cookie)
+      .send({ title: 'Cairo', body: 'Markets', status: 'PUBLISHED' })
+      .expect(201);
+    const comment = await http()
+      .post(`/api/posts/${post.body.id}/comments`)
+      .set('Cookie', commenter.cookie)
+      .send({ body: 'Nice trip' })
+      .expect(201);
+    return {
+      postId: post.body.id as string,
+      commentId: comment.body.id as string,
+    };
+  };
+
+  it('reports a real comment once, and an unknown comment id is 404', async () => {
+    const [author, alice] = await Promise.all([
+      loginAs(app, Role.User),
+      loginAs(app, Role.User),
+    ]);
+    const { commentId } = await publishedPostWithComment(author, author);
+    const body = { targetType: 'COMMENT', targetId: commentId, reason: 'Spam' };
+    await http()
       .post('/api/reports')
-      .set('Cookie', user.cookie)
-      .send({
-        targetType: 'COMMENT',
-        targetId: new Types.ObjectId().toHexString(),
-        reason: 'Spam',
-      })
+      .set('Cookie', alice.cookie)
+      .send(body)
+      .expect(201);
+    await http()
+      .post('/api/reports')
+      .set('Cookie', alice.cookie)
+      .send(body)
+      .expect(409);
+    await http()
+      .post('/api/reports')
+      .set('Cookie', alice.cookie)
+      .send({ ...body, targetId: new Types.ObjectId().toHexString() })
       .expect(404);
+  });
+
+  it('an admin hides then deletes a reported comment; the post comment count follows', async () => {
+    const [author, alice, admin] = await Promise.all([
+      loginAs(app, Role.User),
+      loginAs(app, Role.User),
+      loginAs(app, Role.Admin),
+    ]);
+    const { postId, commentId } = await publishedPostWithComment(
+      author,
+      author,
+    );
+    const comments = () =>
+      http()
+        .get(`/api/posts/${postId}/comments`)
+        .set('Cookie', alice.cookie)
+        .expect(200);
+    expect((await comments()).body.items).toHaveLength(1);
+
+    await http()
+      .patch(`/api/admin/content/comment/${commentId}/hide`)
+      .set('Cookie', admin.cookie)
+      .send({})
+      .expect(200);
+    expect((await comments()).body.items).toHaveLength(0);
+
+    await http()
+      .delete(`/api/admin/content/comment/${commentId}`)
+      .set('Cookie', admin.cookie)
+      .expect(200);
+    const post = await http().get(`/api/posts/${postId}`).expect(200);
+    expect(post.body.commentCount).toBe(0);
   });
 });
