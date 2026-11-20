@@ -321,3 +321,45 @@ describe('UsersService passwords (ACC-08)', () => {
     );
   });
 });
+
+describe('UsersService.deactivatedIds (ACC-12, TRVL-181)', () => {
+  const exec = (value: unknown) => ({
+    lean: jest.fn().mockReturnThis(),
+    exec: jest.fn().mockResolvedValue(value),
+  });
+
+  function setupDirectory(counts: number[], lists: string[][]) {
+    const model = {
+      countDocuments: jest.fn(() => exec(counts.shift())),
+      find: jest.fn(() =>
+        exec(
+          (lists.shift() ?? []).map((id) => ({ _id: new Types.ObjectId(id) })),
+        ),
+      ),
+    };
+    return {
+      service: new UsersService(model as unknown as Model<User>),
+      model,
+    };
+  }
+
+  it('reads the ids once and reuses them while the deactivated count is unchanged', async () => {
+    const a = new Types.ObjectId().toHexString();
+    const { service, model } = setupDirectory([1, 1], [[a]]);
+    await expect(service.deactivatedIds()).resolves.toEqual([a]);
+    await expect(service.deactivatedIds()).resolves.toEqual([a]);
+    expect(model.find).toHaveBeenCalledTimes(1);
+    expect(model.countDocuments).toHaveBeenCalledWith({
+      status: AccountStatus.Deactivated,
+    });
+  });
+
+  it('reads the ids again after a new deactivation', async () => {
+    const a = new Types.ObjectId().toHexString();
+    const b = new Types.ObjectId().toHexString();
+    const { service, model } = setupDirectory([1, 2], [[a], [a, b]]);
+    await service.deactivatedIds();
+    await expect(service.deactivatedIds()).resolves.toEqual([a, b]);
+    expect(model.find).toHaveBeenCalledTimes(2);
+  });
+});

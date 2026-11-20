@@ -338,9 +338,7 @@ export class PostsService {
    * account (ACC-12: "their posts ... are hidden"). Browse, the post page, comments and likes all use it.
    */
   async publicFilter(): Promise<FilterQuery<Post>> {
-    const deactivated = await this.users.findIdsByStatus(
-      AccountStatus.Deactivated,
-    );
+    const deactivated = await this.users.deactivatedIds();
     return {
       ...PUBLIC_POST_FILTER,
       authorId: { $nin: deactivated.map((id) => new Types.ObjectId(id)) },
