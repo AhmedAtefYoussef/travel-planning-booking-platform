@@ -1,7 +1,8 @@
 /**
- * Test-only moderatable content (GEN-09, GEN-10): in-memory adapters for comments and reviews,
- * registered with CONTENT_MODERATION exactly as their real modules will, so the port can be exercised
- * for every type before those modules land. Mounted only by e2e tests, never by AppModule.
+ * Test-only moderatable content (GEN-09, GEN-10): an in-memory adapter for comments, registered with
+ * CONTENT_MODERATION exactly as the comments module will, until that module lands. Posts, reviews and
+ * itineraries have real adapters, and registering a fake for them would throw 'already registered'.
+ * Mounted only by e2e tests, never by AppModule.
  */
 import {
   Inject,
@@ -19,10 +20,7 @@ import {
   type ModeratableContentAdapter,
 } from '../../src/common/contracts';
 
-export const FAKE_CONTENT_TYPES = [
-  ModeratableContentType.Comment,
-  ModeratableContentType.Review,
-] as const;
+export const FAKE_CONTENT_TYPES = [ModeratableContentType.Comment] as const;
 
 @Injectable()
 export class FakeContentStore implements OnModuleInit {
