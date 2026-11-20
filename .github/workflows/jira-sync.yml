@@ -20,7 +20,10 @@ jobs:
   jira:
     name: jira-sync
     runs-on: ubuntu-latest
-    if: github.event.action != 'closed' || github.event.pull_request.merged == true
+    # Only branches of this repository (teammates); a fork's PR text must never drive Jira writes.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (github.event.action != 'closed' || github.event.pull_request.merged == true)
     steps:
       - name: Sync cited TRVL issues
         env:
@@ -39,7 +42,7 @@ jobs:
             echo "::notice::Jira sync skipped: set the JIRA_BASE_URL, JIRA_USER_EMAIL and JIRA_API_TOKEN repository secrets to enable it."
             exit 0
           fi
-          keys=$(printf '%s\n%s\n%s\n' "$PR_TITLE" "$PR_BRANCH" "$PR_BODY" | grep -oE 'TRVL-[0-9]+' | sort -u || true)
+          keys=$(printf '%s\n%s\n%s\n' "$PR_TITLE" "$PR_BRANCH" "$PR_BODY" | grep -oE 'TRVL-[0-9]+' | sort -u | head -n 10 || true)
           if [ -z "$keys" ]; then
             echo "::notice::No TRVL key cited by this PR."
             exit 0
