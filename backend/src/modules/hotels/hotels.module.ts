@@ -16,6 +16,7 @@ import {
   HotelReviewsController,
   ReviewsController,
 } from './reviews.controller';
+import { ReviewModerationAdapter } from './review-moderation.adapter';
 import { ReviewsService } from './reviews.service';
 import { Hotel, HotelSchema } from './schemas/hotel.schema';
 import { Review, ReviewSchema } from './schemas/review.schema';
@@ -59,6 +60,7 @@ import { RoomsService } from './rooms.service';
     HotelStatusService,
     { provide: HOTEL_STATUS, useExisting: HotelStatusService },
     ReviewsService,
+    ReviewModerationAdapter,
   ],
   exports: [
     MongooseModule,
