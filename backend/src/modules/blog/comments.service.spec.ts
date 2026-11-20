@@ -20,8 +20,8 @@ const q = <T>(value: T) => {
   return query;
 };
 
-/** BLG-05 / ACC-12: the comment rules, without a database. */
-describe('CommentsService (BLG-05, ACC-12)', () => {
+/** BLG-05 / BLG-07 / ACC-12: the comment rules, without a database. */
+describe('CommentsService (BLG-05, BLG-07, ACC-12)', () => {
   const reader = { id: new Types.ObjectId().toHexString(), role: Role.User };
   const authorId = new Types.ObjectId();
   const postId = new Types.ObjectId();
@@ -34,11 +34,18 @@ describe('CommentsService (BLG-05, ACC-12)', () => {
     updatedAt: new Date('2026-11-18T10:00:00Z'),
   });
 
-  const posts = { findOne: jest.fn(), findOneAndUpdate: jest.fn() };
+  const posts = {
+    findOne: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    updateOne: jest.fn(),
+  };
   const comments = {
     find: jest.fn(),
     countDocuments: jest.fn(),
     create: jest.fn(),
+    findById: jest.fn(),
+    findOneAndUpdate: jest.fn(),
+    deleteOne: jest.fn(),
   };
   const connection = {
     transaction: jest.fn((fn: (session: string) => Promise<unknown>) =>
@@ -145,5 +152,55 @@ describe('CommentsService (BLG-05, ACC-12)', () => {
     ).rejects.toMatchObject({ status: 404 });
     expect(users.findProfile).toHaveBeenCalledTimes(2);
     expect(comments.create).not.toHaveBeenCalled();
+  });
+
+  it('BLG-07 the author edits their comment; anyone else is 403 and a missing comment 404', async () => {
+    const mine = stored('old', new Types.ObjectId(reader.id));
+    comments.findById.mockReturnValue(q(mine));
+    comments.findOneAndUpdate.mockReturnValue(q({ ...mine, body: 'new' }));
+    const dto = await service.update(reader, mine._id.toHexString(), 'new');
+    expect(dto.body).toBe('new');
+    expect(comments.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: mine._id, authorId: mine.authorId },
+      { $set: { body: 'new' } },
+      { new: true, runValidators: true },
+    );
+
+    const theirs = stored('theirs');
+    comments.findById.mockReturnValue(q(theirs));
+    await expect(
+      service.update(reader, theirs._id.toHexString(), 'x'),
+    ).rejects.toMatchObject({ status: 403 });
+
+    comments.findById.mockReturnValue(q(null));
+    await expect(
+      service.update(reader, theirs._id.toHexString(), 'x'),
+    ).rejects.toMatchObject({ status: 404 });
+
+    comments.findById.mockReturnValue(q(mine));
+    comments.findOneAndUpdate.mockReturnValue(q(null));
+    await expect(
+      service.update(reader, mine._id.toHexString(), 'gone'),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("BLG-07 the author deletes their comment and the post's count goes down in the same transaction", async () => {
+    const mine = stored('bye', new Types.ObjectId(reader.id));
+    comments.findById.mockReturnValue(q(mine));
+    comments.deleteOne.mockReturnValue(q({ deletedCount: 1 }));
+    posts.updateOne.mockReturnValue(q({ modifiedCount: 1 }));
+    await service.remove(reader, mine._id.toHexString());
+    expect(posts.updateOne).toHaveBeenCalledWith(
+      { _id: postId, commentCount: { $gte: 1 } },
+      { $inc: { commentCount: -1, interactionScore: -1 } },
+      { session: 'session', runValidators: true },
+    );
+
+    comments.deleteOne.mockReturnValue(q({ deletedCount: 0 }));
+    posts.updateOne.mockClear();
+    await expect(
+      service.remove(reader, mine._id.toHexString()),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(posts.updateOne).not.toHaveBeenCalled();
   });
 });

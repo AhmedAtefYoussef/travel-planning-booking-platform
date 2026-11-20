@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { Connection, Model, Types } from 'mongoose';
+import { assertOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { VISIBLE_CONTENT_FILTER } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
@@ -24,7 +25,7 @@ type CommentLike = Pick<
 > & { _id: Types.ObjectId };
 
 /**
- * Comments (BLG-05). Only public posts take comments: published, not hidden, and not written by a
+ * Comments (BLG-05, BLG-07). Only public posts take comments: published, not hidden, and not written by a
  * deactivated account (ACC-12: their posts are hidden). The post's commentCount and
  * interactionScore change in the same transaction as the comment, so the counts never drift.
  */
@@ -95,6 +96,56 @@ export class CommentsService {
     return this.toDto(comment);
   }
 
+  /** BLG-07: the author edits their own comment. */
+  async update(
+    user: AuthUser,
+    commentId: string,
+    body: string,
+  ): Promise<CommentDto> {
+    const comment = await this.loadOwn(user, commentId);
+    const updated = await this.comments
+      .findOneAndUpdate(
+        { _id: comment._id, authorId: comment.authorId },
+        { $set: { body } },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!updated) throw commentNotFound();
+    return this.toDto(updated);
+  }
+
+  /** BLG-07: the author deletes their own comment; the post's comment count goes down with it. */
+  async remove(user: AuthUser, commentId: string): Promise<void> {
+    const comment = await this.loadOwn(user, commentId);
+    await this.connection.transaction(async (session) => {
+      const deleted = await this.comments
+        .deleteOne({ _id: comment._id }, { session })
+        .exec();
+      if (deleted.deletedCount !== 1) throw commentNotFound();
+      await this.posts
+        .updateOne(
+          { _id: comment.postId, commentCount: { $gte: 1 } },
+          { $inc: { commentCount: -1, interactionScore: -1 } },
+          { session, runValidators: true },
+        )
+        .exec();
+    });
+  }
+
+  /** The caller's own comment; someone else's comment is 403 (ACC-11). */
+  private async loadOwn(
+    user: AuthUser,
+    commentId: string,
+  ): Promise<CommentLike> {
+    const comment = await this.comments
+      .findById(commentId)
+      .lean<CommentLike>()
+      .exec();
+    if (!comment) throw commentNotFound();
+    assertOwner(user, comment.authorId);
+    return comment;
+  }
+
   /**
    * 404 unless the post is published, not hidden, and its author is not deactivated (ACC-12).
    * Returns the author's id.
@@ -140,5 +191,13 @@ function postNotFound(): AppException {
     HttpStatus.NOT_FOUND,
     ErrorCode.NOT_FOUND,
     'Post not found',
+  );
+}
+
+function commentNotFound(): AppException {
+  return new AppException(
+    HttpStatus.NOT_FOUND,
+    ErrorCode.NOT_FOUND,
+    'Comment not found',
   );
 }

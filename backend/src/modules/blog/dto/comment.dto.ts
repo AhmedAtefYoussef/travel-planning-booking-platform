@@ -26,7 +26,7 @@ const CommentBodyRules = () =>
     },
   });
 
-/** BLG-05: the comment text. */
+/** BLG-05 (add) and BLG-07 (edit): the comment text. */
 export class CommentBodyDto {
   @ApiProperty({
     example: 'Great tips, thanks!',
