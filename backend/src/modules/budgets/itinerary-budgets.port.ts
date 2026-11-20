@@ -5,6 +5,7 @@ import type {
   ItineraryBudgets,
   ItineraryDayBudget,
 } from '../../common/contracts/services.contract';
+import { BudgetEntry } from './schemas/budget-entry.schema';
 import { TransportCost } from './schemas/transport-cost.schema';
 
 /** The rows of one budget collection that belong to itineraries (they all have these fields). */
@@ -23,13 +24,18 @@ interface BudgetRow {
 @Injectable()
 export class ItineraryBudgetsPort implements ItineraryBudgets {
   constructor(
+    @InjectModel(BudgetEntry.name)
+    private readonly entries: Model<BudgetEntry>,
     @InjectModel(TransportCost.name)
     private readonly transports: Model<TransportCost>,
   ) {}
 
   /** The budget collections that hang off itinerary days. */
   private get collections(): Model<BudgetRow>[] {
-    return [this.transports as unknown as Model<BudgetRow>];
+    return [
+      this.entries as unknown as Model<BudgetRow>,
+      this.transports as unknown as Model<BudgetRow>,
+    ];
   }
 
   async dayTotals(itineraryId: string): Promise<ItineraryDayBudget[]> {
