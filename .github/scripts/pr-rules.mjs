@@ -207,7 +207,8 @@ export function evaluatePullRequest(pr) {
     if (row && !new RegExp(String.raw`#${pr.number}\b`).test(row)) {
       errors.push(
         `The ${branchId} row of ${matrix} must cite this PR: add "#${pr.number}" to its PR column and set its status ` +
-          '(Done, or "Partial: <what is done>"). Push that commit after opening the PR, once its number is known.',
+          '(Done, or "Partial: <what is done>"). Tip: write "#PR" there and open the PR with `npm run pr:open`, which ' +
+          'replaces it with the real number and pushes that commit for you.',
       );
     }
   }

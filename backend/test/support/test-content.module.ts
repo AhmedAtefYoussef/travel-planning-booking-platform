@@ -1,79 +1,71 @@
 /**
- * Test-only moderatable content (GEN-09, GEN-10): an in-memory adapter for comments, registered with
- * CONTENT_MODERATION exactly as the comments module will, until that module lands. Posts, reviews and
- * itineraries have real adapters, and registering a fake for them would throw 'already registered'.
- * Mounted only by e2e tests, never by AppModule.
+ * Test-only content factory (GEN-09, GEN-10): writes real blog comments, which the real
+ * CommentModerationAdapter then serves through CONTENT_MODERATION. Each comment gets its own post, so a
+ * test chooses whether the comment is public (its post PUBLISHED) or not (a DRAFT post) and whether an
+ * admin has hidden it. Mounted only by e2e tests, never by AppModule.
  */
+import { Injectable, Module } from '@nestjs/common';
+import { InjectModel, MongooseModule } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import {
-  Inject,
-  Injectable,
-  Module,
-  OnModuleInit,
-  Optional,
-} from '@nestjs/common';
-import { Types } from 'mongoose';
-import {
-  CONTENT_MODERATION,
   ModeratableContentType,
-  type ContentModeration,
   type ModeratableContent,
-  type ModeratableContentAdapter,
 } from '../../src/common/contracts';
+import {
+  Comment,
+  CommentSchema,
+} from '../../src/modules/blog/schemas/comment.schema';
+import {
+  Post,
+  PostSchema,
+  PostStatus,
+} from '../../src/modules/blog/schemas/post.schema';
 
 export const FAKE_CONTENT_TYPES = [ModeratableContentType.Comment] as const;
 
 @Injectable()
-export class FakeContentStore implements OnModuleInit {
-  private readonly items = new Map<string, ModeratableContent>();
-
+export class FakeContentStore {
   constructor(
-    @Optional()
-    @Inject(CONTENT_MODERATION)
-    private readonly moderation?: ContentModeration,
+    @InjectModel(Post.name) private readonly posts: Model<Post>,
+    @InjectModel(Comment.name) private readonly comments: Model<Comment>,
   ) {}
 
-  onModuleInit(): void {
-    for (const type of FAKE_CONTENT_TYPES) {
-      this.moderation?.register(this.adapter(type));
-    }
-  }
-
-  /** Adds one item of `type` and returns its id. */
-  add(
+  /** Adds one comment (the only type created here) under a fresh post and returns its id. */
+  async add(
     type: ModeratableContentType,
     item: Partial<Omit<ModeratableContent, 'id'>> = {},
-  ): string {
-    const id = new Types.ObjectId().toHexString();
-    this.items.set(`${type}:${id}`, {
-      id,
-      authorId: new Types.ObjectId().toHexString(),
-      isHidden: false,
-      isPublic: true,
-      ...item,
+  ): Promise<string> {
+    if (type !== ModeratableContentType.Comment) {
+      throw new Error(`FakeContentStore only creates comments, not ${type}`);
+    }
+    const published = item.isPublic !== false;
+    const post = await this.posts.create({
+      authorId: new Types.ObjectId(),
+      title: 'A post to comment on',
+      body: 'Body',
+      status: published ? PostStatus.Published : PostStatus.Draft,
+      publishedAt: published ? new Date() : null,
+      commentCount: 1,
+      interactionScore: 1,
     });
-    return id;
-  }
-
-  private adapter(type: ModeratableContentType): ModeratableContentAdapter {
-    const key = (id: string) => `${type}:${id}`;
-    return {
-      type,
-      find: (id) => Promise.resolve(this.items.get(key(id)) ?? null),
-      setHidden: (id, hidden) => {
-        const item = this.items.get(key(id));
-        if (!item || item.isHidden === hidden) return Promise.resolve(false);
-        item.isHidden = hidden;
-        return Promise.resolve(true);
-      },
-      remove: (id) =>
-        Promise.resolve(
-          this.items.delete(key(id))
-            ? { afterCommit: () => Promise.resolve() }
-            : null,
-        ),
-    };
+    const comment = await this.comments.create({
+      postId: post._id,
+      authorId: new Types.ObjectId(item.authorId ?? new Types.ObjectId()),
+      body: 'A comment',
+      isHidden: item.isHidden === true,
+    });
+    return comment._id.toHexString();
   }
 }
 
-@Module({ providers: [FakeContentStore], exports: [FakeContentStore] })
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: Post.name, schema: PostSchema },
+      { name: Comment.name, schema: CommentSchema },
+    ]),
+  ],
+  providers: [FakeContentStore],
+  exports: [FakeContentStore],
+})
 export class TestContentModule {}
