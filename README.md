@@ -131,6 +131,14 @@ stripe payment_intents confirm <paymentIntentId> --payment-method pm_card_visa
 `pm_card_chargeDeclined` makes the attempt fail (`POST /api/payments/{id}/retry` then tries again until the hold
 ends). Only the signature-verified webhook confirms a booking; card details never reach this API.
 
+### Swagger evidence (Milestone 1)
+
+Every endpoint of the project description, section 8, has Swagger UI screenshots on the evidence-only branch
+[`docs/milestone-1-swagger-evidence`](../../tree/docs/milestone-1-swagger-evidence). It is never merged. Its
+README indexes each endpoint with its requirement ID, Jira key and screenshots, and has 0 coverage gaps. To
+regenerate the index, run `node tools/build-index.mjs` on that branch. Pull requests link their screenshots
+there instead of committing images to `develop`.
+
 ## Feature map
 
 Each module, its Swagger tag and the requirements it covers (status per requirement is in

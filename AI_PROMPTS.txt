@@ -2351,3 +2351,18 @@ The clone writes the copy and its activities in one MongoDB transaction with new
 through ITINERARY_BUDGETS and removes the copy again if that fails. I checked search, view, clone independence,
 hidden and private itineraries and the 404s in e2e and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75), TRVL-136
+Prompt:
+Consolidate the Milestone 1 Swagger screenshots from the nine per-member evidence branches into one branch, capture
+the endpoints that had none, and check the traceability rows that were still Partial.
+How the output was used:
+Claude imported each evidence branch into docs/milestone-1-swagger-evidence as one commit crediting its author,
+captured the 41 missing endpoints in Swagger UI against an in-memory database with Stripe test mode, and generated
+an index of all 113 endpoints with 0 gaps. It also confirmed through the API that ITN-09 city-group subtotals already
+include budget entries and transport costs, so ITN-09 is Done. I reviewed the screenshots and the index.
+================================================
