@@ -2098,6 +2098,51 @@ documented path for routes with an id) and e2e tests. I checked the booking path
 ================================================
 
 ================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-08 (TRVL-53)
+Prompt:
+Implement HTL-08: the hotel moderator views each room's status for a chosen date range as Available,
+Booked (with reservation reference) or Blocked, through GET /api/hotels/:id/availability?from&to.
+How the output was used:
+Claude added RoomCalendarService (one status per room per night from the bookable ranges and room_nights:
+AVAILABLE, BOOKED with reference, HELD with the hold end, BLOCKED, NOT_BOOKABLE), the window DTO (at most
+62 nights, rooms paged by 10), loadInScope so a deactivated hotel stays readable, and unit and e2e tests.
+I agreed to show held and not-bookable nights explicitly rather than as available.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-09 (TRVL-104)
+Prompt:
+Add hotel reviews as a report target on POST /api/reports (targetType REVIEW), following the post and itinerary
+moderation adapters, and keep the hotel rating correct when a review is hidden or removed.
+How the output was used:
+A delegated subagent wrote ReviewModerationAdapter from a spec that copies the post and itinerary adapters. It found
+that the hotel rating is stored, so hide and delete recalculate ratingAvg and ratingCount in the same transaction as
+the change. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-11 (TRVL-106)
+Prompt:
+Write the GEN-11 booking lifecycle proof: a unit matrix over all 25 ordered status pairs for flight and hotel
+bookings (the four allowed edges, and the 21 other pairs refused with 409 INVALID_STATE_TRANSITION and no
+write), plus e2e tests over HTTP for hold, confirm, complete, expire, user and provider cancel, and the jobs.
+How the output was used:
+A delegated subagent wrote the transition matrix tests from a written spec. The four allowed edges are
+spelled out in the spec, so the code cannot rewrite its own proof. To check the tests catch a bug, I
+made a temporary mutation (an extra Completed->Cancelled edge); 12 tests failed, and I reverted it. My
+brief wrongly said five edges; the agent corrected it to four. I reviewed the diff myself before committing.
+================================================
+
+================================================
 Date: 2026-11-20
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus 5.5)
