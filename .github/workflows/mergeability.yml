@@ -74,6 +74,7 @@ jobs:
 
             if [ "$state" = conflict ]; then
               gh pr edit "$pr" --repo "$REPO" --add-label needs-rebase >/dev/null
+              # shellcheck disable=SC2016 # the backticks are Markdown, not command substitution
               body=$(printf '%s\n### :warning: This PR conflicts with `%s`\n\nConflicting files:\n%s\n\nResolve it locally (keep both sides'"'"' intent; never drop a teammate'"'"'s work, brief 10.7):\n```bash\ngit fetch origin\ngit merge origin/%s\n# fix the files above, then\ngit add -A && git commit\ngit push\n```\n' \
                 "$marker" "$base" "$(sed 's/^/- `/; s/$/`/' <<<"$files")" "$base")
               if [ -n "$existing" ]; then
