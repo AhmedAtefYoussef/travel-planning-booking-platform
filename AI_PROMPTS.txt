@@ -2351,3 +2351,18 @@ The clone writes the copy and its activities in one MongoDB transaction with new
 through ITINERARY_BUDGETS and removes the copy again if that fails. I checked search, view, clone independence,
 hidden and private itineraries and the 404s in e2e and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-12 (TRVL-22), TRVL-181
+Prompt:
+ACC-12 says a deactivated user's posts and public itineraries are hidden, but public itinerary search, detail and
+clone still showed them. Also the public blog filter loaded every deactivated user id on each request (TRVL-181).
+How the output was used:
+Claude added UsersService.deactivatedIds(): deactivation is one-way, so an index-covered count of deactivated
+accounts tells whether the cached id list is current, and the list is read again only after a new deactivation,
+which is also correct across instances. The blog filter and a new public-itinerary filter use it. I checked the
+cache with unit tests and the hiding of search, detail and clone in e2e.
+================================================
