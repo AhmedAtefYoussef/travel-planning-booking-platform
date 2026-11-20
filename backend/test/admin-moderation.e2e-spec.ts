@@ -15,6 +15,7 @@ import {
   type ContentModeration,
   type ModeratableContentAdapter,
 } from '../src/common/contracts';
+import { Review } from '../src/modules/hotels';
 import { Report } from '../src/modules/moderation';
 import {
   loadReferenceDataset,
@@ -33,14 +34,15 @@ type Action = 'DISMISS' | 'HIDE' | 'DELETE';
 
 /**
  * GEN-10 (TRVL-105): admins resolve reports and hide or delete community content directly; GEN-07: every
- * moderation action is audited. Posts and itineraries go through their real adapters, comments and
- * reviews through the test adapters of the CONTENT_MODERATION port.
+ * moderation action is audited. Posts, itineraries and reviews go through their real adapters, comments
+ * through the test adapter of the CONTENT_MODERATION port.
  */
 describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete content', () => {
   let app: INestApplication<App>;
   let fakes: FakeContentStore;
   let registry: ContentModeration;
   let reports: Model<Report>;
+  let reviews: Model<Review>;
   let connection: Connection;
   let admin: LoggedIn;
   let alice: LoggedIn;
@@ -54,6 +56,20 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     adapterOf(type).find(id);
   const auditOf = (filter: Record<string, unknown>) =>
     connection.collection('audit_logs').find(filter).toArray();
+
+  /** A real hotel review (GEN-09, #116: reviews have a real adapter), written through the model. */
+  const review = async (
+    authorId = new Types.ObjectId().toHexString(),
+  ): Promise<string> => {
+    const created = await reviews.create({
+      hotelId: new Types.ObjectId(),
+      reservationId: new Types.ObjectId(),
+      userId: new Types.ObjectId(authorId),
+      rating: 1,
+      text: 'Not what the photos showed',
+    });
+    return created._id.toHexString();
+  };
 
   /** An item of `type` by `author`: the real post / itinerary routes, or the fake store. */
   const content = async (
@@ -77,6 +93,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
         .expect(201);
       return res.body.id as string;
     }
+    if (type === ModeratableContentType.Review) return review(author.userId);
     return fakes.add(type, { authorId: author.userId });
   };
 
@@ -102,6 +119,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     fakes = app.get(FakeContentStore);
     registry = app.get(CONTENT_MODERATION);
     reports = app.get<Model<Report>>(getModelToken(Report.name));
+    reviews = app.get<Model<Review>>(getModelToken(Review.name));
     connection = app.get<Connection>(getConnectionToken());
     await reports.syncIndexes();
     admin = await loginAs(app, Role.Admin);
@@ -146,7 +164,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
       await reports.deleteMany({});
       const ids: string[] = [];
       for (let i = 0; i < 11; i++) {
-        const c = fakes.add(ModeratableContentType.Review);
+        const c = await review();
         ids.push(await fileReport(alice, ModeratableContentType.Review, c));
       }
       const comment = fakes.add(ModeratableContentType.Comment);
@@ -278,7 +296,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     });
 
     it('GEN-10 HIDE content that is already hidden still resolves the report', async () => {
-      const id = fakes.add(ModeratableContentType.Review);
+      const id = await review();
       const r1 = await fileReport(alice, ModeratableContentType.Review, id);
       const r2 = await fileReport(bob, ModeratableContentType.Review, id);
       await resolve(admin, r1, { action: 'HIDE' }).expect(200);
@@ -522,7 +540,7 @@ describe('Admin moderation (e2e): GEN-10 resolve reports, hide and delete conten
     });
 
     it('GEN-10 a direct delete closes open reports as DELETED', async () => {
-      const id = fakes.add(ModeratableContentType.Review);
+      const id = await review();
       const reportId = await fileReport(
         alice,
         ModeratableContentType.Review,
