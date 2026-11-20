@@ -6,6 +6,9 @@ import { ActivitiesService } from './activities.service';
 import { ItinerariesController } from './itineraries.controller';
 import { ItineraryDaysController } from './itinerary-days.controller';
 import { ItineraryDaysService } from './itinerary-days.service';
+import { ItinerarySearchController } from './itinerary-search.controller';
+import { PublicItinerariesController } from './public-itineraries.controller';
+import { PublicItinerariesService } from './public-itineraries.service';
 import { ItinerariesService } from './itineraries.service';
 import { ItineraryModerationAdapter } from './itinerary-moderation.adapter';
 import { PublicItinerariesProvider } from './public-itineraries.provider';
@@ -24,8 +27,11 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
       { name: Activity.name, schema: ActivitySchema },
     ]),
   ],
+  // Public routes first, so /itineraries/public/... is never matched as /itineraries/:id.
   controllers: [
+    PublicItinerariesController,
     ItinerariesController,
+    ItinerarySearchController,
     ItineraryDaysController,
     ActivitiesController,
   ],
@@ -36,6 +42,7 @@ import { Itinerary, ItinerarySchema } from './schemas/itinerary.schema';
     ItineraryModerationAdapter,
     PublicItinerariesProvider,
     { provide: PUBLIC_ITINERARIES, useExisting: PublicItinerariesProvider },
+    PublicItinerariesService,
   ],
   exports: [MongooseModule, PUBLIC_ITINERARIES],
 })

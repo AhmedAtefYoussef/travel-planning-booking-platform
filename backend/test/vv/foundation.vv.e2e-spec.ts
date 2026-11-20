@@ -612,6 +612,8 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
     },
     // BLG-02: published posts.
     { url: '/api/posts?' },
+    // ITN-21: public itinerary search, open to guests.
+    { url: '/api/itineraries/public/search?' },
   ];
 
   const get = (url: string, headers: Record<string, string> = {}) =>
@@ -946,6 +948,9 @@ describe('Backend enforcement and salted hashes (vv): GEN-13', () => {
         'GET /api/posts/:id/comments',
         // BLG-12: guests open public author pages.
         'GET /api/authors/:id',
+        // ITN-21: guests search and view public itineraries (read-only).
+        'GET /api/itineraries/public/search',
+        'GET /api/itineraries/public/:id',
         // PAY-01: Stripe calls it without a session; the Stripe-Signature check is its authentication.
         'POST /api/payments/webhook',
         'POST /api/diagnostics/validation',
