@@ -551,6 +551,14 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       docPath: '/api/hotels/{id}/rooms/available',
     },
     {
+      // HTL-08: the hotel moderator's room status calendar, 10 rooms per page.
+      url: `/api/hotels/${VV_HOTEL}/availability?from=2028-03-01&to=2028-03-03&`,
+      docPath: '/api/hotels/{id}/availability',
+      headers: {
+        'x-dev-user': `HOTEL_MODERATOR:6af0f1c2c77901aa9f228703:${VV_HOTEL}`,
+      },
+    },
+    {
       // HTL-11: hotel search, 10 per page like every list.
       url: '/api/hotels/search?cityId=cairo&checkIn=2028-03-01&checkOut=2028-03-03&guests=1&',
     },
