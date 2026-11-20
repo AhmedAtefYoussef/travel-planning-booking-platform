@@ -188,6 +188,18 @@ export class UpdateTransportCostDto {
   currency?: string;
 }
 
+/** ITN-18: the display currency of the summary. */
+export class BudgetSummaryQueryDto {
+  @ApiPropertyOptional({
+    example: 'EUR',
+    description:
+      "Convert to this currency instead of the caller's preferred currency (ACC-09), which defaults to the platform currency.",
+  })
+  @IsOptional()
+  @CurrencyRules()
+  currency?: string;
+}
+
 export class BudgetEntryDto {
   @ApiProperty({ example: '6af0f1c2c77901aa9f228900' })
   id!: string;
@@ -276,15 +288,25 @@ export class DayTotalDto {
   totalMinor!: number;
 }
 
-/** ITN-14: the itinerary's budget, converted to the platform currency. */
+export class RateUsedDto {
+  @ApiProperty({ example: 'EGP' })
+  from!: string;
+
+  @ApiProperty({ example: 0.0192 })
+  rate!: number;
+
+  @ApiProperty({ example: '2026-11-16' })
+  rateDate!: string;
+}
+
+/** ITN-14 / ITN-18: the itinerary's budget, converted to one currency. */
 export class BudgetSummaryDto {
   @ApiProperty({ example: '6af0f1c2c77901aa9f228700' })
   itineraryId!: string;
 
   @ApiProperty({
     example: 'EUR',
-    description:
-      'The platform currency; all amounts below are minor units of it',
+    description: 'All amounts below are minor units of this currency',
   })
   currency!: string;
 
@@ -296,4 +318,16 @@ export class BudgetSummaryDto {
 
   @ApiProperty({ type: [DayTotalDto] })
   byDay!: DayTotalDto[];
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '2026-11-16',
+    description:
+      'The day of the exchange rates used (the oldest one when several were used); null when nothing needed converting',
+  })
+  rateDate!: string | null;
+
+  @ApiProperty({ type: [RateUsedDto] })
+  rates!: RateUsedDto[];
 }
