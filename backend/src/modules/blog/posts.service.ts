@@ -25,7 +25,7 @@ import {
 } from '../../common/pagination/pagination';
 import { localUploadUrlPattern } from '../../common/validation';
 import { AccountStatus, UsersService } from '../users';
-import { excerptOf, PUBLIC_POST_FILTER } from './blog-rules';
+import { excerptOf, keywordPattern, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
   AuthorRefDto,
   CreatePostDto,
@@ -44,6 +44,9 @@ import {
   PostDocument,
   PostStatus,
 } from './schemas/post.schema';
+
+/** Upper bound on authors matched by name in one search, so a one-letter query stays cheap. */
+const MAX_AUTHOR_MATCHES = 500;
 
 /** A post image this backend stored (GEN-08); group 2 is its image id. */
 const POST_UPLOAD_URL = localUploadUrlPattern(['posts']);
@@ -68,7 +71,7 @@ type PostLike = Pick<
 
 /**
  * Blog posts (BLG-01). Rules live here so they hold for any caller (GEN-13): a post is a draft
- * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts of active authors are public; anything else answers 404. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-12: the public author page shows the author's name, join date and published posts. BLG-05: comments live in CommentsService.
+ * unless it is published, and publishing stamps publishedAt. BLG-02: only published, non-hidden posts of active authors are public; anything else answers 404. BLG-09: a keyword search ranks by likes + comments. BLG-03: authors list and open their own posts, drafts included; another user's draft answers 404. BLG-04: only the author edits or deletes a post (403 for a published post, 404 for a draft). BLG-06: likes live in LikesService. BLG-08: a tag link lists the published posts carrying that tag. BLG-10: the author attaches and removes images under the shared upload rule (GEN-08). BLG-12: the public author page shows the author's name, join date and published posts. BLG-05: comments live in CommentsService.
  */
 @Injectable()
 export class PostsService {
@@ -344,11 +347,28 @@ export class PostsService {
     };
   }
 
-  /** BLG-02: published posts, newest first, optionally one tag (BLG-08). */
+  /**
+   * BLG-02 / BLG-08 / BLG-09: published posts. Without q they are newest first; with q (title, tag or
+   * author name) they are ordered by interaction score, newest first on a tie.
+   */
   async listPublic(query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
     const filter: FilterQuery<Post> = await this.publicFilter();
     if (query.tag) filter.tags = query.tag;
-    return this.page(filter, query.page, { publishedAt: -1 });
+    let sort: Record<string, SortOrder> = { publishedAt: -1 };
+    if (query.q) {
+      const pattern = keywordPattern(query.q);
+      const authorIds = await this.users.findIdsByName(
+        pattern,
+        MAX_AUTHOR_MATCHES,
+      );
+      filter.$or = [
+        { title: pattern },
+        { tags: pattern },
+        { authorId: { $in: authorIds.map((id) => new Types.ObjectId(id)) } },
+      ];
+      sort = { interactionScore: -1, publishedAt: -1 };
+    }
+    return this.page(filter, query.page, sort);
   }
 
   /** BLG-02: the public post page. Drafts and hidden posts answer 404 here. */
