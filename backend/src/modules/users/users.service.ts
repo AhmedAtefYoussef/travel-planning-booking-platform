@@ -192,6 +192,27 @@ export class UsersService {
     return users.map((u) => u._id.toHexString());
   }
 
+  /** Last list of deactivated ids and how many there were when it was read (ACC-12, TRVL-181). */
+  private deactivatedCache?: { count: number; ids: string[] };
+
+  /**
+   * ACC-12: ids of every deactivated account, for modules that hide a deactivated user's content (blog
+   * posts, public itineraries). Deactivation is one-way (no path leads back to ACTIVE), so the number of
+   * deactivated accounts only grows: an index-covered count tells whether the cached list is still
+   * current, and the full list is read again only after a new deactivation (TRVL-181). Correct across
+   * several instances, since every instance checks the count in the database.
+   */
+  async deactivatedIds(): Promise<string[]> {
+    const count = await this.users
+      .countDocuments({ status: AccountStatus.Deactivated })
+      .exec();
+    if (this.deactivatedCache?.count === count)
+      return this.deactivatedCache.ids;
+    const ids = await this.findIdsByStatus(AccountStatus.Deactivated);
+    this.deactivatedCache = { count: ids.length, ids };
+    return ids;
+  }
+
   /**
    * BLG-09: ids of the accounts whose name matches `pattern`, at most `limit` of them, so the blog can
    * search posts by author name without reading the users collection itself. Only ids leave this module.
