@@ -1,0 +1,65 @@
+name: Stale branches
+
+# Weekly report (never deletes anything) of branches that can likely go: branches already merged into
+# develop, and branches with no commit for 14+ days and no open PR. The report is one issue labelled
+# "stale-branches", updated in place, so the team leader decides what to delete (brief 10.3:
+# feature branches are short-lived).
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    name: stale-branches
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build and publish the report
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          IDLE_DAYS: '14'
+        run: |
+          set -euo pipefail
+          keep='^(main|develop|docs/milestone-1-swagger-evidence)$'
+          open_heads=$(gh pr list --repo "$REPO" --state open --limit 200 --json headRefName --jq '.[].headRefName')
+          cutoff=$(date -d "-$IDLE_DAYS days" +%s)
+
+          merged=""; idle=""
+          while read -r ref date author; do
+            name=${ref#origin/}
+            [[ "$name" =~ $keep || "$name" == HEAD ]] && continue
+            grep -qxF "$name" <<<"$open_heads" && continue
+            if git merge-base --is-ancestor "$ref" origin/develop; then
+              merged+="| \`$name\` | $(date -d "@$date" +%F) | $author |\n"
+            elif [ "$date" -lt "$cutoff" ]; then
+              idle+="| \`$name\` | $(date -d "@$date" +%F) | $author | $(git rev-list --count origin/develop.."$ref") |\n"
+            fi
+          done < <(git for-each-ref --format='%(refname:short) %(committerdate:unix) %(authorname)' refs/remotes/origin | tr -s ' ' | awk '{d=$2; $2=""; print $1, d, substr($0, index($0,$3))}')
+
+          body="<!-- stale-branches-report -->\nGenerated $(date -u +'%F %H:%M UTC') by the weekly **Stale branches** workflow. Nothing is deleted automatically.\n\n"
+          body+="### Merged into develop (safe to delete)\n| Branch | Last commit | Author |\n|---|---|---|\n${merged:-| none | | |\n}\n"
+          body+="### No commit for ${IDLE_DAYS}+ days and no open PR\n| Branch | Last commit | Author | Commits not in develop |\n|---|---|---|---|\n${idle:-| none | | | |\n}\n"
+          body+="Delete one with \`git push origin --delete <branch>\` after checking with its author."
+          printf '%b' "$body" > report.md
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+          gh label create stale-branches --repo "$REPO" --color C5DEF5 \
+            --description "Weekly stale-branch report" 2>/dev/null || true
+          issue=$(gh issue list --repo "$REPO" --label stale-branches --state open --json number --jq '.[0].number // empty')
+          if [ -n "$issue" ]; then
+            gh issue edit "$issue" --repo "$REPO" --body-file report.md >/dev/null
+          else
+            gh issue create --repo "$REPO" --title "chore: stale branch report" --label stale-branches --body-file report.md >/dev/null
+          fi
