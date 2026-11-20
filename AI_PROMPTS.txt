@@ -2152,3 +2152,19 @@ Build GEN-10 admin moderation from the written spec on the GEN-09 CONTENT_MODERA
 How the output was used:
 A delegated subagent built the admin moderation module from that spec: the report queue, report resolution, the direct hide and delete routes, and the RESOLVE_REPORT, HIDE_CONTENT and DELETE_CONTENT audit entries, all in one transaction. An adversarial review found no blockers but found missing rollback tests on the direct routes, no test that a hidden post leaves the public lists, and no report count in the direct audit entries. All three were added in a second commit. The stale-report case after an owner deletes content was left as a documented follow-up. I reviewed the diff. Comment and review moderation wait for their modules (BLG-05 and PR #116).
 ================================================
+
+================================================
+Date: 2026-11-20
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-05, BLG-02, ACC-12
+Prompt:
+#97 merged without the fixes for Ahmed's V&V points 4 and 5. Bring them to develop in a small follow-up:
+one validation message for a missing or non-string comment body, the post author re-checked inside the
+comment transaction, and the BLG-02 row set to Done now that #93 and #97 are merged.
+How the output was used:
+Claude branched from develop and applied the already-reviewed fix (comment.dto.spec.ts and the race test
+written first): one body validator instead of IsString/Length, and an author re-check inside add() whose
+throw aborts the transaction. The BLG-02 row is Done with #93, #97. I reviewed the diff and ran the full
+CI locally.
+================================================
