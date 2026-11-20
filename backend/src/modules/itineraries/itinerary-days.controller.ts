@@ -14,7 +14,7 @@ import type { AuthUser } from '../../common/auth/auth.types';
 import { ErrorResponseDto } from '../../common/errors/error-response.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
-import { AddDayDto, UpdateDayDto } from './dto/day.dto';
+import { AddDayDto, MoveDayDto, UpdateDayDto } from './dto/day.dto';
 import { ItineraryDto } from './dto/itinerary.dto';
 import { ItineraryDaysService } from './itinerary-days.service';
 
@@ -23,7 +23,10 @@ const OWNER_ONLY =
 const RETURNS =
   'Returns the whole itinerary: days renumbered 1..n with their derived dates, and the ITN-09 city groups with day counts and budget subtotals.';
 
-/** Days of the caller's itinerary (ITN-05, ITN-07, ITN-09). */
+/**
+ * Days of the caller's itinerary (ITN-05, ITN-07, ITN-08, ITN-09). PATCH reorder is declared before
+ * PATCH :dayId so "reorder" is never read as a day id.
+ */
 @ApiTags('Itineraries')
 @Controller('itineraries/:id/days')
 export class ItineraryDaysController {
@@ -72,6 +75,36 @@ export class ItineraryDaysController {
     @Body() dto: AddDayDto,
   ): Promise<ItineraryDto> {
     return this.days.addDay(user, id, dto);
+  }
+
+  @Patch('reorder')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'ITN-08 Move a day to a new position',
+    description: `Moves the day to \`position\` (1 = first, at most the number of days, 400 otherwise). The days are renumbered 1..n, so their dates follow the new order, and the city groups are recomputed (ITN-09). Each day keeps its city, notes, activities and budget entries. ${RETURNS} ${OWNER_ONLY}`,
+  })
+  @ApiParam({ name: 'id', description: 'Itinerary id' })
+  @ApiBody({
+    type: MoveDayDto,
+    examples: {
+      first: {
+        summary: 'Make a day the first one',
+        value: { dayId: '6720c0a9e4b0a1b2c3d4e5f8', position: 1 },
+      },
+      invalid: {
+        summary: 'Invalid: position 0, malformed id',
+        value: { dayId: 'day-3', position: 0 },
+      },
+    },
+  })
+  @ApiOkResponse({ type: ItineraryDto })
+  @ApiErrorResponses(400, 404, 409)
+  moveDay(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: MoveDayDto,
+  ): Promise<ItineraryDto> {
+    return this.days.moveDay(user, id, dto);
   }
 
   @Patch(':dayId')

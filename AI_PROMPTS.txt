@@ -2258,3 +2258,18 @@ Claude started a new branch from the #114 head and applied only the ITN-18 chang
 ?currency= or the preferred currency, the rates used and the rate date, with unit and e2e tests), keeping
 #114's AI log and appending the ITN-18 entries. I reviewed the diff and ran the full CI locally.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-08 (TRVL-74)
+Prompt:
+Implement moving a day of my itinerary to a new position. Every day keeps its city, notes and activities; the
+days are renumbered 1..n so their dates follow the new order, and the city groups are recalculated.
+How the output was used:
+Claude added PATCH /api/itineraries/:id/days/reorder (declared before PATCH :dayId so "reorder" is never a day
+id), reusing the revision-guarded day-list rewrite, so a concurrent change retries instead of mixing orders. I
+checked moving to the end and back, the regrouping, an out-of-range, fractional or huge position, a malformed or
+unknown day id and a stranger getting 404 in e2e and Swagger.
+================================================
