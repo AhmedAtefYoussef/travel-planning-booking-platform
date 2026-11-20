@@ -4,8 +4,8 @@ import { Connection, Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { PUBLIC_POST_FILTER } from './blog-rules';
 import type { LikeStateDto } from './dto/like.dto';
+import { PostsService } from './posts.service';
 import { Like } from './schemas/like.schema';
 import { Post } from './schemas/post.schema';
 
@@ -19,7 +19,7 @@ function isDuplicateKey(err: unknown): boolean {
 }
 
 /**
- * Likes (BLG-06). Only published, non-hidden posts can be liked, once per user: the unique
+ * Likes (BLG-06). Only public posts (published, not hidden, author not deactivated: ACC-12) can be liked, once per user: the unique
  * {postId, userId} index refuses a second like even under concurrent requests. The post's likeCount and
  * interactionScore change in the same transaction as the like.
  */
@@ -29,15 +29,17 @@ export class LikesService {
     @InjectModel(Post.name) private readonly posts: Model<Post>,
     @InjectModel(Like.name) private readonly likes: Model<Like>,
     @InjectConnection() private readonly connection: Connection,
+    private readonly postsService: PostsService,
   ) {}
 
   /** BLG-06: like a published post once; a second like is 409 ALREADY_LIKED. */
   async like(user: AuthUser, postId: string): Promise<LikeStateDto> {
+    const visible = await this.postsService.publicFilter();
     try {
       const likeCount = await this.connection.transaction(async (session) => {
         const post = await this.posts
           .findOneAndUpdate(
-            { _id: postId, ...PUBLIC_POST_FILTER },
+            { ...visible, _id: postId },
             { $inc: { likeCount: 1, interactionScore: 1 } },
             { session, new: true, runValidators: true },
           )

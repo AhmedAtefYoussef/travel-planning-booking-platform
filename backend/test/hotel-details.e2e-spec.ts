@@ -230,4 +230,74 @@ describe('Hotel details (e2e): HTL-02', () => {
     await hotels.updateOne({ _id: hotelId }, { isActive: true });
     await get(hotelId).expect(200);
   });
+
+  /** HTL-15: the same hotel and rooms, through GET /api/hotels/:id/rooms/available. */
+  describe('Available rooms (e2e): HTL-15', () => {
+    const available = (id: string, query: Record<string, string | number>) =>
+      http().get(`/api/hotels/${id}/rooms/available`).query(query);
+
+    it('lists every room free for the stay, cheapest first, with type, beds, occupancy and totals', async () => {
+      const res = await available(hotelId, {
+        checkIn: '2027-01-08',
+        checkOut: '2027-01-11',
+      }).expect(200);
+      expect(res.body).toMatchObject({
+        page: 1,
+        limit: 10,
+        total: 3,
+        totalPages: 1,
+      });
+      expect(res.body.items).toEqual([
+        {
+          id: roomIds.C,
+          number: 'C',
+          type: 'Double',
+          beds: 2,
+          maxOccupancy: 2,
+          priceMinor: 8000,
+          stayTotalMinor: 24000,
+        },
+        expect.objectContaining({ id: roomIds.B, stayTotalMinor: 30000 }),
+        expect.objectContaining({ id: roomIds.A, stayTotalMinor: 36000 }),
+      ]);
+    });
+
+    it('leaves out booked nights, gaps in the bookable dates and rooms without dates', async () => {
+      const res = await available(hotelId, {
+        checkIn: '2027-01-09',
+        checkOut: '2027-01-12',
+      }).expect(200);
+      expect(res.body.items.map((x: { number: string }) => x.number)).toEqual([
+        'A',
+      ]);
+      const none = await available(hotelId, {
+        checkIn: '2027-03-01',
+        checkOut: '2027-03-02',
+      }).expect(200);
+      expect(none.body).toMatchObject({ items: [], total: 0 });
+    });
+
+    it('needs both dates and the HTL-02 date rules; 404 for an unknown hotel', async () => {
+      const fields = async (query: Record<string, string | number>) => {
+        const res = await available(hotelId, query).expect(400);
+        return (res.body.fieldErrors as { field: string }[]).map(
+          (f) => f.field,
+        );
+      };
+      expect(await fields({ checkIn: '2027-01-08' })).toEqual(['checkOut']);
+      expect(await fields({})).toEqual(
+        expect.arrayContaining(['checkIn', 'checkOut']),
+      );
+      expect(
+        await fields({ checkIn: '2020-01-01', checkOut: '2020-01-03' }),
+      ).toEqual(['checkIn']);
+      expect(
+        await fields({ checkIn: '2027-01-08', checkOut: '2027-01-08' }),
+      ).toEqual(['checkOut']);
+      await available(new Types.ObjectId().toHexString(), {
+        checkIn: '2027-01-08',
+        checkOut: '2027-01-11',
+      }).expect(404);
+    });
+  });
 });
