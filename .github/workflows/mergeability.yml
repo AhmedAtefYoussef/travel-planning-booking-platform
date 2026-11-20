@@ -1,0 +1,93 @@
+name: Mergeability
+
+# Keeps every open pull request honest about whether it can still merge into its base:
+# - a PR with merge conflicts gets the "needs-rebase" label and one comment (updated in place) listing
+#   the conflicting files and the exact commands to resolve them;
+# - the label and comment go away once the PR merges cleanly again.
+# It runs when develop/main move (every open PR may now conflict) and when a PR is opened or updated.
+# It never checks out or runs PR code: it only reads the GitHub API and computes conflicts with
+# `git merge-tree` on fetched refs, so pull_request_target is safe here.
+on:
+  push:
+    branches: [develop, main]
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+concurrency:
+  group: mergeability-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mergeability:
+    name: mergeability
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check out the base repository only (never PR code)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Label and comment PRs that conflict with their base
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ONLY_PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          gh label create needs-rebase --repo "$REPO" --color B60205 \
+            --description "Conflicts with its base branch; merge or rebase the latest base" 2>/dev/null || true
+
+          if [ -n "${ONLY_PR:-}" ]; then
+            prs="$ONLY_PR"
+          else
+            prs=$(gh pr list --repo "$REPO" --state open --limit 100 --json number --jq '.[].number')
+          fi
+
+          marker='<!-- mergeability-bot -->'
+          summary="### Mergeability\n| PR | Base | State |\n|---|---|---|\n"
+          for pr in $prs; do
+            info=$(gh pr view "$pr" --repo "$REPO" --json baseRefName,headRefName,isDraft,labels)
+            base=$(jq -r .baseRefName <<<"$info")
+            git fetch --quiet --no-tags origin "+refs/pull/$pr/head:refs/remotes/pr/$pr" "+refs/heads/$base:refs/remotes/origin/$base"
+
+            # merge-tree exits 1 and lists the conflicting paths when the merge would conflict.
+            if out=$(git merge-tree --write-tree --name-only --no-messages "origin/$base" "pr/$pr" 2>/dev/null); then
+              state=clean
+            else
+              state=conflict
+              files=$(tail -n +2 <<<"$out" | sed '/^$/d' | sort -u)
+            fi
+            behind=$(git rev-list --count "pr/$pr..origin/$base")
+            summary+="| #$pr | $base | $state, $behind commit(s) behind |\n"
+
+            existing=$(gh api "repos/$REPO/issues/$pr/comments" --paginate \
+              --jq ".[] | select(.body | startswith(\"$marker\")) | .id" | head -n1)
+
+            if [ "$state" = conflict ]; then
+              gh pr edit "$pr" --repo "$REPO" --add-label needs-rebase >/dev/null
+              body=$(printf '%s\n### :warning: This PR conflicts with `%s`\n\nConflicting files:\n%s\n\nResolve it locally (keep both sides'"'"' intent; never drop a teammate'"'"'s work, brief 10.7):\n```bash\ngit fetch origin\ngit merge origin/%s\n# fix the files above, then\ngit add -A && git commit\ngit push\n```\n' \
+                "$marker" "$base" "$(sed 's/^/- `/; s/$/`/' <<<"$files")" "$base")
+              if [ -n "$existing" ]; then
+                gh api -X PATCH "repos/$REPO/issues/comments/$existing" -f body="$body" >/dev/null
+              else
+                gh pr comment "$pr" --repo "$REPO" --body "$body" >/dev/null
+              fi
+            else
+              if jq -e '.labels[] | select(.name=="needs-rebase")' <<<"$info" >/dev/null; then
+                gh pr edit "$pr" --repo "$REPO" --remove-label needs-rebase >/dev/null
+              fi
+              if [ -n "$existing" ]; then
+                gh api -X DELETE "repos/$REPO/issues/comments/$existing" >/dev/null
+              fi
+            fi
+          done
+          printf '%b' "$summary" >> "$GITHUB_STEP_SUMMARY"
