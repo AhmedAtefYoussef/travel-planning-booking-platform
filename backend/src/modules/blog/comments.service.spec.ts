@@ -134,4 +134,16 @@ describe('CommentsService (BLG-05, ACC-12)', () => {
     ).rejects.toMatchObject({ status: 404 });
     expect(comments.create).not.toHaveBeenCalled();
   });
+
+  it('ACC-12 an author who deactivates between the check and the write gets no comment (404, nothing saved)', async () => {
+    users.findProfile
+      .mockResolvedValueOnce({ status: AccountStatus.Active })
+      .mockResolvedValueOnce({ status: AccountStatus.Deactivated });
+    posts.findOneAndUpdate.mockReturnValue(q({ _id: postId, authorId }));
+    await expect(
+      service.add(reader, postId.toHexString(), 'too late'),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(users.findProfile).toHaveBeenCalledTimes(2);
+    expect(comments.create).not.toHaveBeenCalled();
+  });
 });

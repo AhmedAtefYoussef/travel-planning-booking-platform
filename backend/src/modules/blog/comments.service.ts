@@ -67,16 +67,19 @@ export class CommentsService {
 
   /** BLG-05: comment on a published post (1-500 characters, checked by the DTO and the schema). */
   async add(user: AuthUser, postId: string, body: string): Promise<CommentDto> {
-    await this.assertPublicPost(postId);
+    const authorId = await this.assertPublicPost(postId);
     const comment = await this.connection.transaction(async (session) => {
       const post = await this.posts
         .findOneAndUpdate(
-          { _id: postId, ...PUBLIC_POST_FILTER },
+          { _id: postId, authorId, ...PUBLIC_POST_FILTER },
           { $inc: { commentCount: 1, interactionScore: 1 } },
           { session },
         )
         .exec();
       if (!post) throw postNotFound();
+      // ACC-12: the author may have deactivated since the check above; throwing aborts the
+      // transaction, so neither the comment nor the counter change is saved.
+      await this.assertAuthorActive(authorId);
       const [created] = await this.comments.create(
         [
           {
@@ -92,14 +95,23 @@ export class CommentsService {
     return this.toDto(comment);
   }
 
-  /** 404 unless the post is published, not hidden, and its author is not deactivated (ACC-12). */
-  private async assertPublicPost(postId: string): Promise<void> {
+  /**
+   * 404 unless the post is published, not hidden, and its author is not deactivated (ACC-12).
+   * Returns the author's id.
+   */
+  private async assertPublicPost(postId: string): Promise<Types.ObjectId> {
     const post = await this.posts
       .findOne({ _id: postId, ...PUBLIC_POST_FILTER }, { authorId: 1 })
       .lean<{ authorId: Types.ObjectId }>()
       .exec();
     if (!post) throw postNotFound();
-    const author = await this.users.findProfile(post.authorId.toHexString());
+    await this.assertAuthorActive(post.authorId);
+    return post.authorId;
+  }
+
+  /** ACC-12: a deactivated author's posts are hidden, so they answer 404 like an unknown post. */
+  private async assertAuthorActive(authorId: Types.ObjectId): Promise<void> {
+    const author = await this.users.findProfile(authorId.toHexString());
     if (author?.status === AccountStatus.Deactivated) throw postNotFound();
   }
 
