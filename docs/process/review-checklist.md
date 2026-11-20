@@ -37,7 +37,7 @@ The team leader (@AhmedAtefYoussef) is the only reviewer and the only person who
 ## 5. Behaviour and tests
 16. **Each business rule from the Jira acceptance criteria has a unit or e2e test.** That includes the edge cases: boundaries (00:00 local time, exactly at the threshold), the empty result, 404, 409, and inactive providers.
 17. **Time zones:** local input is converted with `common/utils/dates`. DST gaps and ambiguous times are rejected.
-18. **The reviewer has run the main happy path and one rejection in Swagger,** or the PR has evidence (screenshots or a pasted response).
+18. **The reviewer has run the main happy path and one rejection in Swagger,** or the PR has evidence (screenshots or a pasted response). Screenshots go to `docs/milestone-1-swagger-evidence` under `evidence/<area>/<req-id>/`, never into `develop`.
 
 ## 6. Docs and API
 19. **Swagger:**

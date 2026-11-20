@@ -2431,3 +2431,18 @@ departure and paged by 10 (GEN-05), with returnPage paging the return list. An u
 city, an itinerary without days and a return before departure are 400. I checked the defaults, the merging and
 the errors in unit tests, e2e with real flights and Swagger.
 ================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75), TRVL-136
+Prompt:
+Consolidate the Milestone 1 Swagger screenshots from the nine per-member evidence branches into one branch, capture
+the endpoints that had none, and check the traceability rows that were still Partial.
+How the output was used:
+Claude imported each evidence branch into docs/milestone-1-swagger-evidence as one commit crediting its author,
+captured the 41 missing endpoints in Swagger UI against an in-memory database with Stripe test mode, and generated
+an index of all 113 endpoints with 0 gaps. It also confirmed through the API that ITN-09 city-group subtotals already
+include budget entries and transport costs, so ITN-09 is Done. I reviewed the screenshots and the index.
+================================================
