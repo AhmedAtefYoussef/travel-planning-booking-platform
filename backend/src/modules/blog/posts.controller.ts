@@ -186,11 +186,19 @@ export class PostsController {
   @Get()
   @Public()
   @ApiOperation({
-    summary: 'BLG-02 Browse published posts',
+    summary: 'BLG-02 / BLG-09 Browse or search published posts',
     description:
-      'Published, non-hidden posts with title, author, date, excerpt, tags, like and comment counts; newest first, 10 per page. tag filters by one tag (BLG-08), ignoring case.',
+      'Published, non-hidden posts with title, author, date, excerpt, tags, like and comment counts; 10 per page. tag filters by one tag (BLG-08). Without q the newest come first. q searches the title, the tags and the author name ignoring case (BLG-09) and orders results by interaction score (likes + comments) descending, newest first on a tie. No match returns an empty page (total 0): the "no results" state.',
   })
   @ApiQuery({ name: 'tag', required: false, example: 'egypt' })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    examples: {
+      keyword: { summary: 'Search for cairo', value: 'cairo' },
+      none: { summary: 'No results', value: 'zzzz-no-such-post' },
+    },
+  })
   @ApiQuery(PAGE_QUERY)
   @ApiPaginatedResponse(PostSummaryDto)
   @ApiErrorResponses(400)
