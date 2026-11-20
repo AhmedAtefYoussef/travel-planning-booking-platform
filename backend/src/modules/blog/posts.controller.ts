@@ -8,6 +8,8 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -18,6 +20,7 @@ import {
   ApiParam,
   ApiQuery,
   ApiTags,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { CurrentUser, Roles, Public } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
@@ -34,6 +37,7 @@ import {
 import { LikeStateDto } from './dto/like.dto';
 import {
   CreatePostDto,
+  ListPostsQueryDto,
   PostDto,
   PostSummaryDto,
   UpdatePostDto,
@@ -42,6 +46,11 @@ import { LikesService } from './likes.service';
 import { PostsService } from './posts.service';
 import { CommentsService } from './comments.service';
 import { CommentBodyDto, CommentDto } from './dto/comment.dto';
+import {
+  UPLOAD_LIMITS,
+  type UploadedFileLike,
+} from '../../common/contracts/services.contract';
+import { ImageFilesInterceptor } from '../uploads';
 
 const POST_ID_PARAM = {
   name: 'id',
@@ -174,6 +183,21 @@ export class PostsController {
     return this.posts.remove(user, id);
   }
 
+  @Get()
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 Browse published posts',
+    description:
+      'Published, non-hidden posts with title, author, date, excerpt, tags, like and comment counts; newest first, 10 per page. tag filters by one tag (BLG-08), ignoring case.',
+  })
+  @ApiQuery({ name: 'tag', required: false, example: 'egypt' })
+  @ApiQuery(PAGE_QUERY)
+  @ApiPaginatedResponse(PostSummaryDto)
+  @ApiErrorResponses(400)
+  list(@Query() query: ListPostsQueryDto): Promise<Page<PostSummaryDto>> {
+    return this.posts.listPublic(query);
+  }
+
   /** Declared before GET :id so "mine" is never read as an id. */
   @Get('mine')
   @Roles(Role.User)
@@ -242,6 +266,84 @@ export class PostsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<LikeStateDto> {
     return this.likes.unlike(user, id);
+  }
+
+  @Post(':id/images')
+  @Roles(Role.User)
+  @UseInterceptors(
+    ImageFilesInterceptor('images', UPLOAD_LIMITS.maxImagesPerEntity),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'BLG-10 / GEN-08 Upload post images',
+    description:
+      'Send 1-5 JPG or PNG files in the multipart field "images", each at most 5 MB. A post has at most 5 images in all. The type is read from the file content, so a renamed text file is refused. Any problem refuses the whole batch with 400 and fieldErrors on "images"; nothing is stored. The public URLs (/uploads/posts/<imageId>.jpg|png) are added to images. Only the author may upload.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiBody({
+    description:
+      'multipart/form-data with 1-5 files in "images" (JPG or PNG, 5 MB each). Invalid: a 6th image, a file over 5 MB, a PDF or text file.',
+    schema: {
+      type: 'object',
+      required: ['images'],
+      properties: {
+        images: {
+          type: 'array',
+          minItems: 1,
+          maxItems: UPLOAD_LIMITS.maxImagesPerEntity,
+          items: { type: 'string', format: 'binary' },
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({
+    type: PostDto,
+    description: 'The post, with the new /uploads/posts/... URLs in images',
+  })
+  @ApiErrorResponses(400, 404)
+  addImages(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @UploadedFiles() files: UploadedFileLike[] | undefined,
+  ): Promise<PostDto> {
+    return this.posts.addImages(user, id, files ?? []);
+  }
+
+  @Delete(':id/images/:imageId')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-10 Remove an uploaded post image',
+    description:
+      'Removes the image from the post and deletes its file. imageId is the UUID in the image URL (/uploads/posts/<imageId>.png); a malformed id is 400, an id this post does not have is 404. Only the author may remove images.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiParam({
+    name: 'imageId',
+    description: 'Image id (UUID) from the image URL',
+    example: '3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e',
+  })
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  removeImage(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Param('imageId') imageId: string,
+  ): Promise<PostDto> {
+    return this.posts.removeImage(user, id, imageId);
+  }
+
+  @Get(':id')
+  @Public()
+  @ApiOperation({
+    summary: 'BLG-02 View a published post',
+    description:
+      'Title, author, date, body, tags, images and like and comment counts. Comments are listed separately (added by BLG-05). Drafts and hidden posts are 404 here; their author opens them from their own posts (added by BLG-03).',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  get(@Param('id', ParseObjectIdPipe) id: string): Promise<PostDto> {
+    return this.posts.getPublic(id);
   }
 
   @Get(':id/comments')

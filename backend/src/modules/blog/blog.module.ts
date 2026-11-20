@@ -1,9 +1,12 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ItinerariesModule } from '../itineraries';
+import { AuthorsController } from './authors.controller';
 import { CommentsController } from './comments.controller';
 import { CommentsService } from './comments.service';
 import { LikesService } from './likes.service';
 import { PostsController } from './posts.controller';
+import { PostModerationAdapter } from './post-moderation.adapter';
 import { PostsService } from './posts.service';
 import { TagsController } from './tags.controller';
 import { Comment, CommentSchema } from './schemas/comment.schema';
@@ -22,8 +25,20 @@ import { Post, PostSchema } from './schemas/post.schema';
       { name: Comment.name, schema: CommentSchema },
       { name: Like.name, schema: LikeSchema },
     ]),
+    // PUBLIC_ITINERARIES for the BLG-12 author page.
+    ItinerariesModule,
   ],
-  controllers: [PostsController, TagsController, CommentsController],
-  providers: [PostsService, LikesService, CommentsService],
+  controllers: [
+    PostsController,
+    TagsController,
+    AuthorsController,
+    CommentsController,
+  ],
+  providers: [
+    PostsService,
+    LikesService,
+    CommentsService,
+    PostModerationAdapter,
+  ],
 })
 export class BlogModule {}

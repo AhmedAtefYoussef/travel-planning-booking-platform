@@ -114,6 +114,18 @@ function setup(
   } as unknown as UploadsService;
   const budgets = {
     deleteForItinerary: jest.fn(() => Promise.resolve()),
+    dayTotals: jest.fn(() =>
+      Promise.resolve(
+        stored
+          ? [
+              {
+                dayId: stored.days[0]._id.toHexString(),
+                amounts: [{ currency: 'USD', amountMinor: 3000 }],
+              },
+            ]
+          : [],
+      ),
+    ),
   } as unknown as ItineraryBudgets;
   const session = {
     withTransaction: jest.fn(async (fn: () => Promise<void>) => fn()),
@@ -260,6 +272,45 @@ describe('ItinerariesService (ITN-01, ITN-03, ITN-20)', () => {
         service.update(stranger, stored.id, { title: 'Mine now' }),
       ).rejects.toMatchObject({ status: 404 });
       expect(itineraries.findOneAndUpdate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('city groups (ITN-09)', () => {
+    it("adds the budgets port's day totals to the activity costs of each city group", async () => {
+      const stored = storedItinerary();
+      const { service, budgets } = setup(stored, {
+        budgets: true,
+        activities: [
+          {
+            _id: new Types.ObjectId(),
+            itineraryId: stored._id,
+            dayId: stored.days[0]._id,
+            name: 'Pyramids',
+            description: 'Tour',
+            costMinor: 50000,
+            currency: 'EGP',
+            images: [],
+          },
+        ],
+      });
+      const detail = await service.getMine(owner, stored.id);
+      expect(budgets.dayTotals).toHaveBeenCalledWith(stored.id);
+      expect(detail.cityGroups.map((g) => [g.cityId, g.subtotals])).toEqual([
+        [
+          'cairo',
+          [
+            { currency: 'EGP', amountMinor: 50000 },
+            { currency: 'USD', amountMinor: 3000 },
+          ],
+        ],
+        ['luxor', []],
+      ]);
+    });
+
+    it('counts activity costs only without the budgets port', async () => {
+      const stored = storedItinerary();
+      const detail = await setup(stored).service.getMine(owner, stored.id);
+      expect(detail.cityGroups.map((g) => g.subtotals)).toEqual([[], []]);
     });
   });
 
