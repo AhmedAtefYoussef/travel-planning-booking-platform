@@ -84,12 +84,12 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | #24, #55 | Done |
 | HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |
 | HTL-06 | Mandatory | POST\|DELETE /api/hotels/:id/rooms/:roomId/blocks; PATCH /api/hotels/:id/rooms/:roomId (isActive); DELETE /api/hotels/:id/rooms/:roomId | Sandra | TRVL-52 | #87, #102 | Done |
-| HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | - | Not started |
+| HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | #122 | Done |
 | HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #86, #89 | Done |
 | HTL-10 | Mandatory | PUT /api/hotels/:id/policies | Ahmed | TRVL-55 | #4, #86 | Done |
 | HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | #102 | Done |
-| HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | - | Not started |
-| HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | - | Not started |
+| HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | #115 | Done |
+| HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | #121 | Done |
 | HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60 | Done |
 | HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60, #62, #71 | Done |
 | HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60 | Done |
@@ -160,9 +160,9 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4, #69, #84, #118 | Done |
 | GEN-08 | Mandatory | UPLOADS_SERVICE + ImageFilesInterceptor; POST /api/hotels/:id/images; DELETE /api/hotels/:id/images/:imageId; PUT /api/airlines/:id/logo; GET /uploads/... (static); posts and activities via BLG-10, ITN-12 | Ahmed | TRVL-103 | #66 | Done |
-| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106 | Partial: report endpoint, once-per-item index, CONTENT_MODERATION port, itinerary and post adapters done; reviews can now be created (HTL-23, #112) but have no adapter yet; comments need one once BLG-05 lands (TRVL-180) |
+| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116 | Partial: report endpoint, once-per-item index, CONTENT_MODERATION port, itinerary, post and review adapters done; the comment adapter remains now that BLG-05 is on develop (#97, TRVL-180) |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118 | Partial: report list, resolve (dismiss, hide, delete), direct hide and delete for posts and itineraries, audit entries; comment adapter once BLG-05 is on develop, review moderation once #116 lands |
-| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111 | Partial: transition guard, schemas, Confirmed -> Completed job (#57), Pending -> Expired for flight holds (#59) and hotel holds (#60) done; Confirmed -> Cancelled: the flight half is done (FLT-26, #72, #85) and the hotel half is done through HTL-21 (#105), both on the shared cancellation core in bookings/booking-cancellation.ts; an airline cancelling a flight (FLT-06, #111) cancels its Confirmed bookings through the same core and moves its holds to Expired; only the full transition-matrix test (a later PR) remains |
+| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111, #117 | Done |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3, #55 | Done |
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | #43 | Done |

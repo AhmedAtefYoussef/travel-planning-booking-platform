@@ -181,8 +181,8 @@ are in the future, so that case cannot be reached in this walkthrough; the e2e t
 
 Run this after Part 4, as a traveller who is ACTIVE (Part 5 suspends and then reactivates the traveller). Step 1 creates a
 public itinerary; step 2 switches to a second traveller, because you can report your own content but the demo reads better
-with someone else's. Reports are filed once per user and item. Posts and itineraries can be reported; comments and reviews
-answer 404 until their modules are merged. Part 8 resolves these reports as an administrator.
+with someone else's. Reports are filed once per user and item. Posts, itineraries and hotel reviews can be reported (a review as `targetType` `REVIEW`: 201, a repeat 409);
+comments answer 404 until their report adapter lands (TRVL-180). Part 8 resolves these reports as an administrator.
 
 | # | Call | Body or query | Expect |
 |---|---|---|---|
@@ -193,7 +193,7 @@ answer 404 until their modules are merged. Part 8 resolves these reports as an a
 | 5 | `POST /api/reports` | `{"targetType":"POST","targetId":"{postId}","reason":"Offensive language"}` | 201 for `{postId}`, a PUBLISHED post of another user (create one with `POST /api/posts` `{"title":"Three days in Cairo","body":"Museums and markets","status":"PUBLISHED"}` as that user); a draft of another user gives 404 (GEN-09) |
 | 6 | `POST /api/reports` | `{"targetType":"HOTEL","targetId":"123","reason":"   "}` | 400 `VALIDATION_FAILED`; `fieldErrors` name `targetType`, `targetId` and `reason` |
 | 7 | `POST /api/reports` (as `ADMIN_SEED_EMAIL`, Part 1) | `{"targetType":"ITINERARY","targetId":"{itineraryId}","reason":"Spam"}` | 403: only registered travellers report |
-| 8 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"<unknown 24-character id>","reason":"Spam"}` | 404 `NOT_FOUND`, with the same message as for a private itinerary of someone else; `COMMENT` and `REVIEW` targets also give 404 for now |
+| 8 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"<unknown 24-character id>","reason":"Spam"}` | 404 `NOT_FOUND`, with the same message as for a private itinerary of someone else; `COMMENT` targets also give 404 for now |
 
 ## 8. Moderation (GEN-10)
 
