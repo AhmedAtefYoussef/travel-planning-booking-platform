@@ -5,8 +5,7 @@ Airline moderator, then Hotel moderator, then Traveller. Each step is one call: 
 that works, and the status to expect. Error cases at the end of each part show the shared error envelope
 (`docs/api/conventions.md`).
 
-The script lists only what is merged on `develop`. Steps for stories that are still open (moderation GEN-10,
-blog and itineraries) are added here when they merge; hotel cancellation (HTL-21) is in Part 6 and reports (GEN-09) in Part 7; their status is in `docs/requirements/traceability.md`.
+The script lists only what is merged on `develop`. Steps for stories that are still open (blog and itineraries) are added here when they merge; hotel cancellation (HTL-21) is in Part 6, reports (GEN-09) in Part 7 and moderation (GEN-10) in Part 8; their status is in `docs/requirements/traceability.md`.
 
 ## 0. Before you start
 
@@ -55,7 +54,7 @@ Log in as `ADMIN_SEED_EMAIL`. Steps 4 to 6 are alternative path B (your own prov
 | 6 | `POST /api/admin/moderators` (path B) | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{walkAirlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"name":"Walk Hotel Mod"`, `"email":"walk.hotel@example.com"`, `"role":"HOTEL_MODERATOR"` and `{walkHotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
 | 7 | `GET /api/admin/accounts` | `?q=demo&role=USER&status=ACTIVE` | 200, paginated, 10 per page (ACC-14) |
 | 8 | `POST /api/admin/users/{id}/reset-password` | `{"temporaryPassword":"Temp2026x"}` | 204; the user must change it at next login (ACC-07a) |
-| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): the moderators created in step 6 and the reset in step 8. The seeded demo moderators are not admin actions, so with the seed alone the list is empty. Part 5 adds the suspension and deactivation entries; moderation actions are recorded once GEN-10 merges |
+| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): the moderators created in step 6 and the reset in step 8. The seeded demo moderators are not admin actions, so with the seed alone the list is empty. Part 5 adds the suspension and deactivation entries; Part 8 adds the moderation entries |
 | 10 | `GET /api/currencies/rates`, `GET /api/currencies/convert` | `?amountMinor=10000&from=USD&to=EUR` | 200 (ITN-18); 503 if the exchange-rate service is unreachable |
 
 Error cases worth showing: step 4 as a traveller gives 403 `FORBIDDEN`; any admin call without logging in gives
@@ -183,7 +182,7 @@ are in the future, so that case cannot be reached in this walkthrough; the e2e t
 Run this after Part 4, as a traveller who is ACTIVE (Part 5 suspends and then reactivates the traveller). Step 1 creates a
 public itinerary; step 2 switches to a second traveller, because you can report your own content but the demo reads better
 with someone else's. Reports are filed once per user and item. Posts, itineraries and hotel reviews can be reported (a review as `targetType` `REVIEW`: 201, a repeat 409);
-comments answer 404 until their module is merged. Hiding a reported item waits for GEN-10.
+comments answer 404 until their report adapter lands (TRVL-180). Part 8 resolves these reports as an administrator.
 
 | # | Call | Body or query | Expect |
 |---|---|---|---|
@@ -196,7 +195,30 @@ comments answer 404 until their module is merged. Hiding a reported item waits f
 | 7 | `POST /api/reports` (as `ADMIN_SEED_EMAIL`, Part 1) | `{"targetType":"ITINERARY","targetId":"{itineraryId}","reason":"Spam"}` | 403: only registered travellers report |
 | 8 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"<unknown 24-character id>","reason":"Spam"}` | 404 `NOT_FOUND`, with the same message as for a private itinerary of someone else; `COMMENT` targets also give 404 for now |
 
-## 8. Not part of the script
+## 8. Moderation (GEN-10)
+
+Run this after Part 7, logged in as the administrator (Part 1). Part 7 left two OPEN reports: the post report from step 5
+(`{postReportId}`, the post is `{postId}`) and the itinerary report from step 3 (`{itineraryReportId}`, the itinerary is
+`{itineraryId}`). `{authorId}` is the post author's `id`. Hiding removes the content from public reads, but its author
+still sees it; deleting removes it. Every change is audited (GEN-07).
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `GET /api/admin/reports` | | 200, `status` `OPEN` by default and newest first, so the post report comes first; 10 per page (GEN-10). `resolvedBy` is null |
+| 2 | `PATCH /api/admin/reports/{postReportId}` | `{"action":"HIDE","note":"Offensive language, hidden after review"}` | 200, `status` `HIDDEN`, `resolvedBy` your admin id, `resolutionNote` as sent and `otherReportsResolved` 0 (GEN-10) |
+| 3 | `GET /api/authors/{authorId}` (no login) | | 200, the post is gone from `posts`, and `posts.total` is one lower than before the hide |
+| 4 | `GET /api/posts/mine/{postId}` (as the post's author, in a private window) | | 200, `isHidden` true: the author still sees the post. As anyone else the same call gives 404 |
+| 5 | `PATCH /api/admin/reports/{postReportId}` again | `{"action":"DISMISS"}` | 409 `REPORT_ALREADY_RESOLVED`; nothing changes |
+| 6 | `PATCH /api/admin/content/post/{postId}/hide` | | 409 `CONTENT_ALREADY_HIDDEN`: the post is already hidden |
+| 7 | `DELETE /api/admin/content/itinerary/{itineraryId}` | | 200, `outcome` `DELETED` and `reportsResolved` 1: the itinerary report from Part 7 step 3 is closed as `DELETED` and kept. `GET /api/admin/reports?status=DELETED` lists it. Repeating the call gives 404 `NOT_FOUND` |
+| 8 | `GET /api/admin/audit-logs` | `?action=RESOLVE_REPORT`, then `?action=HIDE_CONTENT`, then `?action=DELETE_CONTENT` | 200, newest first, with the admin as actor: `RESOLVE_REPORT` on target `REPORT` with the note as `reason`, `HIDE_CONTENT` on `POST`, `DELETE_CONTENT` on `ITINERARY`. Metadata holds only ids and counts (GEN-07) |
+| 9 | `PATCH /api/admin/reports/{itineraryReportId}` (as a traveller, Part 4) | `{"action":"DISMISS"}` | 403. Without a session the same call gives 401 |
+
+Error cases: `PATCH /api/admin/content/hotel/{id}/hide` and `DELETE /api/admin/content/POST/{id}` (the segment must be
+lower case) give 400 `VALIDATION_FAILED` with the `type` field. Comment and review content have no moderation adapter
+yet, so their reports and direct calls are not part of this walkthrough.
+
+## 9. Not part of the script
 
 `GET /api/health` is the liveness check. The `Diagnostics (dev only)` Swagger tag (`/api/diagnostics/*`) exists
 only outside production, to exercise the shared validation, pagination and error rules; it is not a feature.
