@@ -2397,3 +2397,37 @@ accounts tells whether the cached id list is current, and the list is read again
 which is also correct across instances. The blog filter and a new public-itinerary filter use it. I checked the
 cache with unit tests and the hiding of search, detail and clone in e2e.
 ================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-25 (TRVL-83)
+Prompt:
+Let the owner of an itinerary find hotels for one of its city groups: check-in on the group's first day,
+check-out the day after its last, in the group's city, for the guests and rooms they enter. Reuse Sandra's HTL-11
+search instead of searching hotels again, and keep working before HTL-11 is merged.
+How the output was used:
+Claude calls the shared HOTELS_SEARCH token, injected @Optional() so the route answers 503 SERVICE_UNAVAILABLE
+until HTL-11 provides it. It imports HotelsModule, which is not global, so the provider reaches this module as
+soon as it is exported there; a unit test guards that wiring. HTL-11's 400 field errors pass through unchanged.
+I checked the dates and the group choice with a fake search, and, once HTL-11 merged (#102), the real search
+with seeded hotels in e2e; I confirmed the contract with Sandra.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-26 (TRVL-84)
+Prompt:
+Let the owner of an itinerary search flights from an origin airport to the city of its first day, one way or
+round trip, with the start date as the default departure and the last day as the default return. Reuse the
+FLT-11/FLT-12 flight search instead of writing a new one.
+How the output was used:
+Claude resolves every airport of the first day's city and calls the shared FLIGHTS_SEARCH for each, outbound and
+for a round trip back to the origin. One airport passes the page through; several airports are merged, sorted by
+departure and paged by 10 (GEN-05), with returnPage paging the return list. An unknown origin or one in the same
+city, an itinerary without days and a return before departure are 400. I checked the defaults, the merging and
+the errors in unit tests, e2e with real flights and Swagger.
+================================================
