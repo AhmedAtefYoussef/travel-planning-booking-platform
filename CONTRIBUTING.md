@@ -38,6 +38,7 @@ The allowed scopes are listed in `commitlint.config.cjs`. The husky `commit-msg`
 ## Pull requests
 
 1. Open the PR into `develop` and fill in every section of the template: Summary, Jira key, requirement IDs, `AI-assisted: yes/no`, Swagger test steps, and the checklist.
+   Open it with `npm run pr:open -- --title "<conventional title>" --body-file <file>` (from the repository root). Write `#PR` in your requirement's PR column of `docs/requirements/traceability.md` while you work: the script opens the PR, replaces `#PR` with the real number, commits and pushes, so `pr-governance` passes on the first run. A `#PR` left behind fails the matrix check.
 2. These checks must pass:
 
 | Check | What it verifies |
@@ -52,28 +53,7 @@ The allowed scopes are listed in `commitlint.config.cjs`. The husky `commit-msg`
 3. Request a review from the team leader (@AhmedAtefYoussef). They are the only reviewer, the only approval that counts (CODEOWNERS), and the only person who merges. **Do not press Merge yourself**, even when the PR shows as mergeable. Check your own diff against [docs/process/review-checklist.md](docs/process/review-checklist.md) before you ask, and resolve every important comment. Merges use **"Create a merge commit"** (what the history uses since #1). Sync your branch with `git pull --rebase origin develop` rather than merging `develop` into it, so the history does not fill with "bring develop into this branch" commits.
 4. Add the label `no-trace` only for pure refactors that change no requirement behaviour.
 5. Keep PRs small and open them early: one requirement per PR, opened within a day of starting. Never stack a PR on another feature branch: CI, CodeQL and gitleaks only run for PRs into `develop` or `main`.
-
-## Definition of Done (every Jira story)
-
-- DTOs validated with class-validator; invalid input returns 400 with `fieldErrors` (GEN-02, GEN-13)
-- Role, ownership or provider-scope checks enforced in the backend (ACC-11)
-- Swagger: tagged, summary starts with the requirement ID, request/response examples, 400/401/403/404/409 documented
-- Unit or e2e test covers the business rule
-- Demoed in Swagger during PR review; PR references the Jira key and requirement ID; merged to `develop`
-- `docs/requirements/traceability.md` row updated; `AI_PROMPTS.txt` entry added if AI materially helped
-
-## AI usage (brief section 11)
-
-AI tools are allowed, and their use must be recorded. Add an entry to `AI_PROMPTS.txt` for every prompt that materially shaped your code, in the format at the top of that file, and set `AI-assisted: yes` in your PR. Never paste credentials, connection strings or `.env` contents into an AI tool. You must be able to explain every line you submit.
-
-Append your entry at the bottom of `AI_PROMPTS.txt` and never edit an existing entry: pr-governance rejects any PR that changes or deletes earlier lines. A repair the team leader approves (like #26) carries the `ai-log-fix` label. When two PRs both append an entry, the second one to merge gets a conflict in `AI_PROMPTS.txt`. Resolve it by keeping **both** entries, each between its own separator lines, with the newer one last. Do not let Git auto-merge the file with `merge=union`: entries share identical lines (separators, `Date:`, `Student:`), so union merging silently drops headers. Check the log before you push with `node .github/scripts/check-repo-hygiene.mjs`. It fails when an entry is missing a field, an entry got kept twice, or a merge left conflict markers anywhere in the repo.
-
-## Releases (team leader)
-
-Milestone releases go from `develop` to `main`, then get a tag, for example `v1.0.0-m1` for Milestone 1 (TRVL-136):
-
-1. Preview the notes: Actions > Release > Run workflow on `develop`, or locally `node .github/scripts/release-notes.mjs develop --title v1.0.0-m1`.
-2. Merge the `develop` into `main` PR.
-3. Tag `main` and push the tag: `git checkout main && git pull && git tag v1.0.0-m1 && git push origin v1.0.0-m1`.
-
-The Release workflow refuses a tag that is not on `main`. It publishes a GitHub release whose notes group the merged PRs by type and list every requirement ID they cite, and it attaches `openapi.json`. The notes come from PR titles, so a clear Conventional Commit title with its requirement ID is what makes the release notes readable.
+6. Automation you will see on your PR:
+   - **Mergeability**: when `develop` moves or your PR is updated, a PR that conflicts with its base gets the `needs-rebase` label and one comment listing the conflicting files and the commands to fix them. Both disappear once it merges cleanly.
+   - **Jira sync**: every `TRVL-<n>` key in the title, branch or `Jira:` line gets a comment with the PR link. The issue moves To Do → In Progress when the PR opens and → Done when it merges into `develop` (it stays In Progress if the body marks that key `Partial`). It needs the repository secrets `JIRA_BASE_URL`, `JIRA_USER_EMAIL` and `JIRA_API_TOKEN`, an API token from https://id.atlassian.com/manage-profile/security/api-tokens. Without them it only logs a notice.
+   - **Stale branches** (weekly): one issue labelled `stale-branches` lists branches merged into `develop`, or idle 14+ days with no open PR. Nothing is deleted automatically.
