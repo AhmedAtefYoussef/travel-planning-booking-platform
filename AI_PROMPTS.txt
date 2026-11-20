@@ -2367,3 +2367,18 @@ workflow that comments and transitions cited TRVL issues and no-ops without secr
 replaces a #PR placeholder with the real PR number. The matrix check now rejects a leftover #PR. I reviewed the
 permissions of each workflow and ran the governance script tests.
 ================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-09 (TRVL-104), GEN-10 (TRVL-105), TRVL-180
+Prompt:
+Audit develop against the Milestone 1 endpoint list and close the remaining gaps. Reporting or moderating a
+blog comment answered 404 because no comment adapter was registered with CONTENT_MODERATION.
+How the output was used:
+Claude added CommentModerationAdapter, mirroring the post adapter: a comment is public only while its post is
+published and not hidden, hide/unhide is a conditional update, and delete lowers the post's comment count in
+the same transaction as BLG-07. The e2e content factory now writes real comments instead of registering an
+in-memory fake. I checked report, hide and delete of a real comment in unit tests, e2e and Swagger.
+================================================
