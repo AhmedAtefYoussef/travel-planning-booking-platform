@@ -10,6 +10,7 @@ import {
 } from '../../common/contracts/tokens';
 import { AppException } from '../../common/errors/app.exception';
 import { Activity, Itinerary, ItineraryVisibility } from '../itineraries';
+import { UsersService } from '../users';
 import { BudgetsService } from './budgets.service';
 import { BudgetCategory, BudgetEntry } from './schemas/budget-entry.schema';
 import { TransportCost, TransportMode } from './schemas/transport-cost.schema';
@@ -23,8 +24,8 @@ const q = <T>(value: T) => ({
 const statusOf = async (p: Promise<unknown>) =>
   ((await p.catch((e: unknown) => e)) as AppException).getStatus();
 
-/** ITN-14 rules, without a database: budget entries, ownership and the totals by category and day. */
-describe('BudgetsService budget entries (ITN-14)', () => {
+/** ITN-14 / ITN-18 rules, without a database: budget entries, ownership and the converted totals. */
+describe('BudgetsService budget entries and summary (ITN-14, ITN-18)', () => {
   const owner = { id: new Types.ObjectId().toHexString(), role: Role.User };
   const stranger = { id: new Types.ObjectId().toHexString(), role: Role.User };
   const day1 = new Types.ObjectId();
@@ -68,11 +69,20 @@ describe('BudgetsService budget entries (ITN-14)', () => {
   };
   const currency = {
     supportedCurrencies: jest.fn(() => Promise.resolve(['EGP', 'EUR', 'USD'])),
-    convert: jest.fn((amountMinor: number) =>
-      Promise.resolve({ amountMinor: amountMinor * 50 }),
+    convert: jest.fn((amountMinor: number, from: string) =>
+      Promise.resolve({
+        amountMinor: amountMinor * 50,
+        rate: 50,
+        rateDate: from === 'USD' ? '2026-11-17' : '2026-11-18',
+      }),
     ),
   };
   const config = { get: jest.fn(() => 'EGP') };
+  const users = {
+    findProfile: jest.fn(() =>
+      Promise.resolve<{ preferredCurrency?: string } | null>({}),
+    ),
+  };
   let service: BudgetsService;
 
   beforeAll(async () => {
@@ -86,6 +96,7 @@ describe('BudgetsService budget entries (ITN-14)', () => {
         { provide: CURRENCY_SERVICE, useValue: currency },
         { provide: REFERENCE_SERVICE, useValue: {} },
         { provide: ConfigService, useValue: config },
+        { provide: UsersService, useValue: users },
       ],
     }).compile();
     service = moduleRef.get(BudgetsService);
@@ -245,5 +256,39 @@ describe('BudgetsService budget entries (ITN-14)', () => {
     expect(
       await statusOf(service.summary(owner, itinerary._id.toHexString())),
     ).toBe(HttpStatus.NOT_FOUND);
+  });
+
+  it('ITN-18 converts to ?currency=, else the preferred currency, else the platform currency, and lists the rates used', async () => {
+    const id = itinerary._id.toHexString();
+    // No converting needed: no rate date.
+    await expect(service.summary(owner, id)).resolves.toMatchObject({
+      currency: 'EGP',
+      rateDate: null,
+      rates: [],
+    });
+
+    users.findProfile.mockResolvedValueOnce({ preferredCurrency: 'EUR' });
+    entries.find.mockReturnValueOnce(q([entry]));
+    const preferred = await service.summary(owner, id);
+    expect(preferred.currency).toBe('EUR');
+    expect(currency.convert).toHaveBeenCalledWith(500, 'EGP', 'EUR');
+
+    currency.convert.mockClear();
+    entries.find.mockReturnValueOnce(
+      q([entry, { ...entry, _id: new Types.ObjectId(), currency: 'USD' }]),
+    );
+    const chosen = await service.summary(owner, id, 'EUR');
+    expect(users.findProfile).toHaveBeenCalledTimes(2);
+    expect(chosen.rates.map((r) => r.from)).toEqual(['EGP', 'USD']);
+    expect(chosen.rateDate).toBe('2026-11-17');
+    expect(chosen.totalMinor).toBe(50_000);
+
+    users.findProfile.mockResolvedValueOnce(null);
+    await expect(service.summary(owner, id)).resolves.toMatchObject({
+      currency: 'EGP',
+    });
+    expect(await statusOf(service.summary(owner, id, 'XXX'))).toBe(
+      HttpStatus.BAD_REQUEST,
+    );
   });
 });

@@ -24,6 +24,7 @@ import {
   itineraryDayDate,
   ItineraryVisibility,
 } from '../itineraries';
+import { UsersService } from '../users';
 import {
   emptyByCategory,
   groupBudgetItems,
@@ -36,6 +37,7 @@ import type {
   CreateBudgetEntryDto,
   CreateTransportCostDto,
   DayTotalDto,
+  RateUsedDto,
   TransportCostDto,
   UpdateBudgetEntryDto,
   UpdateTransportCostDto,
@@ -62,10 +64,10 @@ type TransportLike = TransportCost & { _id: Types.ObjectId };
 const ITINERARY_NOT_FOUND = 'Itinerary not found';
 
 /**
- * Itinerary budgets (ITN-14) and intercity transport costs (ITN-16). Only the itinerary's owner adds,
- * edits or deletes amounts (ACC-11); a private itinerary answers 404 to anyone else, exactly like an
- * unknown id. Amounts are stored in the currency the user chose and converted only for display (PAY-04),
- * with the newest cached daily rate.
+ * Itinerary budgets (ITN-14), intercity transport costs (ITN-16) and the converted budget summary
+ * (ITN-18). Only the itinerary's owner adds, edits or deletes amounts (ACC-11); a private itinerary
+ * answers 404 to anyone else, exactly like an unknown id. Amounts are stored in the currency the user
+ * chose and converted only for display (PAY-04), with the newest cached daily rate.
  */
 @Injectable()
 export class BudgetsService {
@@ -76,6 +78,7 @@ export class BudgetsService {
     private readonly transports: Model<TransportCost>,
     @InjectModel(Itinerary.name) private readonly itineraries: Model<Itinerary>,
     @InjectModel(Activity.name) private readonly activities: Model<Activity>,
+    private readonly users: UsersService,
     @Inject(CURRENCY_SERVICE) private readonly currency: CurrencyService,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
     private readonly config: ConfigService<EnvironmentVariables, true>,
@@ -218,15 +221,18 @@ export class BudgetsService {
   }
 
   /**
-   * Totals by category and by day, converted to the platform currency (ITN-18 adds the caller's
-   * preferred currency). Budget entries, activity costs (under ACTIVITIES) and intercity transport
+   * Totals by category and by day, converted to `target` (else the caller's preferred currency, else
+   * the platform currency). Budget entries, activity costs (under ACTIVITIES) and intercity transport
    * all count. Amounts on a day that no longer exists are left out.
    */
   async summary(
     user: AuthUser,
     itineraryId: string,
+    target?: string,
   ): Promise<BudgetSummaryDto> {
     const itinerary = await this.loadViewable(user, itineraryId);
+    const currency = target ?? (await this.preferredCurrency(user));
+    await this.assertCurrency(currency);
 
     const [entries, transports, activities] = await Promise.all([
       this.entries
@@ -244,7 +250,6 @@ export class BudgetsService {
     ]);
 
     const platform = this.config.get('PLATFORM_CURRENCY', { infer: true });
-    const currency = platform;
     const items: BudgetItem[] = [
       ...entries.map((e) => ({
         dayId: e.dayId.toHexString(),
@@ -281,6 +286,7 @@ export class BudgetsService {
       ]),
     );
     const byCategory = emptyByCategory();
+    const rates = new Map<string, RateUsedDto>();
     let totalMinor = 0;
 
     for (const group of groupBudgetItems(items)) {
@@ -294,6 +300,11 @@ export class BudgetsService {
           currency,
         );
         converted = result.amountMinor;
+        rates.set(group.currency, {
+          from: group.currency,
+          rate: result.rate,
+          rateDate: result.rateDate,
+        });
       }
       day.byCategory[group.category] += converted;
       day.totalMinor += converted;
@@ -301,12 +312,19 @@ export class BudgetsService {
       totalMinor += converted;
     }
 
+    const rateList = [...rates.values()].sort((a, b) =>
+      a.from.localeCompare(b.from),
+    );
     return {
       itineraryId: itinerary._id.toHexString(),
       currency,
       totalMinor,
       byCategory,
       byDay: [...byDay.values()],
+      rateDate: rateList.length
+        ? rateList.map((r) => r.rateDate).sort()[0]
+        : null,
+      rates: rateList,
     };
   }
 
@@ -400,6 +418,14 @@ export class BudgetsService {
         },
       ]);
     }
+  }
+
+  private async preferredCurrency(user: AuthUser): Promise<string> {
+    const profile = await this.users.findProfile(user.id);
+    return (
+      profile?.preferredCurrency ??
+      this.config.get('PLATFORM_CURRENCY', { infer: true })
+    );
   }
 }
 

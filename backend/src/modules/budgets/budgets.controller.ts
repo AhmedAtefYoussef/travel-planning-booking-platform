@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBody,
@@ -26,6 +27,7 @@ import { BudgetsService } from './budgets.service';
 import {
   BudgetEntryDto,
   BudgetSummaryDto,
+  BudgetSummaryQueryDto,
   CreateBudgetEntryDto,
   CreateTransportCostDto,
   TransportCostDto,
@@ -49,8 +51,8 @@ const DAY_PARAM = {
 };
 
 /**
- * Itinerary budgets (brief section 6.5): ITN-14 budget entries and totals, ITN-16 intercity transport
- * costs. Only the itinerary's owner changes amounts.
+ * Itinerary budgets (brief section 6.5): ITN-14 budget entries, ITN-16 intercity transport costs and
+ * the ITN-18 summary converted to one currency. Only the itinerary's owner changes amounts.
  */
 @ApiTags('Budgets')
 @Controller()
@@ -222,9 +224,9 @@ export class BudgetsController {
 
   @Get('itineraries/:id/budget-summary')
   @ApiOperation({
-    summary: 'ITN-14 Budget totals by category and by day',
+    summary: 'ITN-14 / ITN-18 Budget totals by category and by day',
     description:
-      'Budget entries, activity costs (counted under ACTIVITIES) and intercity transport (ITN-16), each converted to the platform currency with the newest cached daily rate. 503 EXCHANGE_RATE_UNAVAILABLE when no rate has ever been cached for a currency. Visible to the owner, and to signed-in users when the itinerary is public.',
+      "Budget entries, activity costs (counted under ACTIVITIES) and intercity transport, each converted to one currency: ?currency=, else the caller's preferred currency (ACC-09), else the platform currency. Conversion uses the newest daily cached exchange rate (the last cached one when the rate API is down) and shows the rate date. 503 EXCHANGE_RATE_UNAVAILABLE when no rate has ever been cached for a currency. Visible to the owner, and to signed-in users when the itinerary is public.",
   })
   @ApiParam(ITINERARY_PARAM)
   @ApiOkResponse({ type: BudgetSummaryDto })
@@ -232,7 +234,8 @@ export class BudgetsController {
   summary(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: BudgetSummaryQueryDto,
   ): Promise<BudgetSummaryDto> {
-    return this.budgets.summary(user, id);
+    return this.budgets.summary(user, id, query.currency);
   }
 }

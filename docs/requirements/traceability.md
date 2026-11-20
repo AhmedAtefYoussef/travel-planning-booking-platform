@@ -123,7 +123,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73 | Not started |
 | ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | #114 | Done |
 | ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id (counted in the itinerary totals, #114) | Malak | TRVL-79 | #92, #114 | Done |
-| ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68 | Partial: rates, cache and convert in place (TRVL-133); itinerary budget conversion pending |
+| ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68, #125 | Done |
 | ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88 | Partial: visibility set through PATCH /api/itineraries/:id; the public search it controls lands with ITN-21 |
 | ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | - | Not started |
 | ITN-25 | Mandatory | GET /api/itineraries/:id/hotels (brief maps it to ITN-09) | Sarah | TRVL-83 | - | Not started |
