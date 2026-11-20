@@ -141,7 +141,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | #95 | Done |
 | BLG-05 | Mandatory | POST\|GET /api/posts/:id/comments | Malak | TRVL-89 | #97 | Done |
 | BLG-06 | Mandatory | POST\|DELETE /api/posts/:id/like | Malak | TRVL-90 | #98 | Done |
-| BLG-07 | Mandatory | PATCH\|DELETE /api/comments/:id | Malak | TRVL-91 | - | Not started |
+| BLG-07 | Mandatory | PATCH\|DELETE /api/comments/:id | Malak | TRVL-91 | #126 | Done |
 | BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | #93, #95, #99 | Partial: tags on create (#75) and tag pages done; editing tags with BLG-04, tag search with BLG-09 |
 | BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | - | Not started |
 | BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | #100 | Done |
