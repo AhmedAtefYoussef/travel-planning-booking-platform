@@ -13,11 +13,10 @@ import {
 } from './schemas/transport-cost.schema';
 
 /**
- * Itinerary budgets (brief section 6.5): ITN-14 budget entries and totals, ITN-16 transport costs; ITN-18
- * follows in its own PR. Itinerary and activity models come from ItinerariesModule (ownership, days,
- * activity costs); the currency module is global
- * (CURRENCY_SERVICE). Global so the itineraries module can inject ITINERARY_BUDGETS (ITN-01, ITN-07,
- * ITN-09, ITN-21) without importing this module.
+ * Itinerary budgets (brief section 6.5): ITN-14 budget entries and totals, ITN-16 transport costs and
+ * ITN-18 the summary in the preferred currency (read through UsersService). Itinerary and activity
+ * models come from ItinerariesModule; the currency module is global (CURRENCY_SERVICE). Global so the
+ * itineraries module can inject ITINERARY_BUDGETS (ITN-01, ITN-07, ITN-09, ITN-21) without importing it.
  */
 @Global()
 @Module({

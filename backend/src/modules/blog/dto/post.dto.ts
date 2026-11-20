@@ -157,7 +157,7 @@ export class UpdatePostDto {
   status?: PostStatus;
 }
 
-/** BLG-02 browse, optionally filtered by one tag (BLG-08). */
+/** BLG-02 browse, BLG-08 tag filter and BLG-09 keyword search. */
 export class ListPostsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description: 'Only posts with this tag (BLG-08), matched ignoring case',
@@ -172,6 +172,17 @@ export class ListPostsQueryDto extends PaginationQueryDto {
     message: `tag must be 1-${MAX_TAG_LENGTH} characters`,
   })
   tag?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Keyword searched in the title, the tags and the author name, ignoring case (BLG-09). With q, results are ordered by interaction score (likes + comments), newest first on a tie.',
+    example: 'cairo',
+  })
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @Length(1, 100, { message: 'q must be 1-100 characters' })
+  q?: string;
 }
 
 export class AuthorRefDto {

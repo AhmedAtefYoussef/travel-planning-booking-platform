@@ -34,6 +34,11 @@ export function excerptOf(body: string): string {
   return `${(space > EXCERPT_LENGTH / 2 ? cut.slice(0, space) : cut).trimEnd()}...`;
 }
 
+/** A user-typed keyword as a literal, case-insensitive pattern (no regex injection, BLG-09). */
+export function keywordPattern(keyword: string): RegExp {
+  return new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+}
+
 /** Posts anyone may read: published and not hidden by an admin (BLG-02, GEN-10). */
 export const PUBLIC_POST_FILTER = {
   status: PostStatus.Published,
