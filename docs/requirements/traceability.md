@@ -160,8 +160,8 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4, #69, #84, #118 | Done |
 | GEN-08 | Mandatory | UPLOADS_SERVICE + ImageFilesInterceptor; POST /api/hotels/:id/images; DELETE /api/hotels/:id/images/:imageId; PUT /api/airlines/:id/logo; GET /uploads/... (static); posts and activities via BLG-10, ITN-12 | Ahmed | TRVL-103 | #66 | Done |
-| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116, #131 | Done: report endpoint, once-per-item index, CONTENT_MODERATION port; post, comment (TRVL-180), review and itinerary adapters |
-| GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; PATCH /api/admin/content/:type/:id/hide; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118, #131 | Done: report list, resolve (dismiss, hide, delete), direct hide and delete for posts, comments, reviews and itineraries, audit entries |
+| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116, #131 | Done |
+| GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; PATCH /api/admin/content/:type/:id/hide; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118, #131 | Done |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111, #117 | Done |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
 | GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3, #55 | Done |
