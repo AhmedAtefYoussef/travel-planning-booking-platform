@@ -2154,6 +2154,22 @@ A delegated subagent built the admin moderation module from that spec: the repor
 ================================================
 
 ================================================
+Date: 2026-11-20
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-05, BLG-02, ACC-12
+Prompt:
+#97 merged without the fixes for Ahmed's V&V points 4 and 5. Bring them to develop in a small follow-up:
+one validation message for a missing or non-string comment body, the post author re-checked inside the
+comment transaction, and the BLG-02 row set to Done now that #93 and #97 are merged.
+How the output was used:
+Claude branched from develop and applied the already-reviewed fix (comment.dto.spec.ts and the race test
+written first): one body validator instead of IsString/Length, and an author re-check inside add() whose
+throw aborts the transaction. The BLG-02 row is Done with #93, #97. I reviewed the diff and ran the full
+CI locally.
+================================================
+
+================================================
 Date: 2026-11-16
 Student: Malak Hussein
 Tool: Claude Code (Claude Opus)
