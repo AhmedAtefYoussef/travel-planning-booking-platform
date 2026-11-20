@@ -16,11 +16,13 @@ import {
   HotelReviewsController,
   ReviewsController,
 } from './reviews.controller';
+import { ReviewModerationAdapter } from './review-moderation.adapter';
 import { ReviewsService } from './reviews.service';
 import { Hotel, HotelSchema } from './schemas/hotel.schema';
 import { Review, ReviewSchema } from './schemas/review.schema';
 import { RoomNight, RoomNightSchema } from './schemas/room-night.schema';
 import { Room, RoomSchema } from './schemas/room.schema';
+import { RoomCalendarService } from './room-calendar.service';
 import { RoomsController } from './rooms.controller';
 import { RoomsService } from './rooms.service';
 
@@ -50,6 +52,7 @@ import { RoomsService } from './rooms.service';
     HotelsService,
     HotelDetailsService,
     HotelSearchService,
+    RoomCalendarService,
     { provide: HOTELS_SEARCH, useExisting: HotelSearchService },
     RoomsService,
     HotelInventoryService,
@@ -57,6 +60,7 @@ import { RoomsService } from './rooms.service';
     HotelStatusService,
     { provide: HOTEL_STATUS, useExisting: HotelStatusService },
     ReviewsService,
+    ReviewModerationAdapter,
   ],
   exports: [
     MongooseModule,
