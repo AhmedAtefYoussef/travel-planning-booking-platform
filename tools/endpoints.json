@@ -1,0 +1,1026 @@
+{
+ "endpoints": [
+  {
+   "group": "Accounts",
+   "method": "POST",
+   "path": "/api/auth/register",
+   "requirements": [
+    "ACC-01"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "POST",
+   "path": "/api/auth/login",
+   "requirements": [
+    "ACC-04",
+    "ACC-05"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "POST",
+   "path": "/api/auth/logout",
+   "requirements": [
+    "ACC-06"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "POST",
+   "path": "/api/admin/users/:id/reset-password",
+   "requirements": [
+    "ACC-07a"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "PATCH",
+   "path": "/api/auth/change-password",
+   "requirements": [
+    "ACC-08"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "GET",
+   "path": "/api/auth/me",
+   "requirements": [
+    "ACC-04",
+    "ACC-11"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "GET",
+   "path": "/api/users/me",
+   "requirements": [
+    "ACC-11"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "PATCH",
+   "path": "/api/users/me",
+   "requirements": [
+    "ACC-09"
+   ]
+  },
+  {
+   "group": "Accounts",
+   "method": "DELETE",
+   "path": "/api/users/me",
+   "requirements": [
+    "ACC-12"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "POST",
+   "path": "/api/admin/moderators",
+   "requirements": [
+    "ACC-13"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "GET",
+   "path": "/api/admin/accounts",
+   "requirements": [
+    "ACC-14"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "PATCH",
+   "path": "/api/admin/accounts/:id/suspend",
+   "requirements": [
+    "ACC-15",
+    "ACC-16"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "PATCH",
+   "path": "/api/admin/accounts/:id/reactivate",
+   "requirements": [
+    "ACC-15",
+    "ACC-16"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "GET",
+   "path": "/api/admin/bookings",
+   "requirements": [
+    "ACC-17"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "GET",
+   "path": "/api/admin/reports",
+   "requirements": [
+    "GEN-09",
+    "GEN-10"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "PATCH",
+   "path": "/api/admin/reports/:id",
+   "requirements": [
+    "GEN-10"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "DELETE",
+   "path": "/api/admin/content/:type/:id",
+   "requirements": [
+    "GEN-10"
+   ]
+  },
+  {
+   "group": "Administration",
+   "method": "GET",
+   "path": "/api/admin/audit-logs",
+   "requirements": [
+    "GEN-07"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "POST",
+   "path": "/api/airlines",
+   "requirements": [
+    "FLT-01"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "GET",
+   "path": "/api/airlines/:id",
+   "requirements": [
+    "FLT-01"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "PATCH",
+   "path": "/api/airlines/:id",
+   "requirements": [
+    "FLT-01"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "GET",
+   "path": "/api/airports",
+   "requirements": [
+    "FLT-02"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "POST",
+   "path": "/api/flights",
+   "requirements": [
+    "FLT-03"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "GET",
+   "path": "/api/flights/search",
+   "requirements": [
+    "FLT-11",
+    "FLT-12",
+    "FLT-15"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "GET",
+   "path": "/api/flights/:id",
+   "requirements": [
+    "FLT-17"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "PATCH",
+   "path": "/api/flights/:id",
+   "requirements": [
+    "FLT-05"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "POST",
+   "path": "/api/flights/:id/cancel",
+   "requirements": [
+    "FLT-06"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "POST",
+   "path": "/api/flights/:id/cabins",
+   "requirements": [
+    "FLT-04"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "PATCH",
+   "path": "/api/flights/:id/cabins/:cabinId",
+   "requirements": [
+    "FLT-04",
+    "FLT-05"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "PUT",
+   "path": "/api/airlines/:id/baggage-policy",
+   "requirements": [
+    "FLT-08"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "PUT",
+   "path": "/api/airlines/:id/cancellation-policy",
+   "requirements": [
+    "FLT-09"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "GET",
+   "path": "/api/flights/:id/bookings",
+   "requirements": [
+    "FLT-29"
+   ]
+  },
+  {
+   "group": "Flights",
+   "method": "GET",
+   "path": "/api/flights/:id/passengers/export",
+   "requirements": [
+    "FLT-29"
+   ]
+  },
+  {
+   "group": "Flight bookings",
+   "method": "POST",
+   "path": "/api/flight-bookings/hold",
+   "requirements": [
+    "FLT-22"
+   ]
+  },
+  {
+   "group": "Flight bookings",
+   "method": "POST",
+   "path": "/api/flight-bookings/quote (summary; confirmation is the Stripe webhook)",
+   "requirements": [
+    "FLT-19",
+    "FLT-21",
+    "FLT-23"
+   ]
+  },
+  {
+   "group": "Flight bookings",
+   "method": "GET",
+   "path": "/api/flight-bookings",
+   "requirements": [
+    "FLT-25"
+   ]
+  },
+  {
+   "group": "Flight bookings",
+   "method": "GET",
+   "path": "/api/flight-bookings/:id",
+   "requirements": [
+    "FLT-25"
+   ]
+  },
+  {
+   "group": "Flight bookings",
+   "method": "POST",
+   "path": "/api/flight-bookings/:id/cancel",
+   "requirements": [
+    "FLT-26"
+   ]
+  },
+  {
+   "group": "Flight bookings",
+   "method": "GET",
+   "path": "/api/flight-bookings/:id/e-ticket",
+   "requirements": [
+    "FLT-23"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "POST",
+   "path": "/api/hotels",
+   "requirements": [
+    "HTL-01"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "GET",
+   "path": "/api/hotels/search",
+   "requirements": [
+    "HTL-11",
+    "HTL-12"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "GET",
+   "path": "/api/hotels/:id",
+   "requirements": [
+    "HTL-02"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "PATCH",
+   "path": "/api/hotels/:id",
+   "requirements": [
+    "HTL-01"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "POST",
+   "path": "/api/hotels/:id/rooms",
+   "requirements": [
+    "HTL-03"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "PATCH",
+   "path": "/api/hotels/:id/rooms/:roomId",
+   "requirements": [
+    "HTL-05"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "DELETE",
+   "path": "/api/hotels/:id/rooms/:roomId",
+   "requirements": [
+    "HTL-06"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "GET",
+   "path": "/api/hotels/:id/rooms/available",
+   "requirements": [
+    "HTL-15"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "POST",
+   "path": "/api/hotels/:id/rooms/:roomId/availability",
+   "requirements": [
+    "HTL-04"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "PATCH",
+   "path": "/api/hotels/:id/rooms/:roomId/availability",
+   "requirements": [
+    "HTL-05",
+    "HTL-06"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "GET",
+   "path": "/api/hotels/:id/availability",
+   "requirements": [
+    "HTL-08"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "PUT",
+   "path": "/api/hotels/:id/policies",
+   "requirements": [
+    "HTL-09",
+    "HTL-10"
+   ]
+  },
+  {
+   "group": "Hotels",
+   "method": "GET",
+   "path": "/api/hotels/:id/reservations",
+   "requirements": [
+    "HTL-22"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "POST",
+   "path": "/api/hotel-bookings",
+   "requirements": [
+    "HTL-16",
+    "HTL-18"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "GET",
+   "path": "/api/hotel-bookings",
+   "requirements": [
+    "HTL-20"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "GET",
+   "path": "/api/hotel-bookings/:id",
+   "requirements": [
+    "HTL-20"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "POST",
+   "path": "/api/hotel-bookings/:id/cancel",
+   "requirements": [
+    "HTL-21"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "POST",
+   "path": "/api/hotel-bookings/:id/review",
+   "requirements": [
+    "HTL-23"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "PATCH",
+   "path": "/api/reviews/:id",
+   "requirements": [
+    "HTL-23"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "DELETE",
+   "path": "/api/reviews/:id",
+   "requirements": [
+    "HTL-23"
+   ]
+  },
+  {
+   "group": "Hotel bookings",
+   "method": "GET",
+   "path": "/api/hotels/:id/reviews",
+   "requirements": [
+    "HTL-24"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "GET",
+   "path": "/api/bookings/:type/:id/policies",
+   "requirements": [
+    "PAY-02"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "POST",
+   "path": "/api/bookings/:type/:id/accept-policies",
+   "requirements": [
+    "PAY-02"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "POST",
+   "path": "/api/payments",
+   "requirements": [
+    "PAY-01"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "POST",
+   "path": "/api/payments/:id/retry",
+   "requirements": [
+    "PAY-01"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "GET",
+   "path": "/api/payments/:id",
+   "requirements": [
+    "PAY-01"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "POST",
+   "path": "/api/payments/webhook",
+   "requirements": [
+    "PAY-01"
+   ]
+  },
+  {
+   "group": "Payments",
+   "method": "GET",
+   "path": "/api/refunds/:id",
+   "requirements": [
+    "PAY-03"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/itineraries",
+   "requirements": [
+    "ITN-01"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries",
+   "requirements": [
+    "ITN-03"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries/:id",
+   "requirements": [
+    "ITN-03"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "PATCH",
+   "path": "/api/itineraries/:id",
+   "requirements": [
+    "ITN-01",
+    "ITN-20"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "DELETE",
+   "path": "/api/itineraries/:id",
+   "requirements": [
+    "ITN-01"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/itineraries/:id/days",
+   "requirements": [
+    "ITN-05"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "PATCH",
+   "path": "/api/itineraries/:id/days/:dayId",
+   "requirements": [
+    "ITN-05"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "DELETE",
+   "path": "/api/itineraries/:id/days/:dayId",
+   "requirements": [
+    "ITN-07"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "PATCH",
+   "path": "/api/itineraries/:id/days/reorder",
+   "requirements": [
+    "ITN-08"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/itineraries/:id/days/:dayId/activities",
+   "requirements": [
+    "ITN-10"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "PATCH",
+   "path": "/api/activities/:id",
+   "requirements": [
+    "ITN-10"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "DELETE",
+   "path": "/api/activities/:id",
+   "requirements": [
+    "ITN-10"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/activities/:id/images",
+   "requirements": [
+    "ITN-12"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "DELETE",
+   "path": "/api/activities/:id/images/:imageId",
+   "requirements": [
+    "ITN-12"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/itineraries/:id/days/:dayId/budgets",
+   "requirements": [
+    "ITN-14"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "PATCH",
+   "path": "/api/budgets/:id",
+   "requirements": [
+    "ITN-14"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "DELETE",
+   "path": "/api/budgets/:id",
+   "requirements": [
+    "ITN-14"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/itineraries/:id/transport-costs",
+   "requirements": [
+    "ITN-16"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "PATCH",
+   "path": "/api/transport-costs/:id",
+   "requirements": [
+    "ITN-16"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "DELETE",
+   "path": "/api/transport-costs/:id",
+   "requirements": [
+    "ITN-16"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries/:id/budget-summary",
+   "requirements": [
+    "ITN-14",
+    "ITN-18"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries/public/search",
+   "requirements": [
+    "ITN-20",
+    "ITN-21"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries/public/:id",
+   "requirements": [
+    "ITN-21"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "POST",
+   "path": "/api/itineraries/:id/clone",
+   "requirements": [
+    "ITN-21"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries/:id/hotels",
+   "requirements": [
+    "ITN-25"
+   ]
+  },
+  {
+   "group": "Itineraries",
+   "method": "GET",
+   "path": "/api/itineraries/:id/flights",
+   "requirements": [
+    "ITN-26"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "POST",
+   "path": "/api/posts",
+   "requirements": [
+    "BLG-01"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "GET",
+   "path": "/api/posts",
+   "requirements": [
+    "BLG-02",
+    "BLG-09"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "GET",
+   "path": "/api/posts/:id",
+   "requirements": [
+    "BLG-02"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "GET",
+   "path": "/api/posts/mine",
+   "requirements": [
+    "BLG-03"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "PATCH",
+   "path": "/api/posts/:id",
+   "requirements": [
+    "BLG-04",
+    "BLG-08"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "DELETE",
+   "path": "/api/posts/:id",
+   "requirements": [
+    "BLG-04"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "POST",
+   "path": "/api/posts/:id/comments",
+   "requirements": [
+    "BLG-05"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "PATCH",
+   "path": "/api/comments/:id",
+   "requirements": [
+    "BLG-07"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "DELETE",
+   "path": "/api/comments/:id",
+   "requirements": [
+    "BLG-07"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "POST",
+   "path": "/api/posts/:id/like",
+   "requirements": [
+    "BLG-06"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "DELETE",
+   "path": "/api/posts/:id/like",
+   "requirements": [
+    "BLG-06"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "POST",
+   "path": "/api/posts/:id/images",
+   "requirements": [
+    "BLG-10"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "DELETE",
+   "path": "/api/posts/:id/images/:imageId",
+   "requirements": [
+    "BLG-10"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "GET",
+   "path": "/api/tags/:tag/posts",
+   "requirements": [
+    "BLG-08"
+   ]
+  },
+  {
+   "group": "Blog",
+   "method": "GET",
+   "path": "/api/authors/:id",
+   "requirements": [
+    "BLG-12"
+   ]
+  },
+  {
+   "group": "Supporting",
+   "method": "POST",
+   "path": "/api/reports",
+   "requirements": [
+    "GEN-09"
+   ]
+  },
+  {
+   "group": "Supporting",
+   "method": "GET",
+   "path": "/api/notifications",
+   "requirements": [
+    "GEN-01"
+   ]
+  },
+  {
+   "group": "Supporting",
+   "method": "PATCH",
+   "path": "/api/notifications/:id/read",
+   "requirements": [
+    "GEN-01"
+   ]
+  },
+  {
+   "group": "Supporting",
+   "method": "GET",
+   "path": "/api/currencies/rates",
+   "requirements": [
+    "ITN-18"
+   ]
+  },
+  {
+   "group": "Supporting",
+   "method": "GET",
+   "path": "/api/currencies/convert",
+   "requirements": [
+    "ITN-18"
+   ]
+  }
+ ],
+ "jira": {
+  "ACC-01": "TRVL-13",
+  "ACC-04": "TRVL-14",
+  "ACC-05": "TRVL-15",
+  "ACC-06": "TRVL-16",
+  "ACC-07a": "TRVL-17",
+  "ACC-08": "TRVL-18",
+  "ACC-09": "TRVL-19",
+  "ACC-11": "TRVL-21",
+  "ACC-12": "TRVL-22",
+  "ACC-13": "TRVL-23",
+  "ACC-14": "TRVL-24",
+  "ACC-15": "TRVL-25",
+  "ACC-16": "TRVL-26",
+  "ACC-17": "TRVL-27",
+  "FLT-01": "TRVL-28",
+  "FLT-02": "TRVL-29",
+  "FLT-03": "TRVL-30",
+  "FLT-04": "TRVL-31",
+  "FLT-05": "TRVL-32",
+  "FLT-06": "TRVL-33",
+  "FLT-08": "TRVL-34",
+  "FLT-09": "TRVL-35",
+  "FLT-11": "TRVL-36",
+  "FLT-12": "TRVL-37",
+  "FLT-15": "TRVL-38",
+  "FLT-17": "TRVL-39",
+  "FLT-19": "TRVL-40",
+  "FLT-21": "TRVL-41",
+  "FLT-22": "TRVL-42",
+  "FLT-23": "TRVL-43",
+  "FLT-25": "TRVL-44",
+  "FLT-26": "TRVL-45",
+  "FLT-29": "TRVL-46",
+  "HTL-01": "TRVL-47",
+  "HTL-02": "TRVL-48",
+  "HTL-03": "TRVL-49",
+  "HTL-04": "TRVL-50",
+  "HTL-05": "TRVL-51",
+  "HTL-06": "TRVL-52",
+  "HTL-08": "TRVL-53",
+  "HTL-09": "TRVL-54",
+  "HTL-10": "TRVL-55",
+  "HTL-11": "TRVL-56",
+  "HTL-12": "TRVL-57",
+  "HTL-15": "TRVL-58",
+  "HTL-16": "TRVL-59",
+  "HTL-17": "TRVL-60",
+  "HTL-18": "TRVL-61",
+  "HTL-20": "TRVL-62",
+  "HTL-21": "TRVL-63",
+  "HTL-22": "TRVL-64",
+  "HTL-23": "TRVL-65",
+  "HTL-24": "TRVL-66",
+  "PAY-01": "TRVL-67",
+  "PAY-02": "TRVL-68",
+  "PAY-03": "TRVL-69",
+  "ITN-01": "TRVL-70",
+  "ITN-03": "TRVL-71",
+  "ITN-05": "TRVL-72",
+  "ITN-07": "TRVL-73",
+  "ITN-08": "TRVL-74",
+  "ITN-09": "TRVL-75",
+  "ITN-10": "TRVL-76",
+  "ITN-12": "TRVL-77",
+  "ITN-14": "TRVL-78",
+  "ITN-16": "TRVL-79",
+  "ITN-18": "TRVL-80",
+  "ITN-20": "TRVL-81",
+  "ITN-21": "TRVL-82",
+  "ITN-25": "TRVL-83",
+  "ITN-26": "TRVL-84",
+  "BLG-01": "TRVL-85",
+  "BLG-02": "TRVL-86",
+  "BLG-03": "TRVL-87",
+  "BLG-04": "TRVL-88",
+  "BLG-05": "TRVL-89",
+  "BLG-06": "TRVL-90",
+  "BLG-07": "TRVL-91",
+  "BLG-08": "TRVL-92",
+  "BLG-09": "TRVL-93",
+  "BLG-10": "TRVL-94",
+  "BLG-12": "TRVL-95",
+  "GEN-01": "TRVL-96",
+  "GEN-02": "TRVL-97",
+  "GEN-05": "TRVL-100",
+  "GEN-06": "TRVL-101",
+  "GEN-07": "TRVL-102",
+  "GEN-08": "TRVL-103",
+  "GEN-09": "TRVL-104",
+  "GEN-10": "TRVL-105",
+  "GEN-11": "TRVL-106",
+  "FLT-30": "TRVL-107",
+  "ACC-18": "TRVL-108",
+  "PAY-04": "TRVL-109",
+  "GEN-12": "TRVL-110",
+  "GEN-13": "TRVL-111",
+  "ACC-19": "TRVL-112"
+ }
+}

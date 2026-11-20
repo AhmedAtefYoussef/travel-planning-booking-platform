@@ -1,0 +1,11 @@
+[
+{"branch":"docs/TRVL-129-sprint-0-swagger-evidence","sha":"776040998504dd8194731625a9a303c15975d51b","author":"Ahmed Atef Youssef","area":"foundation"},
+{"branch":"lead-pr-commits","sha":"80403324e471fe1139e167e74235e5ea6d668262","author":"Ahmed Atef Youssef","area":"lead-m1"},
+{"branch":"docs/TRVL-136-session4-swagger-evidence","sha":"2f6ca93f15d01e63e0251696a4b84684a523e76b","author":"Ahmed Atef Youssef","area":"vv-m1"},
+{"branch":"docs/flights-swagger-evidence","sha":"8ac074262e16a389638ec0f775405acbb6add76d","author":"joudy khaled hagar","area":"flights"},
+{"branch":"docs/hotels-swagger-evidence","sha":"1c624f825d7ac2c2fa3ee6ff32c3eb63ea87c8a9","author":"Sandra George","area":"hotels"},
+{"branch":"docs/blog-swagger-evidence","sha":"6a49bbfb4c3509d1e1b3a1c261c46cc2c8a5e427","author":"Malak Hussein","area":"blog"},
+{"branch":"docs/budgets-swagger-evidence","sha":"22d10b36133ec5de5e54e2f4542a92d70394214c","author":"Malak Hussein","area":"budgets"},
+{"branch":"docs/ACC-15-swagger-evidence","sha":"54116ddc42bf18d1fdf8b84e58a121187545627e","author":"Ahmed Atef Youssef","area":"admin"},
+{"branch":"docs/FLT-26-swagger-evidence","sha":"135081e6c86418e12c2215ed67d75234db4dbba9","author":"Ahmed Atef Youssef","area":"flight-bookings"},
+{"branch":"docs/HTL-10-swagger-evidence","sha":"35508a51d7995fa53d388e32be304ecf40a595e3","author":"Ahmed Atef Youssef","area":"hotel-policies"}]
