@@ -7,7 +7,7 @@ import {
   ApiErrorResponses,
   ApiPaginatedResponse,
 } from './api-responses.decorator';
-import { buildOpenApiDocument } from './swagger.setup';
+import { buildOpenApiDocument, isSwaggerEnabled } from './swagger.setup';
 
 class FlightSummaryDto {
   @ApiProperty() id!: string;
@@ -76,4 +76,19 @@ describe('Swagger security schemes', () => {
     expect(scheme.description).toMatch(/localhost only/);
     expect(scheme.description).not.toMatch(/[<>]/);
   });
+});
+
+describe('isSwaggerEnabled (GEN-13: no public route map in production unless opted in)', () => {
+  it.each([
+    ['development', undefined, true],
+    ['test', undefined, true],
+    ['production', undefined, false],
+    ['production', true, true],
+    ['development', false, false],
+  ] as const)(
+    'NODE_ENV=%s, SWAGGER_ENABLED=%s -> %s',
+    (env, flag, expected) => {
+      expect(isSwaggerEnabled(env, flag)).toBe(expected);
+    },
+  );
 });

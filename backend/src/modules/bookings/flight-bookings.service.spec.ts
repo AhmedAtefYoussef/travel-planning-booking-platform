@@ -123,7 +123,10 @@ function setup(
     findById: jest.fn().mockReturnValue({
       lean: () => ({ exec: () => Promise.resolve(confirmedDoc()) }),
     }),
-    find: jest.fn(),
+    // No due holds on the flight by default (FLT-22 inline expiry in hold()).
+    find: jest.fn((): unknown => ({
+      limit: () => ({ lean: () => ({ exec: () => Promise.resolve([]) }) }),
+    })),
     exists: jest.fn(),
     countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(0) })),
   };
@@ -1331,5 +1334,60 @@ describe('FlightBookingsService cancellation and refund quote: FLT-26', () => {
     expect((e as Error).message).toContain('has no accepted policy snapshot');
     expect(model.updateOne).not.toHaveBeenCalled();
     expect(refunds.refundFor).not.toHaveBeenCalled();
+  });
+});
+
+describe('FlightBookingsService.hold releases due holds first (FLT-22)', () => {
+  const user: AuthUser = { id: oid(), role: Role.User };
+
+  it('expires a hold past its 10 minutes on the same flight, gives its seats back, then reserves', async () => {
+    const out = cabin();
+    const { service, model, inventory } = setup({ [out.flightId]: out });
+    const stale = new Types.ObjectId();
+    const order: string[] = [];
+    model.find = jest.fn(() => ({
+      limit: () => ({
+        lean: () => ({ exec: () => Promise.resolve([{ _id: stale }]) }),
+      }),
+    }));
+    model.findById = jest.fn().mockReturnValue({
+      lean: () => ({
+        exec: () =>
+          Promise.resolve({
+            segments: [
+              {
+                flightId: new Types.ObjectId(out.flightId),
+                cabinId: new Types.ObjectId(out.cabinId),
+                seats: 2,
+              },
+            ],
+          }),
+      }),
+    });
+    inventory.releaseSeats.mockImplementation(() => {
+      order.push('release');
+      return Promise.resolve(true);
+    });
+    inventory.reserveSeats.mockImplementation(() => {
+      order.push('reserve');
+      return Promise.resolve(true);
+    });
+
+    await service.hold(user, request(out, [adult]), NOW);
+
+    const [filter] = (model.find as jest.Mock).mock.calls[0] as [
+      Record<string, unknown>,
+    ];
+    expect(filter).toMatchObject({
+      status: 'PENDING_PAYMENT',
+      holdExpiresAt: { $lte: expect.any(Date) },
+    });
+    expect(inventory.releaseSeats).toHaveBeenCalledWith(
+      out.flightId,
+      out.cabinId,
+      2,
+      expect.anything(),
+    );
+    expect(order).toEqual(['release', 'reserve']);
   });
 });
