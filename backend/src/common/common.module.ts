@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
+import { ThrottlerModule } from '@nestjs/throttler';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthStubGuard } from './auth/auth-stub.guard';
@@ -16,12 +17,19 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { RejectPageSizeMiddleware } from './pagination/reject-page-size.middleware';
 import { createValidationPipe } from './pipes/validation.pipe';
 import { PasswordService } from './security/password.service';
+import { RateLimitGuard } from './security/rate-limit.guard';
+import {
+  DEFAULT_RATE_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  isRateLimitEnabled,
+} from './security/rate-limit';
 
 /**
  * Registers the global pipe, filter, guards and middleware through DI, so they apply identically in
  * main.ts, e2e tests (Test.createTestingModule) and the OpenAPI generator.
  *
- * Guard order matters: authentication first (sets request.user), then roles. AuthGuard reads the
+ * Guard order matters: the rate limit first (ADR-0007), so a flood is refused before any token or database
+ * work; then authentication (sets request.user), then roles. AuthGuard reads the
  * access_token cookie (ACC-19) and falls back to AuthStubGuard only when there is no cookie.
  * JwtModule signs and verifies access tokens with JWT_SECRET (HS256) for every module.
  */
@@ -38,11 +46,33 @@ import { PasswordService } from './security/password.service';
         },
       }),
     }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<EnvironmentVariables, true>) => {
+        const enabled = isRateLimitEnabled(
+          config.get('NODE_ENV', { infer: true }),
+          config.get('RATE_LIMIT_ENABLED', { infer: true }),
+        );
+        return {
+          throttlers: [
+            {
+              name: 'default',
+              ttl: RATE_LIMIT_WINDOW_MS,
+              limit: DEFAULT_RATE_LIMIT,
+            },
+          ],
+          errorMessage:
+            'Too many requests; wait for the Retry-After seconds and try again',
+          skipIf: () => !enabled,
+        };
+      },
+    }),
   ],
   providers: [
     { provide: APP_PIPE, useFactory: createValidationPipe },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     AuthStubGuard,
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     PasswordService,

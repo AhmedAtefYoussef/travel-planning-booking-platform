@@ -9,6 +9,7 @@ The "PR governance" check validates this description, so keep the headings below
 
 ## Requirements
 Jira: TRVL-
+Closes: <!-- the TRVL keys this PR finishes, e.g. "Closes: TRVL-42". Keys only on the Jira line get a comment but stay open. -->
 Requirement IDs: <!-- e.g. FLT-22, GEN-11 (IDs from docs/requirements/requirements.json) -->
 
 AI-assisted: no <!-- yes / no. If yes, add an entry to AI_PROMPTS.txt (brief section 11.1). -->

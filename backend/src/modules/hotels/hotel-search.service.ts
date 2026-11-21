@@ -130,12 +130,13 @@ export class HotelSearchService implements HotelsSearch {
     hotels: HotelLean[],
     checkIn: string,
   ): Promise<Set<string>> {
-    const ok = new Set<string>();
-    for (const cityId of new Set(hotels.map((h) => h.cityId))) {
-      const zone = await this.hotels.timeZoneOf(cityId);
-      if (checkIn >= todayIn(zone ?? 'UTC')) ok.add(cityId);
-    }
-    return ok;
+    const cityIds = [...new Set(hotels.map((h) => h.cityId))];
+    const zones = await this.hotels.timeZonesOf(cityIds);
+    return new Set(
+      cityIds.filter(
+        (cityId) => checkIn >= todayIn(zones.get(cityId) ?? 'UTC'),
+      ),
+    );
   }
 }
 

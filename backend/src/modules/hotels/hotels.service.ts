@@ -352,8 +352,18 @@ export class HotelsService {
    * or null when the city has none. Used to decide which nights are "from today on" (HTL-05).
    */
   async timeZoneOf(cityId: string): Promise<string | null> {
-    const airports = await this.reference.listAirports();
-    return airports.find((a) => a.cityId === cityId)?.timeZone ?? null;
+    return (await this.timeZonesOf([cityId])).get(cityId) ?? null;
+  }
+
+  /** timeZoneOf for many cities in one query; a city without an airport is absent from the map. */
+  async timeZonesOf(cityIds: readonly string[]): Promise<Map<string, string>> {
+    const zones = new Map<string, string>();
+    // Sorted by IATA code, so each city keeps the zone of its first airport, as before.
+    for (const airport of await this.reference.listAirportsInCities(cityIds)) {
+      if (!zones.has(airport.cityId))
+        zones.set(airport.cityId, airport.timeZone);
+    }
+    return zones;
   }
 
   private async countryOfCity(cityId: string): Promise<string> {

@@ -2505,3 +2505,160 @@ Claude skipped the per-commit lint when the PR head is develop (each commit was 
 every other governance check, and replaced the `[ ] && transition` line in jira-sync.yml with an if, because a
 false test as the last command made the step exit 1. I confirmed both causes in the failed run logs.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183, TRVL-129
+Prompt:
+The Jira sync workflow moved TRVL-183 (a ten-item hardening task) to Done when the first PR citing it merged.
+Only close an issue on merge when the PR says it closes it.
+How the output was used:
+Claude changed jira-sync.yml so a merge moves a key to Done only when the title or body closes it with a
+keyword (Closes / Fixes / Resolves, one key or a list); cited keys still get the merge comment and keep their
+status, and "Partial" still holds a closed key open. It added a Closes: line to the PR template and updated
+CONTRIBUTING.md. I tested the key extraction on sample titles and bodies and reopened TRVL-183 by hand.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183, TRVL-129
+Prompt:
+After #140 merged, jira-sync closed TRVL-183 again because the PR's own description said "That closed
+TRVL-183". Only count a closing keyword that starts a line.
+How the output was used:
+Claude anchored the closing-keyword match to the start of a line (an optional list marker or quote allowed), so
+prose and the PR template's "e.g. Closes: TRVL-42" hint no longer close issues. I re-ran the extraction on the
+#140 description and sample lines, and moved TRVL-183 back to In Progress.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-13, ACC-05, PAY-01, TRVL-183
+Prompt:
+Start the TRVL-183 hardening items. First: add @nestjs/throttler with a global default and stricter limits on
+login, registration and payments, without breaking the e2e suites or Swagger demos.
+How the output was used:
+Claude added the throttler as the first global guard: 120 requests a minute per IP by default, 10 for login and
+register, 20 for creating or retrying a payment, none for the Stripe webhook and health probe. A refused call
+answers 429 TOO_MANY_REQUESTS with Retry-After. RATE_LIMIT_ENABLED (off only under NODE_ENV=test) and
+TRUST_PROXY are new optional settings, explained in ADR-0007. I reviewed the limits and checked them with a new
+e2e suite that turns the limits on for its own app.
+A security review then noted that one IPv6 client owns a whole /64; Claude added RateLimitGuard, which counts
+IPv6 clients by their /64 prefix and IPv4-mapped addresses as plain IPv4, with unit tests for the keys.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183
+Prompt:
+Next TRVL-183 item: replace the hand-written startSession / withTransaction / endSession blocks with one shared
+runInTransaction helper, without changing behaviour.
+How the output was used:
+Claude added runInTransaction(connection, work) in backend/src/common/utils/transaction.ts, which runs work on a
+fresh session, returns its result and always ends the session, and moved the 16 blocks in the bookings, hotels,
+itineraries and payments modules onto it. Retries, duplicate-key handling and error paths stay as they were. I
+reviewed the whitespace-free diff and ran the unit and e2e suites; the helper has its own unit tests.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-11, PAY-01, TRVL-183
+Prompt:
+Next TRVL-183 item: make the payments service use the shared assertOwner instead of its own ownership check.
+How the output was used:
+Claude replaced the hand-written owner/admin check in PaymentsService.load with assertOwner (404 for a
+stranger, the admin bypass only where reads allow it) and the owner flag in findOne with isOwner. The answers
+are unchanged. It extended the payments e2e suite: a stranger's 404 carries the same message as an unknown id,
+and an admin cannot retry someone else's payment (403, retrying is a traveler action). I ran the payments unit
+and e2e suites and the full verify.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183
+Prompt:
+Check the repository's Security and quality banner and fix what it reports.
+How the output was used:
+The banner's only open item was Dependabot alert #2: minimatch 10.2.6 (GHSA-g3hv-75wg-m249, moderate), pulled
+in by build and lint tools only. npm audit also listed glob 10 and 13 (GHSA-3g3m-2fjr-6pw4, moderate). No
+patched 10.x or 13.x release exists, so Claude added npm overrides that move just the affected ranges to
+minimatch ^11.0.5 and glob ^14.0.6, leaving minimatch 3.x (a different API) alone. npm audit is now clean, and I
+ran the full verify (lint, build, unit with coverage, e2e, OpenAPI, architecture) on the result.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-05, TRVL-183
+Prompt:
+Continue with the pagination refactor (TRVL-183: every list uses the shared paginate helper).
+How the output was used:
+Claude moved the blog post lists, post comments, the room calendar and an author's public itineraries
+from hand-written find/sort/skip/limit/count blocks to the shared paginate(), and the hotel's available
+rooms to a new pageOf() for lists already in memory. It added mapPage() to convert a page's items and a
+row-type parameter on paginate for projected queries, with unit tests for the helpers. Sort orders and
+tie-breaks are unchanged. I ran the affected unit suites and the full verify.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-11, TRVL-183
+Prompt:
+Continue with the next TRVL-183 item: one IntervalJob base for the four setInterval job services.
+How the output was used:
+Claude added an IntervalJob base class (common/utils/interval-job.ts) that owns the timer: it skips
+NODE_ENV=test, runs startup tasks once and the tick tasks on an unref'd interval, logs each failed task
+with its stack without stopping the others, and clears the timer at shutdown. The booking lifecycle,
+payments, flight status and currency jobs now only list their tasks; currency keeps its separate startup
+fetch and its FX_API_KEY redaction through hooks. The flight status job now also logs the stack and names
+its task. It added unit tests for the base. I ran the job suites and the full verify.
+================================================
+
+================================================
+Date: 2026-11-22
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-11, ITN-01, ITN-03, ACC-17, TRVL-183
+Prompt:
+Keep working until the plan is finished: the last TRVL-183 items (hotel search as an aggregation, and
+batching the per-city lookups with $in).
+How the output was used:
+Claude checked the hotel search first and reported that moving its filter, sort and page into an
+aggregation would be wrong: the sort key is the "from" price, which only the in-memory cheapest-rooms
+calculation can produce, and the search already reads in a fixed number of queries. Its real cost was
+one full airport-list read per city for the time zone. Claude then added batch lookups that use one $in
+query (reference getCities, getCountries, listAirportsInCities; UsersService.findProfiles; ProviderStatus
+findMany) and used them in hotel search, the hotel time-zone helper, itinerary city names and country
+checks, and the admin bookings list. Answers are unchanged. It added an e2e test for the reference batch
+lookups and a unit test for the time zones. I ran the full verify.
+================================================
+
+================================================
+Date: 2026-11-22
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183
+Prompt:
+Keep working until the plan is finished (the README feature map should cover every backend module).
+How the output was used:
+Claude rebuilt the README feature map from the code: each module's Swagger tags from its controllers and
+the requirement IDs from its endpoint summaries, kept only where traceability.md says Done or Partial.
+The admin, moderation, itineraries, budgets and blog modules were added, and the other rows gained the
+requirements merged since the table was written; the three background jobs are noted. I checked the
+table against the traceability matrix.
+================================================

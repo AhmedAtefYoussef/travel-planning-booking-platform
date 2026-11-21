@@ -10,7 +10,7 @@ import {
   ValidationFailedException,
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
-import { PAGE_SIZE, type Page } from '../../common/pagination/pagination';
+import { type Page, pageOf } from '../../common/pagination/pagination';
 import { eachNight } from '../../common/utils/dates';
 import {
   DETAILS_REVIEW_LIMIT,
@@ -110,14 +110,7 @@ export class HotelDetailsService {
     }
     const stay = await this.stayOf(hotel, query);
     const rooms = stay ? await this.freeRooms(hotel._id, stay) : [];
-    const page = query.page ?? 1;
-    return {
-      items: rooms.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-      page,
-      limit: PAGE_SIZE,
-      total: rooms.length,
-      totalPages: Math.ceil(rooms.length / PAGE_SIZE),
-    };
+    return pageOf(rooms, query.page ?? 1);
   }
 
   /**

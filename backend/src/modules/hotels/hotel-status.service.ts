@@ -13,6 +13,22 @@ import { Hotel } from './schemas/hotel.schema';
 export class HotelStatusService implements ProviderStatus {
   constructor(@InjectModel(Hotel.name) private readonly hotels: Model<Hotel>) {}
 
+  async findMany(providerIds: readonly string[]): Promise<ProviderState[]> {
+    const ids = [...new Set(providerIds)].filter((id) =>
+      Types.ObjectId.isValid(id),
+    );
+    if (ids.length === 0) return [];
+    const rows = await this.hotels
+      .find({ _id: { $in: ids } }, { name: 1, isActive: 1 })
+      .lean()
+      .exec();
+    return rows.map((hotel) => ({
+      id: hotel._id.toHexString(),
+      name: hotel.name,
+      isActive: hotel.isActive,
+    }));
+  }
+
   async find(
     providerId: string,
     session?: ClientSession,

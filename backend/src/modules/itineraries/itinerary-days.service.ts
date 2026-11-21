@@ -24,6 +24,7 @@ import {
   ItineraryDocument,
   MAX_ITINERARY_DAYS,
 } from './schemas/itinerary.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 /** How often a day change is retried when another change to the same itinerary won the race. */
 const MAX_ATTEMPTS = 3;
@@ -133,37 +134,29 @@ export class ItineraryDaysService {
     const dayObjectId = new Types.ObjectId(dayId);
     let saved: ItineraryDocument | undefined;
     let images: string[] = [];
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        saved = await this.rewriteDays(
-          user,
-          itineraryId,
-          (days) => {
-            const index = indexOfDay(days, dayId);
-            return renumber(days.filter((_day, i) => i !== index));
-          },
-          session,
-        );
-        const removed = await this.activities
-          .find(
-            { itineraryId: saved._id, dayId: dayObjectId },
-            { images: 1 },
-            { session },
-          )
-          .lean()
-          .exec();
-        images = removed.flatMap((a) => a.images ?? []);
-        await this.activities
-          .deleteMany(
-            { itineraryId: saved._id, dayId: dayObjectId },
-            { session },
-          )
-          .exec();
-      });
-    } finally {
-      await session.endSession();
-    }
+    await runInTransaction(this.connection, async (session) => {
+      saved = await this.rewriteDays(
+        user,
+        itineraryId,
+        (days) => {
+          const index = indexOfDay(days, dayId);
+          return renumber(days.filter((_day, i) => i !== index));
+        },
+        session,
+      );
+      const removed = await this.activities
+        .find(
+          { itineraryId: saved._id, dayId: dayObjectId },
+          { images: 1 },
+          { session },
+        )
+        .lean()
+        .exec();
+      images = removed.flatMap((a) => a.images ?? []);
+      await this.activities
+        .deleteMany({ itineraryId: saved._id, dayId: dayObjectId }, { session })
+        .exec();
+    });
     const deleted = saved as ItineraryDocument;
     await this.budgets?.deleteForDays(deleted.id as string, [dayId]);
     await this.itineraryService.deleteUnusedImages(images);

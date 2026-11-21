@@ -15,7 +15,7 @@ const DESCRIPTIONS: Record<number, string> = {
   404: 'Resource not found',
   409: 'Conflict with current state (duplicate, inventory or lifecycle rule)',
   413: 'Payload too large',
-  429: 'Too many simultaneous requests for the same resource; retry shortly',
+  429: 'Too many requests (the per-IP rate limit, or simultaneous requests for one resource); retry after the Retry-After seconds',
   503: 'Dependency unavailable',
 };
 

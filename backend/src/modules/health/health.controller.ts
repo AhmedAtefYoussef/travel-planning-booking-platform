@@ -8,6 +8,7 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../../common/auth/auth.decorators';
+import { NoRateLimit } from '../../common/security/rate-limit';
 import { HealthReport, HealthService } from './health.service';
 
 class HealthReportDto implements HealthReport {
@@ -24,6 +25,7 @@ class HealthReportDto implements HealthReport {
 }
 
 @ApiTags('Health')
+@NoRateLimit()
 @Controller('health')
 export class HealthController {
   constructor(private readonly health: HealthService) {}

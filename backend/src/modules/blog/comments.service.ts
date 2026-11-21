@@ -7,10 +7,9 @@ import { VISIBLE_CONTENT_FILTER } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
+  mapPage,
   type Page,
-  PAGE_SIZE,
-  skipFor,
-  toPage,
+  paginate,
 } from '../../common/pagination/pagination';
 import { AccountStatus, UsersService } from '../users';
 import { PUBLIC_POST_FILTER } from './blog-rules';
@@ -46,24 +45,16 @@ export class CommentsService {
       postId: new Types.ObjectId(postId),
       ...VISIBLE_CONTENT_FILTER,
     };
-    const [items, total] = await Promise.all([
-      this.comments
-        .find(filter)
-        .sort({ createdAt: 1, _id: 1 })
-        .skip(skipFor(page))
-        .limit(PAGE_SIZE)
-        .lean<CommentLike[]>()
-        .exec(),
-      this.comments.countDocuments(filter).exec(),
-    ]);
-    const authors = await this.postsService.authorsOf(
-      items.map((c) => c.authorId),
-    );
-    return toPage(
-      items.map((c) => toCommentDto(c, authors)),
-      total,
+    const result = await paginate<Comment, CommentLike>(
+      this.comments,
+      filter,
       page,
+      { sort: { createdAt: 1 } },
     );
+    const authors = await this.postsService.authorsOf(
+      result.items.map((c) => c.authorId),
+    );
+    return mapPage(result, (c) => toCommentDto(c, authors));
   }
 
   /** BLG-05: comment on a published post (1-500 characters, checked by the DTO and the schema). */

@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationBootstrap,
-  OnApplicationShutdown,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -12,10 +7,8 @@ import {
   canTransition,
   transitionManyBookings,
 } from '../../common/contracts';
-import {
-  NodeEnv,
-  type EnvironmentVariables,
-} from '../../config/env.validation';
+import { IntervalJob, type JobTask } from '../../common/utils/interval-job';
+import { type EnvironmentVariables } from '../../config/env.validation';
 import { FlightBookingsService } from './flight-bookings.service';
 import { HotelBookingsService } from './hotel-bookings.service';
 import { FlightBooking } from './schemas/flight-booking.schema';
@@ -25,8 +18,8 @@ import { HotelReservation } from './schemas/hotel-reservation.schema';
 export const BOOKING_LIFECYCLE_INTERVAL_MS = 60_000;
 
 /**
- * GEN-11 lifecycle jobs. Same pattern as FlightStatusService: a periodic, unref'd timer, not started in
- * tests (which call the job methods directly with a fixed `now`).
+ * GEN-11 lifecycle jobs, run every minute by IntervalJob (not in tests, which call the job methods
+ * directly with a fixed `now`).
  *
  * - Confirmed -> Completed once the trip has ended (last arrival / check-out day in the hotel's zone).
  * - Pending Payment -> Expired after the 10-minute hold (FLT-22 seats, HTL-18 nights released with it).
@@ -34,21 +27,26 @@ export const BOOKING_LIFECYCLE_INTERVAL_MS = 60_000;
  * Every write is status-conditioned, so several API instances running the job at once are harmless.
  */
 @Injectable()
-export class BookingLifecycleService
-  implements OnApplicationBootstrap, OnApplicationShutdown
-{
-  private readonly logger = new Logger(BookingLifecycleService.name);
-  private timer?: NodeJS.Timeout;
-
+export class BookingLifecycleService extends IntervalJob {
   constructor(
     @InjectModel(FlightBooking.name)
     private readonly flights: Model<FlightBooking>,
     @InjectModel(HotelReservation.name)
     private readonly hotels: Model<HotelReservation>,
-    private readonly config: ConfigService<EnvironmentVariables, true>,
+    config: ConfigService<EnvironmentVariables, true>,
     private readonly flightBookings: FlightBookingsService,
     private readonly hotelBookings: HotelBookingsService,
-  ) {}
+  ) {
+    super(config, BOOKING_LIFECYCLE_INTERVAL_MS, 'Booking lifecycle job');
+  }
+
+  protected tasks(): JobTask[] {
+    return [
+      { name: 'expire flight holds', run: () => this.expireFlightHolds() },
+      { name: 'expire hotel holds', run: () => this.expireHotelHolds() },
+      { name: 'complete finished trips', run: () => this.completeFinished() },
+    ];
+  }
 
   /** FLT-22: Pending Payment -> Expired after the 10-minute hold, releasing the seats. */
   expireFlightHolds(now: Date = new Date()): Promise<number> {
@@ -107,26 +105,6 @@ export class BookingLifecycleService
         'GEN-11: BOOKING_TRANSITIONS no longer allows Confirmed -> Completed',
       );
     }
-    if (this.config.get('NODE_ENV', { infer: true }) === NodeEnv.Test) return;
-    const job = (name: string, work: () => Promise<unknown>) =>
-      work().catch((e: unknown) =>
-        this.logger.error(
-          `Booking lifecycle job "${name}" failed: ${e instanceof Error ? e.message : String(e)}`,
-          e instanceof Error ? e.stack : undefined,
-        ),
-      );
-    const run = () =>
-      Promise.all([
-        job('expire flight holds', () => this.expireFlightHolds()),
-        job('expire hotel holds', () => this.expireHotelHolds()),
-        job('complete finished trips', () => this.completeFinished()),
-      ]);
-    void run();
-    this.timer = setInterval(() => void run(), BOOKING_LIFECYCLE_INTERVAL_MS);
-    this.timer.unref();
-  }
-
-  onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer);
+    super.onApplicationBootstrap();
   }
 }

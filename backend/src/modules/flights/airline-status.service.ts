@@ -14,6 +14,22 @@ export class AirlineStatusService implements ProviderStatus {
     @InjectModel(Airline.name) private readonly airlines: Model<Airline>,
   ) {}
 
+  async findMany(providerIds: readonly string[]): Promise<ProviderState[]> {
+    const ids = [...new Set(providerIds)].filter((id) =>
+      Types.ObjectId.isValid(id),
+    );
+    if (ids.length === 0) return [];
+    const rows = await this.airlines
+      .find({ _id: { $in: ids } }, { name: 1, isActive: 1 })
+      .lean()
+      .exec();
+    return rows.map((airline) => ({
+      id: airline._id.toHexString(),
+      name: airline.name,
+      isActive: airline.isActive,
+    }));
+  }
+
   async find(
     providerId: string,
     session?: ClientSession,

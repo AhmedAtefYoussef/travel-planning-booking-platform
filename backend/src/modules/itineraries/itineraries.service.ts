@@ -38,6 +38,7 @@ import {
   ItineraryDocument,
   ItineraryVisibility,
 } from './schemas/itinerary.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 const EDITABLE_FIELDS = [
   'title',
@@ -164,23 +165,18 @@ export class ItinerariesService {
       .exec();
     // The itinerary and its activities go together or not at all, so a crash cannot leave orphan
     // activities. Budget rows (the port takes no session) and files are removed only after the commit.
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const deleted = await this.itineraries
-          .deleteOne(
-            { _id: itinerary._id, ownerId: itinerary.ownerId },
-            { session },
-          )
-          .exec();
-        if (deleted.deletedCount === 0) throw itineraryNotFound();
-        await this.activities
-          .deleteMany({ itineraryId: itinerary._id }, { session })
-          .exec();
-      });
-    } finally {
-      await session.endSession();
-    }
+    await runInTransaction(this.connection, async (session) => {
+      const deleted = await this.itineraries
+        .deleteOne(
+          { _id: itinerary._id, ownerId: itinerary.ownerId },
+          { session },
+        )
+        .exec();
+      if (deleted.deletedCount === 0) throw itineraryNotFound();
+      await this.activities
+        .deleteMany({ itineraryId: itinerary._id }, { session })
+        .exec();
+    });
     await this.budgets?.deleteForItinerary(itinerary.id as string);
     await this.deleteUnusedImages(activities.flatMap((a) => a.images ?? []));
   }
@@ -255,19 +251,18 @@ export class ItinerariesService {
   private async cityNames(
     cityIds: readonly string[],
   ): Promise<Map<string, string>> {
-    const names = new Map<string, string>();
-    for (const cityId of new Set(cityIds)) {
-      const city = await this.reference.getCity(cityId);
-      if (city) names.set(cityId, city.name);
-    }
-    return names;
+    const cities = await this.reference.getCities(cityIds);
+    return new Map(cities.map((city) => [city.cityId, city.name]));
   }
 
   /** ITN-01: every country must come from the predefined list (GEN-12); 400 names each bad one. */
   private async assertCountries(countries: readonly string[]): Promise<void> {
+    const known = new Set(
+      (await this.reference.getCountries(countries)).map((c) => c.code),
+    );
     const errors: FieldError[] = [];
     for (const [i, code] of countries.entries()) {
-      if (!(await this.reference.getCountry(code))) {
+      if (!known.has(code.trim().toUpperCase())) {
         errors.push({
           field: `countries[${i}]`,
           message: `Unknown country "${code}". Use a country code from GET /api/countries`,

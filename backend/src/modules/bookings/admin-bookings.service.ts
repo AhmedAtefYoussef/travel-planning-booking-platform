@@ -162,20 +162,15 @@ export class AdminBookingsService {
     );
   }
 
-  /** Account id -> name and email, one lookup per distinct account on the page. */
+  /** Account id -> name and email for the accounts on the page, in one query. */
   private async usersOf(
     rows: BookingRow[],
   ): Promise<Map<string, { name: string; email: string }>> {
     const ids = [...new Set(rows.map((r) => r.userId.toHexString()))];
-    const profiles = await Promise.all(
-      ids.map((id) => this.users.findProfile(id)),
+    const profiles = await this.users.findProfiles(ids);
+    return new Map(
+      profiles.map((p) => [p.id, { name: p.name, email: p.email }]),
     );
-    const out = new Map<string, { name: string; email: string }>();
-    ids.forEach((id, i) => {
-      const p = profiles[i];
-      if (p) out.set(id, { name: p.name, email: p.email });
-    });
-    return out;
   }
 
   /** Airline id -> name for the flight rows (hotel names are stored on the reservation). */
@@ -187,10 +182,13 @@ export class AdminBookingsService {
           .map((r) => r.providerId.toHexString()),
       ),
     ];
-    const found = await Promise.all(ids.map((id) => this.airlines.find(id)));
-    const out = new Map<string, string>();
-    ids.forEach((id, i) => out.set(id, found[i]?.name ?? 'Unknown airline'));
-    return out;
+    if (ids.length === 0) return new Map();
+    const found = new Map(
+      (await this.airlines.findMany(ids)).map((a) => [a.id, a.name]),
+    );
+    return new Map(
+      ids.map((id) => [id, found.get(id) ?? 'Unknown airline'] as const),
+    );
   }
 }
 

@@ -78,6 +78,8 @@ required variable, naming it. The file holds placeholders only.
 | `COOKIE_SECURE` | yes | `true` behind HTTPS, `false` for local http |
 | `AUTH_STUB` | no (false) | `true` accepts the `x-dev-user` header (local development only); set `false` for the demo and any shared environment |
 | `SWAGGER_ENABLED` | no (on outside production) | serve Swagger UI at `/api/docs`; unset means on in development and test, off in production; set `true` to opt a deployment in (ADR-0006) |
+| `RATE_LIMIT_ENABLED` | no (on outside test) | per-IP request limits: 10 logins or registrations, 20 payments, 120 other requests a minute (ADR-0007); `false` turns them off |
+| `TRUST_PROXY` | no | number of reverse proxies in front of the API, so the rate limit sees client IPs; leave unset when the API is reached directly (ADR-0007) |
 | `PLATFORM_CURRENCY` | yes | The one currency of every price, e.g. `USD` (one of AED, EGP, EUR, GBP, JPY, SAR, USD) |
 | `STRIPE_SECRET_KEY` | yes | Stripe test key, `sk_test_...` (live keys are refused) |
 | `STRIPE_WEBHOOK_SECRET` | yes | The `whsec_...` that `stripe listen` prints (see below) |
@@ -150,15 +152,20 @@ shows what is still open.
 |---|---|---|
 | `auth` | Auth | ACC-01, ACC-04, ACC-05, ACC-06, ACC-08, ACC-19 |
 | `users` | Users, Admin: accounts | ACC-07a, ACC-09, ACC-11, ACC-12, ACC-13, ACC-14 |
+| `admin` | Admin: accounts, Admin: providers | ACC-15, ACC-16 |
 | `audit` | Admin: audit log | GEN-07 |
+| `moderation` | Admin: moderation, Reports | GEN-09, GEN-10 |
 | `notifications` | notifications | GEN-01 |
-| `flights` | Airlines, Flights | FLT-01, FLT-03, FLT-04, FLT-05, FLT-08, FLT-09, FLT-11, FLT-12, FLT-15, FLT-17 |
-| `bookings` | flight-bookings, hotel-bookings, booking-policies | FLT-19 to FLT-23, HTL-16 to HTL-18, PAY-02, GEN-11 |
-| `hotels` | Hotels | HTL-01, HTL-03, HTL-04, HTL-05 |
-| `payments` | payments, refunds | PAY-01, PAY-03 |
-| `currency` | currency | ITN-18, PAY-04 |
 | `reference` | Reference data | GEN-12, FLT-02 |
-| `uploads` | (inside Airlines and Hotels) | GEN-08 |
+| `flights` | Airlines, Flights | FLT-01, FLT-03 to FLT-06, FLT-08, FLT-09, FLT-11, FLT-12, FLT-15, FLT-17, FLT-30 (status job) |
+| `hotels` | Hotels, reviews | HTL-01 to HTL-06, HTL-08 to HTL-12, HTL-15, HTL-23, HTL-24 |
+| `bookings` | flight-bookings, hotel-bookings, booking-policies, Admin: bookings | FLT-12, FLT-19, FLT-21 to FLT-23, FLT-25, FLT-26, FLT-29, HTL-16, HTL-18, HTL-20 to HTL-23, ACC-17, PAY-02, GEN-11 (lifecycle job) |
+| `payments` | payments, refunds | PAY-01, PAY-03 |
+| `currency` | currency | ITN-18 (daily rates job), PAY-04 |
+| `itineraries` | Itineraries | ITN-01, ITN-03, ITN-05, ITN-07 to ITN-10, ITN-12, ITN-20, ITN-21, ITN-25, ITN-26 |
+| `budgets` | Budgets | ITN-14, ITN-16, ITN-18 |
+| `blog` | Blog | BLG-01 to BLG-10, BLG-12 |
+| `uploads` | (inside Airlines, Hotels, Itineraries and Blog) | GEN-08 |
 | `health`, `diagnostics` | Health, Diagnostics (dev only) | TRVL-128, GEN-02, GEN-05, GEN-13 |
 
 ## Quality gate

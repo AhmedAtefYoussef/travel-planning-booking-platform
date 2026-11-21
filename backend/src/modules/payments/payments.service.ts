@@ -2,6 +2,7 @@ import { HttpStatus, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
+import { assertOwner, isOwner } from '../../common/auth/access';
 import { AuthUser, Role } from '../../common/auth/auth.types';
 import {
   assertPayable,
@@ -30,6 +31,7 @@ import {
   type StripeWebhookEvent,
 } from './stripe-gateway';
 import { verifyStripeSignature } from './stripe-signature';
+import { runInTransaction } from '../../common/utils/transaction';
 
 const DUPLICATE_KEY = 11000;
 const CONFIRM_ATTEMPTS = 3;
@@ -40,6 +42,9 @@ export const JOB_BATCH = 100;
 const MAX_BACKOFF_MS = 60 * 60_000;
 
 const OPEN = [PaymentStatus.RequiresPayment, PaymentStatus.Failed];
+
+/** One answer for an unknown id and for someone else's payment, so a stranger learns nothing (ACC-11). */
+const PAYMENT_NOT_FOUND = 'Payment not found';
 
 /** A paid booking that can no longer be confirmed is refunded in full (ADR-0003). */
 const REFUNDABLE_CODES: readonly string[] = [
@@ -247,7 +252,7 @@ export class PaymentsService {
     now: Date = new Date(),
   ): Promise<PaymentDto> {
     const payment = await this.load(user, id, true);
-    const owner = payment.userId.toHexString() === user.id;
+    const owner = isOwner(user, payment.userId);
     let reference: string | null = null;
     try {
       reference = (
@@ -459,27 +464,20 @@ export class PaymentsService {
     event: StripeWebhookEvent,
     work: (session: ClientSession) => Promise<T>,
   ): Promise<T> {
-    const session = await this.connection.startSession();
-    try {
-      let result!: T;
-      await session.withTransaction(async () => {
-        try {
-          await this.events.create(
-            [{ stripeEventId: event.id, type: event.type }],
-            { session },
-          );
-        } catch (e) {
-          if ((e as { code?: number }).code === DUPLICATE_KEY) {
-            throw new EventReplay(event.id);
-          }
-          throw e;
+    return runInTransaction(this.connection, async (session) => {
+      try {
+        await this.events.create(
+          [{ stripeEventId: event.id, type: event.type }],
+          { session },
+        );
+      } catch (e) {
+        if ((e as { code?: number }).code === DUPLICATE_KEY) {
+          throw new EventReplay(event.id);
         }
-        result = await work(session);
-      });
-      return result;
-    } finally {
-      await session.endSession();
-    }
+        throw e;
+      }
+      return work(session);
+    });
   }
 
   /* ------------------------------------- jobs ------------------------------------- */
@@ -603,17 +601,18 @@ export class PaymentsService {
     const payment = Types.ObjectId.isValid(id)
       ? await this.payments.findById(id).exec()
       : null;
-    const allowed =
-      payment &&
-      (payment.userId.toHexString() === user.id ||
-        (adminToo && user.role === Role.Admin));
-    if (!payment || !allowed) {
+    if (!payment) {
       throw new AppException(
         HttpStatus.NOT_FOUND,
         ErrorCode.NOT_FOUND,
-        'Payment not found',
+        PAYMENT_NOT_FOUND,
       );
     }
+    assertOwner(user, payment.userId, {
+      bypassRoles: adminToo ? [Role.Admin] : [],
+      notFound: true,
+      notFoundMessage: PAYMENT_NOT_FOUND,
+    });
     return payment;
   }
 

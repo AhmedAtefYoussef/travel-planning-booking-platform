@@ -34,6 +34,7 @@ import {
   ItineraryDocument,
   ItineraryVisibility,
 } from './schemas/itinerary.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
@@ -137,52 +138,47 @@ export class PublicItinerariesService {
     // half-copied itinerary. Budget rows go through the port (no session) after the commit; if that
     // fails, the copy is removed again.
     const copyId = new Types.ObjectId();
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        await this.itineraries.create(
-          [
-            {
-              _id: copyId,
-              ownerId: new Types.ObjectId(user.id),
-              title: source.title,
-              countries: [...source.countries],
-              startDate: source.startDate,
-              visibility: ItineraryVisibility.Private,
-              days,
-              clonedFrom: {
-                itineraryId: source._id,
-                authorId: source.ownerId,
-                authorName: author.name,
-              },
+    await runInTransaction(this.connection, async (session) => {
+      await this.itineraries.create(
+        [
+          {
+            _id: copyId,
+            ownerId: new Types.ObjectId(user.id),
+            title: source.title,
+            countries: [...source.countries],
+            startDate: source.startDate,
+            visibility: ItineraryVisibility.Private,
+            days,
+            clonedFrom: {
+              itineraryId: source._id,
+              authorId: source.ownerId,
+              authorName: author.name,
             },
-          ],
-          { session },
-        );
-        const activities = await this.activities
-          .find({ itineraryId: source._id }, null, { session })
-          .sort({ createdAt: 1, _id: 1 })
-          .lean()
-          .exec();
-        const copies = activities
-          .filter((a) => dayIdMap.has(a.dayId.toHexString()))
-          .map((a) => ({
-            itineraryId: copyId,
-            dayId: new Types.ObjectId(dayIdMap.get(a.dayId.toHexString())),
-            name: a.name,
-            description: a.description,
-            time: a.time,
-            costMinor: a.costMinor,
-            currency: a.currency,
-            images: [...(a.images ?? [])],
-          }));
-        if (copies.length) {
-          await this.activities.insertMany(copies, { session });
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+          },
+        ],
+        { session },
+      );
+      const activities = await this.activities
+        .find({ itineraryId: source._id }, null, { session })
+        .sort({ createdAt: 1, _id: 1 })
+        .lean()
+        .exec();
+      const copies = activities
+        .filter((a) => dayIdMap.has(a.dayId.toHexString()))
+        .map((a) => ({
+          itineraryId: copyId,
+          dayId: new Types.ObjectId(dayIdMap.get(a.dayId.toHexString())),
+          name: a.name,
+          description: a.description,
+          time: a.time,
+          costMinor: a.costMinor,
+          currency: a.currency,
+          images: [...(a.images ?? [])],
+        }));
+      if (copies.length) {
+        await this.activities.insertMany(copies, { session });
+      }
+    });
     try {
       await this.budgets?.cloneForItinerary(
         source.id as string,
