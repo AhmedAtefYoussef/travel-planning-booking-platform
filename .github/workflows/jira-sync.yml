@@ -78,6 +78,7 @@ jobs:
               fi
             else
               comment "$key" "Pull request #$PR_NUMBER opened: "
-              [ "$status" = "To Do" ] && transition "$key" "In Progress"
+              # An if, not `[ ] && ...`: a false test as the last command would fail the step.
+              if [ "$status" = "To Do" ]; then transition "$key" "In Progress"; fi
             fi
           done
