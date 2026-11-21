@@ -550,6 +550,11 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
         .post(`/api/payments/${paymentId}/retry`)
         .set('Cookie', other.cookie)
         .expect(404);
+      // An admin may read any payment but not pay one: retrying is a traveler action (403).
+      await http()
+        .post(`/api/payments/${paymentId}/retry`)
+        .set('x-dev-user', 'ADMIN')
+        .expect(403);
       await flightBookings.updateOne(
         { _id: bookingId },
         { $set: { holdExpiresAt: new Date(Date.now() - 1000) } },
@@ -563,10 +568,15 @@ describe('Payments (e2e): PAY-01, PAY-02, FLT-23, HTL-17', () => {
 
     it('shows a payment to its owner and an admin only', async () => {
       const { paymentId } = await readyFlight(owner);
-      await http()
+      const stranger = await http()
         .get(`/api/payments/${paymentId}`)
         .set('Cookie', other.cookie)
         .expect(404);
+      const unknown = await http()
+        .get('/api/payments/0123456789abcdef01234567')
+        .set('Cookie', other.cookie)
+        .expect(404);
+      expect(stranger.body.message).toBe(unknown.body.message);
       const admin = await http()
         .get(`/api/payments/${paymentId}`)
         .set('x-dev-user', 'ADMIN')
