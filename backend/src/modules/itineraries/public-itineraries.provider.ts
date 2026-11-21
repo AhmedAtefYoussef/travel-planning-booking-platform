@@ -5,8 +5,16 @@ import type {
   PublicItineraries,
   PublicItinerarySummary,
 } from '../../common/contracts/services.contract';
-import { PAGE_SIZE, skipFor } from '../../common/pagination/pagination';
+import { paginate } from '../../common/pagination/pagination';
 import { Itinerary, ItineraryVisibility } from './schemas/itinerary.schema';
+
+type SummaryRow = {
+  _id: Types.ObjectId;
+  title: string;
+  countries: string[];
+  startDate: string;
+  days?: unknown[];
+};
 
 /**
  * PUBLIC_ITINERARIES (common/contracts): an author's public itineraries for the blog's author page
@@ -28,24 +36,15 @@ export class PublicItinerariesProvider implements PublicItineraries {
       visibility: ItineraryVisibility.Public,
       isHidden: { $ne: true },
     };
-    const [rows, total] = await Promise.all([
-      this.itineraries
-        .find(filter, { title: 1, countries: 1, startDate: 1, days: 1 })
-        .sort({ updatedAt: -1, _id: -1 })
-        .skip(skipFor(page))
-        .limit(PAGE_SIZE)
-        .lean<
-          {
-            _id: Types.ObjectId;
-            title: string;
-            countries: string[];
-            startDate: string;
-            days?: unknown[];
-          }[]
-        >()
-        .exec(),
-      this.itineraries.countDocuments(filter).exec(),
-    ]);
+    const { items: rows, total } = await paginate<Itinerary, SummaryRow>(
+      this.itineraries,
+      filter,
+      page,
+      {
+        sort: { updatedAt: -1 },
+        projection: { title: 1, countries: 1, startDate: 1, days: 1 },
+      },
+    );
     return {
       items: rows.map((r) => ({
         id: r._id.toHexString(),

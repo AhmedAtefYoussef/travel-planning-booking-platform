@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import type { AuthUser } from '../../common/auth/auth.types';
-import { PAGE_SIZE, type Page } from '../../common/pagination/pagination';
+import {
+  mapPage,
+  type Page,
+  paginate,
+} from '../../common/pagination/pagination';
 import { eachNight } from '../../common/utils/dates';
 import {
   type RoomCalendarDto,
@@ -44,16 +48,11 @@ export class RoomCalendarService {
     const dates = eachNight(query.from, query.to);
     const page = query.page ?? 1;
     const filter = { hotelId: hotel._id };
-    const [total, rooms] = await Promise.all([
-      this.rooms.countDocuments(filter).exec(),
-      this.rooms
-        .find(filter, { number: 1, type: 1, isActive: 1, availability: 1 })
-        .sort({ number: 1 })
-        .skip((page - 1) * PAGE_SIZE)
-        .limit(PAGE_SIZE)
-        .lean<RoomLean[]>()
-        .exec(),
-    ]);
+    const roomPage = await paginate<Room, RoomLean>(this.rooms, filter, page, {
+      sort: { number: 1 },
+      projection: { number: 1, type: 1, isActive: 1, availability: 1 },
+    });
+    const rooms = roomPage.items;
     const taken = rooms.length
       ? await this.nights
           .find(
@@ -66,25 +65,15 @@ export class RoomCalendarService {
     const byKey = new Map(
       taken.map((n) => [`${n.roomId.toHexString()}|${n.date}`, n]),
     );
-    return {
-      items: rooms.map((room) => ({
-        roomId: room._id.toHexString(),
-        number: room.number,
-        type: room.type,
-        isActive: room.isActive,
-        nights: dates.map((date) =>
-          nightStatus(
-            room,
-            date,
-            byKey.get(`${room._id.toHexString()}|${date}`),
-          ),
-        ),
-      })),
-      page,
-      limit: PAGE_SIZE,
-      total,
-      totalPages: Math.ceil(total / PAGE_SIZE),
-    };
+    return mapPage(roomPage, (room) => ({
+      roomId: room._id.toHexString(),
+      number: room.number,
+      type: room.type,
+      isActive: room.isActive,
+      nights: dates.map((date) =>
+        nightStatus(room, date, byKey.get(`${room._id.toHexString()}|${date}`)),
+      ),
+    }));
   }
 }
 

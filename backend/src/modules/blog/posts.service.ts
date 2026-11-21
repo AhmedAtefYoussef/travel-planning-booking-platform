@@ -18,9 +18,9 @@ import {
 } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import {
+  mapPage,
   type Page,
-  PAGE_SIZE,
-  skipFor,
+  paginate,
   toPage,
 } from '../../common/pagination/pagination';
 import { localUploadUrlPattern } from '../../common/validation';
@@ -315,22 +315,12 @@ export class PostsService {
     page: number,
     sort: Record<string, SortOrder>,
   ): Promise<Page<PostSummaryDto>> {
-    const [items, total] = await Promise.all([
-      this.posts
-        .find(filter)
-        .sort({ ...sort, _id: -1 })
-        .skip(skipFor(page))
-        .limit(PAGE_SIZE)
-        .lean<PostLike[]>()
-        .exec(),
-      this.posts.countDocuments(filter).exec(),
-    ]);
-    const authors = await this.authorsOf(items.map((p) => p.authorId));
-    return toPage(
-      items.map((p) => this.summary(p, authors)),
-      total,
-      page,
-    );
+    // Every post sort is newest/highest first, so paginate's `_id` tie-break is descending too.
+    const result = await paginate<Post, PostLike>(this.posts, filter, page, {
+      sort,
+    });
+    const authors = await this.authorsOf(result.items.map((p) => p.authorId));
+    return mapPage(result, (p) => this.summary(p, authors));
   }
 
   /**
