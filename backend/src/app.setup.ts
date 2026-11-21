@@ -2,6 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import { resolve } from 'node:path';
 
 export const API_PREFIX = 'api';
@@ -14,6 +15,25 @@ export const API_PREFIX = 'api';
  */
 export function configureApp(app: INestApplication): INestApplication {
   app.setGlobalPrefix(API_PREFIX);
+  // Standard security headers (HSTS, nosniff, frame-ancestors, referrer policy, ...). The CSP keeps Swagger
+  // UI working: its bundle and init script are same-origin files, but it styles elements inline and shows
+  // data: URIs (logo, icons). Images and uploads may be embedded by the Next.js frontend on another origin.
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:'],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+        },
+      },
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   // Do not advertise the server stack (x-powered-by: Express) to clients.
   (
     app.getHttpAdapter().getInstance() as {

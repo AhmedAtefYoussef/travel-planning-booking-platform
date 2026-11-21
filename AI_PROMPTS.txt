@@ -2451,6 +2451,21 @@ include budget entries and transport costs, so ITN-09 is Done. I reviewed the sc
 Date: 2026-11-21
 Student: Ahmed Atef Youssef
 Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-13, TRVL-183
+Prompt:
+Add the low-risk security hardening from the Milestone 1 audit: standard security headers with helmet, and stop
+serving Swagger in production unless a setting opts in, without breaking Swagger UI, which graders use.
+How the output was used:
+Claude added helmet in configureApp with a CSP that allows only same-origin scripts but keeps Swagger UI's inline
+styles and data: images, set Cross-Origin-Resource-Policy to cross-origin for the future frontend, and added
+SWAGGER_ENABLED (unset: on outside production). I checked the headers and the Swagger page in an e2e test and
+loaded Swagger UI in a browser with the new policy: no console errors.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: FLT-22 (TRVL-42), TRVL-183
 Prompt:
 A flight could look sold out for up to 60 s after a hold expired, until the expiry job ran. Release expired

@@ -8,6 +8,17 @@ export const AUTH_COOKIE = 'access_token';
 /** Temporary stub-auth header (TRVL-131); removed together with AuthStubGuard in ACC-11. */
 export const DEV_USER_SECURITY = 'dev-user';
 
+/**
+ * Whether Swagger UI is served: SWAGGER_ENABLED when it is set, otherwise everywhere except production,
+ * so a production deployment does not publish a map of every route unless it opts in.
+ */
+export function isSwaggerEnabled(
+  nodeEnv: string | undefined,
+  flag: boolean | undefined,
+): boolean {
+  return flag ?? nodeEnv !== 'production';
+}
+
 export function buildOpenApiDocument(app: INestApplication): OpenAPIObject {
   const config = new DocumentBuilder()
     .setTitle('Travel Planning & Booking Platform API')

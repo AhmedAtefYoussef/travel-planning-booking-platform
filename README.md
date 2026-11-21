@@ -77,6 +77,7 @@ required variable, naming it. The file holds placeholders only.
 | `SESSION_IDLE_MINUTES` | yes | Idle minutes before a session ends, e.g. `30` |
 | `COOKIE_SECURE` | yes | `true` behind HTTPS, `false` for local http |
 | `AUTH_STUB` | no (false) | `true` accepts the `x-dev-user` header (local development only); set `false` for the demo and any shared environment |
+| `SWAGGER_ENABLED` | no (on outside production) | serve Swagger UI at `/api/docs`; unset means on in development and test, off in production; set `true` to opt a deployment in (ADR-0006) |
 | `PLATFORM_CURRENCY` | yes | The one currency of every price, e.g. `USD` (one of AED, EGP, EUR, GBP, JPY, SAR, USD) |
 | `STRIPE_SECRET_KEY` | yes | Stripe test key, `sk_test_...` (live keys are refused) |
 | `STRIPE_WEBHOOK_SECRET` | yes | The `whsec_...` that `stripe listen` prints (see below) |

@@ -92,6 +92,15 @@ export class EnvironmentVariables {
   @IsBoolean()
   AUTH_STUB = false;
 
+  /**
+   * Serve Swagger UI and its JSON at /api/docs. Unset: on outside production, off in production (no public
+   * map of every route). Set it to true for a deployment that is graded through Swagger.
+   */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  SWAGGER_ENABLED?: boolean;
+
   @IsIn(PLATFORM_CURRENCIES, {
     message: `PLATFORM_CURRENCY must be one of the seeded currencies: ${PLATFORM_CURRENCIES.join(', ')} (PAY-04)`,
   })
