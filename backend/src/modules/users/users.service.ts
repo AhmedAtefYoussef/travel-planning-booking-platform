@@ -174,6 +174,14 @@ export class UsersService {
   }
 
   /** ACC-19: the profile behind /auth/me; null when the account no longer exists. */
+  /** The profiles of the existing accounts among `ids`, in one query; unknown or malformed ids are absent. */
+  async findProfiles(ids: readonly string[]): Promise<UserProfileDto[]> {
+    const valid = [...new Set(ids)].filter((id) => Types.ObjectId.isValid(id));
+    if (valid.length === 0) return [];
+    const users = await this.users.find({ _id: { $in: valid } }).exec();
+    return users.map(toUserProfile);
+  }
+
   async findProfile(id: string): Promise<UserProfileDto | null> {
     if (!Types.ObjectId.isValid(id)) return null;
     const user = await this.users.findById(id);

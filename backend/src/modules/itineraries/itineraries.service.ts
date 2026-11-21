@@ -251,19 +251,18 @@ export class ItinerariesService {
   private async cityNames(
     cityIds: readonly string[],
   ): Promise<Map<string, string>> {
-    const names = new Map<string, string>();
-    for (const cityId of new Set(cityIds)) {
-      const city = await this.reference.getCity(cityId);
-      if (city) names.set(cityId, city.name);
-    }
-    return names;
+    const cities = await this.reference.getCities(cityIds);
+    return new Map(cities.map((city) => [city.cityId, city.name]));
   }
 
   /** ITN-01: every country must come from the predefined list (GEN-12); 400 names each bad one. */
   private async assertCountries(countries: readonly string[]): Promise<void> {
+    const known = new Set(
+      (await this.reference.getCountries(countries)).map((c) => c.code),
+    );
     const errors: FieldError[] = [];
     for (const [i, code] of countries.entries()) {
-      if (!(await this.reference.getCountry(code))) {
+      if (!known.has(code.trim().toUpperCase())) {
         errors.push({
           field: `countries[${i}]`,
           message: `Unknown country "${code}". Use a country code from GET /api/countries`,

@@ -16,6 +16,7 @@ const SESSION = { id: 'tx' };
 function store(state: ProviderState | null, changed = true) {
   return {
     find: jest.fn().mockResolvedValue(state),
+    findMany: jest.fn().mockResolvedValue(state ? [state] : []),
     setActive: jest.fn().mockResolvedValue(changed),
   } satisfies jest.Mocked<ProviderStatus>;
 }

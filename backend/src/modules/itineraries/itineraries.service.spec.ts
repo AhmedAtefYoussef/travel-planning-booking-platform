@@ -101,11 +101,19 @@ function setup(
           : null,
       ),
     ),
-    getCity: jest.fn((cityId: string) =>
+    getCountries: jest.fn((codes: string[]) =>
       Promise.resolve(
-        cityId === 'cairo'
-          ? { cityId, name: 'Cairo', countryCode: 'EG' }
-          : null,
+        codes
+          .map((code) => code.trim().toUpperCase())
+          .filter((code) => ['EG', 'AE'].includes(code))
+          .map((code) => ({ code, name: code, currency: 'X' })),
+      ),
+    ),
+    getCities: jest.fn((cityIds: string[]) =>
+      Promise.resolve(
+        cityIds
+          .filter((cityId) => cityId === 'cairo')
+          .map((cityId) => ({ cityId, name: 'Cairo', countryCode: 'EG' })),
       ),
     ),
   } as unknown as ReferenceService;

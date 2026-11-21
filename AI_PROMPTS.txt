@@ -2628,3 +2628,22 @@ payments, flight status and currency jobs now only list their tasks; currency ke
 fetch and its FX_API_KEY redaction through hooks. The flight status job now also logs the stack and names
 its task. It added unit tests for the base. I ran the job suites and the full verify.
 ================================================
+
+================================================
+Date: 2026-11-22
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-11, ITN-01, ITN-03, ACC-17, TRVL-183
+Prompt:
+Keep working until the plan is finished: the last TRVL-183 items (hotel search as an aggregation, and
+batching the per-city lookups with $in).
+How the output was used:
+Claude checked the hotel search first and reported that moving its filter, sort and page into an
+aggregation would be wrong: the sort key is the "from" price, which only the in-memory cheapest-rooms
+calculation can produce, and the search already reads in a fixed number of queries. Its real cost was
+one full airport-list read per city for the time zone. Claude then added batch lookups that use one $in
+query (reference getCities, getCountries, listAirportsInCities; UsersService.findProfiles; ProviderStatus
+findMany) and used them in hotel search, the hotel time-zone helper, itinerary city names and country
+checks, and the admin bookings list. Answers are unchanged. It added an e2e test for the reference batch
+lookups and a unit test for the time zones. I ran the full verify.
+================================================

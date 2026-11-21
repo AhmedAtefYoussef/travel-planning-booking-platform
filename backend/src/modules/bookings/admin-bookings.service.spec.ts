@@ -58,20 +58,20 @@ function service(
     }),
   });
   const airlines = {
-    find: jest.fn((id: string) =>
+    findMany: jest.fn((ids: string[]) =>
       Promise.resolve(
-        id === AIRLINE.toHexString()
-          ? { id, name: 'Admin Air', isActive: true }
-          : null,
+        ids
+          .filter((id) => id === AIRLINE.toHexString())
+          .map((id) => ({ id, name: 'Admin Air', isActive: true })),
       ),
     ),
   };
   const users = {
-    findProfile: jest.fn((id: string) =>
+    findProfiles: jest.fn((ids: string[]) =>
       Promise.resolve(
-        id === USER.toHexString()
-          ? { name: 'Mona Adel', email: 'mona@example.com' }
-          : null,
+        ids
+          .filter((id) => id === USER.toHexString())
+          .map((id) => ({ id, name: 'Mona Adel', email: 'mona@example.com' })),
       ),
     ),
   };
@@ -162,7 +162,7 @@ describe('AdminBookingsService (ACC-17)', () => {
       '$unionWith',
     );
     // No airline lookup for hotel rows.
-    expect(hotels.airlines.find).not.toHaveBeenCalled();
+    expect(hotels.airlines.findMany).not.toHaveBeenCalled();
   });
 
   it('filters by status and by trips overlapping the date range, both days included (UTC)', async () => {

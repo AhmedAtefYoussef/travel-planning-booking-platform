@@ -338,3 +338,32 @@ describe('HotelsService.setPolicies: HTL-09, HTL-10', () => {
     expect(closed).not.toHaveProperty('checkInTime');
   });
 });
+
+describe('HotelsService time zones (HTL-05, HTL-11)', () => {
+  it('reads every city in one query and keeps the zone of its first airport', async () => {
+    const { service, reference } = setup(null);
+    const listAirportsInCities = jest.fn(() =>
+      Promise.resolve([
+        { iataCode: 'AAA', cityId: 'north', timeZone: 'Zone/First' },
+        { iataCode: 'BBB', cityId: 'north', timeZone: 'Zone/Second' },
+        { iataCode: 'CCC', cityId: 'south', timeZone: 'Zone/South' },
+      ]),
+    );
+    Object.assign(reference, { listAirportsInCities });
+
+    const zones = await service.timeZonesOf(['north', 'south', 'nowhere']);
+
+    expect(listAirportsInCities).toHaveBeenCalledTimes(1);
+    expect(listAirportsInCities).toHaveBeenCalledWith([
+      'north',
+      'south',
+      'nowhere',
+    ]);
+    expect([...zones]).toEqual([
+      ['north', 'Zone/First'],
+      ['south', 'Zone/South'],
+    ]);
+    await expect(service.timeZoneOf('nowhere')).resolves.toBeNull();
+    await expect(service.timeZoneOf('south')).resolves.toBe('Zone/South');
+  });
+});

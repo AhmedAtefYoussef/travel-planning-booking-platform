@@ -73,6 +73,36 @@ export class ReferenceDataService implements ReferenceService {
       .exec();
   }
 
+  async getCities(cityIds: readonly string[]): Promise<CityInfo[]> {
+    const ids = [...new Set(cityIds.map((id) => id.trim()))];
+    if (ids.length === 0) return [];
+    return this.cities
+      .find({ cityId: { $in: ids } }, CITY_FIELDS)
+      .lean<CityInfo[]>()
+      .exec();
+  }
+
+  async getCountries(codes: readonly string[]): Promise<CountryInfo[]> {
+    const wanted = [...new Set(codes.map((c) => c.trim().toUpperCase()))];
+    if (wanted.length === 0) return [];
+    return this.countries
+      .find({ code: { $in: wanted } }, COUNTRY_FIELDS)
+      .lean<CountryInfo[]>()
+      .exec();
+  }
+
+  async listAirportsInCities(
+    cityIds: readonly string[],
+  ): Promise<AirportInfo[]> {
+    const ids = [...new Set(cityIds)];
+    if (ids.length === 0) return [];
+    return this.airports
+      .find({ cityId: { $in: ids } }, AIRPORT_FIELDS)
+      .sort({ iataCode: 1 })
+      .lean<AirportInfo[]>()
+      .exec();
+  }
+
   async listAirports(): Promise<AirportInfo[]> {
     return this.airports
       .find({}, AIRPORT_FIELDS)
