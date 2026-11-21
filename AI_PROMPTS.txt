@@ -2612,3 +2612,19 @@ rooms to a new pageOf() for lists already in memory. It added mapPage() to conve
 row-type parameter on paginate for projected queries, with unit tests for the helpers. Sort orders and
 tie-breaks are unchanged. I ran the affected unit suites and the full verify.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-11, TRVL-183
+Prompt:
+Continue with the next TRVL-183 item: one IntervalJob base for the four setInterval job services.
+How the output was used:
+Claude added an IntervalJob base class (common/utils/interval-job.ts) that owns the timer: it skips
+NODE_ENV=test, runs startup tasks once and the tick tasks on an unref'd interval, logs each failed task
+with its stack without stopping the others, and clears the timer at shutdown. The booking lifecycle,
+payments, flight status and currency jobs now only list their tasks; currency keeps its separate startup
+fetch and its FX_API_KEY redaction through hooks. The flight status job now also logs the stack and names
+its task. It added unit tests for the base. I ran the job suites and the full verify.
+================================================
