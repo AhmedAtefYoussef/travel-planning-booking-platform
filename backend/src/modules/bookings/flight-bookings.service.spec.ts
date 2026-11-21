@@ -124,7 +124,7 @@ function setup(
       lean: () => ({ exec: () => Promise.resolve(confirmedDoc()) }),
     }),
     // No due holds on the flight by default (FLT-22 inline expiry in hold()).
-    find: jest.fn(() => ({
+    find: jest.fn((): unknown => ({
       limit: () => ({ lean: () => ({ exec: () => Promise.resolve([]) }) }),
     })),
     exists: jest.fn(),
@@ -1368,10 +1368,9 @@ describe('FlightBookingsService.hold releases due holds first (FLT-22)', () => {
       order.push('release');
       return Promise.resolve(true);
     });
-    const reserve = inventory.reserveSeats.getMockImplementation();
-    inventory.reserveSeats.mockImplementation((...args: unknown[]) => {
+    inventory.reserveSeats.mockImplementation(() => {
       order.push('reserve');
-      return reserve ? reserve(...args) : Promise.resolve(true);
+      return Promise.resolve(true);
     });
 
     await service.hold(user, request(out, [adult]), NOW);
