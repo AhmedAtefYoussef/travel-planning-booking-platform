@@ -2505,3 +2505,18 @@ Claude skipped the per-commit lint when the PR head is develop (each commit was 
 every other governance check, and replaced the `[ ] && transition` line in jira-sync.yml with an if, because a
 false test as the last command made the step exit 1. I confirmed both causes in the failed run logs.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183, TRVL-129
+Prompt:
+The Jira sync workflow moved TRVL-183 (a ten-item hardening task) to Done when the first PR citing it merged.
+Only close an issue on merge when the PR says it closes it.
+How the output was used:
+Claude changed jira-sync.yml so a merge moves a key to Done only when the title or body closes it with a
+keyword (Closes / Fixes / Resolves, one key or a list); cited keys still get the merge comment and keep their
+status, and "Partial" still holds a closed key open. It added a Closes: line to the PR template and updated
+CONTRIBUTING.md. I tested the key extraction on sample titles and bodies and reopened TRVL-183 by hand.
+================================================
