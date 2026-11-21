@@ -92,6 +92,17 @@ export function skipFor(page: number): number {
   return (Math.max(1, Math.floor(page)) - 1) * PAGE_SIZE;
 }
 
+/** The GEN-05 envelope for one page of a list already held in memory (sorted by the caller). */
+export function pageOf<T>(all: T[], page: number): Page<T> {
+  const start = skipFor(page);
+  return toPage(all.slice(start, start + PAGE_SIZE), all.length, page);
+}
+
+/** The same page with every item converted, e.g. a lean document into its DTO. */
+export function mapPage<T, U>(page: Page<T>, convert: (item: T) => U): Page<U> {
+  return { ...page, items: page.items.map(convert) };
+}
+
 function firstDirection(sort?: Record<string, SortOrder>): 1 | -1 {
   const first = sort ? Object.values(sort)[0] : undefined;
   return first === -1 || first === 'desc' || first === 'descending' ? -1 : 1;
@@ -106,13 +117,14 @@ export interface PaginateOptions {
 /**
  * Runs the page query and the count in parallel and returns the GEN-05 envelope:
  *   return paginate(this.postModel, { status: 'PUBLISHED' }, query.page, { sort: { createdAt: -1 } });
+ * `R` is the lean row type, narrower than `T` when a projection is given.
  */
-export async function paginate<T>(
+export async function paginate<T, R = T>(
   model: Model<T>,
   filter: FilterQuery<T>,
   page: number,
   options: PaginateOptions = {},
-): Promise<Page<T>> {
+): Promise<Page<R>> {
   const sort = {
     ...(options.sort ?? {}),
     // Tie-break in the direction of the primary sort key so equal keys keep a stable order.
@@ -124,7 +136,7 @@ export async function paginate<T>(
       .sort(sort)
       .skip(skipFor(page))
       .limit(PAGE_SIZE)
-      .lean<T[]>()
+      .lean<R[]>()
       .exec(),
     model.countDocuments(filter).exec(),
   ]);
