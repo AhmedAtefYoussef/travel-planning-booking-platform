@@ -2520,3 +2520,17 @@ keyword (Closes / Fixes / Resolves, one key or a list); cited keys still get the
 status, and "Partial" still holds a closed key open. It added a Closes: line to the PR template and updated
 CONTRIBUTING.md. I tested the key extraction on sample titles and bodies and reopened TRVL-183 by hand.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183, TRVL-129
+Prompt:
+After #140 merged, jira-sync closed TRVL-183 again because the PR's own description said "That closed
+TRVL-183". Only count a closing keyword that starts a line.
+How the output was used:
+Claude anchored the closing-keyword match to the start of a line (an optional list marker or quote allowed), so
+prose and the PR template's "e.g. Closes: TRVL-42" hint no longer close issues. I re-ran the extraction on the
+#140 description and sample lines, and moved TRVL-183 back to In Progress.
+================================================

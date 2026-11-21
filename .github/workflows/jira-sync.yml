@@ -4,8 +4,8 @@ name: Jira sync
 # - PR opened/reopened/ready  -> each cited TRVL issue gets a comment with the PR link and moves to "In Progress"
 #                                (only if it is still "To Do");
 # - PR merged into develop    -> each cited issue gets a "merged" comment. Only the keys the PR closes with a
-#                                keyword ("Closes TRVL-12", "Fixes: TRVL-3, TRVL-4", "Resolves TRVL-9" in the
-#                                title or body) move to "Done", unless the body also marks that key "Partial".
+#                                keyword at the start of a line ("Closes TRVL-12", "Fixes: TRVL-3, TRVL-4",
+#                                "Resolves TRVL-9") move to "Done", unless the body also marks that key "Partial".
 #                                A key that is only cited stays where it is, so a multi-item task is not closed
 #                                by the first PR that touches it (TRVL-183).
 # Keys come from the PR title, branch name and the "Jira:" line of the PR template.
@@ -50,9 +50,10 @@ jobs:
             echo "::notice::No TRVL key cited by this PR."
             exit 0
           fi
-          # Keys the PR closes: a closing keyword, then one key or a list ("TRVL-3, TRVL-4 and TRVL-5").
+          # Keys the PR closes: a line that starts with a closing keyword, then one key or a list
+          # ("Closes: TRVL-3, TRVL-4 and TRVL-5"). Prose such as "that closed TRVL-183" does not count.
           closing=$( { printf '%s\n%s\n' "$PR_TITLE" "$PR_BODY" |
-            grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?)\b[: ]+TRVL-[0-9]+([ ]*(,|and)[ ]*TRVL-[0-9]+)*' || true; } |
+            grep -oiE '^[[:space:]*>-]*(close[sd]?|fix(e[sd])?|resolve[sd]?)\b[: ]+TRVL-[0-9]+([ ]*(,|and)[ ]*TRVL-[0-9]+)*' || true; } |
             grep -oE 'TRVL-[0-9]+' | sort -u || true)
           auth=(-u "$JIRA_USER_EMAIL:$JIRA_API_TOKEN" -H 'Content-Type: application/json' -H 'Accept: application/json')
           api="${JIRA_BASE_URL%/}/rest/api/3"
