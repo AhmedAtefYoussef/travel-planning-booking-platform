@@ -2446,3 +2446,17 @@ captured the 41 missing endpoints in Swagger UI against an in-memory database wi
 an index of all 113 endpoints with 0 gaps. It also confirmed through the API that ITN-09 city-group subtotals already
 include budget entries and transport costs, so ITN-09 is Done. I reviewed the screenshots and the index.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: FLT-22 (TRVL-42), TRVL-183
+Prompt:
+A flight could look sold out for up to 60 s after a hold expired, until the expiry job ran. Release expired
+holds at the next hold, the way hotel holds already do.
+How the output was used:
+Claude made hold() expire the due unpaid holds on the same flights inside its transaction, with the job's
+status-conditioned transition, and give their seats back before reserving. I checked the order (release, then
+reserve) in a unit test and, in e2e, that a one-seat flight held by an expired hold can be booked at once.
+================================================

@@ -125,6 +125,8 @@ export class FlightBookingsService implements PayableBooking {
     try {
       let created: FlightBookingDocument | undefined;
       await session.withTransaction(async () => {
+        // Re-read the clock on every attempt: a retry must not judge holds by a stale time.
+        const at = new Date(Math.max(now.getTime(), Date.now()));
         await assertUnpaidHoldsBelowCap(
           this.guards,
           this.bookings,
@@ -133,6 +135,9 @@ export class FlightBookingsService implements PayableBooking {
           session,
           'flight bookings',
         );
+        // FLT-22: seats of holds already past their 10 minutes go back first, in this transaction, so a
+        // flight never looks sold out while the expiry job has not run yet (as hotel holds do, HTL-18).
+        await this.expireDueHoldsOn(legs, at, session);
         for (const leg of legs) {
           const ok = await this.inventory.reserveSeats(
             leg.flightId,
@@ -270,6 +275,45 @@ export class FlightBookingsService implements PayableBooking {
       return moved;
     } finally {
       await session.endSession();
+    }
+  }
+
+  /**
+   * FLT-22: expires the unpaid holds on these flights whose 10 minutes have passed and gives their seats
+   * back, inside the caller's hold transaction. Status-conditioned like expireHolds, so a hold paid or
+   * expired meanwhile is left alone; at most EXPIRY_BATCH per flight, the job takes any remainder.
+   */
+  private async expireDueHoldsOn(
+    legs: { flightId: string }[],
+    at: Date,
+    session: ClientSession,
+  ): Promise<void> {
+    const flightIds = [...new Set(legs.map((l) => l.flightId))].map(
+      (id) => new Types.ObjectId(id),
+    );
+    const due = await this.bookings
+      .find(
+        {
+          'segments.flightId': { $in: flightIds },
+          status: BookingStatus.PendingPayment,
+          holdExpiresAt: { $lte: at },
+        },
+        { _id: 1 },
+        { session },
+      )
+      .limit(EXPIRY_BATCH)
+      .lean()
+      .exec();
+    for (const { _id } of due) {
+      const id = _id.toHexString();
+      const moved = await transitionBooking(
+        this.bookings,
+        id,
+        BookingStatus.PendingPayment,
+        BookingStatus.Expired,
+        { where: { holdExpiresAt: { $lte: at } }, session },
+      );
+      if (moved) await this.releaseAll(id, session);
     }
   }
 

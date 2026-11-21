@@ -23,3 +23,10 @@ updateOne(
 ## Consequences
 - Correctness comes from the database (atomic update or unique index), not from application locks. This holds with any number of API instances.
 - Tests run on an in-memory **replica set** so the transaction path is exercised in CI. TRVL-144 adds parallel-request tests.
+
+## Addendum (TRVL-183): expired flight holds are released at the next hold
+A new flight hold first expires, in its own transaction, the unpaid holds on the same flights whose 10 minutes
+have passed, and gives their seats back. This is what hotel holds already do for their nights (HTL-18). A flight
+therefore no longer looks sold out for up to a minute after a hold expires and before the expiry job runs. The
+expiry uses the same status-conditioned transition as the job, so a hold that was paid meanwhile, or that the job
+already expired, is never released twice.
