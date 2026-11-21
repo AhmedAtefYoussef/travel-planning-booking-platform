@@ -2572,6 +2572,21 @@ reviewed the whitespace-free diff and ran the unit and e2e suites; the helper ha
 Date: 2026-11-21
 Student: Ahmed Atef Youssef
 Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-11, PAY-01, TRVL-183
+Prompt:
+Next TRVL-183 item: make the payments service use the shared assertOwner instead of its own ownership check.
+How the output was used:
+Claude replaced the hand-written owner/admin check in PaymentsService.load with assertOwner (404 for a
+stranger, the admin bypass only where reads allow it) and the owner flag in findOne with isOwner. The answers
+are unchanged. It extended the payments e2e suite: a stranger's 404 carries the same message as an unknown id,
+and an admin cannot retry someone else's payment (403, retrying is a traveler action). I ran the payments unit
+and e2e suites and the full verify.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: TRVL-183
 Prompt:
 Check the repository's Security and quality banner and fix what it reports.
