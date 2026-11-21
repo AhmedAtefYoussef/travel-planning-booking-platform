@@ -15,6 +15,7 @@ import {
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { CancelledBy } from './schemas/booking-fields';
+import { runInTransaction } from '../../common/utils/transaction';
 
 /** Why a Confirmed booking is cancelled: by its owner (FLT-26, HTL-21) or by the provider (FLT-06). */
 export type CancellationReason =
@@ -65,65 +66,60 @@ export async function cancelConfirmedBooking(
   plan: (session: ClientSession) => Promise<CancellationPlan>,
   now: Date = new Date(),
 ): Promise<RefundRecord | null> {
-  const session = await deps.connection.startSession();
   let refund: RefundRecord | null = null;
-  try {
-    await session.withTransaction(async () => {
-      const p = await plan(session);
-      const byUser = p.reason === RefundReason.UserCancellation;
-      const moved = await transitionBooking(
-        deps.model,
-        p.bookingId,
-        BookingStatus.Confirmed,
-        BookingStatus.Cancelled,
-        {
-          set: {
-            cancelledAt: now,
-            cancelledBy: byUser ? CancelledBy.User : CancelledBy.Provider,
-          },
-          where: byUser ? { startsAt: { $gt: now } } : undefined,
-          session,
+  await runInTransaction(deps.connection, async (session) => {
+    const p = await plan(session);
+    const byUser = p.reason === RefundReason.UserCancellation;
+    const moved = await transitionBooking(
+      deps.model,
+      p.bookingId,
+      BookingStatus.Confirmed,
+      BookingStatus.Cancelled,
+      {
+        set: {
+          cancelledAt: now,
+          cancelledBy: byUser ? CancelledBy.User : CancelledBy.Provider,
         },
-      );
-      if (!moved) {
-        throw new AppException(
-          HttpStatus.CONFLICT,
-          ErrorCode.BOOKING_NOT_CONFIRMED,
-          'This booking was changed by another request and is no longer confirmed',
-        );
-      }
-      await p.release(session);
-      refund = await deps.refunds.refundFor(
-        {
-          bookingType: p.bookingType,
-          bookingId: p.bookingId,
-          userId: p.userId,
-          paymentId: p.paymentId,
-          quote: p.quote,
-          reason: p.reason,
-        },
+        where: byUser ? { startsAt: { $gt: now } } : undefined,
         session,
+      },
+    );
+    if (!moved) {
+      throw new AppException(
+        HttpStatus.CONFLICT,
+        ErrorCode.BOOKING_NOT_CONFIRMED,
+        'This booking was changed by another request and is no longer confirmed',
       );
-      if (refund) {
-        await deps.model
-          .updateOne(
-            { _id: p.bookingId },
-            { $set: { refundId: new Types.ObjectId(refund.refundId) } },
-            { session },
-          )
-          .exec();
-      }
-      await deps.notifications.notify(
-        {
-          userId: p.userId,
-          type: NotificationType.BookingCancelled,
-          ...p.notice,
-        },
-        session,
-      );
-    });
-  } finally {
-    await session.endSession();
-  }
+    }
+    await p.release(session);
+    refund = await deps.refunds.refundFor(
+      {
+        bookingType: p.bookingType,
+        bookingId: p.bookingId,
+        userId: p.userId,
+        paymentId: p.paymentId,
+        quote: p.quote,
+        reason: p.reason,
+      },
+      session,
+    );
+    if (refund) {
+      await deps.model
+        .updateOne(
+          { _id: p.bookingId },
+          { $set: { refundId: new Types.ObjectId(refund.refundId) } },
+          { session },
+        )
+        .exec();
+    }
+    await deps.notifications.notify(
+      {
+        userId: p.userId,
+        type: NotificationType.BookingCancelled,
+        ...p.notice,
+      },
+      session,
+    );
+  });
   return refund;
 }

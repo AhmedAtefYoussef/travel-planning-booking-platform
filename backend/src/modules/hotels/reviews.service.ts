@@ -20,6 +20,7 @@ import type {
 import { HotelDetailsService } from './hotel-details.service';
 import { Hotel } from './schemas/hotel.schema';
 import { Review } from './schemas/review.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 /** paginate() and lean() return plain documents, which always carry _id. */
 type ReviewRow = Review & { _id: Types.ObjectId };
@@ -234,12 +235,7 @@ export class ReviewsService {
   private async inTransaction(
     work: (session: ClientSession) => Promise<void>,
   ): Promise<void> {
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(() => work(session));
-    } finally {
-      await session.endSession();
-    }
+    await runInTransaction(this.connection, work);
   }
 
   private async toDto(review: ReviewRow): Promise<ReviewDto> {

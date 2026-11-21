@@ -38,6 +38,7 @@ import {
   ItineraryDocument,
   ItineraryVisibility,
 } from './schemas/itinerary.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 const EDITABLE_FIELDS = [
   'title',
@@ -164,23 +165,18 @@ export class ItinerariesService {
       .exec();
     // The itinerary and its activities go together or not at all, so a crash cannot leave orphan
     // activities. Budget rows (the port takes no session) and files are removed only after the commit.
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        const deleted = await this.itineraries
-          .deleteOne(
-            { _id: itinerary._id, ownerId: itinerary.ownerId },
-            { session },
-          )
-          .exec();
-        if (deleted.deletedCount === 0) throw itineraryNotFound();
-        await this.activities
-          .deleteMany({ itineraryId: itinerary._id }, { session })
-          .exec();
-      });
-    } finally {
-      await session.endSession();
-    }
+    await runInTransaction(this.connection, async (session) => {
+      const deleted = await this.itineraries
+        .deleteOne(
+          { _id: itinerary._id, ownerId: itinerary.ownerId },
+          { session },
+        )
+        .exec();
+      if (deleted.deletedCount === 0) throw itineraryNotFound();
+      await this.activities
+        .deleteMany({ itineraryId: itinerary._id }, { session })
+        .exec();
+    });
     await this.budgets?.deleteForItinerary(itinerary.id as string);
     await this.deleteUnusedImages(activities.flatMap((a) => a.images ?? []));
   }

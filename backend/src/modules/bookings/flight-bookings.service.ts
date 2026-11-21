@@ -67,6 +67,7 @@ import {
   PassengerType,
   TripType,
 } from './schemas/flight-booking.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 /** Everything a quote or a hold needs, validated once. */
 interface Plan {
@@ -121,65 +122,60 @@ export class FlightBookingsService implements PayableBooking {
     now: Date = new Date(),
   ): Promise<FlightBookingDto> {
     const { quote, legs, seats } = await this.plan(dto, now);
-    const session = await this.connection.startSession();
-    try {
-      let created: FlightBookingDocument | undefined;
-      await session.withTransaction(async () => {
-        // Re-read the clock on every attempt: a retry must not judge holds by a stale time.
-        const at = new Date(Math.max(now.getTime(), Date.now()));
-        await assertUnpaidHoldsBelowCap(
-          this.guards,
-          this.bookings,
-          user.id,
-          now,
+    const created = await runInTransaction(this.connection, async (session) => {
+      // Re-read the clock on every attempt: a retry must not judge holds by a stale time.
+      const at = new Date(Math.max(now.getTime(), Date.now()));
+      await assertUnpaidHoldsBelowCap(
+        this.guards,
+        this.bookings,
+        user.id,
+        now,
+        session,
+        'flight bookings',
+      );
+      // FLT-22: seats of holds already past their 10 minutes go back first, in this transaction, so a
+      // flight never looks sold out while the expiry job has not run yet (as hotel holds do, HTL-18).
+      await this.expireDueHoldsOn(legs, at, session);
+      for (const leg of legs) {
+        const ok = await this.inventory.reserveSeats(
+          leg.flightId,
+          leg.cabinId,
+          seats,
           session,
-          'flight bookings',
         );
-        // FLT-22: seats of holds already past their 10 minutes go back first, in this transaction, so a
-        // flight never looks sold out while the expiry job has not run yet (as hotel holds do, HTL-18).
-        await this.expireDueHoldsOn(legs, at, session);
-        for (const leg of legs) {
-          const ok = await this.inventory.reserveSeats(
-            leg.flightId,
-            leg.cabinId,
-            seats,
-            session,
-          );
-          if (!ok) throw await this.reserveFailure(leg, seats, now);
-        }
-        // The 10 minutes start when the seats are taken, even after a transaction retry.
-        const heldAt = new Date(Math.max(now.getTime(), Date.now()));
-        [created] = await this.bookings.create(
-          [
-            {
-              userId: new Types.ObjectId(user.id),
-              tripType: quote.tripType,
-              // The infant fare is derived from the stored fare, so it is not stored on the segment.
-              segments: quote.segments.map((s) => ({
-                ...s,
-                infantFareMinor: undefined,
-                flightId: new Types.ObjectId(s.flightId),
-                cabinId: new Types.ObjectId(s.cabinId),
-                airlineId: new Types.ObjectId(
-                  legs.find((l) => l.flightId === s.flightId)!.airlineId,
-                ),
-              })),
-              passengers: quote.passengers,
-              totalMinor: quote.totalMinor,
-              currency: quote.currency,
-              status: BookingStatus.PendingPayment,
-              holdExpiresAt: new Date(heldAt.getTime() + HOLD_DURATION_MS),
-              startsAt: legs[0].departureUtc,
-              endsAt: legs[legs.length - 1].arrivalUtc,
-            },
-          ],
-          { session },
-        );
-      });
-      return toDto(created!);
-    } finally {
-      await session.endSession();
-    }
+        if (!ok) throw await this.reserveFailure(leg, seats, now);
+      }
+      // The 10 minutes start when the seats are taken, even after a transaction retry.
+      const heldAt = new Date(Math.max(now.getTime(), Date.now()));
+      const [booking] = await this.bookings.create(
+        [
+          {
+            userId: new Types.ObjectId(user.id),
+            tripType: quote.tripType,
+            // The infant fare is derived from the stored fare, so it is not stored on the segment.
+            segments: quote.segments.map((s) => ({
+              ...s,
+              infantFareMinor: undefined,
+              flightId: new Types.ObjectId(s.flightId),
+              cabinId: new Types.ObjectId(s.cabinId),
+              airlineId: new Types.ObjectId(
+                legs.find((l) => l.flightId === s.flightId)!.airlineId,
+              ),
+            })),
+            passengers: quote.passengers,
+            totalMinor: quote.totalMinor,
+            currency: quote.currency,
+            status: BookingStatus.PendingPayment,
+            holdExpiresAt: new Date(heldAt.getTime() + HOLD_DURATION_MS),
+            startsAt: legs[0].departureUtc,
+            endsAt: legs[legs.length - 1].arrivalUtc,
+          },
+        ],
+        { session },
+      );
+      return booking;
+    });
+    return toDto(created);
   }
 
   /** ACC-11: the owner sees their booking; an admin sees any; anyone else gets 404. */
@@ -219,27 +215,27 @@ export class FlightBookingsService implements PayableBooking {
     let expired = 0;
     for (const { _id } of due) {
       const id = _id.toHexString();
-      const session = await this.connection.startSession();
       try {
-        let moved = false;
-        await session.withTransaction(async () => {
-          moved = await transitionBooking(
-            this.bookings,
-            id,
-            BookingStatus.PendingPayment,
-            BookingStatus.Expired,
-            { where: { holdExpiresAt: { $lte: now } }, session },
-          );
-          if (moved) await this.releaseAll(id, session);
-        });
+        const moved = await runInTransaction(
+          this.connection,
+          async (session) => {
+            const done = await transitionBooking(
+              this.bookings,
+              id,
+              BookingStatus.PendingPayment,
+              BookingStatus.Expired,
+              { where: { holdExpiresAt: { $lte: now } }, session },
+            );
+            if (done) await this.releaseAll(id, session);
+            return done;
+          },
+        );
         if (moved) expired += 1;
       } catch (e) {
         this.logger.error(
           `Expiring flight hold ${id} failed; it stays held until the next run`,
           e instanceof Error ? e.stack : String(e),
         );
-      } finally {
-        await session.endSession();
       }
     }
     if (due.length === EXPIRY_BATCH) {
@@ -259,23 +255,17 @@ export class FlightBookingsService implements PayableBooking {
    * in full (PAY-01 late refund).
    */
   async releaseHold(bookingId: string): Promise<boolean> {
-    const session = await this.connection.startSession();
-    try {
-      let moved = false;
-      await session.withTransaction(async () => {
-        moved = await transitionBooking(
-          this.bookings,
-          bookingId,
-          BookingStatus.PendingPayment,
-          BookingStatus.Expired,
-          { session },
-        );
-        if (moved) await this.releaseAll(bookingId, session);
-      });
+    return runInTransaction(this.connection, async (session) => {
+      const moved = await transitionBooking(
+        this.bookings,
+        bookingId,
+        BookingStatus.PendingPayment,
+        BookingStatus.Expired,
+        { session },
+      );
+      if (moved) await this.releaseAll(bookingId, session);
       return moved;
-    } finally {
-      await session.endSession();
-    }
+    });
   }
 
   /**

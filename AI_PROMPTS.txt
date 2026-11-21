@@ -2552,3 +2552,18 @@ e2e suite that turns the limits on for its own app.
 A security review then noted that one IPv6 client owns a whole /64; Claude added RateLimitGuard, which counts
 IPv6 clients by their /64 prefix and IPv4-mapped addresses as plain IPv4, with unit tests for the keys.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183
+Prompt:
+Next TRVL-183 item: replace the hand-written startSession / withTransaction / endSession blocks with one shared
+runInTransaction helper, without changing behaviour.
+How the output was used:
+Claude added runInTransaction(connection, work) in backend/src/common/utils/transaction.ts, which runs work on a
+fresh session, returns its result and always ends the session, and moved the 16 blocks in the bookings, hotels,
+itineraries and payments modules onto it. Retries, duplicate-key handling and error paths stay as they were. I
+reviewed the whitespace-free diff and ran the unit and e2e suites; the helper has its own unit tests.
+================================================
