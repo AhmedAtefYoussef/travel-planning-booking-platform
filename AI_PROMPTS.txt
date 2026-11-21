@@ -2549,4 +2549,6 @@ register, 20 for creating or retrying a payment, none for the Stripe webhook and
 answers 429 TOO_MANY_REQUESTS with Retry-After. RATE_LIMIT_ENABLED (off only under NODE_ENV=test) and
 TRUST_PROXY are new optional settings, explained in ADR-0007. I reviewed the limits and checked them with a new
 e2e suite that turns the limits on for its own app.
+A security review then noted that one IPv6 client owns a whole /64; Claude added RateLimitGuard, which counts
+IPv6 clients by their /64 prefix and IPv4-mapped addresses as plain IPv4, with unit tests for the keys.
 ================================================

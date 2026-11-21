@@ -20,6 +20,11 @@ in a loop. Every other route was unlimited too.
   | `POST /api/payments/webhook`, `GET /api/health` | none (Stripe and uptime probes) |
   | every other route | 120 |
 
+- **IPv6 clients count by their /64 prefix** (`RateLimitGuard`, `common/security/rate-limit.guard.ts`). One
+  IPv6 client usually owns a whole /64 and could take a fresh address per request. IPv4-mapped addresses
+  (`::ffff:203.0.113.7`) count as the plain IPv4 address.
+- **Guessing one account's password is ACC-05's job**, not the rate limit's: the lockout counts per account
+  whatever the address, so no extra limit keyed on the email is added.
 - **A refused request answers 429 `TOO_MANY_REQUESTS`** in the standard error body (GEN-02), with a
   `Retry-After` header of at most 60 seconds.
 - **`RATE_LIMIT_ENABLED`**: unset means on everywhere except `NODE_ENV=test`, because the e2e suites log in

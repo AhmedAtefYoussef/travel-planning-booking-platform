@@ -8,7 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import type { EnvironmentVariables } from '../config/env.validation';
 import { AuthGuard } from './auth/auth.guard';
 import { AuthStubGuard } from './auth/auth-stub.guard';
@@ -17,6 +17,7 @@ import { AllExceptionsFilter } from './filters/all-exceptions.filter';
 import { RejectPageSizeMiddleware } from './pagination/reject-page-size.middleware';
 import { createValidationPipe } from './pipes/validation.pipe';
 import { PasswordService } from './security/password.service';
+import { RateLimitGuard } from './security/rate-limit.guard';
 import {
   DEFAULT_RATE_LIMIT,
   RATE_LIMIT_WINDOW_MS,
@@ -71,7 +72,7 @@ import {
     { provide: APP_PIPE, useFactory: createValidationPipe },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
     AuthStubGuard,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     PasswordService,
