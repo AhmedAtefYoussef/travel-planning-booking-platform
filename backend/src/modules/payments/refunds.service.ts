@@ -47,6 +47,7 @@ import {
   type StripeGateway,
   type StripeWebhookEvent,
 } from './stripe-gateway';
+import { runInTransaction } from '../../common/utils/transaction';
 
 /** The dispatcher's batch size. */
 const BATCH = 100;
@@ -488,30 +489,25 @@ export class RefundsServiceImpl
     status: RefundStatus,
     fields: { stripeRefundId?: string; failureReason?: string },
   ): Promise<void> {
-    const session = await this.connection.startSession();
-    try {
-      await session.withTransaction(async () => {
-        if (fields.stripeRefundId) {
-          const res = await this.refunds
-            .updateOne(
-              { _id: id },
-              { $set: { stripeRefundId: fields.stripeRefundId } },
-              { session },
-            )
-            .exec();
-          if (res.matchedCount !== 1) {
-            this.logger.error(
-              `Stripe refund ${fields.stripeRefundId} was created but refund ${id.toHexString()} could not be updated`,
-            );
-          }
+    await runInTransaction(this.connection, async (session) => {
+      if (fields.stripeRefundId) {
+        const res = await this.refunds
+          .updateOne(
+            { _id: id },
+            { $set: { stripeRefundId: fields.stripeRefundId } },
+            { session },
+          )
+          .exec();
+        if (res.matchedCount !== 1) {
+          this.logger.error(
+            `Stripe refund ${fields.stripeRefundId} was created but refund ${id.toHexString()} could not be updated`,
+          );
         }
-        if (status !== RefundStatus.Pending) {
-          await this.settleIn(session, id, status, fields.failureReason);
-        }
-      });
-    } finally {
-      await session.endSession();
-    }
+      }
+      if (status !== RefundStatus.Pending) {
+        await this.settleIn(session, id, status, fields.failureReason);
+      }
+    });
   }
 
   private async settleIn(

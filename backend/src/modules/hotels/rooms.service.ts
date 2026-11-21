@@ -25,6 +25,7 @@ import { HotelsService } from './hotels.service';
 import type { HotelDocument } from './schemas/hotel.schema';
 import { RoomNight, RoomNightKind } from './schemas/room-night.schema';
 import { MAX_RANGES_PER_ROOM, Room, RoomDocument } from './schemas/room.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 /** How many protected nights a 409 message names before it stops listing them. */
 const LISTED_NIGHTS = 5;
@@ -295,27 +296,22 @@ export class RoomsService {
     roomId: string,
     work: (room: RoomDocument, session: ClientSession) => Promise<T>,
   ): Promise<T> {
-    const session = await this.connection.startSession();
-    try {
-      return await session.withTransaction(async () => {
-        const touched = await this.rooms
-          .updateOne(
-            { _id: roomId, hotelId: hotel._id },
-            { $inc: { reservationVersion: 1 } },
-            { session },
-          )
-          .exec();
-        if (touched.matchedCount === 0) throw roomNotFound();
-        const room = await this.rooms
-          .findOne({ _id: roomId, hotelId: hotel._id })
-          .session(session)
-          .exec();
-        if (!room) throw roomNotFound();
-        return work(room, session);
-      });
-    } finally {
-      await session.endSession();
-    }
+    return await runInTransaction(this.connection, async (session) => {
+      const touched = await this.rooms
+        .updateOne(
+          { _id: roomId, hotelId: hotel._id },
+          { $inc: { reservationVersion: 1 } },
+          { session },
+        )
+        .exec();
+      if (touched.matchedCount === 0) throw roomNotFound();
+      const room = await this.rooms
+        .findOne({ _id: roomId, hotelId: hotel._id })
+        .session(session)
+        .exec();
+      if (!room) throw roomNotFound();
+      return work(room, session);
+    });
   }
 
   /** Booked nights and unexpired held nights of the room from `today` on, earliest first. */
@@ -384,36 +380,31 @@ export class RoomsService {
     if (overlaps.length) throw new ValidationFailedException(overlaps);
     const ranges = sortedRanges(dto.ranges);
     const zone = (await this.hotels.timeZoneOf(hotel.cityId)) ?? EARLIEST_ZONE;
-    const session = await this.connection.startSession();
-    try {
-      return await session.withTransaction(async () => {
-        const room = await this.rooms
-          .findOne({ _id: roomId, hotelId: hotel._id })
-          .session(session)
-          .exec();
-        if (!room) throw roomNotFound();
-        const stranded = await this.nights
-          .find(nightsOutside(room._id, ranges, new Date(), zone))
-          .sort({ date: 1 })
-          .limit(LISTED_NIGHTS + 1)
-          .session(session)
-          .exec();
-        if (stranded.length > 0) {
-          const listed = stranded.slice(0, LISTED_NIGHTS).map((n) => n.date);
-          const more = stranded.length > LISTED_NIGHTS ? ' and more' : '';
-          throw new AppException(
-            HttpStatus.CONFLICT,
-            ErrorCode.CONFLICT,
-            `These nights are booked or held and must stay bookable: ${listed.join(', ')}${more}. Nothing was changed`,
-          );
-        }
-        room.availability = ranges;
-        await room.save({ session });
-        return toRoomDto(room);
-      });
-    } finally {
-      await session.endSession();
-    }
+    return await runInTransaction(this.connection, async (session) => {
+      const room = await this.rooms
+        .findOne({ _id: roomId, hotelId: hotel._id })
+        .session(session)
+        .exec();
+      if (!room) throw roomNotFound();
+      const stranded = await this.nights
+        .find(nightsOutside(room._id, ranges, new Date(), zone))
+        .sort({ date: 1 })
+        .limit(LISTED_NIGHTS + 1)
+        .session(session)
+        .exec();
+      if (stranded.length > 0) {
+        const listed = stranded.slice(0, LISTED_NIGHTS).map((n) => n.date);
+        const more = stranded.length > LISTED_NIGHTS ? ' and more' : '';
+        throw new AppException(
+          HttpStatus.CONFLICT,
+          ErrorCode.CONFLICT,
+          `These nights are booked or held and must stay bookable: ${listed.join(', ')}${more}. Nothing was changed`,
+        );
+      }
+      room.availability = ranges;
+      await room.save({ session });
+      return toRoomDto(room);
+    });
   }
 }
 

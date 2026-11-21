@@ -30,6 +30,7 @@ import {
   type StripeWebhookEvent,
 } from './stripe-gateway';
 import { verifyStripeSignature } from './stripe-signature';
+import { runInTransaction } from '../../common/utils/transaction';
 
 const DUPLICATE_KEY = 11000;
 const CONFIRM_ATTEMPTS = 3;
@@ -459,27 +460,20 @@ export class PaymentsService {
     event: StripeWebhookEvent,
     work: (session: ClientSession) => Promise<T>,
   ): Promise<T> {
-    const session = await this.connection.startSession();
-    try {
-      let result!: T;
-      await session.withTransaction(async () => {
-        try {
-          await this.events.create(
-            [{ stripeEventId: event.id, type: event.type }],
-            { session },
-          );
-        } catch (e) {
-          if ((e as { code?: number }).code === DUPLICATE_KEY) {
-            throw new EventReplay(event.id);
-          }
-          throw e;
+    return runInTransaction(this.connection, async (session) => {
+      try {
+        await this.events.create(
+          [{ stripeEventId: event.id, type: event.type }],
+          { session },
+        );
+      } catch (e) {
+        if ((e as { code?: number }).code === DUPLICATE_KEY) {
+          throw new EventReplay(event.id);
         }
-        result = await work(session);
-      });
-      return result;
-    } finally {
-      await session.endSession();
-    }
+        throw e;
+      }
+      return work(session);
+    });
   }
 
   /* ------------------------------------- jobs ------------------------------------- */

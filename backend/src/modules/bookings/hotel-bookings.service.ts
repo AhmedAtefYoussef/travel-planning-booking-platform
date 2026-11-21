@@ -53,6 +53,7 @@ import {
   HotelReservation,
   type HotelReservationDocument,
 } from './schemas/hotel-reservation.schema';
+import { runInTransaction } from '../../common/utils/transaction';
 
 const REFERENCE_ATTEMPTS = 3;
 
@@ -101,71 +102,66 @@ export class HotelBookingsService implements PayableBooking {
     };
     const { stay, nights } = await this.plan(dto, now);
     const roomIds = dto.rooms.map((r) => r.roomId);
-    const session = await this.connection.startSession();
-    try {
-      let created: HotelReservationDocument | undefined;
-      await session.withTransaction(async () => {
-        // Re-read the clock on every attempt: a transaction retry must not judge holds by a stale time,
-        // and the 10 minutes start when the nights are taken.
-        const at = new Date(Math.max(now.getTime(), Date.now()));
-        await assertUnpaidHoldsBelowCap(
-          this.guards,
-          this.reservations,
-          user.id,
-          at,
-          session,
-          'hotel reservations',
-        );
-        await this.expireStaleHolders(roomIds, nights, at, session);
-        const holdExpiresAt = new Date(at.getTime() + HOLD_DURATION_MS);
-        const reservationId = new Types.ObjectId();
-        const held = await this.inventory.holdNights(
+    const created = await runInTransaction(this.connection, async (session) => {
+      // Re-read the clock on every attempt: a transaction retry must not judge holds by a stale time,
+      // and the 10 minutes start when the nights are taken.
+      const at = new Date(Math.max(now.getTime(), Date.now()));
+      await assertUnpaidHoldsBelowCap(
+        this.guards,
+        this.reservations,
+        user.id,
+        at,
+        session,
+        'hotel reservations',
+      );
+      await this.expireStaleHolders(roomIds, nights, at, session);
+      const holdExpiresAt = new Date(at.getTime() + HOLD_DURATION_MS);
+      const reservationId = new Types.ObjectId();
+      const held = await this.inventory.holdNights(
+        {
+          hotelId: stay.hotelId,
+          roomIds,
+          nights,
+          reservationId: reservationId.toHexString(),
+          expiresAt: holdExpiresAt,
+        },
+        session,
+      );
+      // HTL-05/HTL-16: the price is the one read inside this transaction, stored on the reservation.
+      const rooms = dto.rooms.map((r, i) => ({
+        roomId: new Types.ObjectId(r.roomId),
+        roomNumber: held[i].number,
+        adults: r.adults,
+        childrenAges: r.childrenAges ?? [],
+        nightlyPriceMinor: held[i].priceMinor,
+        subtotalMinor: multiplyMinor(held[i].priceMinor, nights.length),
+      }));
+      this.assertOccupancy(dto, held);
+      const [reservation] = await this.reservations.create(
+        [
           {
-            hotelId: stay.hotelId,
-            roomIds,
-            nights,
-            reservationId: reservationId.toHexString(),
-            expiresAt: holdExpiresAt,
+            _id: reservationId,
+            userId: new Types.ObjectId(user.id),
+            hotelId: new Types.ObjectId(stay.hotelId),
+            hotelName: stay.hotelName,
+            checkIn: dto.checkIn,
+            checkOut: dto.checkOut,
+            nights: nights.length,
+            timeZone: stay.timeZone,
+            rooms,
+            totalMinor: sumMinor(rooms.map((r) => r.subtotalMinor)),
+            currency: this.config.get('PLATFORM_CURRENCY', { infer: true }),
+            status: BookingStatus.PendingPayment,
+            holdExpiresAt,
+            startsAt: localDayRangeUtc(dto.checkIn, stay.timeZone).start,
+            endsAt: localDayRangeUtc(dto.checkOut, stay.timeZone).end,
           },
-          session,
-        );
-        // HTL-05/HTL-16: the price is the one read inside this transaction, stored on the reservation.
-        const rooms = dto.rooms.map((r, i) => ({
-          roomId: new Types.ObjectId(r.roomId),
-          roomNumber: held[i].number,
-          adults: r.adults,
-          childrenAges: r.childrenAges ?? [],
-          nightlyPriceMinor: held[i].priceMinor,
-          subtotalMinor: multiplyMinor(held[i].priceMinor, nights.length),
-        }));
-        this.assertOccupancy(dto, held);
-        [created] = await this.reservations.create(
-          [
-            {
-              _id: reservationId,
-              userId: new Types.ObjectId(user.id),
-              hotelId: new Types.ObjectId(stay.hotelId),
-              hotelName: stay.hotelName,
-              checkIn: dto.checkIn,
-              checkOut: dto.checkOut,
-              nights: nights.length,
-              timeZone: stay.timeZone,
-              rooms,
-              totalMinor: sumMinor(rooms.map((r) => r.subtotalMinor)),
-              currency: this.config.get('PLATFORM_CURRENCY', { infer: true }),
-              status: BookingStatus.PendingPayment,
-              holdExpiresAt,
-              startsAt: localDayRangeUtc(dto.checkIn, stay.timeZone).start,
-              endsAt: localDayRangeUtc(dto.checkOut, stay.timeZone).end,
-            },
-          ],
-          { session },
-        );
-      });
-      return toDto(created!);
-    } finally {
-      await session.endSession();
-    }
+        ],
+        { session },
+      );
+      return reservation;
+    });
+    return toDto(created);
   }
 
   /** ACC-11: the owner sees their reservation; an admin sees any; anyone else gets 404. */
@@ -207,20 +203,16 @@ export class HotelBookingsService implements PayableBooking {
     let expired = 0;
     for (const { _id } of due) {
       const id = _id.toHexString();
-      const session = await this.connection.startSession();
       try {
-        let moved = false;
-        await session.withTransaction(async () => {
-          moved = await this.expireOne(id, now, session);
-        });
+        const moved = await runInTransaction(this.connection, (session) =>
+          this.expireOne(id, now, session),
+        );
         if (moved) expired += 1;
       } catch (e) {
         this.logger.error(
           `Expiring hotel hold ${id} failed; it stays held until the next run`,
           e instanceof Error ? e.stack : String(e),
         );
-      } finally {
-        await session.endSession();
       }
     }
     if (due.length === EXPIRY_BATCH) {
@@ -419,9 +411,8 @@ export class HotelBookingsService implements PayableBooking {
       moved = await this.confirmIn(bookingId, input.paymentId, now, session);
     } else {
       for (let attempt = 1; attempt <= REFERENCE_ATTEMPTS; attempt++) {
-        const own = await this.connection.startSession();
         try {
-          await own.withTransaction(async () => {
+          await runInTransaction(this.connection, async (own) => {
             moved = await this.confirmIn(bookingId, input.paymentId, now, own);
           });
           break;
@@ -433,8 +424,6 @@ export class HotelBookingsService implements PayableBooking {
               { cause: e },
             );
           }
-        } finally {
-          await own.endSession();
         }
       }
     }
