@@ -456,6 +456,40 @@ describe('Flight seat hold (e2e): FLT-22, FLT-19, FLT-21', () => {
       expect(await seatsLeft(small.flightId)).toBe(5);
       expect(seats).toBeLessThan(5);
     });
+
+    it('frees the seats of an expired hold at the next hold, before the expiry job runs', async () => {
+      const tight = await flight(
+        'HQ400',
+        'CDG',
+        'HND',
+        '2028-04-14T10:00',
+        '2028-04-15T06:00',
+        1,
+      );
+      const first = await hold(other, {
+        outbound: tight,
+        passengers: [adult()],
+      }).expect(201);
+      expect(await seatsLeft(tight.flightId)).toBe(0);
+      // Sold out while the hold is live.
+      await hold(traveller, { outbound: tight, passengers: [adult()] }).expect(
+        409,
+      );
+      // The 10 minutes pass; the job has not run.
+      await bookings.updateOne(
+        { _id: first.body.id },
+        { $set: { holdExpiresAt: new Date(Date.now() - 1000) } },
+      );
+      const second = await hold(traveller, {
+        outbound: tight,
+        passengers: [adult()],
+      }).expect(201);
+      expect((await bookings.findById(first.body.id).lean())?.status).toBe(
+        BookingStatus.Expired,
+      );
+      expect(second.body.status).toBe(BookingStatus.PendingPayment);
+      expect(await seatsLeft(tight.flightId)).toBe(0);
+    });
   });
 
   describe('PayableBooking for flights (PAY-01 contract)', () => {
