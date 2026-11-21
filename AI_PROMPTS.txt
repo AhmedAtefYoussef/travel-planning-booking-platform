@@ -2490,3 +2490,18 @@ actor and write the provider and its audit entry in one transaction; the demo se
 no entry. I checked both entries through GET /api/admin/audit-logs in e2e and kept the existing count test
 scoped to its own admin.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-136 (release), TRVL-129
+Prompt:
+The release PR develop -> main failed pr-governance: it re-linted all 714 commits since main and one older commit
+already on develop has a footer line over 100 characters. The Jira sync job also failed on an issue that was
+not in To Do.
+How the output was used:
+Claude skipped the per-commit lint when the PR head is develop (each commit was linted on its way in), keeping
+every other governance check, and replaced the `[ ] && transition` line in jira-sync.yml with an if, because a
+false test as the last command made the step exit 1. I confirmed both causes in the failed run logs.
+================================================
