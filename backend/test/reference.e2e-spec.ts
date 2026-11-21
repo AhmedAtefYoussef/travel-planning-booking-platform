@@ -192,4 +192,29 @@ describe('Reference data (e2e): GEN-12', () => {
       minorUnits: 0,
     });
   });
+
+  it('REFERENCE_SERVICE batch lookups answer many ids in one call, skipping unknown ones', async () => {
+    const reference = app.get<ReferenceService>(REFERENCE_SERVICE);
+    const cities = await reference.getCities([
+      'paris',
+      'cairo',
+      'atlantis',
+      'paris',
+    ]);
+    expect(cities.map((c) => c.cityId).sort()).toEqual(['cairo', 'paris']);
+    const countries = await reference.getCountries([' eg', 'FR', 'XX']);
+    expect(countries.map((c) => c.code).sort()).toEqual(['EG', 'FR']);
+    const airports = await reference.listAirportsInCities([
+      'tokyo',
+      'cairo',
+      'atlantis',
+    ]);
+    expect(airports.map((a) => [a.iataCode, a.timeZone])).toEqual([
+      ['CAI', 'Africa/Cairo'],
+      ['HND', 'Asia/Tokyo'],
+    ]);
+    await expect(reference.getCities([])).resolves.toEqual([]);
+    await expect(reference.getCountries([])).resolves.toEqual([]);
+    await expect(reference.listAirportsInCities([])).resolves.toEqual([]);
+  });
 });

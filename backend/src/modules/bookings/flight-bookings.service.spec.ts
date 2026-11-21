@@ -162,6 +162,7 @@ function setup(
     findProfile: jest.fn().mockResolvedValue({ name: 'Mona Adel' }),
   };
   const airlines = {
+    findMany: jest.fn(),
     find: jest.fn((id: string) =>
       Promise.resolve({
         id,

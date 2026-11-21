@@ -141,7 +141,13 @@ export interface ReferenceService {
   getAirport(iataCode: string): Promise<Airport | null>;
   getCity(cityId: string): Promise<City | null>;
   getCountry(code: string): Promise<Country | null>;
+  /** The known cities among `cityIds`, in one query; unknown ids are simply absent. */
+  getCities(cityIds: readonly string[]): Promise<City[]>;
+  /** The known countries among `codes` (case-insensitive), in one query; unknown codes are absent. */
+  getCountries(codes: readonly string[]): Promise<Country[]>;
   listAirports(): Promise<Airport[]>;
+  /** The airports of these cities, by IATA code, in one query. */
+  listAirportsInCities(cityIds: readonly string[]): Promise<Airport[]>;
   listCities(countryCode?: string): Promise<City[]>;
   listCountries(): Promise<Country[]>;
   listAttractions(cityId: string): Promise<Attraction[]>;
@@ -591,6 +597,8 @@ export interface ProviderStatus {
     providerId: string,
     session?: ClientSession,
   ): Promise<ProviderState | null>;
+  /** The providers of this type among `providerIds`, in one query; unknown or malformed ids are absent. */
+  findMany(providerIds: readonly string[]): Promise<ProviderState[]>;
   /**
    * Sets `isActive` only if it currently has the other value (one conditional update). Returns false,
    * changing nothing, when it already had that value or does not exist.
