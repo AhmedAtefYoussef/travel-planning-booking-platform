@@ -67,6 +67,8 @@ function setup(stored: FakeHotel | null) {
       model as unknown as Model<Hotel>,
       reference as unknown as ReferenceService,
       {} as UploadsService,
+      {} as never,
+      {} as never,
     ),
   };
 }

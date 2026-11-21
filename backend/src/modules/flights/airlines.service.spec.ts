@@ -55,6 +55,8 @@ function setup(found: ReturnType<typeof fakeAirline> | null) {
     service: new AirlinesService(
       model as unknown as Model<Airline>,
       {} as UploadsService,
+      {} as never,
+      {} as never,
     ),
   };
 }

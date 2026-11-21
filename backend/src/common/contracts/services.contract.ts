@@ -155,6 +155,8 @@ export interface ReferenceService {
 
 export enum AuditAction {
   CreateModerator = 'CREATE_MODERATOR',
+  /** FLT-01 / HTL-01: an admin created an airline or a hotel (target AIRLINE or HOTEL). */
+  CreateProvider = 'CREATE_PROVIDER',
   ResetPassword = 'RESET_PASSWORD',
   SuspendAccount = 'SUSPEND_ACCOUNT',
   ReactivateAccount = 'REACTIVATE_ACCOUNT',

@@ -97,8 +97,11 @@ export class HotelsController {
   })
   @ApiCreatedResponse({ type: HotelDto })
   @ApiErrorResponses(400)
-  create(@Body() dto: CreateHotelDto): Promise<HotelDto> {
-    return this.hotels.create(dto);
+  create(
+    @Body() dto: CreateHotelDto,
+    @CurrentUser() admin: AuthUser,
+  ): Promise<HotelDto> {
+    return this.hotels.create(dto, admin);
   }
 
   @Patch(':id')

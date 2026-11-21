@@ -75,8 +75,11 @@ export class AirlinesController {
   })
   @ApiCreatedResponse({ type: AirlineDto })
   @ApiErrorResponses(400, 409)
-  create(@Body() dto: CreateAirlineDto): Promise<AirlineDto> {
-    return this.airlines.create(dto);
+  create(
+    @Body() dto: CreateAirlineDto,
+    @CurrentUser() admin: AuthUser,
+  ): Promise<AirlineDto> {
+    return this.airlines.create(dto, admin);
   }
 
   @Get(':id')

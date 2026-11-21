@@ -1,16 +1,19 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType } from '../../common/auth/auth.types';
 import {
   cancellationTierFieldErrors,
   selectCancellationTier,
 } from '../../common/contracts';
-import { UPLOADS_SERVICE } from '../../common/contracts/tokens';
-import type {
-  UploadedFileLike,
-  UploadsService,
+import { AUDIT_SERVICE, UPLOADS_SERVICE } from '../../common/contracts/tokens';
+import {
+  AuditAction,
+  AuditTargetType,
+  type AuditService,
+  type UploadedFileLike,
+  type UploadsService,
 } from '../../common/contracts/services.contract';
 import {
   AppException,
@@ -41,15 +44,37 @@ export class AirlinesService {
   constructor(
     @InjectModel(Airline.name) private readonly airlines: Model<Airline>,
     @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
+    @Inject(AUDIT_SERVICE) private readonly audit: AuditService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
-  async create(dto: CreateAirlineDto): Promise<AirlineDto> {
-    const airline = await this.airlines.create({
+  /**
+   * FLT-01: an admin creates an airline. Through the API (an actor is given) the airline and its audit
+   * entry (GEN-07) are written in one transaction, so neither exists without the other. The demo seed
+   * passes no actor and records nothing.
+   */
+  async create(dto: CreateAirlineDto, actor?: AuthUser): Promise<AirlineDto> {
+    const doc = {
       name: dto.name,
       code: dto.code,
       logoUrl: dto.logoUrl ?? null,
+    };
+    if (!actor) return toAirlineDto(await this.airlines.create(doc));
+    const created = await this.connection.transaction(async (session) => {
+      const [row] = await this.airlines.create([doc], { session });
+      await this.audit.record(
+        {
+          actor: { id: actor.id, role: actor.role },
+          action: AuditAction.CreateProvider,
+          targetType: AuditTargetType.Airline,
+          targetId: row._id.toHexString(),
+          metadata: { name: row.name, code: row.code },
+        },
+        session,
+      );
+      return row;
     });
-    return toAirlineDto(airline);
+    return toAirlineDto(created);
   }
 
   async findById(id: string): Promise<AirlineDto> {

@@ -57,6 +57,8 @@ function setup(
   const service = new AirlinesService(
     model as unknown as Model<Airline>,
     uploads,
+    {} as never,
+    {} as never,
   );
   return { service, model, uploads };
 }
