@@ -2446,3 +2446,18 @@ captured the 41 missing endpoints in Swagger UI against an in-memory database wi
 an index of all 113 endpoints with 0 gaps. It also confirmed through the API that ITN-09 city-group subtotals already
 include budget entries and transport costs, so ITN-09 is Done. I reviewed the screenshots and the index.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-13, TRVL-183
+Prompt:
+Add the low-risk security hardening from the Milestone 1 audit: standard security headers with helmet, and stop
+serving Swagger in production unless a setting opts in, without breaking Swagger UI, which graders use.
+How the output was used:
+Claude added helmet in configureApp with a CSP that allows only same-origin scripts but keeps Swagger UI's inline
+styles and data: images, set Cross-Origin-Resource-Policy to cross-origin for the future frontend, and added
+SWAGGER_ENABLED (unset: on outside production). I checked the headers and the Swagger page in an e2e test and
+loaded Swagger UI in a browser with the new policy: no console errors.
+================================================
