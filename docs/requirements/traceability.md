@@ -1,0 +1,174 @@
+# Requirements traceability matrix (TRVL-134)
+
+Requirement ID -> endpoint(s) -> owner -> Jira -> PR -> status, for all 115 workbook IDs
+(104 mandatory, 11 bonus).
+**Update the row in the same PR that implements or changes a requirement** (the pr-governance check
+enforces this when `backend/src/modules/**` changes). CI also fails if a workbook ID is missing here.
+
+Status values: `Not started`, `In progress`, `In review`, `Done`, `Partial: ...`. List every PR that implements
+or changes the requirement in the PR column (e.g. `#12, #18`). CI enforces this: any other status word fails,
+`In review`, `Done` and `Partial` need a PR number, a row left `In review` after its PRs merged fails, and a PR
+that changes module code must cite its own number in its requirement's row. Set the status the row will have once
+the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
+
+## Notes on the brief vs the workbook
+- TRVL-141 (PR #73) adds the itinerary and activity schemas, validation rules and helper utilities. Each ITN row changes status when its own endpoints land: ITN-01, ITN-03 and ITN-20 (itinerary CRUD, my list, visibility) came first, then one story per PR: ITN-05 (days), ITN-09 (city groups), ITN-07 (delete a day), ITN-08 (move a day), ITN-10 (activities), ITN-12 (activity images), ITN-21 (public search, view and clone), ITN-25 (hotels for a city group), ITN-26 (flights to the first city).
+- The brief cites **ACC-03** (`POST /api/auth/register`) and **BLG-11** (`GET /api/posts`, `GET /api/tags/:tag/posts`); neither ID exists in the workbook. Those endpoints are traced to ACC-01 and BLG-02/BLG-08/BLG-09.
+- **HTL-09** (check-in/check-out times) is served by `PUT /api/hotels/:id/policies`; the brief maps that endpoint to HTL-08.
+- `GET /api/itineraries/:id/hotels` serves **ITN-25** (TRVL-83); the brief maps it to ITN-09.
+- Brief section 5.1 seeds attractions while GEN-12 lists currencies: both are seeded.
+- The `airlines` and `flights` schemas (TRVL-138, Jira setup task, not a workbook ID) back FLT-01, FLT-03, FLT-04, FLT-08, FLT-09, FLT-22 and FLT-30. Each of those rows changes status when its own endpoints land.
+- The `users` and `sessions` schemas (TRVL-137, Jira setup task, not a workbook ID) back ACC-01, ACC-04 to ACC-09, ACC-11 to ACC-14 and ACC-19. Each of those rows changes status when its own endpoints land.
+- The `hotels`, `rooms`, `room_nights` and `reviews` schemas (TRVL-140, Jira setup task, not a workbook ID, PR #21) back the HTL requirements (HTL-01 to HTL-24). Each of those rows changes status when its own endpoints land.
+- The `posts`, `comments` and `likes` schemas (TRVL-142, Jira setup task, not a workbook ID, PR #75) back BLG-01 to BLG-12. Each of those rows changes status when its own endpoints land.
+- The `budget_entries` and `transport_costs` schemas (TRVL-143, Jira setup task, not a workbook ID, PR #92) back ITN-14, ITN-16 and ITN-18. Each of those rows changes status when its own endpoints land.
+
+## Accounts & Admin
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| ACC-01 | Mandatory | POST /api/auth/register | Abdelrahman | TRVL-13 | #42 | Done |
+| ACC-04 | Mandatory | POST /api/auth/login; GET /api/auth/me | Abdelrahman | TRVL-14 | #43 | Done |
+| ACC-05 | Mandatory | POST /api/auth/login | Abdelrahman | TRVL-15 | #45, #55 | Done |
+| ACC-06 | Mandatory | POST /api/auth/logout; POST /api/auth/refresh; idle check in the global AuthGuard | Abdelrahman | TRVL-16 | #44 | Done |
+| ACC-07a | Mandatory | POST /api/admin/users/:id/reset-password; forced change in the global AuthGuard | Abdelrahman | TRVL-17 | #52 | Done |
+| ACC-08 | Mandatory | PATCH /api/auth/change-password | Abdelrahman | TRVL-18 | #47 | Done |
+| ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
+| ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
+| ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46, #64 | Done |
+| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57, #133 | Done |
+| ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | #53, #55 | Done |
+| ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
+| ACC-15 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate (moderators); PATCH /api/admin/providers/:type/:id/deactivate\|reactivate | Ahmed | TRVL-25 | #84 | Done |
+| ACC-16 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate (registered users) | Ahmed | TRVL-26 | #84 | Done |
+| ACC-17 | Mandatory | GET /api/admin/bookings | Karim | TRVL-27 | #110 | Done |
+| ACC-18 | Mandatory | admin seed script (npm run seed) | Abdelrahman | TRVL-108 | #41 | Done |
+| ACC-02 | Bonus | GET /api/auth/verify-email | Team | TRVL-117 | - | Not started |
+| ACC-07 | Bonus | POST /api/auth/forgot-password; POST /api/auth/reset-password | Team | TRVL-118 | - | Not started |
+| BON-01 | Bonus | admin analytics (bonus) | Team | TRVL-126 | - | Not started |
+
+## Flights
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| FLT-01 | Mandatory | POST /api/airlines; GET\|PATCH /api/airlines/:id | Joudy | TRVL-28 | #9 | Done |
+| FLT-02 | Mandatory | GET /api/airports | Joudy | TRVL-29 | #7 | Done |
+| FLT-03 | Mandatory | POST /api/flights; GET /api/airports | Joudy | TRVL-30 | #10, #55 | Done |
+| FLT-04 | Mandatory | POST /api/flights/:id/cabins; PATCH /api/flights/:id/cabins/:cabinId; PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-31 | #11, #12 | Done |
+| FLT-05 | Mandatory | PATCH /api/flights/:id; PATCH /api/flights/:id/cabins/:cabinId | Joudy | TRVL-32 | #18, #57, #65 | Done |
+| FLT-06 | Mandatory | POST /api/flights/:id/cancel | Karim | TRVL-33 | #111 | Done |
+| FLT-08 | Mandatory | PUT /api/airlines/:id/baggage-policy | Joudy | TRVL-34 | #12 | Done |
+| FLT-09 | Mandatory | PUT /api/airlines/:id/cancellation-policy; GET /api/airlines/:id/cancellation-policy/refund-preview | Joudy | TRVL-35 | #4, #15 | Done |
+| FLT-11 | Mandatory | GET /api/flights/search; GET /api/airports | Joudy | TRVL-36 | #13, #55, #59 | Done |
+| FLT-12 | Mandatory | GET /api/flights/search; GET /api/flights/search/round-trip; POST /api/flight-bookings/:id/cancel | Ahmed | TRVL-37 | #58, #59, #72, #85 | Done |
+| FLT-15 | Mandatory | GET /api/flights/search?minPriceMinor&maxPriceMinor&sort | Joudy | TRVL-38 | #17 | Done |
+| FLT-17 | Mandatory | GET /api/flights/:id | Joudy | TRVL-39 | #16 | Done |
+| FLT-19 | Mandatory | POST /api/flight-bookings/quote; POST /api/flight-bookings/hold | Ahmed | TRVL-40 | #59, #63 | Done |
+| FLT-21 | Mandatory | POST /api/flight-bookings/quote | Ahmed | TRVL-41 | #59, #64 | Done |
+| FLT-22 | Mandatory | POST /api/flight-bookings/hold; GET /api/flight-bookings/:id; hold-expiry job | Ahmed | TRVL-42 | #59, #136 | Done |
+| FLT-23 | Mandatory | GET /api/flight-bookings/:id/e-ticket; payment webhook | Ahmed | TRVL-43 | #62, #70 | Done |
+| FLT-25 | Mandatory | GET /api/flight-bookings?group=UPCOMING\|PAST\|CANCELLED; GET /api/flight-bookings/:id | Karim | TRVL-44 | #108 | Done |
+| FLT-26 | Mandatory | GET /api/flight-bookings/:id/refund-quote; POST /api/flight-bookings/:id/cancel | Ahmed | TRVL-45 | #72, #85 | Done |
+| FLT-29 | Mandatory | GET /api/flights/:id/bookings; GET /api/flights/:id/passengers/export | Karim | TRVL-46 | #109 | Done |
+| FLT-30 | Mandatory | flight status lifecycle (scheduled job + FLT-06) | Joudy | TRVL-107 | #14 | Done |
+| FLT-27 | Bonus | PATCH /api/flight-bookings/:id/change-flight | Team | TRVL-120 | - | Not started |
+| FLT-28 | Bonus | PATCH /api/flight-bookings/:id/seat | Team | TRVL-121 | - | Not started |
+
+## Hotels
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| HTL-01 | Mandatory | POST /api/hotels; PATCH /api/hotels/:id | Sandra | TRVL-47 | #22, #55, #66 | Done |
+| HTL-02 | Mandatory | GET /api/hotels/:id | Sandra | TRVL-48 | #89 | Done |
+| HTL-03 | Mandatory | POST /api/hotels/:id/rooms | Sandra | TRVL-49 | #23 | Done |
+| HTL-04 | Mandatory | POST /api/hotels/:id/rooms/:roomId/availability | Sandra | TRVL-50 | #24, #55 | Done |
+| HTL-05 | Mandatory | PATCH /api/hotels/:id/rooms/:roomId; PATCH .../availability | Sandra | TRVL-51 | #54, #55 | Done |
+| HTL-06 | Mandatory | POST\|DELETE /api/hotels/:id/rooms/:roomId/blocks; PATCH /api/hotels/:id/rooms/:roomId (isActive); DELETE /api/hotels/:id/rooms/:roomId | Sandra | TRVL-52 | #87, #102 | Done |
+| HTL-08 | Mandatory | GET /api/hotels/:id/availability | Sandra | TRVL-53 | #122 | Done |
+| HTL-09 | Mandatory | PUT /api/hotels/:id/policies (brief maps it to HTL-08) | Ahmed | TRVL-54 | #86, #89 | Done |
+| HTL-10 | Mandatory | PUT /api/hotels/:id/policies | Ahmed | TRVL-55 | #4, #86 | Done |
+| HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | #102 | Done |
+| HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | #115 | Done |
+| HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | #121 | Done |
+| HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60 | Done |
+| HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60, #62, #71 | Done |
+| HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60 | Done |
+| HTL-20 | Mandatory | GET /api/hotel-bookings?group=UPCOMING\|PAST\|CANCELLED; GET /api/hotel-bookings/:id | Karim | TRVL-62 | #108 | Done |
+| HTL-21 | Mandatory | POST /api/hotel-bookings/:id/cancel | Ahmed | TRVL-63 | #105 | Done |
+| HTL-22 | Mandatory | GET /api/hotels/:id/reservations | Karim | TRVL-64 | #109 | Done |
+| HTL-23 | Mandatory | POST /api/hotel-bookings/:id/review; PATCH\|DELETE /api/reviews/:id | Karim | TRVL-65 | #112 | Done |
+| HTL-24 | Mandatory | GET /api/hotels/:id/reviews | Karim | TRVL-66 | #112 | Done |
+| HTL-26 | Bonus | POST /api/reviews/:id/reply | Team | TRVL-122 | - | Not started |
+
+## Payments & Policies
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| PAY-01 | Mandatory | POST /api/payments; POST /api/payments/:id/retry; GET /api/payments/:id; POST /api/payments/webhook | Ahmed | TRVL-67 | #4, #62 | Done |
+| PAY-02 | Mandatory | GET /api/bookings/:type/:id/policies; POST /api/bookings/:type/:id/accept-policies | Ahmed | TRVL-68 | #61, #62, #86 | Done |
+| PAY-03 | Mandatory | GET /api/refunds/:id; refund block on GET /api/flight-bookings/:id and GET /api/hotel-bookings/:id; refund.* webhook events; REFUNDS_SERVICE.refundFor | Ahmed | TRVL-69 | #4, #67 | Done |
+| PAY-04 | Mandatory | platform-wide (PLATFORM_CURRENCY, money utils) | Ahmed | TRVL-109 | #2, #61, #62, #67 | Done |
+
+## Itineraries
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| ITN-01 | Mandatory | POST /api/itineraries; PATCH\|DELETE /api/itineraries/:id | Sarah | TRVL-70 | #73, #88 | Done |
+| ITN-03 | Mandatory | GET /api/itineraries; GET /api/itineraries/:id | Sarah | TRVL-71 | #73, #88 | Done |
+| ITN-05 | Mandatory | POST /api/itineraries/:id/days; PATCH /api/itineraries/:id/days/:dayId | Sarah | TRVL-72 | #73, #96 | Done |
+| ITN-07 | Mandatory | DELETE /api/itineraries/:id/days/:dayId | Sarah | TRVL-73 | #113 | Done |
+| ITN-08 | Mandatory | PATCH /api/itineraries/:id/days/reorder | Sarah | TRVL-74 | #127 | Done |
+| ITN-09 | Mandatory | day city + cityGroups (day count, budget subtotal) in GET /api/itineraries/:id and every day response | Sarah | TRVL-75 | #73, #107, #134 | Done |
+| ITN-10 | Mandatory | POST /api/itineraries/:id/days/:dayId/activities; PATCH\|DELETE /api/activities/:id | Sarah | TRVL-76 | #73, #128 | Done |
+| ITN-12 | Mandatory | POST /api/activities/:id/images; DELETE /api/activities/:id/images/:imageId | Sarah | TRVL-77 | #73, #128 | Done |
+| ITN-14 | Mandatory | POST /api/itineraries/:id/days/:dayId/budgets; PATCH\|DELETE /api/budgets/:id; GET /api/itineraries/:id/budget-summary | Malak | TRVL-78 | #114 | Done |
+| ITN-16 | Mandatory | POST /api/itineraries/:id/transport-costs; PATCH\|DELETE /api/transport-costs/:id (counted in the itinerary totals, #114) | Malak | TRVL-79 | #92, #114 | Done |
+| ITN-18 | Mandatory | GET /api/itineraries/:id/budget-summary; GET /api/currencies/rates; GET /api/currencies/convert | Malak | TRVL-80 | #68, #125 | Done |
+| ITN-20 | Mandatory | PATCH /api/itineraries/:id; GET /api/itineraries/public/search | Sarah | TRVL-81 | #88, #129 | Done |
+| ITN-21 | Mandatory | GET /api/itineraries/public/search; GET /api/itineraries/public/:id; POST /api/itineraries/:id/clone | Sarah | TRVL-82 | #129 | Done |
+| ITN-25 | Mandatory | GET /api/itineraries/:id/hotels (brief maps it to ITN-09) | Sarah | TRVL-83 | #132 | Done |
+| ITN-26 | Mandatory | GET /api/itineraries/:id/flights | Sarah | TRVL-84 | #132 | Done |
+| ITN-27 | Bonus | POST /api/itineraries/:id/bookings | Team | TRVL-123 | - | Not started |
+| ITN-28 | Bonus | GET /api/itineraries/:id/pdf | Team | TRVL-124 | - | Not started |
+
+## Blog
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| BLG-01 | Mandatory | POST /api/posts | Malak | TRVL-85 | #75, #100, #124 | Done |
+| BLG-02 | Mandatory | GET /api/posts; GET /api/posts/:id | Malak | TRVL-86 | #93, #97 | Done |
+| BLG-03 | Mandatory | GET /api/posts/mine; GET /api/posts/mine/:id | Malak | TRVL-87 | #94 | Done |
+| BLG-04 | Mandatory | PATCH\|DELETE /api/posts/:id | Malak | TRVL-88 | #95 | Done |
+| BLG-05 | Mandatory | POST\|GET /api/posts/:id/comments | Malak | TRVL-89 | #97, #123 | Done |
+| BLG-06 | Mandatory | POST\|DELETE /api/posts/:id/like | Malak | TRVL-90 | #98 | Done |
+| BLG-07 | Mandatory | PATCH\|DELETE /api/comments/:id | Malak | TRVL-91 | #126 | Done |
+| BLG-08 | Mandatory | PATCH /api/posts/:id; GET /api/tags/:tag/posts | Malak | TRVL-92 | #93, #95, #99, #124 | Done |
+| BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | #124 | Done |
+| BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | #100 | Done |
+| BLG-12 | Mandatory | GET /api/authors/:id (posts; public itineraries through PUBLIC_ITINERARIES) | Malak | TRVL-95 | #101 | Done |
+| BLG-13 | Bonus | PATCH /api/posts/:id/itinerary | Team | TRVL-125 | - | Not started |
+
+## Cross-cutting
+
+| ID | Type | Endpoint(s) | Owner | Jira | PR | Status |
+|---|---|---|---|---|---|---|
+| GEN-01 | Mandatory | GET /api/notifications; GET /api/notifications/unread-count; PATCH /api/notifications/:id/read; PATCH /api/notifications/read-all | Ahmed | TRVL-96 | #65 | Done |
+| GEN-02 | Mandatory | global ValidationPipe + AllExceptionsFilter (all endpoints); demo: POST /api/diagnostics/validation, /api/diagnostics/records | Ahmed | TRVL-97 | #2, #3, #55 | Done |
+| GEN-03 | Mandatory | (frontend, Milestone 2) | Karim | TRVL-98 | - | Not started |
+| GEN-04 | Mandatory | (frontend, Milestone 2) | Sarah | TRVL-99 | - | Not started |
+| GEN-05 | Mandatory | PaginationQueryDto + global page-size middleware (all lists); demo: GET /api/diagnostics/rows | Ahmed | TRVL-100 | #2, #3 | Done |
+| GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
+| GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4, #69, #84, #118, #137 | Done |
+| GEN-08 | Mandatory | UPLOADS_SERVICE + ImageFilesInterceptor; POST /api/hotels/:id/images; DELETE /api/hotels/:id/images/:imageId; PUT /api/airlines/:id/logo; GET /uploads/... (static); posts and activities via BLG-10, ITN-12 | Ahmed | TRVL-103 | #66 | Done |
+| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116, #131 | Done |
+| GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; PATCH /api/admin/content/:type/:id/hide; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118, #131 | Done |
+| GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111, #117 | Done |
+| GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
+| GEN-13 | Mandatory | global guards, ValidationPipe, PasswordService (all endpoints); demo: /api/diagnostics/password-hash, /whoami, /admin-only | Ahmed | TRVL-111 | #2, #3, #55 | Done |
+| ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | #43 | Done |
+| GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |
+| GEN-15 | Mandatory | (frontend, Milestone 2) | Joudy | TRVL-114 | - | Not started |
+| GEN-16 | Mandatory | (frontend, Milestone 2) | Sandra | TRVL-115 | - | Not started |
+| GEN-17 | Mandatory | (frontend, Milestone 2) | Ahmed | TRVL-116 | - | Not started |
+| GEN-01-B | Bonus | SMTP mailer (bonus) | Team | TRVL-119 | - | Not started |
+| BON-02 | Bonus | favourites (bonus) | Team | TRVL-127 | - | Not started |

@@ -1,0 +1,224 @@
+# Swagger demo script (Milestone 1)
+
+The call order for a live walkthrough in Swagger UI at <http://localhost:3000/api/docs>: Administrator, then
+Airline moderator, then Hotel moderator, then Traveller. Each step is one call: method, path, the smallest body
+that works, and the status to expect. Error cases at the end of each part show the shared error envelope
+(`docs/api/conventions.md`).
+
+The script lists only what is merged on `develop`. Steps for stories that are still open (blog and itineraries) are added here when they merge; hotel cancellation (HTL-21) is in Part 6, reports (GEN-09) in Part 7 and moderation (GEN-10) in Part 8; their status is in `docs/requirements/traceability.md`.
+
+## 0. Before you start
+
+```bash
+cd backend
+npm run seed          # reference data (airports, cities, currencies) and the admin account
+npm run seed:demo     # optional shortcut: Demo Air, Demo Nile Hotel, their moderators and a traveller
+npm run start:dev
+```
+
+1. In `backend/.env` set `AUTH_STUB=false`, so that real cookie login is used and every check applies (suspended,
+   idle and forced-password-change accounts are refused). Restart the API after changing it.
+2. Open Swagger. `POST /api/auth/login` sets httpOnly cookies and Swagger sends them with every later call. To
+   change role, call `POST /api/auth/logout`, then log in again (or use a private window per role).
+3. Passwords: the admin uses `ADMIN_SEED_PASSWORD`; the demo moderators and the traveller use `DEMO_PASSWORD`
+   (both from `backend/.env`). Emails are in the README, "Seeded accounts".
+4. Stripe: for the payment step run `stripe listen` as described in the README, "Stripe test mode".
+
+### Where the ids come from
+
+- **Demo provider ids** (`{airlineId}` = Demo Air, `{hotelId}` = Demo Nile Hotel): `npm run seed:demo` prints them,
+  with the flight, cabin and room ids (it prints ids again on every run and never a password). You can also read them
+  after logging in as a demo moderator: `GET /api/auth/me` returns `assignedProvider.providerId`.
+- **Flight and cabin ids** (`{flightId}`, `{cabinId}`): the `flight` and `economy cabin` ids printed by the seed for DM101
+  and DM102, or from the response of the step that created them.
+- **Room ids**: `{room101Id}` and `{room102Id}` are printed by the seed. `{roomId}` in Part 3 is the id returned by that
+  part's own `POST .../rooms` (there is no list endpoint for rooms).
+- **Alternative path B** (no seed needed for Parts 1 to 3): Admin steps 4 to 6 create your own provider pair,
+  `{walkAirlineId}` and `{walkHotelId}`, with moderators `walk.airline@example.com` and `walk.hotel@example.com`. In
+  Parts 2 and 3 substitute those ids and log in as those moderators. Part 4 always uses the seeded demo records: only
+  they have flights on the searched dates and a hotel with check-in/out times and cancellation tiers.
+
+Money is in minor units (`25000` = 250.00 USD). Dates are `YYYY-MM-DD`; flight times are local airport time, `YYYY-MM-DDTHH:mm`.
+
+## 1. Administrator
+
+Log in as `ADMIN_SEED_EMAIL`. Steps 4 to 6 are alternative path B (your own provider pair); with `seed:demo` you can skip them.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `POST /api/auth/login` | `{"email":"<ADMIN_SEED_EMAIL>","password":"<ADMIN_SEED_PASSWORD>"}` | 200, cookies set, `homePath` for admins |
+| 2 | `GET /api/auth/me` | | 200, role `ADMIN` |
+| 3 | `GET /api/airports`, `GET /api/cities`, `GET /api/countries`, `GET /api/currencies` | `?page=1` | 200, the seeded reference data (GEN-12) |
+| 4 | `POST /api/airlines` (path B) | `{"name":"Walkthrough Air","code":"WA"}` | 201, keep `id` as `{walkAirlineId}`; repeating it gives 409 `DUPLICATE_KEY` |
+| 5 | `POST /api/hotels` (path B) | `{"name":"Walkthrough Hotel","address":"5 Nile Street","cityId":"cairo"}` | 201, keep `id` as `{walkHotelId}` |
+| 6 | `POST /api/admin/moderators` (path B) | `{"name":"Walk Airline Mod","email":"walk.airline@example.com","role":"AIRLINE_MODERATOR","providerId":"{walkAirlineId}","temporaryPassword":"Temp2026x"}` | 201; the same call for the hotel with `"name":"Walk Hotel Mod"`, `"email":"walk.hotel@example.com"`, `"role":"HOTEL_MODERATOR"` and `{walkHotelId}`. A moderator created this way must change the temporary password at first login (Part 2, step 2) |
+| 7 | `GET /api/admin/accounts` | `?q=demo&role=USER&status=ACTIVE` | 200, paginated, 10 per page (ACC-14) |
+| 8 | `POST /api/admin/users/{id}/reset-password` | `{"temporaryPassword":"Temp2026x"}` | 204; the user must change it at next login (ACC-07a) |
+| 9 | `GET /api/admin/audit-logs` | `?action=CREATE_MODERATOR` | 200, newest first (GEN-07): the moderators created in step 6 and the reset in step 8. The seeded demo moderators are not admin actions, so with the seed alone the list is empty. Part 5 adds the suspension and deactivation entries; Part 8 adds the moderation entries |
+| 10 | `GET /api/currencies/rates`, `GET /api/currencies/convert` | `?amountMinor=10000&from=USD&to=EUR` | 200 (ITN-18); 503 if the exchange-rate service is unreachable |
+
+Error cases worth showing: step 4 as a traveller gives 403 `FORBIDDEN`; any admin call without logging in gives
+401 `UNAUTHENTICATED`; `GET /api/airlines/not-an-id` gives 400 `INVALID_ID`; an unknown valid id gives 404 `NOT_FOUND`.
+
+## 2. Airline moderator
+
+Log in as `demo.airline@example.com` (seeded, no forced password change). Here `{airlineId}` is Demo Air's id from the
+seed output, or `assignedProvider.providerId` from `GET /api/auth/me` after step 1. (Path B: log in as
+`walk.airline@example.com`, change the password as in step 2, and use `{walkAirlineId}`.) Another airline's id gives 403.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `POST /api/auth/login` | `{"email":"demo.airline@example.com","password":"<DEMO_PASSWORD>"}` | 200 |
+| 2 | `PATCH /api/auth/change-password` | `{"currentPassword":"Temp2026x","newPassword":"Walk2026pass"}` | 204. Only for a moderator created in Admin step 6; every other call returns 403 `PASSWORD_CHANGE_REQUIRED` until you do it |
+| 3 | `PATCH /api/airlines/{airlineId}` | `{"name":"Demo Air Express"}` | 200; another airline's id gives 403 (ACC-11) |
+| 4 | `PUT /api/airlines/{airlineId}/logo` | multipart field `logo` (PNG or JPEG, 5 MB max) | 200 (GEN-08) |
+| 5 | `POST /api/flights` | `{"flightNumber":"DM201","from":"CAI","to":"LHR","departureLocal":"2028-04-05T09:00","arrivalLocal":"2028-04-05T12:30"}` | 201, status `SCHEDULED`, UTC and local times shown (FLT-03, GEN-06); keep `id` as `{flightId}`. A repeat gives 409; a past date gives 400 |
+| 6 | `POST /api/flights/{flightId}/cabins` | `{"class":"ECONOMY","totalSeats":120,"priceMinor":25000,"freeBags":1,"maxKgPerBag":23}` | 201, keep the cabin `id` as `{cabinId}` (FLT-04) |
+| 7 | `PATCH /api/flights/{flightId}/cabins/{cabinId}` | `{"priceMinor":27000}` | 200 (FLT-04, FLT-05) |
+| 8 | `PATCH /api/flights/{flightId}` | `{"departureLocal":"2028-04-05T10:00","arrivalLocal":"2028-04-05T13:30"}` | 200; users with a Confirmed booking are notified (FLT-05) |
+| 9 | `PUT /api/airlines/{airlineId}/baggage-policy` | `{"pricePerBagMinor":4000,"maxExtraBagsPerPassenger":2}` | 200 (FLT-08) |
+| 10 | `PUT /api/airlines/{airlineId}/cancellation-policy` | `{"tiers":[{"daysBefore":14,"refundPercent":100},{"daysBefore":7,"refundPercent":50}]}` | 200; a repeated `daysBefore` gives 400 (FLT-09) |
+| 11 | `GET /api/airlines/{airlineId}/cancellation-policy/refund-preview` | `?daysRemaining=10` | 200, tier 7 applies, 50% |
+| 12 | `GET /api/flights/{flightId}` | | 200, details with seats left and policies (FLT-17) |
+| 13 | `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/read-all` | | 200 (GEN-01) |
+
+Error cases: step 5 with `from` equal to `to` gives 400 with a `fieldErrors` entry; step 3 on another airline
+gives 403; reducing `totalSeats` below the seats already booked gives 409.
+
+## 3. Hotel moderator
+
+Log in as `demo.hotel@example.com` (seeded). `{hotelId}` is Demo Nile Hotel's id from the seed output, or
+`assignedProvider.providerId` from `GET /api/auth/me` after step 1. (Path B: `walk.hotel@example.com` and
+`{walkHotelId}`, changing the password first.) Step 4 creates room 201 and returns its `{roomId}`; the seeded rooms 101
+and 102 already have availability and are the ones the traveller books in Part 4.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `POST /api/auth/login` | `{"email":"demo.hotel@example.com","password":"<DEMO_PASSWORD>"}` | 200 |
+| 2 | `PATCH /api/hotels/{hotelId}` | `{"description":"Riverside hotel with a rooftop pool.","starClass":5}` | 200 (HTL-01) |
+| 3 | `POST /api/hotels/{hotelId}/images` | multipart field `images` (up to 5 images, 5 MB each) | 201 (GEN-08); `DELETE /api/hotels/{hotelId}/images/{imageId}` removes one |
+| 4 | `POST /api/hotels/{hotelId}/rooms` | `{"number":"201","type":"Double","beds":1,"maxOccupancy":2,"priceMinor":12000}` | 201, keep `id` as `{roomId}` (HTL-03); a repeated number gives 409 |
+| 5 | `POST /api/hotels/{hotelId}/rooms/{roomId}/availability` | `{"ranges":[{"from":"2028-03-01","to":"2028-04-01"}]}` | 201 (HTL-04); an overlapping range gives 409 |
+| 6 | `PATCH /api/hotels/{hotelId}/rooms/{roomId}` | `{"priceMinor":13000}` | 200 (HTL-05) |
+| 7 | `PATCH /api/hotels/{hotelId}/rooms/{roomId}/availability` | `{"ranges":[{"from":"2028-03-01","to":"2028-05-01"}]}` | 200, replaces all ranges (HTL-05) |
+| 8 | `PUT /api/hotels/{hotelId}/policies` | `{"checkInTime":"14:00","checkOutTime":"12:00","cancellationTiers":[{"daysBefore":7,"refundPercent":100},{"daysBefore":2,"refundPercent":50}]}` | 200, tiers returned sorted (HTL-09, HTL-10); a repeated `daysBefore` gives 400 naming `cancellationTiers[1].daysBefore` |
+| 9 | `GET /api/notifications` | | 200 |
+
+Step 8 sets the times and tiers that Part 4 shows before payment (PAY-02). The demo hotel already has them from
+`npm run seed:demo`; a hotel you create yourself (path B) has none until you run step 8.
+
+## 4. Traveller
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `POST /api/auth/register` | `{"name":"Mona Hassan","email":"mona@example.com","password":"Travel2026","acceptTerms":true}` | 201; a repeat gives 409 `EMAIL_ALREADY_REGISTERED`. Or skip and use `demo.traveller@example.com` |
+| 2 | `POST /api/auth/login` | `{"email":"mona@example.com","password":"Travel2026"}` | 200 |
+| 3 | `PATCH /api/users/me` | `{"phone":"+201001234567","preferredCurrency":"EGP"}` | 200 (ACC-09) |
+| 4 | `GET /api/flights/search` | `?from=CAI&to=LHR&departureDate=2028-03-15&adults=1&cabinClass=ECONOMY&sort=price` | 200, finds Demo Air DM101; keep its `flightId` and economy `cabinId` (same ids as the seed output) (FLT-11) |
+| 5 | `GET /api/flights/search/round-trip` | `?from=CAI&to=LHR&departureDate=2028-03-15&returnDate=2028-03-22&adults=1` | 200, outbound and return options (FLT-12) |
+| 6 | `POST /api/flight-bookings/quote` | `{"outbound":{"flightId":"{flightId}","cabinId":"{cabinId}"},"passengers":[{"type":"ADULT","firstName":"Mona","lastName":"Adel","dateOfBirth":"1990-05-01","documentNumber":"A1234567"}]}` | 200, price summary, nothing is held (FLT-21) |
+| 7 | `POST /api/flight-bookings/hold` | the same body | 201, `PENDING_PAYMENT`, seats held 10 minutes (FLT-22); keep `id` as `{bookingId}` |
+| 8 | `POST /api/hotel-bookings` | `{"hotelId":"{hotelId}","checkIn":"2028-03-10","checkOut":"2028-03-13","rooms":[{"roomId":"{room101Id}","adults":2}]}` (the demo hotel and room 101) | 201, rooms held 10 minutes (HTL-16, HTL-18); keep `id` as `{reservationId}` |
+| 9 | `GET /api/flight-bookings/{bookingId}`, `GET /api/hotel-bookings/{reservationId}` | | 200; someone else's id gives the same 404 as an unknown id (ACC-11) |
+| 10 | `GET /api/bookings/flight/{bookingId}/policies` | (`hotel` and `{reservationId}` for a hotel) | 200, baggage, cancellation tiers, check-in and check-out; keep `version` (PAY-02) |
+| 11 | `POST /api/bookings/flight/{bookingId}/accept-policies` | `{"accepted":true,"version":"<version>"}` | 200; paying before this gives 409 |
+| 12 | `POST /api/payments` | `{"bookingType":"FLIGHT","bookingId":"{bookingId}"}` | 201, a `paymentIntentId` (PAY-01) |
+| 13 | Terminal: `stripe payment_intents confirm <paymentIntentId> --payment-method pm_card_visa` | | the webhook confirms the booking |
+| 14 | `GET /api/flight-bookings/{bookingId}` | | 200, `CONFIRMED`, `reference` starting `FL-` (`HT-` for hotels) |
+| 15 | `GET /api/payments/{id}` | | 200 |
+| 16 | `GET /api/flight-bookings/{bookingId}/e-ticket` | | 200, a PDF (FLT-23) |
+| 17 | `GET /api/notifications`, `GET /api/notifications/unread-count`, `PATCH /api/notifications/{id}/read` | | 200: the booking-confirmed notices (GEN-01) |
+| 18 | `GET /api/currencies/convert` | `?amountMinor=25000&from=USD&to=EGP` | 200 (PAY-04) |
+| 19 | `PATCH /api/auth/change-password` | `{"currentPassword":"Travel2026","newPassword":"Travel2027"}` | 204 (ACC-08) |
+| 20 | `DELETE /api/users/me` | `{"password":"Travel2027"}` | 409 `UPCOMING_BOOKINGS_EXIST` here, because the booking confirmed in step 14 is upcoming (ACC-12); an account with no Confirmed or held upcoming booking gets 204 and is deactivated |
+
+A card that fails: `stripe payment_intents confirm <id> --payment-method pm_card_chargeDeclined` fails the
+attempt; `POST /api/payments/{id}/retry` (no body) tries again until the hold ends. After 10 minutes an unpaid
+hold expires on its own and the seats return to the inventory.
+
+Error cases: a hold for more seats than are left gives 409; a missing field
+gives 400 `VALIDATION_FAILED` with one `fieldErrors` entry per field.
+
+## 5. Suspensions and provider deactivation (ACC-15, ACC-16)
+
+Run this after Part 4, so the traveller has a Confirmed booking. Keep the traveller logged in in a private window to
+watch the session end, and log in as the admin in the main window. `{travellerId}` is the traveller's `id` from
+`GET /api/admin/accounts?q=mona`.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `PATCH /api/admin/accounts/{travellerId}/suspend` | `{"reason":"Abusive comments"}` | 200, `status` `SUSPENDED` (ACC-16). In the private window `GET /api/auth/me` now gives 401, and logging in again gives 403 `ACCOUNT_SUSPENDED` |
+| 2 | `GET /api/flight-bookings/{bookingId}` (as admin) | | 200, still `CONFIRMED`: bookings stay valid |
+| 3 | `PATCH /api/admin/accounts/{travellerId}/suspend` again | | 409 `CONFLICT`; your own id or another admin's gives 403 |
+| 4 | `PATCH /api/admin/accounts/{travellerId}/reactivate` | `{}` | 200, `ACTIVE`; the traveller can log in again and sees both notices in `GET /api/notifications` |
+| 5 | `PATCH /api/admin/providers/airline/{airlineId}/deactivate` | `{"reason":"Licence expired"}` | 200, `isActive` false (ACC-15). Part 4 step 4's search no longer lists DM101, a new hold on it gives 409 `PROVIDER_INACTIVE`, and `demo.airline@example.com` gets a `PROVIDER_DEACTIVATED` notice |
+| 6 | `PATCH /api/admin/providers/airline/{airlineId}/reactivate` | | 200, `isActive` true, and DM101 is back in search. `hotel/{hotelId}` works the same way for Demo Nile Hotel |
+| 7 | `GET /api/admin/audit-logs` | `?targetType=USER`, then `?targetType=AIRLINE` | 200: `SUSPEND_ACCOUNT` and `REACTIVATE_ACCOUNT`, then `DEACTIVATE_PROVIDER` and `REACTIVATE_PROVIDER`, with the reasons (GEN-07) |
+
+Error cases: `PATCH /api/admin/providers/train/{id}/deactivate` gives 400 on `type`; any of these calls as a traveller
+or a moderator gives 403.
+
+## 6. Cancel a hotel reservation (HTL-21)
+
+Run this after Part 4, logged in as the traveller. It needs a Confirmed hotel reservation: pay the hold from Part 4
+step 8 the same way as the flight, with `GET /api/bookings/hotel/{reservationId}/policies`, then
+`POST /api/bookings/hotel/{reservationId}/accept-policies`, then `POST /api/payments` with
+`{"bookingType":"HOTEL","bookingId":"{reservationId}"}` and the Stripe confirm. The hold lasts 10 minutes, so pay it soon
+after step 8. Then `GET /api/hotel-bookings/{reservationId}` shows `CONFIRMED` with an `HT-` reference.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `GET /api/hotel-bookings/{reservationId}/refund-quote` | | 200, `amountMinor` (the whole total times the tier), `refundPercent` and `tierApplied` from the policy you accepted. With the demo tiers from Part 3 step 8 and check-in more than 7 days away, 100% of the total. Changes nothing: the reservation stays `CONFIRMED` and its nights stay booked (HTL-21) |
+| 2 | `POST /api/hotel-bookings/{reservationId}/cancel` | | 200, `status` `CANCELLED`, `refund` with `status` `PENDING` and the amount from step 1. The rooms are released, so another traveller can hold them (HTL-21) |
+| 3 | `POST /api/hotel-bookings/{reservationId}/cancel` again | | 409 `BOOKING_NOT_CONFIRMED`; the quote call now gives the same 409. Nothing is refunded or notified twice (GEN-11) |
+| 4 | `GET /api/notifications` | | 200, a `BOOKING_CANCELLED` notice titled `Hotel reservation HT-... cancelled` with the refund in its body (GEN-01) |
+
+Error cases: another traveller's id, or an unknown id, gets the same 404 `NOT_FOUND` on both calls (ACC-11). A
+reservation whose check-in day has begun gives 409 `CANCELLATION_WINDOW_CLOSED` on both calls. The demo check-in dates
+are in the future, so that case cannot be reached in this walkthrough; the e2e test `test/hotel-cancellation.e2e-spec.ts` covers it.
+
+## 7. Reports (GEN-09)
+
+Run this after Part 4, as a traveller who is ACTIVE (Part 5 suspends and then reactivates the traveller). Step 1 creates a
+public itinerary; step 2 switches to a second traveller, because you can report your own content but the demo reads better
+with someone else's. Reports are filed once per user and item. Posts, itineraries and hotel reviews can be reported (a review as `targetType` `REVIEW`: 201, a repeat 409);
+comments answer 404 until their report adapter lands (TRVL-180). Part 8 resolves these reports as an administrator.
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `POST /api/itineraries` (as the first traveller) | `{"title":"Ten days in Egypt","countries":["EG"],"startDate":"2028-03-01","visibility":"PUBLIC"}` | 201, keep `id` as `{itineraryId}` (ITN-01) |
+| 2 | `POST /api/auth/logout`, then `POST /api/auth/register` | `{"name":"Omar Said","email":"omar@example.com","password":"Travel2026","acceptTerms":true}` | 201 (a repeat gives 409 `EMAIL_ALREADY_REGISTERED`); log in as `omar@example.com` |
+| 3 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"{itineraryId}","reason":"Spam: the same advert is posted on every itinerary"}` | 201, `status` `OPEN`, `targetId` as sent (GEN-09) |
+| 4 | `POST /api/reports` (same body) | | 409 `REPORT_ALREADY_FILED`; a different traveller may still report the same item |
+| 5 | `POST /api/reports` | `{"targetType":"POST","targetId":"{postId}","reason":"Offensive language"}` | 201 for `{postId}`, a PUBLISHED post of another user (create one with `POST /api/posts` `{"title":"Three days in Cairo","body":"Museums and markets","status":"PUBLISHED"}` as that user); a draft of another user gives 404 (GEN-09) |
+| 6 | `POST /api/reports` | `{"targetType":"HOTEL","targetId":"123","reason":"   "}` | 400 `VALIDATION_FAILED`; `fieldErrors` name `targetType`, `targetId` and `reason` |
+| 7 | `POST /api/reports` (as `ADMIN_SEED_EMAIL`, Part 1) | `{"targetType":"ITINERARY","targetId":"{itineraryId}","reason":"Spam"}` | 403: only registered travellers report |
+| 8 | `POST /api/reports` | `{"targetType":"ITINERARY","targetId":"<unknown 24-character id>","reason":"Spam"}` | 404 `NOT_FOUND`, with the same message as for a private itinerary of someone else; `COMMENT` targets also give 404 for now |
+
+## 8. Moderation (GEN-10)
+
+Run this after Part 7, logged in as the administrator (Part 1). Part 7 left two OPEN reports: the post report from step 5
+(`{postReportId}`, the post is `{postId}`) and the itinerary report from step 3 (`{itineraryReportId}`, the itinerary is
+`{itineraryId}`). `{authorId}` is the post author's `id`. Hiding removes the content from public reads, but its author
+still sees it; deleting removes it. Every change is audited (GEN-07).
+
+| # | Call | Body or query | Expect |
+|---|---|---|---|
+| 1 | `GET /api/admin/reports` | | 200, `status` `OPEN` by default and newest first, so the post report comes first; 10 per page (GEN-10). `resolvedBy` is null |
+| 2 | `PATCH /api/admin/reports/{postReportId}` | `{"action":"HIDE","note":"Offensive language, hidden after review"}` | 200, `status` `HIDDEN`, `resolvedBy` your admin id, `resolutionNote` as sent and `otherReportsResolved` 0 (GEN-10) |
+| 3 | `GET /api/authors/{authorId}` (no login) | | 200, the post is gone from `posts`, and `posts.total` is one lower than before the hide |
+| 4 | `GET /api/posts/mine/{postId}` (as the post's author, in a private window) | | 200, `isHidden` true: the author still sees the post. As anyone else the same call gives 404 |
+| 5 | `PATCH /api/admin/reports/{postReportId}` again | `{"action":"DISMISS"}` | 409 `REPORT_ALREADY_RESOLVED`; nothing changes |
+| 6 | `PATCH /api/admin/content/post/{postId}/hide` | | 409 `CONTENT_ALREADY_HIDDEN`: the post is already hidden |
+| 7 | `DELETE /api/admin/content/itinerary/{itineraryId}` | | 200, `outcome` `DELETED` and `reportsResolved` 1: the itinerary report from Part 7 step 3 is closed as `DELETED` and kept. `GET /api/admin/reports?status=DELETED` lists it. Repeating the call gives 404 `NOT_FOUND` |
+| 8 | `GET /api/admin/audit-logs` | `?action=RESOLVE_REPORT`, then `?action=HIDE_CONTENT`, then `?action=DELETE_CONTENT` | 200, newest first, with the admin as actor: `RESOLVE_REPORT` on target `REPORT` with the note as `reason`, `HIDE_CONTENT` on `POST`, `DELETE_CONTENT` on `ITINERARY`. Metadata holds only ids and counts (GEN-07) |
+| 9 | `PATCH /api/admin/reports/{itineraryReportId}` (as a traveller, Part 4) | `{"action":"DISMISS"}` | 403. Without a session the same call gives 401 |
+
+Error cases: `PATCH /api/admin/content/hotel/{id}/hide` and `DELETE /api/admin/content/POST/{id}` (the segment must be
+lower case) give 400 `VALIDATION_FAILED` with the `type` field. Comment and review content have no moderation adapter
+yet, so their reports and direct calls are not part of this walkthrough.
+
+## 9. Not part of the script
+
+`GET /api/health` is the liveness check. The `Diagnostics (dev only)` Swagger tag (`/api/diagnostics/*`) exists
+only outside production, to exercise the shared validation, pagination and error rules; it is not a feature.

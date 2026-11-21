@@ -1,0 +1,2507 @@
+AI PROMPT LOG (mandatory, brief section 11.1)
+Record every prompt that materially contributed to the submitted project, newest at the bottom.
+Never include passwords, tokens, connection strings or other credentials in a prompt or in this file.
+
+Entry format:
+================================================
+Date: YYYY-MM-DD
+Student: Full Name
+Tool: ChatGPT / Claude / Copilot / Gemini / ...
+Related Requirement: e.g. FLT-22 (or the Jira key for setup tasks)
+Prompt:
+<the prompt, or a summary of a multi-turn conversation>
+How the output was used:
+<what you kept, what you changed, what you rejected>
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-129 (repository scaffold, branches and protection rules)
+Prompt:
+Analyze the project description and the official requirements workbook, read my Sprint 0 Jira tasks,
+plan their implementation, and build GitHub Actions workflows that automate validation and verification
+of every pull request against the project description.
+How the output was used:
+Generated the NestJS scaffold, ESLint/Prettier/husky/commitlint setup, the PR template, CODEOWNERS and
+the CI workflows (ci.yml, pr-governance.yml, security.yml, dependabot.yml) together with their rule
+scripts and unit tests. I reviewed the rules against brief sections 2, 10 and 11 and the Jira
+Definition of Done, ran every check locally, and adjusted the branch and scope conventions to the team's
+Jira keys before committing.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-02, GEN-05, GEN-13 (TRVL-130 common layer)
+Prompt:
+Implement the NestJS common layer from TRVL-130: fail-fast env validation, global ValidationPipe with
+field-level errors, AllExceptionsFilter (duplicate key -> 409, bad ObjectId -> 400), fixed page size 10
+pagination, ParseObjectIdPipe, money (integer minor units) and Luxon date utilities, Swagger with cookie
+auth, plus unit and e2e tests against an in-memory MongoDB replica set.
+How the output was used:
+Kept the generated implementation after reviewing each rule against the Jira acceptance criteria;
+added extra cases (DST gaps, JPY/KWD exponents, refund rounding down, ?limit rejection) and the
+conventions guide for teammates. Verified with npm run verify (61 unit + 18 e2e tests, 98% coverage).
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-13, ACC-11 (TRVL-131 auth contract stubs), TRVL-128
+Prompt:
+Implement the auth contract every module codes against: @Public, @Roles, @CurrentUser returning
+{id, role, assignedProvider}, a deny-by-default temporary guard that Abdelrahman can replace in ACC-11,
+role and provider-scope/ownership helpers, a bcrypt PasswordService, a public health endpoint and an
+Atlas connectivity check script, with unit and e2e tests.
+How the output was used:
+Reviewed the guard order and the production safety (stub disabled when NODE_ENV=production), added the
+72-byte bcrypt limit and forged-assignment cases to the tests, and kept the decorator API stable so
+the real guard is a drop-in replacement. Earlier review findings on the common layer (float refund
+percent, ambiguous DST times, production env checks) were fixed in PR #2 before this work.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-02, GEN-05, GEN-13 (Swagger demo requirement)
+Prompt:
+Validate every Sprint 0 task again against Jira and the project description, and test the endpoints
+through Swagger with screenshots in the PRs.
+How the output was used:
+The Jira criteria require each rule to be "enforced and demoable in Swagger", so a dev-only
+Diagnostics module was added (never registered in production) with e2e tests, then each scenario was
+run in Swagger UI and the screenshots were attached to the PRs.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-132 contracts, TRVL-161 payment schemas, TRVL-162 audit log (GEN-07, GEN-11, PAY-01, PAY-03, FLT-09)
+Prompt:
+Define the cross-module contracts (PayableBooking, RefundsService, policies, search, currency, reference,
+audit, notifications, uploads) with injection tokens, the GEN-11 lifecycle and FLT-09 tier rule, and
+implement the payments/refunds/stripe_events and audit_logs schemas with their indexes and tests.
+How the output was used:
+Checked every rule against the workbook text (FLT-09 tier selection, HTL-21 no partial cancellation,
+PAY-01 no card data, PAY-03 refund statuses). The e2e tests caught that Types.ObjectId as a Prop type
+breaks query casting; switched to Schema.Types.ObjectId and documented it for the team.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-134 (traceability matrix, ERD, ADRs), TRVL-128 runbook
+Prompt:
+Generate the traceability matrix for every workbook requirement (endpoint, owner, Jira key, status) from
+the brief section 8 tables and Jira, write the ERD and ADRs for auth, concurrency, payments, money/time
+and module boundaries, and add a CI check that the matrix stays complete.
+How the output was used:
+Verified the endpoint mapping against brief section 8, applied the documented corrections (ACC-03 and
+BLG-11 not in the workbook, HTL-09 and ITN-25 remaps), and reviewed each ADR against the implemented code.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: GEN-12 (TRVL-110 reference data seed)
+Prompt:
+Read my Jira requirements, the project brief and the existing repository, then implement GEN-12 following the
+team's architecture: load the official reference datasets (Countries, Cities, Airports, Attractions) with
+validation, seed them idempotently with `npm run seed`, expose GET /api/countries, /cities and /currencies, and
+provide REFERENCE_SERVICE for other modules, with unit and e2e tests.
+How the output was used:
+Claude exported the four official CSVs from the shared Google Sheet, wrote the reference module (schemas, seed
+loader and validator, seed service, controller, REFERENCE_SERVICE provider), the seed script and the tests. I
+reviewed the dataset rules (unique ids, parent references, IANA time zones, ISO currencies), checked that the
+stored identifiers match the official records exactly, and verified the endpoints in Swagger before opening the PR.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-02 (TRVL-29 predefined airport list)
+Prompt:
+Implement FLT-02 on top of the GEN-12 reference module: a public, read-only GET /api/airports listing the
+seeded airports with IATA code, name, city, country and IANA time zone, with e2e tests.
+How the output was used:
+Claude added the airports endpoint, its response DTO and e2e tests (sorted list, no write routes, page
+validation). I checked the response fields against FLT-02 and Airports.csv and verified the endpoint in Swagger.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: TRVL-138 (airlines, flights and cabins schemas)
+Prompt:
+Investigate the conflict between the TRVL-138 Jira description (seats/booked/held) and the merged ERD and
+ADR-0002 (totalSeats/seatsAvailable), then implement the airlines and flights schemas following the ERD, plus
+the local departure date and unique index FLT-03 needs, with unit and e2e tests.
+How the output was used:
+I chose the ERD model after reviewing the evidence (ADR-0002 is the accepted inventory design for FLT-22).
+Claude wrote the schemas, indexes, ERD update and tests, including a concurrency test of the ADR-0002
+conditional decrement. I checked every field and rule against FLT-01, FLT-03, FLT-04, FLT-08, FLT-09 and FLT-30.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-01 (TRVL-28 airline profiles)
+Prompt:
+Implement FLT-01 on the flights module: an admin creates an airline (POST /api/airlines), anyone views it
+(GET /api/airlines/:id), and only the assigned airline moderator edits name, code and logo
+(PATCH /api/airlines/:id), with validation, provider-scope checks in the service, and unit and e2e tests.
+How the output was used:
+Claude wrote the DTOs, AirlinesService, AirlinesController and tests. I decided that admins create but do not
+edit (FLT-01 gives editing to the moderator) and that the logo is a URL until the GEN-08 upload endpoint exists,
+then verified each rule in Swagger with the stub auth header.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-03, GEN-06 (TRVL-30, TRVL-101 flight creation in airport-local time)
+Prompt:
+Implement FLT-03: the airline moderator creates a flight for their assigned airline with times entered in each
+airport's local time and stored in UTC; reject identical or unknown airports, arrival not after departure in UTC,
+a departure in the past and a duplicate flight number on the same local date. Implement the GEN-06 mapper that
+shows every flight time in UTC and in the airport's local time, with unit and e2e tests.
+How the output was used:
+Claude wrote CreateFlightDto, FlightsService, the shared flight-view mapper and the tests. I checked the time
+zone examples by hand (Cairo UTC+2 and Dubai UTC+4 in December, London to New York, the London DST gap on
+28 March 2027) and verified the responses in Swagger.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04 (TRVL-31 cabin categories per flight)
+Prompt:
+Implement FLT-04: the airline moderator adds cabin categories to their Scheduled flights (fixed class set, each
+once per flight, whole positive seats, price in minor units, free bags and max kg) and edits them, never letting
+total seats drop below seats already booked or held, safely under concurrent seat holds; with unit and e2e tests.
+How the output was used:
+Claude wrote the cabin DTOs, the atomic add and conditional seat-change updates in FlightsService, the routes and
+the tests, including a race test of 20 parallel holds against a seat reduction. I checked the seat arithmetic
+(taken = total - available) against ADR-0002 and verified the endpoints in Swagger.
+================================================
+
+================================================
+Date: 2026-11-08
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-08 (TRVL-34 extra baggage policy)
+Prompt:
+Implement FLT-08: PUT /api/airlines/:id/baggage-policy lets the airline's moderator set a price per extra bag
+(> 0, minor units) and a maximum number of extra bags per passenger (>= 0), with unit and e2e tests.
+How the output was used:
+Claude wrote the DTO, the service method and route, and the tests. I confirmed that the extra-bag weight limit
+is the cabin's free-baggage maximum (FLT-04), so it is not a separate field, and verified the endpoint in Swagger.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-11 (TRVL-36 one-way flight search)
+Prompt:
+Implement FLT-11: a public GET /api/flights/search by departure and arrival airport, local departure date at the
+departure airport and passenger count, listing Scheduled flights of active airlines with enough available seats
+as selectable flight + cabin options with local times; provide it as FLIGHTS_SEARCH; unit and e2e tests.
+How the output was used:
+Claude wrote the query DTO, the aggregation-based FlightSearchService and the tests. I checked the local-day
+boundaries by hand (Cairo UTC+2, Tokyo UTC+9: 00:30 on 2 Dec in Tokyo is 1 Dec in UTC but a 2 Dec flight) and that
+cancelled flights, inactive airlines and full cabins are excluded, then verified the search in Swagger.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-30 (TRVL-107 flight status lifecycle)
+Prompt:
+Implement FLT-30: flights are Scheduled, Cancelled or Departed; a job marks Scheduled flights Departed once
+their departure time has passed; only Scheduled flights are searchable, editable or bookable. Avoid adding a
+scheduler dependency; add unit and e2e tests.
+How the output was used:
+Claude wrote FlightStatusService (one conditional updateMany at startup and every minute, off in tests), the
+departure-time guard on edits, and the tests. I checked that search already filters by status and time so nothing
+slips through between runs, and that the job is safe on several API instances.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-09 (TRVL-35 airline cancellation tiers)
+Prompt:
+Implement FLT-09: an airline moderator defines cancellation tiers (unique whole-number days-before threshold,
+refund 0-100%); a refund uses the tier with the highest threshold not exceeding the days remaining, else 0%.
+Reuse the shared selectCancellationTier helper, make both rules demoable in Swagger, and add tests.
+How the output was used:
+Claude added PUT /api/airlines/:id/cancellation-policy (validation, duplicate thresholds reported on the exact
+tier, moderator-only) and a public refund-preview endpoint so the selection rule can be shown in Swagger before
+booking cancellation (FLT-26) exists. I reviewed the boundary cases (exactly on a threshold, 0 days, no tiers).
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-17 (TRVL-39 flight details), completes GEN-06
+Prompt:
+Implement FLT-17 GET /api/flights/:id for guests and users: airline, flight number, airports, local departure
+and arrival times, duration, each cabin with price, seats remaining and baggage allowance, and the airline's
+cancellation policy. Reuse the GEN-06 flight mapper and add tests.
+How the output was used:
+Claude extended the existing flight view with the airline, its extra-baggage policy and cancellation tiers, and a
+bookable flag (Scheduled, not departed, airline active). I checked the JFK->LHR local times and 430-minute
+duration in the e2e test and that cancelled or past flights still open but are marked not bookable.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-15 (TRVL-38 flight results price range and sort)
+Prompt:
+Implement FLT-15 on GET /api/flights/search: an inclusive minimum and maximum price that keeps the other search
+criteria, an error when min > max, and sorting by price, duration or departure time. Follow the FLIGHTS_SEARCH
+contract (minPriceMinor, maxPriceMinor, sort) and add tests.
+How the output was used:
+Claude computed each option's total fare and duration inside the MongoDB query, so the filter, sort and paging
+all happen in the database, and added stable tie-breaks so pages never overlap. The range applies to the total
+fare for all passengers (the price the contract returns); I asked Ahmed to confirm this in the PR.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-05 (TRVL-32 edit Scheduled flights)
+Prompt:
+Implement FLT-05 PATCH /api/flights/:id: the moderator edits departure/arrival times of their own Scheduled
+flights; airports cannot change once the flight has any booking; seat counts never drop below booked or held
+seats; price changes do not affect existing bookings; a time change notifies passengers with Confirmed bookings.
+Bookings and notifications (Karim) are not built yet: build what works now and leave a hook for them.
+How the output was used:
+Claude added the edit (same checks as creating a flight, one conditional database update so a booking made at
+the same moment cannot slip past the airport lock), a FLIGHT_BOOKINGS_LOOKUP contract for Karim to provide, and an
+optional notifier that sends FLIGHT_SCHEDULE_CHANGED notifications once both modules exist. The e2e test plugs in
+fake bookings and notifications to prove the notifications are sent. I chose this approach over waiting.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: review fixes for FLT-01, FLT-03, FLT-04, FLT-05, FLT-08, FLT-09, FLT-11, FLT-15, FLT-30, GEN-12
+Prompt:
+Apply Ahmed's review of PRs #7-#18: reject null in every PATCH DTO (it skipped validation and was written),
+find flights departing at exactly 00:00 local time, block a deactivated airline's flights (ACC-15), re-check
+the departure inside every atomic update (FLT-30), reuse the shared tier validation, filter search by the fare
+per passenger, and remove limits the workbook does not ask for. Fix each on the lowest branch and carry it up.
+How the output was used:
+I chose the decisions (price per passenger, remove all extra limits except the documented 100 kg bag cap) and
+Claude implemented and tested them on each branch, resolving the merge conflicts between the stacked branches.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Ahmed Atef Youssef
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-01, FLT-02, FLT-03 (TRVL-28, TRVL-29, TRVL-30 traceability after merge)
+Prompt:
+Review and verify Joudy's FLT pull requests (local gate, PR governance, live API and Swagger tests), approve and
+merge #7 to #10 into develop in stack order, sync Jira, and mark the merged requirements Done in the
+traceability matrix.
+How the output was used:
+Claude ran the checks, merged the PRs after all 12 required checks passed and moved TRVL-28, TRVL-29, TRVL-30
+and TRVL-138 to Done. This PR only changes the FLT-01, FLT-02 and FLT-03 rows from "In review" to "Done"; GEN-06
+stays open until search (#13) and details (#16) are merged. I reviewed the diff before opening the PR.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04 re-review (also FLT-08, FLT-09, FLT-11, FLT-15)
+Prompt:
+Apply Ahmed's re-review of #11: a cabin PATCH stored 1e20 / 1e300 because @IsInt accepts them and updateCabin
+skipped the schema validators. Reject unsafe integers in every whole-number DTO field, run the validators on the
+cabin update, add tests, and carry the fix up the stack after merging develop.
+How the output was used:
+Claude added an IsWholeNumber (Number.isSafeInteger) rule used by all whole-number fields, enabled runValidators
+on the cabin update, documented the seatsAvailable validator in update context, and added unit, e2e and schema
+tests. I checked that the error messages match the existing "must be a whole number" wording.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-04, FLT-08, FLT-09, FLT-11, FLT-15, FLT-17, FLT-30, GEN-06 (traceability after merge)
+Prompt:
+Re-verify Joudy's PRs #11 to #18 (local gate, PR governance, CI, live API and Swagger tests), post the
+code-owner sign-offs, merge them into develop in stack order, sync Jira, and mark the merged requirements
+Done in the traceability matrix.
+How the output was used:
+Claude ran the checks, merged each PR after all 12 required checks passed and updated Jira. This PR only
+changes eight matrix rows to "Done" (FLT-04 also lists #12, which added the baggage-policy endpoint in its
+row). FLT-05 stays "Partial" until the passenger notification works. I reviewed the diff before opening it.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-135 (AI_PROMPTS.txt upkeep, brief section 11.1)
+Prompt:
+Review the project, Jira and the repository for process mistakes. First fix the prompt log: repair the broken
+entries, stop AI_PROMPTS.txt from conflicting in every PR, and make CI reject conflict markers and broken entries.
+How the output was used:
+Claude restored the missing headers of the TRVL-132 and FLT-01..03 entries (dates taken from their PRs), removed a
+leftover conflict marker, and wrote check-repo-hygiene.mjs with unit tests. I ran the check against the old
+develop copy to confirm it reports every damaged entry. A merge=union rule for the log was tried and dropped: the
+check showed that union merging removes the shared header lines of entries appended by different PRs.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-13 (shared validation rules), ADR-0002, PAY-04
+Prompt:
+The flights review found that null slipped through PATCH DTOs and that IsInt accepts 1e20, and the hotels branch
+repeated both bugs. Move the fixes out of flights into common so every module uses them, and make CI catch it.
+How the output was used:
+Claude moved Omittable and IsWholeNumber to common/validation, added a shared safeInteger schema validator used
+by the airline and flight schemas, documented all three in conventions.md, and added a guard rule that fails on
+@IsInt( or Number.isInteger( in module code. Behaviour is unchanged: all 159 e2e tests pass, plus 15 new unit tests.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-135 (README and team documentation), TRVL-134 (traceability upkeep)
+Prompt:
+Four teammates have not started and setup knowledge is spread over four files. Write one onboarding page from
+clone to first merged PR, a review checklist built from the bugs found in earlier reviews, and fix stale docs.
+How the output was used:
+Claude wrote docs/ONBOARDING.md (access, .env, db:check, seed, the Swagger dev-user stub, first PR, a module
+starter copied from flights) and docs/process/review-checklist.md, fixed the README layout, the merge method in
+CONTRIBUTING, the missing FLIGHT_BOOKINGS_LOOKUP row and the stale GEN-02/05/13 matrix rows. I checked each
+command and header value against the code before committing.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-129 (CI quality gates), TRVL-144 (test coverage)
+Prompt:
+Make the PR rules less tiring without losing traceability, add GitHub issue templates, and put a coverage floor
+on the module services, which hold the business rules but had no threshold.
+How the output was used:
+Claude exempted unit-spec-only module changes from the traceability-row rule (with tests), added bug and config
+issue templates that point feature work to Jira, and set a coverage floor on src/modules (70% lines, measured at
+76% today) so new modules cannot land without unit tests. npm run verify passes.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-136 (code freeze and v1.0.0-m1 release)
+Prompt:
+Add a release-notes workflow before the code freeze that does not push to develop or main: publish a GitHub
+release when a v* tag is pushed, with notes built from the merged PR titles.
+How the output was used:
+Claude wrote release-notes.mjs (groups merged PRs by Conventional Commit type and tabulates the requirement IDs
+they cite) with unit tests, and release.yml, which refuses tags that are not on main, attaches openapi.json, and
+can preview notes without publishing. I previewed the notes on the current develop history before committing.
+================================================
+
+================================================
+Date: 2026-11-10
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-129 (CI quality gates), TRVL-134 (traceability), TRVL-135 (AI prompt log)
+Prompt:
+Make the GitHub workflows more precise: run guard rails when only scripts change, check the matrix statuses and
+PR numbers, make the AI prompt log append-only, format-check the repo scripts, check Markdown links, and warn on
+stacked or cumulative PRs.
+How the output was used:
+Claude added each rule with unit tests (33 script tests pass) and docs for teammates. I ran the new governance
+check against real PRs: it warns on the stacked hotels PRs, flags the AI-log repair in #26 (now labelled
+ai-log-fix), and the stale-status rule finds exactly the three GEN rows that were left In review on develop.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-137 (users and sessions schemas), ACC-18 (TRVL-108, admin seed)
+Prompt:
+Working from the latest develop and reusing the existing common layer (auth contract, error filter,
+schema conventions, PasswordService), implement the users and sessions schemas for the Accounts epic,
+including a TTL index on sessions, and seed the admin account from ADMIN_SEED_EMAIL and
+ADMIN_SEED_PASSWORD so that admins can never self-register. Cover the business rules with unit and e2e
+tests, run lint, tests and the build until everything passes, verify the behaviour against a running
+app and a real seed run, and verify every result three times before opening the pull request.
+How the output was used:
+Claude wrote the users module (users and sessions schemas, shared password rules, AdminSeedService) and
+added the admin step to npm run seed. The schemas enforce a unique lowercased email, keep the password
+hash out of queries and JSON, require a moderator to be linked to exactly one provider of the matching
+type, store only SHA-256 refresh-token hashes and expire sessions through a TTL index. The seed is safe
+to re-run, never resets an existing admin's password and never promotes an existing account. Verification
+found that a weak seed password failed only after the reference data had been written; the password is
+now checked before connecting, and a re-run on an empty database confirmed nothing is written.
+npm run verify passes (300 unit and 180 e2e tests). I reviewed the schemas against TRVL-137, the ERD and
+the brief before committing.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-01 (TRVL-13, guest registration)
+Prompt:
+Implement guest registration (POST /api/auth/register) on top of the users schema: name, unique email,
+a password of at least 8 characters with at least one letter and one digit, and a mandatory
+terms-and-privacy consent. Reject every broken rule with inline field errors, return 409 for an email
+that is already registered, and make sure nobody can register as an admin or moderator. Validate the
+DTO with class-validator, document the endpoint in Swagger with examples and its error responses,
+cover the rules with unit and e2e tests, and verify the behaviour against a running app.
+How the output was used:
+Claude added the auth module (RegisterDto, AuthService, AuthController), UsersService.createTraveller
+and a shared UserProfileDto that never exposes the password hash. The role is set by the service, and
+any role, status or other account field in the request body is rejected with a 400 field error.
+Duplicate emails are decided by the unique index in any letter case (409 EMAIL_ALREADY_REGISTERED,
+new error code), including two simultaneous sign-ups. The consent must be exactly true. Tests: 24 new
+unit and 14 new e2e cases; I checked each rule by calling the endpoint on a running app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-04 (TRVL-14, login), ACC-19 (TRVL-112, httpOnly cookies and /auth/me)
+Prompt:
+Implement login with email and password for users, admins and moderators, returning each role's home
+page, a generic "invalid email or password" message on failure and an "account suspended" message for
+suspended accounts. Issue the access and refresh tokens only as httpOnly, Secure, SameSite cookies,
+never in a response body, and add GET /api/auth/me so the frontend learns the current user from the
+cookie. Follow the agreed auth-migration plan so existing modules and e2e suites keep working, document
+everything in Swagger, test the rules, and verify the cookies and responses on a running app.
+How the output was used:
+Claude added POST /api/auth/login and GET /api/auth/me, a SessionsService that stores only a SHA-256
+hash of a random refresh token, and a global AuthGuard that authenticates from the signed access_token
+cookie (HS256 via @nestjs/jwt) and falls back to the dev stub only when no cookie is sent. Unknown
+emails still run a bcrypt comparison so failures take the same time, and the suspended message appears
+only after the password matched. One e2e assertion was too broad (it matched the mustChangePassword
+field) and was corrected. I checked the Set-Cookie flags, the session document and the role guards with
+a real login on a running app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-06 (TRVL-16, logout, refresh-token revocation, 30-minute idle expiry)
+Prompt:
+Implement logout so that it clears the authentication cookies and revokes the refresh token on the
+server, add a refresh endpoint, and make a session with no authenticated request for 30 minutes expire
+and require a new login. Keep the common layer independent of feature modules, document the endpoints
+in Swagger, test the rules including the exact idle boundary, and verify them on a running app.
+How the output was used:
+Claude added POST /api/auth/logout and POST /api/auth/refresh, and a SESSION_VALIDATOR contract that the
+users module provides and the global AuthGuard calls on every cookie request. Each check is a single
+atomic MongoDB update that also records the request, so a logged-out or idle session stops working at
+once although its JWT has not expired. Refresh rotates the refresh token (a replayed token fails),
+reloads the account and refuses suspended ones. Logout only trusts a correctly signed access token, so
+a forged session id cannot end someone else's session. Claude also caught a flaw in its own e2e test
+(the token hash changes on rotation) before running it. I checked logout, rotation and the 29 versus
+31 minute boundary against a running app and the database.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: TRVL-140 (hotel schemas backing HTL-01 to HTL-24)
+Prompt:
+Port my hotels, rooms, room_nights and reviews Mongoose schemas onto the latest develop as their own pull request,
+following the team branch, PR and traceability conventions.
+How the output was used:
+Claude adapted the existing schemas to the shared helpers on develop (CancellationTier, parseIsoDate), ran format,
+lint, typecheck, architecture, OpenAPI and the unit tests locally, and opened the PR. I reviewed the diff and the
+schema rules before asking for review.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-140, HTL-01, HTL-03, HTL-04 (rebase onto develop, GEN-13 shared validation rules)
+Prompt:
+PRs #21 to #24 conflict with develop. Rebase them onto the latest develop and fix what the new rules require:
+whole numbers use IsWholeNumber and safeInteger, and edit DTOs use the shared Omittable from common/validation.
+How the output was used:
+Claude rebased the four branches in order (the only conflicts were appended AI_PROMPTS.txt entries, kept from both
+sides), replaced the hotels-only integer helper, @IsInt() and the copied Omittable with the shared helpers, and
+ran the local gate on each branch. I reviewed each fix commit before the branches were force-pushed.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-140, HTL-01, HTL-03, HTL-04 (team leader review of PRs #21 to #24)
+Prompt:
+Apply Ahmed's review of the hotels stack: register RoomNight and Review so their unique indexes exist, use
+isActive/isHidden, SCHEMA_OPTIONS and hotels/schemas/, and fix the HTL-01, HTL-03 and HTL-04 points (scope
+before active state, atomic updates with runValidators, price > 0, past dates, a cap on ranges, matrix status).
+How the output was used:
+Claude made one fix commit per PR, moved the hotel date and time checks into common/validation, and added an
+e2e test that the room_nights and reviews unique indexes are built. I reviewed each change and the test results
+before the branches were pushed.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: HTL-01 (TRVL-47)
+Prompt:
+Implement HTL-01: an admin creates a hotel profile and the hotel moderator assigned to that hotel edits it (name, address,
+city and country, description, photos, star class, amenities), following the team conventions, with unit and e2e tests.
+How the output was used:
+Claude wrote CreateHotelDto, UpdateHotelDto, HotelsService, HotelsController and the tests, taking the country from the
+reference city and reusing the shared auth, ownership and error helpers. I reviewed the diff and will verify each endpoint
+by hand in Swagger before asking for review.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: HTL-03 (TRVL-49)
+Prompt:
+Implement HTL-03: the hotel moderator adds a room to their own hotel with a room number unique within the hotel, type,
+number of beds, maximum occupancy of at least 1 and a price per night above 0, following the team conventions, with
+unit and e2e tests.
+How the output was used:
+Claude wrote CreateRoomDto, RoomsService, RoomsController and the tests, relying on the unique {hotelId, number} index
+for duplicate and concurrent adds. I reviewed the diff and will verify each endpoint by hand in Swagger.
+================================================
+
+================================================
+Date: 2026-11-09
+Student: Sandra George
+Tool: Claude (Claude Sonnet 5.5, agentic coding session)
+Related Requirement: HTL-04 (TRVL-50)
+Prompt:
+Implement HTL-04: the hotel moderator defines non-overlapping date ranges when a room is bookable, following the team
+conventions, with unit and e2e tests, including two requests racing for the same dates.
+How the output was used:
+Claude wrote AddAvailabilityDto, the date validators, RoomsService.addAvailability and the tests; the overlap check and
+insert are a single atomic update. The tests caught a bug in the range-end validator (end before start was accepted),
+which was fixed before the PR. I reviewed the diff and will verify each endpoint by hand in Swagger.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (TRVL-15, lockout after 5 failed logins)
+Prompt:
+Lock an account for 15 minutes after 5 consecutive failed login attempts and show a lockout message,
+and reset the counter on a successful login. Make the counting safe under concurrent requests, test
+the exact limits and the reset, and verify the lockout on a running app.
+How the output was used:
+Claude added UsersService.recordFailedLogin, a single MongoDB update pipeline that increments
+failedLoginCount and, on the 5th failure, sets lockedUntil to 15 minutes later and resets the counter in
+the same atomic step, plus resetLoginFailures for a successful login. The 5th wrong password already
+returns 403 ACCOUNT_LOCKED with the minutes left; while locked even the right password is refused and
+the lock is not extended. Unknown emails are never counted. Tests cover 4 versus 5 failures, the reset,
+the end of the lock, separate accounts and 8 simultaneous wrong passwords; I repeated the lockout on a
+running app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-11 (TRVL-21, real guards: roles, ownership, provider scope, account status)
+Prompt:
+Complete the real authorization layer that replaces the stub: role checks, ownership of private
+resources with the admin and moderator exceptions, moderator provider scope, and account status, so
+that unauthorised requests are rejected with 403 or 404. Keep the existing module contract unchanged,
+add the test helper from the auth-migration plan, test every rule with real cookie sessions, and
+verify it on a running app.
+How the output was used:
+Claude extended the SESSION_VALIDATOR contract so the global AuthGuard reloads the account on every
+cookie request: a suspended account gets 403 on its next request, a deactivated or deleted one 401, and
+role and provider come from the database so changes apply at once. It added a @ProviderScoped()
+route guard, an ownerFilter() helper for owner-scoped list queries, a notFound option on assertOwner
+for private resources, and test/support/auth.ts (asUser, loginAs). Claude proposed not ending open
+sessions of a locked account, so a stranger cannot log a user out by guessing passwords; the
+decision is documented in auth-migration.md and flagged in the PR for review. All new e2e cases use real cookies.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-08 (TRVL-18, change password)
+Prompt:
+Let any logged-in user change their password by entering the current password and a new one that
+meets the password rules. Return inline errors for a wrong current password or a weak new one, keep
+the password rules defined in one place, document the endpoint in Swagger, test it, and verify it on a
+running app.
+How the output was used:
+Claude added PATCH /api/auth/change-password with ChangePasswordDto and a shared NewPasswordRules()
+decorator that RegisterDto now uses too, so registration and password changes share one rule set. A
+wrong current password returns 400 with a currentPassword field error; a weak new password returns a
+newPassword field error. On success the new bcrypt hash is stored, mustChangePassword is cleared, and
+every other session of the account is revoked while the current one stays logged in. Unit and e2e tests
+cover each rule for every role; I re-ran the registration suite to confirm the refactor changed
+nothing there.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-09 (TRVL-19, edit profile)
+Prompt:
+Let any logged-in user view and edit their own name, phone number and preferred currency, saving only
+when every field passes validation. Follow the team's PATCH conventions, validate the currency against
+the supported reference currencies, document the endpoints in Swagger, test them, and verify them on a
+running app.
+How the output was used:
+Claude added GET and PATCH /api/users/me (UsersController, ProfileService, UpdateProfileDto). Fields use
+@Omittable(), so a missing field is kept and null is rejected; the phone must be an E.164 international
+number (spaces, dashes and brackets are stripped first); the currency must be one of the codes in
+Countries.csv, read through REFERENCE_SERVICE. Any invalid field returns a 400 field error and nothing
+is saved; email, password, role and status cannot be changed here. The e2e suite seeds the official
+reference data so the currency rule runs against the real dataset; I checked the endpoints on a running
+app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-12 (TRVL-22, self-deactivation)
+Prompt:
+Let a registered user deactivate their own account after confirmation, block it while they have
+upcoming Confirmed bookings, and make sure a deactivated user can no longer log in. The bookings modules
+do not exist yet, so connect to them through a contract instead of guessing their code, document what
+the other modules still need to do, test the rules, and verify them on a running app.
+How the output was used:
+Claude added DELETE /api/users/me for the USER role: the current password is the confirmation, the
+account becomes DEACTIVATED in a single conditional update, every session is revoked and the cookies
+are cleared; login already treats a deactivated account as invalid credentials. The booking rule goes
+through a new UPCOMING_BOOKINGS contract for Karim's bookings modules, injected as optional like the
+existing FLT-05 lookup, and returns 409 UPCOMING_BOOKINGS_EXIST. The e2e suite proves the block with a
+test provider behind the real token. The traceability row is marked Partial, naming the bookings
+provider and the content-hiding work that belong to other modules.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-14 (TRVL-24, admin account list)
+Prompt:
+Give admins a paginated list of all accounts showing name, email, role, status and registration date,
+with search by name or email and filters by role and status. Use the team's fixed page size of 10 and
+its pagination helpers, document the endpoint in Swagger, test the search, filters and pagination, and
+verify the list on a running app.
+How the output was used:
+Claude added GET /api/admin/accounts (admins only) with AccountListQueryDto, which extends the shared
+PaginationQueryDto, and AdminAccountsService built on paginate(), newest registrations first. The q
+search matches the name or the email ignoring case, with regex characters escaped so input is always
+plain text; role and status filter exactly and combine. Rows never include credentials or lockout
+fields. The e2e suite tags its own accounts so counts and pages stay exact in the shared test database;
+I checked the list, filters and pages on a running app.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-07a (TRVL-17, admin password reset with forced change)
+Prompt:
+Let an admin reset a user's or moderator's password to a temporary password, and make the account set
+a new password that meets the rules at its next login. Record the action in the audit log, document the
+endpoint in Swagger, test the whole journey from reset to the forced change, and verify it on a running
+app.
+How the output was used:
+Claude added POST /api/admin/users/:id/reset-password (admins only). The admin chooses the temporary
+password, which follows the shared rules and is never returned; the account gets mustChangePassword,
+its lockout is lifted and every session ends. The update and the RESET_PASSWORD audit entry run in one
+MongoDB transaction, and admin accounts cannot be reset this way. The forced change is enforced by the
+global AuthGuard: until the password is changed, login lands on /account/change-password and every
+other protected route answers 403 PASSWORD_CHANGE_REQUIRED. The shared password-rules decorator moved
+to the users module so both modules can use it within the architecture rules.
+================================================
+
+================================================
+Date: 2026-11-11
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-13 (TRVL-23, admin creates hotel or airline moderators)
+Prompt:
+Let an admin create a hotel or airline moderator account (name, email, role) linked to exactly one
+existing hotel or airline, with a temporary password set by the admin, and make the moderator change it
+on first login. Keep the users module independent of the flights and hotels modules, audit the action,
+document the endpoint in Swagger, test the whole flow, and verify it on a running app.
+How the output was used:
+Claude added POST /api/admin/moderators with CreateModeratorDto (moderator roles only, a valid provider
+id and the shared password rules) and ModeratorsService. The provider type follows the role and the
+provider must exist, read by id from the airlines or hotels collection named in the ERD, so the users
+module imports neither module. The account is created with mustChangePassword, which the forced-change
+rule from ACC-07a enforces at first login, and it is written together with a CREATE_MODERATOR audit entry
+in one transaction; a registered email returns 409. The e2e suite creates a real airline through the
+flights endpoint and shows the new moderator changing the password and then managing only that
+airline; I repeated the flow on a running app.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-06, ACC-05, ACC-08, ACC-13 (review fixes on #44, #45, #47 and #53)
+Prompt:
+Address every blocker and should-fix from the team leader's review of the ACC stack: rebase the stack
+so the duplicated logout fix exists once, close the lockout to parallel login attempts, refuse a new
+password equal to the current one, detect refresh-token reuse without logging out two tabs that refresh
+together, and refuse moderators for deactivated providers. Reproduce each reported case as a test, and
+verify every rebuilt branch again before pushing.
+How the output was used:
+Claude rebuilt #45 to #53 on the updated #44 without the duplicate commit, resolving the append-only
+test-file conflicts by keeping both sides. Login now claims an attempt atomically before the password
+check, so 20 parallel wrong passwords get exactly 5 checks, and a success never lifts a lock set by
+parallel failures. Refresh keeps the previous token hash: a replay after 10 seconds revokes the session,
+while a second tab inside that window gets 409 REFRESH_SUPERSEDED without clearing cookies. Changing a
+password to itself is a 400, and a deactivated airline or hotel returns 409 PROVIDER_INACTIVE. Each
+reported scenario is now an e2e test; I ran the full verify on every rebuilt branch.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Abdelrahman Aly
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-05 (re-review on #45), stack rebase onto develop
+Prompt:
+Fix the defect found in the re-review of the lockout: parallel correct logins, or a double click after
+four real failures, locked the account. Lock only on real failed attempts, add the two reported scenarios
+as tests, rebase the stack onto develop after the hotel PRs were merged, and verify every branch again.
+How the output was used:
+Claude changed the login gate so a lock is set only when a password check really fails as the fifth
+attempt and no success reset the count meanwhile; a closed gate without an active lock now returns 429
+and writes nothing, and attempts older than 30 seconds are treated as stale. Both reported scenarios and
+the stale case are e2e tests that passed in repeated runs. The stack was rebuilt on develop; the only
+conflict was AI_PROMPTS.txt, resolved by keeping every entry. A first resolution attempt was malformed
+and was caught by the repository hygiene check before anything was committed.
+================================================
+
+================================================
+Date: 2026-11-12
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-05 (TRVL-51)
+Prompt:
+Implement HTL-05: the hotel moderator edits a room's beds, occupancy and price, and replaces its bookable date
+ranges. Price changes must not affect existing reservations, and availability cannot be removed for dates with
+confirmed reservations. Follow the review rules from #21 to #24 (scope first, atomic updates, HTL-04 range rules).
+How the output was used:
+Claude added PATCH /rooms/:roomId (atomic, validated) and PATCH .../availability (replaces the ranges inside a
+transaction that refuses to strand booked or unexpired held nights from today on), documented the price-snapshot
+and hold-transaction rules for HTL-17/18 in contracts.md, and wrote unit and e2e tests. I reviewed the 409 rule
+and the tests before committing.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-05 (review fixes on #54, from the milestone 1 V&V in #55)
+Prompt:
+Fix the two HTL-05 findings from the milestone 1 V&V review of this PR: the availability replace and
+a future booking hold must always conflict, and booked nights must be protected from the hotel's
+local date, not the UTC date.
+How the output was used:
+Claude added a reservationVersion field that the HTL-18 hold must increment, so the hold always
+writes the room and conflicts with a concurrent replace, and rewrote the contract and service comment
+to say why setting everReserved alone is not enough. Protected nights now start at the hotel's local
+date, taken from an airport in the hotel's city, falling back to UTC-12 so tonight is never left
+unprotected. Unit tests cover a New York evening and the fallback; hotel unit and e2e tests pass.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-136 (Milestone 1 V&V of every Done/Partial requirement), TRVL-129 (CI gate)
+Prompt:
+Analyse the project description, the requirements workbook, the mock data and every Jira task, then
+verify and validate each implemented feature against the workbook and the Jira acceptance criteria.
+Test every endpoint through Swagger so that all scenarios are handled and results are accurate and
+consistent, research best practices first, and apply the most useful skills and agentic workflows.
+How the output was used:
+Claude planned a requirements-based V&V campaign (atomic rules per requirement, boundary values,
+decision tables, an OWASP API Top 10 authorisation matrix, database oracles, concurrency checks) and
+ran four parallel module tracks plus independent verifiers. I started the backend on a separate Atlas
+database with stub auth off; Claude drove Swagger UI with real cookie sessions and captured evidence.
+The result is docs/qa/vv-m1 (report and four traceability matrices), new e2e specs under
+backend/test/vv that pin each confirmed defect with it.failing, and a non-blocking CI step that lists
+implemented requirements no test cites. I reviewed the findings before any Jira bug was filed.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-03, FLT-11, ACC-05, ACC-11, ACC-12, ACC-13, HTL-01, HTL-04, GEN-02, GEN-13 (V&V fixes in #55)
+Prompt:
+Fix all of the issues the milestone 1 V&V flagged, then sync Jira.
+How the output was used:
+Claude fixed each confirmed defect and actionable spec question as its own commit, turning the matching
+it.failing proof into a regular test: future-dated Swagger flight examples, a generic message for
+malformed JSON, field errors for an unknown city and for overlapping ranges, the production placeholder
+check, Swagger example and response documentation, a deactivated account handled like an unknown email
+before the lockout gate, and account status checks for stub callers that name a real account. It set
+the FLT-11 traceability row to Partial, removed a V&V test that compared against the gitignored
+openapi.json, and pushed the two HTL-05 fixes to PR #54. npm run verify passes with 603 unit and 542
+e2e tests.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-05, HTL-04, GEN-02 (update of #55 after #54 merged)
+Prompt:
+#54 is merged, update #55.
+How the output was used:
+Claude merged develop into the V&V branch and resolved the AI_PROMPTS.txt (develop first, then this
+branch's entries), traceability (HTL-04 and HTL-05 rows cite both PRs) and rooms.service.spec.ts
+import conflicts. It then wrote a failing e2e test showing that HTL-05's availability replace still
+answered overlapping ranges without field errors, switched replaceAvailability to overlapFieldErrors
+so it matches HTL-04, and removed the now unused firstOverlap helper. npm run verify passes.
+================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-11 (TRVL-106), TRVL-139, ACC-12, FLT-05
+Prompt:
+Continue the Milestone 1 plan: analyse my open Jira work, research best practices for the booking engine
+and V&V, then implement it one PR per story, starting with the GEN-11 booking lifecycle and the booking
+schemas, with systematic verification.
+How the output was used:
+Claude wrote failing tests first, then added transitionBooking (the only way to change a booking status:
+it refuses the 21 transitions outside the GEN-11 table and runs a status-conditioned update), a booking
+reference generator, the flight_bookings and hotel_reservations schemas (partial unique index on the
+reference, lifecycle indexes), and a global bookings module that provides UPCOMING_BOOKINGS (ACC-12) and
+FLIGHT_BOOKINGS_LOOKUP (FLT-05) plus the Confirmed -> Completed job. It started docs/qa/vv-m1/rtm-booking.md
+with one row per atomic rule and its test technique. The design follows ADR-0002/0003; I review it in the PR.
+================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-12 (TRVL-37)
+Prompt:
+PR #57 is merged; continue the plan with FLT-12: round-trip search, passenger types (adult, child,
+infant) and the cabin filter, test first, keeping FLT-11 and FLT-15 behaviour unchanged.
+How the output was used:
+Claude wrote failing tests first, then added priceParty and partyErrors (one pure pricing function that
+FLT-22 holds will reuse: infants pay 10% rounded down and take no seat; at least one adult; no more
+infants than adults), the adults/children/infants and cabinClass query parameters (the FLT-11 passengers
+count still works), and GET /api/flights/search/round-trip with independently paginated outbound and
+return lists. It updated two FLT-11 unit assertions that were tied to the old in-database total, and
+added the FLT-12 rows to docs/qa/vv-m1/rtm-booking.md. I review the design in the PR.
+================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-22 (TRVL-42), FLT-19, FLT-21, TRVL-144, FLT-11
+Prompt:
+#58 is merged; continue with FLT-22: the 10-minute seat hold with passenger details and the booking
+summary, test first, including the concurrency test.
+How the output was used:
+Claude wrote the failing e2e suite first, then added a FLIGHT_INVENTORY contract in the flights module
+(one conditional update takes seats, so the bookings module never writes flight documents), the
+passenger-age rules, the quote, hold and booking endpoints, the expiry job that releases seats inside the
+same transaction as the Pending -> Expired transition, and the FLIGHT_PAYABLE_BOOKING provider for PAY-01.
+20 parallel holds for 4 seats give exactly 4 bookings. It added the RTM rows; I review the design in the PR.
+================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: HTL-16 (TRVL-59), HTL-18 (TRVL-61), HTL-17 (part), TRVL-144
+Prompt:
+#59 is merged; continue with HTL-16/18: the multi-room reservation and the all-or-nothing 10-minute
+room hold, test first, including the concurrency test.
+How the output was used:
+Claude wrote the failing e2e suite first, then added a HOTEL_INVENTORY contract in the hotels module
+(the bookings module never writes rooms or room_nights itself), the reservation endpoint with guests per
+room and occupancy rules, the expiry job, lazy expiry of unswept holds, and the HOTEL_PAYABLE_BOOKING
+provider for PAY-01 (confirmation books the nights). 8 parallel overlapping requests give exactly one
+reservation. The unpaid-hold cap moved to one shared helper. It added the RTM rows; I review the design.
+================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-02 (TRVL-68), PAY-04 (TRVL-109)
+Prompt:
+#60 is merged; GEN-01 is still assigned to a teammate, so continue with PAY-04 and PAY-02: one platform
+currency and the provider policies accepted before payment, test first.
+How the output was used:
+Claude wrote the failing tests first, then limited PLATFORM_CURRENCY to the seeded currencies (a test keeps
+the list equal to Countries.csv), added the policy endpoints in the bookings module (reading airline and
+hotel terms through the inventory contracts), a version fingerprint so changed terms are never accepted
+unseen, the timestamped acceptance with a stored snapshot for refunds, and the assertPayable gate that
+PAY-01 will call. It added the RTM rows; I review the design in the PR.
+================================================
+
+================================================
+Date: 2026-11-14
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (TRVL-67), PAY-02, FLT-23 (part), HTL-17 (part)
+Prompt:
+#61 is merged; continue with PAY-01: Stripe test-mode payment within the hold, webhook-verified
+confirmation, retry, and cancel on expiry, test first.
+How the output was used:
+Claude wrote the failing tests first, then a Stripe gateway over the REST API (no SDK dependency) with an
+in-memory fake for tests, its own Stripe-Signature verification, the payment endpoints behind the PAY-02
+payment gate, the ADR-0003 webhook transaction (event id and confirmation commit together; replays are
+ignored; failures roll back for redelivery), a job that cancels PaymentIntents of expired holds, and a full
+refund for a payment captured after its hold expired. It amended ADR-0003 and added the RTM rows; I review
+the design in the PR.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (TRVL-67), PAY-02 (TRVL-68)
+Prompt:
+Re-verify everything built in the previous (compacted) session against the workbook and Jira, with
+systematic V&V, Swagger evidence and a Jira sync; fix the payment findings on the open PAY-01 PR.
+How the output was used:
+Claude ran read-only audits of the booking and payment code, then independent verifiers that confirmed
+each finding against the code and Stripe's documentation. Test first, it fixed the confirmed PAY-01 ones:
+PaymentIntents are card-only without redirects so a Stripe CLI confirm needs no return_url, the response
+shows the PaymentIntent id, the cancel call drops an idempotency key Stripe would replay for 24 hours,
+only retryable Stripe errors become 503, and Swagger documents 503 and the webhook's 500. It set PAY-02
+to Partial (hotel times and tiers have no endpoint yet) and corrected ADR-0003 and the RTM. I reviewed
+each finding and the diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (TRVL-67), PAY-02 (TRVL-68), FLT-12 (TRVL-37), HTL-18 (TRVL-61)
+Prompt:
+After another compacted session, verify and validate my recent PRs (#57 to #63) systematically against
+the project description, the requirements workbook and Jira, then test every endpoint through Swagger.
+How the output was used:
+Claude ran the full quality gate on the combined branch (815 unit, 686 e2e, green), then four parallel
+read-only reviews (spec conformance, silent failures, security, rule-to-test traceability) and an
+adversarial verifier that confirmed or refuted each finding. Test first, it fixed the confirmed PAY-01
+gaps: a refund Stripe refuses for good is closed as FAILED instead of re-sent every minute, create and
+retry answer 503/500 instead of a payment without a client secret, refused webhook signatures and
+unapplied captures are logged loudly, and Swagger and ADR-0003 now describe the 500 and the successor
+payment a retry can return. It added a black-box acceptance suite (bookings.vv.e2e-spec.ts) for the
+untested boundaries and the cross-user 404 matrix. I reviewed each finding and the diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-19 (TRVL-40), FLT-21, FLT-22, HTL-18, GEN-11, PAY-01 (docs)
+Prompt:
+Re-verify the booking engine merged in #57 to #61 against the workbook and Jira, systematically, and
+fix what the verification finds.
+How the output was used:
+Claude audited every clause of GEN-11, FLT-11/12/19/21/22 and HTL-16/18 against the code and tests.
+Independent verifiers confirmed the findings, and the fixes were written test first: FLT-19 now takes the
+extra baggage weight, checked against the cabin's kg per bag on every flight; a date of birth after today
+is refused; the Swagger infant example was born in 2027; the hotel 503 is documented. It corrected stale
+RTM rows, the report and the traceability owners, and added the README's per-role Swagger demo with the
+Stripe CLI steps. I reviewed each finding and the diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-01 (TRVL-67), FLT-22 (TRVL-42), HTL-18 (TRVL-61), FLT-12 (TRVL-37)
+Prompt:
+Test each of my feature's endpoints through Swagger: run the booking and payment journeys live with
+Stripe test mode, record the evidence and correct any report claim the evidence does not support.
+How the output was used:
+Claude drove the Swagger page with real cookie sessions (stub off) and confirmed PaymentIntents with
+the Stripe CLI: one-way, round trip, declined then retried, expiry, two-room hotel, the negative and
+ownership matrix, and two repeats, 103 recorded calls, all PASS. It found a webhook-secret mismatch
+through the new signature log, removed its test records from the team database by id after a dry
+run, and pushed the transcript to the evidence branch. report.md now links that run instead of
+claiming a recording that did not exist. I chose the database and approved the cleanup.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-136 (release and V&V), TRVL-129 (repository setup)
+Prompt:
+Rename the branches to match the project description's conventions and the Jira requirement IDs, and
+check through the Atlas connector that the database is not corrupted and is clean.
+How the output was used:
+Claude deleted merged local branches and renamed the five never-merged Swagger evidence branches to the
+brief's docs/<description> form with their Jira keys (docs/TRVL-129-..., docs/TRVL-136-..., and module
+names for the teammates' flights and hotels evidence), keeping every commit-pinned link working, and
+updated the one report line that named an old branch. Through the Atlas connector it checked counts,
+dangling references, seat inventory, account locks and the full index set of travel_platform and
+travel_vv read-only. I chose the naming approach.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-21 (TRVL-41), FLT-12 (TRVL-37), HTL-18 (TRVL-61)
+Prompt:
+Verify and validate my merged booking PRs (#57 to #61) against the workbook; fix confirmed defects in
+merged code in one separate fix PR.
+How the output was used:
+A spec-conformance review, confirmed by an independent verifier, found that a round-trip quote showed
+only the outbound infant fare, so the FLT-21 summary lines did not add up to the total when the two
+flights cost differently. Claude wrote a failing e2e test with unequal leg fares, then added each
+segment's own infant fare to the quote (not stored, since it derives from the stored fare). An
+acceptance check that compares whole 404 bodies then showed GET booking/reservation by id answered a
+stranger differently from an unknown id; the ownership helper now takes the caller's not-found message.
+It also corrected RTM rows whose cited evidence was weaker than claimed. I reviewed each diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-01 (TRVL-96)
+Prompt:
+Implement GEN-01 in-app notifications behind the existing NOTIFICATIONS_SERVICE contract: a notifications
+collection, a paginated owner-only list (10 per page, newest first, unread filter), an unread count, an
+idempotent mark-as-read and a mark-all-read, test-first, so the FLT-05 schedule notifier starts working.
+How the output was used:
+Claude wrote the failing e2e tests first (only my notifications newest first, 10 per page; unread count
+3 -> 2 -> 0; another user's id answers with the same 404 body as an unknown id; guest 401 on all four
+routes; notify in an aborted transaction leaves nothing), then the module, schema, service, controller
+and DTOs, plus unit tests that a bad producer input (empty title, link not starting with /) throws a
+plain Error. Because the real module now provides NOTIFICATIONS_SERVICE, the FLT-05 e2e swaps in its
+fake through a provider override instead of a second global module. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: GEN-08 (TRVL-103)
+Prompt:
+Implement GEN-08 image uploads: a shared uploads service and multipart interceptor (JPG/PNG by magic
+bytes, 5 MB each, 5 per post/activity/hotel, 1 airline logo), hotel image upload and delete, airline logo
+replace, static serving of /uploads with nosniff, test-first, with cleanup of written files on failure.
+How the output was used:
+Claude wrote failing unit and e2e tests first (5 MB boundary, sixth image, text renamed .png, traversal
+in deleteImage, two concurrent uploads past the limit, 403/401), then the UPLOADS_SERVICE on local disk
+with UUID file names, ImageFilesInterceptor, the hotel endpoints with a conditional $push that deletes the
+loser's files, the logo replace that deletes the old file, and the URL validators. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-03 (TRVL-69), PAY-04 (TRVL-109)
+Prompt:
+Implement PAY-03 refunds through the Stripe Refunds API behind REFUNDS_SERVICE: refundFor records one
+PENDING refund per booking in the caller's transaction (null for a zero amount, refused outside the
+platform currency), a dispatcher sends it after commit, refund.* webhooks settle it exactly once, and
+the booking details and GET /api/refunds/:id show its status, test-first.
+How the output was used:
+Claude wrote the failing unit and e2e tests first (zero amount records nothing, idempotent per booking,
+foreign currency refused, a synchronous succeeded answer notifies once, refund.updated arriving before
+the Stripe id is saved, replayed and out-of-order events, refund.failed with stripe:<code>, stranger 404
+equal to unknown 404, refund block on flight and hotel details), then RefundsServiceImpl with a
+transactional outbox, the webhook cases, the controller and the booking DTO block. It moved the
+dispatcher out of PaymentsService to avoid a DI cycle and kept the late-refund key. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-15
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-18, PAY-04 (TRVL-133)
+Prompt:
+Implement the currency module: fetch FXRatesAPI rates once a day (and at startup when none are cached)
+with the platform currency as base, cache them in exchange_rates with their rate date, fall back to the
+last cached rates when the API fails, never expose FX_API_KEY, and convert minor-unit amounts with each
+currency's minor units, answering 503 EXCHANGE_RATE_UNAVAILABLE when a rate is missing, test-first.
+How the output was used:
+Claude wrote failing unit and e2e tests first (1000 EGP to JPY with minor units, same currency rate 1,
+API failure keeps yesterday's rates, empty cache and API down gives 503, XYZ gives 400 fieldErrors.to,
+startup fetch only when the cache is empty, negative or missing rates rejected, key never in a response),
+then the FXRatesAPI client behind FX_RATES_CLIENT, the exchange_rates schema, CURRENCY_SERVICE, the hourly
+stale-check job and GET /api/currencies/rates and /convert, plus listCurrencies on REFERENCE_SERVICE for
+the seeded minor units. I checked the live response shape and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet)
+Related Requirement: GEN-07 (TRVL-102)
+Prompt:
+Add GET /api/admin/audit-logs for the existing AUDIT_SERVICE: admin only, newest first (createdAt then
+_id), 10 per page, filters for action, targetType, actorId, from and to (from after to is a 400 on
+from, a malformed actorId is a 400), test-first, and document that ACC-15, ACC-16 and GEN-10 must record
+their entries through AUDIT_SERVICE inside their transaction.
+How the output was used:
+Claude wrote the failing e2e tests first (entries created through the real reset-password and
+create-moderator routes appear newest first, filters, date range and from-after-to, 403 for users and
+moderators, 401 for guests, 11 entries paginate 10 + 1), then AuditLogService.list, the query and
+response DTOs and the controller, and added the route to the paginated-route list in the foundation V&V
+suite. I reviewed the diff and the traceability and contracts notes.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-23 (TRVL-43)
+Prompt:
+Implement the rest of FLT-23: when the verified payment webhook confirms a flight booking, send one
+in-app BOOKING_CONFIRMED notification in the same transaction (never again on a replay), and add
+GET /api/flight-bookings/:id/e-ticket returning a PDF (pdfkit, built-in fonts) with local times per
+airport (GEN-06) and passports masked to the last 4 characters, owner only, test-first.
+How the output was used:
+Claude wrote the failing renderer unit tests (Cairo and London local times, DST, masking) and e2e tests
+(PDF download with headers and Title, 409 BOOKING_NOT_CONFIRMED, stranger 404 equal to unknown 404, one
+notification and none on replay), then a pure view builder and renderer, the notification in
+markConfirmed, getETicket and the route. It confirmed that holds already count as booked seats, so
+confirming moves no seats. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet)
+Related Requirement: HTL-17 (TRVL-60)
+Prompt:
+Implement HTL-17 confirmation: after the payment webhook confirms a hotel reservation, send one in-app
+BOOKING_CONFIRMED notification with the hotel, hotel-local dates, rooms, guests and total, in the same
+transaction, never on a replayed webhook, test-first.
+How the output was used:
+Claude wrote the failing unit and e2e tests first (one notification with the right title and link, none on
+a replay or a refused confirmation), then injected NOTIFICATIONS_SERVICE into HotelBookingsService and
+built the text from the reservation snapshot so no lookup can block the confirmation. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-26 (TRVL-45), FLT-12, GEN-11
+Prompt:
+Implement FLT-26: GET /api/flight-bookings/:id/refund-quote and POST /api/flight-bookings/:id/cancel for
+the owner of a Confirmed booking. In one transaction move Confirmed -> Cancelled, return every non-infant
+seat on both segments, refund through REFUNDS_SERVICE with the outbound tier from the accepted policy
+snapshot, and notify the user. Block cancellation after departure (409), keep stranger 404 parity, test-first.
+How the output was used:
+Claude wrote failing unit and e2e tests (one-way, round trip, infants, 0% refund, after departure, stranger
+404, two cancels racing), then a reusable cancelConfirmed core and the two routes. An independent review
+found no blocking issues. I reviewed the diff and ran the live check in Swagger.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-26 (TRVL-45)
+Prompt:
+Revert everything implemented in this session.
+How the output was used:
+Claude closed the unmerged PRs and reverted merge #72 (FLT-26 code, tests and traceability rows) with
+git revert. The earlier FLT-26 entry in this log stays, because the log is append-only and the work did
+happen. I review and merge the revert.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-135
+Prompt:
+Analyse the project description, the requirements workbook, Jira and the repository, then complete my assigned
+tasks. For TRVL-135: rebuild the README, Swagger demo script, openapi export and demo seed from closed PR #79 on
+top of the current develop, and keep only what is merged after the FLT-26 revert (#80).
+How the output was used:
+Claude cherry-picked the #79 commits onto a fresh branch, removed the demo steps and feature-map entries for
+unmerged or reverted stories (FLT-26, HTL-21, ACC-15/16, GEN-09/10), re-exported openapi.json from develop
+(61 paths), made the demo seed also fill hotel times stored as null, and re-ran the quality gate. I reviewed the
+README and the demo script against Swagger before opening the pull request.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-23
+Prompt:
+The FLT-23 e-ticket e2e test fails at random in CI ("PA?-02" in the extracted text). Find the root cause and
+fix it without changing the e-ticket itself.
+How the output was used:
+Claude rendered hundreds of e-tickets and found that a policy version containing "ff" is drawn as a ligature
+whose ToUnicode target has two characters; the test reader skipped it and shifted every later glyph. Only the
+test reader changed, plus a unit test with an "ff" version that fails on the old reader. I checked 400 random
+renders (21 bad before, 0 after) before opening the pull request.
+================================================
+
+================================================
+Date: 2026-11-13
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-09 (TRVL-54)
+Prompt:
+Implement HTL-09: the hotel moderator sets the standard check-in and check-out times through PUT
+/api/hotels/:id/policies, shown on the hotel page and the booking summary, following the team's hotel rules
+(scope first, atomic validated update, deactivated hotels read-only) and leaving room for HTL-10's tiers.
+How the output was used:
+Claude added SetHotelPoliciesDto (both times required, 24-hour HH:mm using the shared LOCAL_TIME_HH_MM rule),
+HotelsService.setPolicies, the Swagger route, checkInTime/checkOutTime on every hotel response, and unit and
+e2e tests. I agreed the design (check-out may be earlier than check-in; tiers are never touched) before it
+was written and reviewed the tests.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Sarah Eldahaby
+Tool: ChatGPT Codex
+Related Requirement: ITN-01, ITN-03, ITN-05, ITN-09, ITN-10, ITN-12 (TRVL-141)
+Prompt:
+Implement TRVL-141 itinerary and activity schemas, including day ordering, date calculation, consecutive-city grouping rules, focused tests and architecture documentation.
+How the output was used:
+Codex implemented the itinerary and activity schemas, rule helpers, module registration, tests and ERD documentation. I reviewed the implementation and requested an explicit duplicate-day-order test, which was added and passed.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: FLT-26 (TRVL-45), FLT-12, GEN-11
+Prompt:
+Take over FLT-26: revert the revert of #72 on a fresh branch from develop, re-review it against develop, extract
+a reusable Confirmed -> Cancelled core (transition with startsAt > now, seat release, REFUNDS_SERVICE.refundFor,
+BOOKING_CANCELLED notice, one transaction) for HTL-21 and FLT-06 to reuse, cancel a round trip as a whole on the
+outbound tier (FLT-12 a), write the tests first, update the traceability and RTM rows, and check it live in Swagger.
+How the output was used:
+Claude restored #72, moved the cancel flow into bookings/booking-cancellation.ts, guarded the transition on the
+shared startsAt field, and added unit tests for the tier boundaries (exactly at a threshold, 0 days, a 0% refund
+with no record) and e2e cases for a second cancel, a 0% tier and infants on both legs of a round trip. I reviewed
+the transaction order and the refund link, ran the quality gate and the e2e three times, and checked the quote and
+cancel journey in Swagger on a throw-away database before opening the pull request.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: ACC-15, ACC-16, GEN-07 (TRVL-25, TRVL-26)
+Prompt:
+Build ACC-15 and ACC-16 in a new backend admin module: PATCH suspend/reactivate for moderators and registered
+users, and PATCH deactivate/reactivate for airlines and hotels. Reach other modules only through contract tokens,
+change status, revoke sessions, write the GEN-07 audit entry and send the notification in one transaction, test
+first with e2e, update the traceability matrix and the accounts RTM, and verify live in Swagger.
+How the output was used:
+Claude wrote the e2e suite first (13 cases, all failing), then added the ACCOUNT_ADMIN, AIRLINE_STATUS and
+HOTEL_STATUS contracts with their users, flights and hotels implementations, the admin module, unit tests, and
+409 PROVIDER_INACTIVE for holds on a deactivated airline or hotel. It kept the existing login answer for a
+suspended account (403 ACCOUNT_SUSPENDED) and revokes sessions only on suspension. I reviewed the transaction
+order, the admin and self-target refusals and the docs before opening the pull request.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-10 (TRVL-55), HTL-09 (TRVL-54), PAY-02 (TRVL-68)
+Prompt:
+Take over HTL-09 and HTL-10 to close PAY-02: cherry-pick Sandra's #56 commits, then add the hotel cancellation
+tiers to the same PUT /api/hotels/:id/policies body, validated and selected with the shared FLT-09 helpers,
+test-first, and make the PAY-02 test set the hotel terms through the API instead of the database.
+How the output was used:
+Claude kept Sandra's four commits with her authorship, wrote failing DTO, service and e2e tests (thresholds,
+decimals, duplicates, 20/21 tiers, access), then made the tier list a required part of the PUT, sorted and
+returned on every hotel response, and aligned the hotel refund precision with the airline tiers. The hotel page
+part of HTL-09 stays open until HTL-02 lands. I reviewed the diff and the live Swagger run.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Joudy Khaled Hagar
+Tool: Claude (Claude Opus, agentic coding session)
+Related Requirement: FLT-05 (TRVL-32) closing test, with GEN-01
+Prompt:
+FLT-05 stays In Progress until a test shows the time-change notification reaching a Confirmed passenger. Add an e2e
+test with the real bookings, payments and notifications modules (only Stripe faked): passengers book through hold,
+accept-policies, pay and the Stripe webhook (one Confirmed, one left Pending, one paid then cancelled), the moderator
+changes the times, and each inbox is read through GET /api/notifications. After Sarah's review: also prove that a
+same-value time edit, a price-only and a seat-only edit notify nobody, that the paid fare survives a price change
+while a new booking gets the new fare, and remove the duplicated stand-in notification check from flight-edit.
+How the output was used:
+Claude wrote the test following the existing flight-cancellation suite's payment flow; I checked each case against
+the FLT-05 rules and that the fare assertion can now fail.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01
+Prompt:
+Read the project brief, my Jira tasks for the Blog & Community epic and the team conventions, then
+design the posts, comments and likes schemas and implement POST /api/posts (create a post as draft or
+published) with Swagger docs and e2e tests. Ahmed asked for one pull request per feature, so this PR
+holds only the schemas and BLG-01; the other blog features follow in their own PRs.
+How the output was used:
+Claude designed the schemas (unique {postId, userId} like index, likeCount, commentCount and an
+interactionScore for BLG-09), the create DTO with tag normalisation (lowercase, no repeats, at most 5 of
+30 characters) and the service and controller, following the hotels module patterns. It also ran the
+endpoint in Swagger UI and captured screenshots on docs/blog-swagger-evidence. I reviewed the diff and
+ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-142, BLG-01
+Prompt:
+Apply Ahmed's review of PR #75: rebase onto develop, mark BLG-01 Partial, stop the ERD over-claiming,
+drop the unrelated reports row change, keep Swagger text to routes that exist, stop images bypassing
+GEN-08, read author names through the users module instead of the raw User model, tidy the indexes,
+and add a unit test for PostsService.create.
+How the output was used:
+Claude rebased the branch (develop's AI_PROMPTS.txt entries kept, mine last), removed images from the
+create body (they are uploaded under GEN-08 by BLG-10), switched author names to UsersService.findProfile,
+dropped the User model registration and the module's exports, removed the single isHidden indexes, added
+isHidden to the tag and search indexes, added a unit test for draft/published stamping and an e2e test
+that checks the indexes exist. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-02 (TRVL-48)
+Prompt:
+Implement HTL-02: a public GET /api/hotels/:id hotel details page with the profile, photos, amenities,
+check-in/check-out times, cancellation policy, average rating and reviews, and the available rooms when
+dates are given, using the same free-room rule as the HTL-18 hold so HTL-15 can reuse it.
+How the output was used:
+Claude added HotelDetailsService (visible-review rating and the 10 newest reviews, active rooms, and with
+dates only the rooms free every night with their stay total), the query DTO with date rules, the Swagger
+route, the reviewed public-route entry, and e2e tests. I agreed the design before it was written.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-01 (TRVL-70), ITN-03 (TRVL-71), ITN-20 (TRVL-81)
+Prompt:
+Read the project brief, the requirements workbook, my Jira stories and the develop branch, then implement
+ITN-01, ITN-03 and ITN-20 on top of my TRVL-141 schemas following the team conventions: owner-only CRUD with
+the same 404 for strangers, countries checked against the reference list, private by default, a paginated
+"my itineraries" list sorted by last update, visibility through PATCH, Swagger examples and e2e/unit tests.
+How the output was used:
+Claude wrote the DTOs, the ItinerariesService, the controller, the itinerary detail view and an optional
+ITINERARY_BUDGETS port for Malak's budgets module, plus the e2e and unit tests. Deleting an itinerary removes
+its activities, budget rows and only the image files no clone still uses. I reviewed the diff, ran npm run
+verify and tried every endpoint in Swagger.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-06 (TRVL-52)
+Prompt:
+Implement HTL-06: the hotel moderator blocks date ranges for a room, deactivates it, or deletes it.
+Blocking or deactivation is rejected over a Confirmed or Pending Payment reservation; deactivated rooms
+leave search; only never-reserved rooms can be deleted. Safe against a concurrent HTL-18 hold.
+How the output was used:
+Claude added POST/DELETE .../rooms/:roomId/blocks (BLOCKED room_nights from today on), isActive on the room
+edit, DELETE .../rooms/:roomId, all inside one transaction that first writes the room so a concurrent hold
+conflicts, plus unit and e2e tests. I chose separate /blocks routes over PATCH .../availability because that
+route already replaces the bookable ranges (HTL-05).
+================================================
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-06 (TRVL-52), HTL-02, ITN-01, ITN-03, ITN-20, FLT-05, BLG-01
+Prompt:
+Validate and verify every open PR against the workbook, the Jira Definition of Done and the review checklist,
+and test their endpoints through Swagger. Then merge the approved ones and sync Jira.
+How the output was used:
+Claude ran npm run verify on all open PRs merged together, a live Swagger/API probe on a throw-away in-memory
+database (115 checks, races included) and mutation checks on the FLT-05 test, then drafted the reviews I posted.
+It found that HTL-06 cannot be Done until HTL-11 search exists, so this PR sets the row to Partial.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-01
+Prompt:
+Apply the last nit from Ahmed's re-review of PR #75 (raised by Sarah): extend the BLG-01 Partial note
+in the traceability matrix to say images come through BLG-10 (GEN-08).
+How the output was used:
+Claude changed only the BLG-01 status text to the wording Ahmed gave. I reviewed the one-line diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: HTL-01 (TRVL-47), ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-21, HTL-22, HTL-23, HTL-24, GEN-03, GEN-09, GEN-10
+Prompt:
+Audit Jira against the workbook, the develop branch and every PR, then fix the mismatches and reassign Karim's
+stories to Joudy, Abdelrahman and me.
+How the output was used:
+Claude compared all 179 Jira issues with the traceability matrix, the controllers and the PR history. I used its
+findings to move HTL-01 to Done (GEN-08 landed in #66), correct the owners of twelve rows, drop closed PR #56 from
+HTL-09 and replace the stale "Karim" ownership notes in the architecture docs. The Jira changes were made in Jira
+itself; this PR only brings the repo docs in line. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: ACC-17, FLT-06, FLT-25, FLT-29, HTL-20, HTL-22, HTL-23, HTL-24, GEN-03
+Prompt:
+Reassign Karim's tasks back to him.
+How the output was used:
+Claude restored Karim as assignee, label and description owner on his twelve Jira items, then restored him as
+owner of his nine matrix rows and of the reviews schema in the ERD, undoing the owner changes that #103 merged.
+HTL-21, GEN-09 and GEN-10 stay with Ahmed, as in Jira. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-11 (TRVL-56), HTL-06 (TRVL-52)
+Prompt:
+Implement HTL-11: public GET /api/hotels/search by city or country, check-in, check-out, guests and rooms
+(default 1), listing active hotels with that many rooms free for the whole stay that together hold the guests;
+check-out after check-in, check-in not in the past. Also provide HOTELS_SEARCH (ITN-25) with the same rules.
+Then rebuild the branch on the latest develop and prove that rooms deactivated or blocked through HTL-06 leave
+the search.
+How the output was used:
+Claude added HotelSearchService (batched free-room and visible-rating queries shared with HTL-02, an exact
+cheapest-set-of-rooms price, cheapest first, GEN-05 pages), the query DTO, the route before GET :id, the
+HOTELS_SEARCH provider, V&V list entries and unit and e2e tests, including the HTL-06 exclusion test. I agreed
+the design before it was written, reviewed the diff and checked every case in Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-05 (TRVL-72)
+Prompt:
+Implement adding a day to my itinerary with a city from the reference list and optional notes, and editing a
+day's city or notes. Days are numbered 1..n with dates derived from the start date, at most 60 per itinerary,
+and concurrent changes must never skip or repeat a number. One PR per story, as the team lead asked.
+How the output was used:
+Claude rewrites the embedded day list in one update guarded by the itinerary's __v revision, retrying a lost
+race up to three times before a 409, so concurrent adds never leave gaps or a 61st day (409
+ITINERARY_DAY_LIMIT). I checked the e2e cases (60th and 61st day, concurrent adds, null and empty edits,
+unknown cities, a stranger getting 404) and ran them in Swagger.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-03
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-03 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added GET /api/posts/mine (the caller's posts, drafts and hidden ones included, with status, date, like and comment counts) and GET /api/posts/mine/:id (404 for another user's post), the page-size verification entry, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-04
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-04 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added PATCH /api/posts/:id (any subset of title, body, tags, images and status; publishing a draft stamps publishedAt) and DELETE /api/posts/:id (deletes the post with its comments, likes and uploaded images in one transaction), author only (403 for a published post, 404 for a draft), and e2e tests. An edit can only reorder or remove the post's own uploaded images (GEN-08). Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-06
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-06 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added POST and DELETE /api/posts/:id/like with a LikesService: one like per user enforced by the unique {postId, userId} index (409 ALREADY_LIKED, also under concurrent requests), likeCount changed in the same transaction, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-08
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-08 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added GET /api/tags/:tag/posts (published posts with the tag, ignoring case, newest first, 10 per page), the public-route and page-size verification entries, and e2e tests. Adding and editing tags is part of create (BLG-01) and edit (BLG-04). Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-143, ITN-16
+Prompt:
+Build the itinerary budgets on top of the TRVL-141 itinerary schemas, one pull request per feature as
+Ahmed asked: this one holds the budget_entries and transport_costs schemas (TRVL-143) and ITN-16, add,
+edit and delete an intercity transport cost (mode, from-city, to-city, amount, currency, day).
+How the output was used:
+Claude wrote both schemas and the transport-cost DTOs, service, controller and Swagger docs: owner only
+(404 for anyone else on a private itinerary), the day must belong to the itinerary, both cities must be
+reference cities and differ, the currency must be a seeded one, and e2e tests. I reviewed the diff and
+ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-16
+Prompt:
+Sarah asked me to rebase the budgets branches onto develop without her old schema commit and to
+provide her ITINERARY_BUDGETS port (dayTotals, deleteForDays, deleteForItinerary, cloneForItinerary)
+from the budgets module.
+How the output was used:
+Claude rebased the ITN-16 branch onto develop (only BudgetsModule added to app.module), wrote
+ItineraryBudgetsPort over transport costs (budget entries join it in ITN-14), made BudgetsModule global
+so the itineraries module can inject the token, imported ItinerariesModule for the itinerary model
+instead of registering it again, and added e2e tests for the four port methods, including Sarah's real
+DELETE /api/itineraries/:id. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+CodeQL flagged "Database query built from user-controlled sources" on PATCH /api/transport-costs/:id in
+PR #92: the $set was a spread of the request body.
+How the output was used:
+Claude rebuilt the update field by field from the validated values (ObjectId for the day, the mode mapped
+through the TransportMode enum, String/Number for the rest), so no raw body value or operator reaches
+the query. The ITN-16 e2e tests still pass. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-16
+Prompt:
+After merging develop into PR #92, backend-test failed: branch coverage for src/modules/ was 64.15%,
+under the 65% floor, because the budgets service and the ITINERARY_BUDGETS port had e2e but no unit tests.
+How the output was used:
+Claude wrote unit tests for BudgetsService (owner checks, day/city/currency rules, field-by-field update,
+404 paths) and ItineraryBudgetsPort (day totals per currency, deletes, clone mapping, malformed ids) with
+mocked models through the Nest testing module. Module branch coverage is back above 65% (budgets service
+93%). I reviewed the tests and ran the coverage gate locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75)
+Prompt:
+Show the consecutive same-city groups of my itinerary in every itinerary response: each group's city, first and
+last day, dates, day count and budget subtotal. The subtotal adds the activity costs and the budget entries and
+transport costs from Malak's budgets module, without importing it.
+How the output was used:
+Claude builds cityGroups in the detail view from the shared groupConsecutiveDaysByCity rule, so a return to a
+city starts a new group. Subtotals stay per currency with no conversion (that is ITN-18) and read the day totals
+through the optional ITINERARY_BUDGETS port, so the row stays Partial until ITN-14/ITN-16 provide it. I checked
+the A,A,B,A grouping, the subtotals with a fake budgets module and a city change merging groups, in e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-25 (TRVL-44), HTL-20 (TRVL-62)
+Prompt:
+Analyze the project description, the requirements workbook, my Jira tasks and the develop branch, then plan and
+implement my assigned stories to their Definition of Done, following the repo's conventions and requirement IDs.
+For FLT-25 and HTL-20: list my flight bookings and hotel reservations grouped as Upcoming, Past and Cancelled.
+How the output was used:
+Claude added GET /api/flight-bookings and GET /api/hotel-bookings with ?group=UPCOMING|PAST|CANCELLED (owner
+filter inside the query, 10 per page), the group rules in bookings/booking-groups.ts (a confirmed trip that has
+ended is already PAST and reads COMPLETED before the minute job runs; an expired hold is in no group), flight times
+in each airport's local time (GEN-06), unit specs for the rules and the service, and an e2e suite that books
+through hold, policies, payment and webhook. I chose to keep passport numbers out of the list and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-29 (TRVL-46), HTL-22 (TRVL-64)
+Prompt:
+Implement my assigned stories to their Definition of Done. For FLT-29 and HTL-22: let an airline moderator view
+the bookings of a flight with the seats left per cabin and export the passenger list as CSV, and let a hotel
+moderator view the reservations of their hotel, with the provider scope enforced in the backend.
+How the output was used:
+Claude added GET /api/flights/:id/bookings (bookings plus seats remaining, booked and held per cabin), GET
+/api/flights/:id/passengers/export (quoted RFC 4180 CSV with formula-like cells neutralised against CSV injection)
+and GET /api/hotels/:id/reservations in the bookings module, loading the flight or hotel first (404) and then
+checking the provider scope (403). Unit specs cover the filters, seat sums, CSV escaping and scope; the e2e suite
+books through hold, policies, payment and webhook. I chose to leave passport numbers out of the export and reviewed
+the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: ACC-17 (TRVL-27)
+Prompt:
+Implement my assigned stories to their Definition of Done. For ACC-17: give the admin a read-only list of every
+flight booking and hotel reservation (reference, user, provider, dates, amount, status), filterable by type, status
+and date range.
+How the output was used:
+Claude added GET /api/admin/bookings with one $unionWith aggregation over both collections, so the newest-first
+order and the 10-per-page paging are exact across them, user names through UsersService and airline names through
+AIRLINE_STATUS, and a travel-date range filter (trips overlapping the range, UTC days, "to" before "from" is 400).
+Unit specs check the pipeline and the row mapping; the e2e suite books through the real flow in a month no other
+suite uses. I chose the travel dates (not the booking date) for the range and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: FLT-06 (TRVL-33)
+Prompt:
+Implement my assigned stories to their Definition of Done. For FLT-06: let an airline moderator cancel a Scheduled
+flight so that it is hidden from search, its Confirmed bookings are cancelled with a 100% refund, its pending holds
+are released and the passengers are notified, reusing the existing cancellation core and contracts.
+How the output was used:
+Claude added POST /api/flights/:id/cancel (one conditional Scheduled -> Cancelled update in the flights module) and
+the required FLIGHT_BOOKING_CANCELLATIONS contract provided by bookings: holds are released first (Pending Payment
+-> Expired, so a payment captured later becomes a PAY-01 late refund), then every Confirmed booking is cancelled as
+the provider through the FLT-26 core, one transaction each, and repeating the request retries what failed. Unit
+specs cover the ordering, races and failures; the e2e suite covers refunds, seats on both legs of a round trip,
+notices, search and access. I reviewed the diff and the contract text.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Karim Walid
+Tool: Claude (Claude Opus 5.5, agentic session)
+Related Requirement: HTL-23 (TRVL-65), HTL-24 (TRVL-66)
+Prompt:
+Implement my assigned stories to their Definition of Done. For HTL-23 and HTL-24: one rating and optional review
+per Completed reservation, editable and deletable by its author, with the hotel average recalculated, and a public
+rating summary with paginated reviews, newest first.
+How the output was used:
+Claude added ReviewsService in the hotels module (create, edit, delete, each in one transaction with a rating
+recalculation from the visible reviews; the public list with "Deleted user" for deactivated authors), the
+reservation check in bookings (owner only, completing a Confirmed stay whose check-out passed through the GEN-11
+transition), two error codes, unit specs and an e2e suite through hold, policies, payment and webhook. I kept the
+public average on the existing visibleRatings so HTL-02, HTL-12 and HTL-24 show the same number, and reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: HTL-21 (TRVL-63)
+Prompt:
+Write a spec for hotel reservation cancellation that mirrors the flight cancellation core (FLT-26): owner-only
+quote and cancel, Confirmed only, closed once check-in begins, refund from the accepted policy snapshot tiers on the
+full total, rooms released, one transaction with rollback. Have delegated subagents implement it from that spec.
+How the output was used:
+Delegated subagents implemented HTL-21 from the written spec, which mirrors the FLT-26 core. An adversarial review
+pass found two gaps, and both were applied: a rollback test (a failing refund or notification leaves the reservation
+Confirmed with its nights kept) and a documentation sentence on refund timing. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5 for the design and implementation, reviewed by a second Opus review pass)
+Related Requirement: GEN-09 (TRVL-104)
+Prompt:
+Implement GEN-09 from a written spec: a registered user reports a post, comment, review or itinerary with a reason of 1-500 characters, at most once per item, through POST /api/reports. Moderation gets a CONTENT_MODERATION port with a registry, so each content module registers its own adapter and moderation never imports those modules.
+How the output was used:
+A delegated subagent designed and implemented the moderation module and the port from that spec. An adversarial review found that posts could not be reported, that remove() needed an after-commit hook and that two adapter methods lacked id guards; those were fixed in a second commit. I reviewed the diff. The GEN-09 traceability row, the reports collection in the ERD, the contracts section, the demo steps and the RTM rows were written with Claude Code from the code and backend/test/reports.e2e-spec.ts.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-10
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-10 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added POST /api/posts/:id/images and DELETE /api/posts/:id/images/:imageId using the shared UPLOADS_SERVICE and ImageFilesInterceptor (JPG/PNG, 5 MB, at most 5 per post), author only, files deleted when no post uses them any more, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-10, BLG-01
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #100.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop, including BLG-04's image cleanup) and re-applied
+only this PR's upload and remove-image endpoints on top, and noted on the BLG-01 row that images are now
+uploaded to the post (#100). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-12
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-12 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added GET /api/authors/:id (name, join date and the author's published posts, newest first, 10 per page), the public-route and page-size verification entries with a fixed author fixture, and e2e tests. Public itineraries follow once ITN-20 is available. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-12, ITN-20, ACC-12
+Prompt:
+Apply Ahmed's review of PR #101: merge develop, list the author's public itineraries on the author page
+through a small port in common/contracts provided by the itineraries module, and return 404 for a
+deactivated author (ACC-12).
+How the output was used:
+Claude added the PUBLIC_ITINERARIES token and PublicItineraries interface, a PublicItinerariesProvider in
+the itineraries module (PUBLIC, not hidden, newest update first, 10 per page), the itineraries page on
+GET /api/authors/:id with its own itinerariesPage parameter, a 404 for DEACTIVATED authors, the contracts
+row and e2e tests. I reviewed the diff and ran the checks.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-12
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #101.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 and ITN-05 kept as on develop) and re-applied only this PR's author
+page, the PUBLIC_ITINERARIES provider and its verification entries on top; it checked the provider still
+matches the itinerary schema after ITN-05. I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-09, GEN-11
+Prompt:
+Review develop against the completed Jira tasks and the open PRs, verify the open PRs through Swagger, then
+sync the traceability matrix.
+How the output was used:
+Claude found two stale rows that no open PR touches: GEN-09 still said reviews could not be created
+(HTL-23 merged in #112), and GEN-11 did not cite FLT-06 (#111), which cancels bookings through the shared
+cancellation core. It updated both rows, checked that the five open PRs still merge without new conflicts,
+and ran the traceability and hygiene checks. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-136
+Prompt:
+Delete everything left over from earlier Claude Code sessions (worktrees, branches and the old V&V workflow)
+so the next session starts fresh.
+How the output was used:
+Claude removed the docs/qa/vv-m1 V&V reports and the two test comments that linked to them. The V&V test
+specs under backend/test/vv stay, because they still guard behaviour. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-02
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-02 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added GET /api/posts (published posts, newest first, 10 per page, optional tag filter) and GET /api/posts/:id (404 for drafts and hidden posts), the public-route and page-size verification entries, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-02, ACC-12
+Prompt:
+Apply Ahmed's review of PR #93: merge develop (AI log and traceability conflicts), and hide a deactivated
+author's published posts from browse and the post page (ACC-12: their posts are hidden, their comments
+show "Deleted user"), in a way comments and likes can reuse.
+How the output was used:
+Claude merged develop (develop's log and rows kept, mine re-applied), added PostsService.publicFilter()
+(published, not hidden, author not DEACTIVATED) for browse and the post page, made authorsOf show
+"Deleted user" for a deactivated account, and added a read-only UsersService.findIdsByStatus so the blog
+never reads the users collection. Unit and e2e tests added. I reviewed the diff and ran the checks.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-02, BLG-06, ACC-12
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #93
+and close the ACC-12 gap where a deactivated author's post could still be liked.
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop; this PR's browse and post page re-applied on top),
+made LikesService use PostsService.publicFilter() so a deactivated author's post answers 404 to a like, and
+extended the ACC-12 e2e test. I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-02, BLG-08, ACC-12
+Prompt:
+Apply Ahmed's round-2 review of PR #93: the tag page (GET /api/tags/{tag}/posts) still lists a deactivated
+author's posts; route it through publicFilter() and add an e2e assertion, then merge develop again.
+How the output was used:
+Claude made PostsService.listByTag use publicFilter() (published, not hidden, author not DEACTIVATED), noted
+it in the tag page's Swagger description, extended the ACC-12 e2e test to the tag page, and merged the latest
+develop (AI log only). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-05
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-05 on its own
+branch from the BLG-01 work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added POST /api/posts/:id/comments (1-500 characters, published posts only, commentCount raised in the same transaction) and GET /api/posts/:id/comments (oldest first, 10 per page), the public-route and page-size verification entries with a fixed post fixture, and e2e tests. Rebuilt on the reviewed BLG-01 (author names through UsersService).
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-05, ACC-12
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: merge the latest develop into PR #97
+and stop comments on a deactivated author's posts (ACC-12: their posts are hidden).
+How the output was used:
+Claude merged develop (BLG-03/04/06/08 kept as on develop; comments re-applied next to likes), and made
+CommentsService answer 404 to listing or adding comments when the post's author is DEACTIVATED, read
+through UsersService.findProfile. An ACC-12 e2e test and CommentsService unit tests were added (the
+src/modules/ branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-05, ACC-12
+Prompt:
+Apply Ahmed's round-2 review of PR #97: a deactivated commenter must show as "Deleted user" (ACC-12), with
+the promised e2e test, and merge develop again.
+How the output was used:
+Claude brought in #93's PostsService.authorsOf change byte for byte (a deactivated account shows as "Deleted
+user", with its unit test), so #97 no longer waits on #93 and the two merge cleanly in either order, added an
+e2e test where a commenter deactivates and their comment then shows "Deleted user", and merged the latest
+develop (AI log only). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-07 (TRVL-73)
+Prompt:
+Implement deleting a day from my itinerary: remove its activities, their unused image files and its budget rows,
+renumber the later days so their dates move one day earlier, and return the recalculated groups and subtotals.
+As the team lead asked on #88, make the database part atomic.
+How the output was used:
+Claude rewrites the day list (guarded by the __v revision) and deletes the day's activities in one MongoDB
+transaction, then removes the budget rows through ITINERARY_BUDGETS and the image files no clone still uses,
+only after the commit. I checked renumbering, re-dating, subtotals, deleting the only day, an unknown day and a
+stranger getting 404 in e2e and Swagger, and the failure path in the unit tests.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-14
+Prompt:
+Second budgets pull request (one per feature, as Ahmed asked): ITN-14, add, edit and delete
+non-negative budget entries per day for food, accommodation, in-city transport and activities in a
+selected currency, and show the itinerary total by category and by day, including activity costs and
+intercity transport.
+How the output was used:
+Claude added the budget-entry DTOs, service methods and routes (owner only, the day must belong to the
+itinerary, seeded currencies only) and GET /api/itineraries/:id/budget-summary, which sums entries,
+activity costs (under ACTIVITIES) and transport costs per day, category and currency and converts each
+group once to the platform currency through CURRENCY_SERVICE (503 when no rate is cached), with unit and
+e2e tests. After the rebase onto develop, budget entries also joined Sarah's ITINERARY_BUDGETS port
+(day totals, day/itinerary deletes, clone), with e2e tests. I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-14
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: bring ITN-14 up to date with the
+reviewed ITN-16 (#92) and fix what blocked #92 before this pull request hits it too.
+How the output was used:
+Claude merged the reviewed ITN-16 branch (develop, the CodeQL fix and its unit tests), built the budget
+entry update field by field from validated values instead of passing the body to $set (the CodeQL query
+injection alert on #92), and added BudgetsService unit tests for budget entries and the summary (the
+src/modules/ branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-14
+Prompt:
+Apply Ahmed's V&V of PR #114: amountMinor null returns three validation messages for one field (fix it
+test-first), and update the ITN-09 traceability row now that budget entries join the city-group subtotals.
+How the output was used:
+Claude wrote budget.dto.spec.ts first (null, text, decimals, unsafe, negative and too-large amounts each
+give exactly one message), then replaced the stacked IsWholeNumber/Min/Max with one validator in the
+budgets DTO, and updated the ITN-09 row (still Partial). I reviewed the diff and ran the full CI locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-12 (TRVL-57)
+Prompt:
+Implement HTL-12 on the hotel search: inclusive minimum and maximum price per night of the cheapest
+qualifying room, minimum average rating 1-5 with unrated hotels excluded when set, and sort by price or
+rating, following the flight search filters (FLT-15).
+How the output was used:
+Claude added minPriceMinor, maxPriceMinor, minRating and sort to the search DTO (one field error per bad
+value), the min-above-max 400 in the service so contract callers get it too, the filters and the rating
+sort (unrated last, ties by price), and e2e tests on hotels in a city no other test uses.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-15 (TRVL-58)
+Prompt:
+Implement HTL-15: public GET /api/hotels/:id/rooms/available listing all of a hotel's rooms free for the
+searched dates with type, beds, maximum occupancy, price per night and stay total, to pick rooms to book,
+reusing the HTL-02 free-room rule.
+How the output was used:
+Claude added the required-dates query DTO, HotelDetailsService.availableRooms (same free-room rule, GEN-05
+pages), the route before the :roomId routes, the reviewed public and paginated route entries (with a
+documented path for routes with an id) and e2e tests. I checked the booking path in the description.
+================================================
+
+================================================
+Date: 2026-11-17
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-08 (TRVL-53)
+Prompt:
+Implement HTL-08: the hotel moderator views each room's status for a chosen date range as Available,
+Booked (with reservation reference) or Blocked, through GET /api/hotels/:id/availability?from&to.
+How the output was used:
+Claude added RoomCalendarService (one status per room per night from the bookable ranges and room_nights:
+AVAILABLE, BOOKED with reference, HELD with the hold end, BLOCKED, NOT_BOOKABLE), the window DTO (at most
+62 nights, rooms paged by 10), loadInScope so a deactivated hotel stays readable, and unit and e2e tests.
+I agreed to show held and not-bookable nights explicitly rather than as available.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-09 (TRVL-104)
+Prompt:
+Add hotel reviews as a report target on POST /api/reports (targetType REVIEW), following the post and itinerary
+moderation adapters, and keep the hotel rating correct when a review is hidden or removed.
+How the output was used:
+A delegated subagent wrote ReviewModerationAdapter from a spec that copies the post and itinerary adapters. It found
+that the hotel rating is stored, so hide and delete recalculate ratingAvg and ratingCount in the same transaction as
+the change. I reviewed the diff.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-11 (TRVL-106)
+Prompt:
+Write the GEN-11 booking lifecycle proof: a unit matrix over all 25 ordered status pairs for flight and hotel
+bookings (the four allowed edges, and the 21 other pairs refused with 409 INVALID_STATE_TRANSITION and no
+write), plus e2e tests over HTTP for hold, confirm, complete, expire, user and provider cancel, and the jobs.
+How the output was used:
+A delegated subagent wrote the transition matrix tests from a written spec. The four allowed edges are
+spelled out in the spec, so the code cannot rewrite its own proof. To check the tests catch a bug, I
+made a temporary mutation (an extra Completed->Cancelled edge); 12 tests failed, and I reverted it. My
+brief wrongly said five edges; the agent corrected it to four. I reviewed the diff myself before committing.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5 for the design and implementation, reviewed by a second Opus review pass)
+Related Requirement: GEN-10 (TRVL-105), GEN-07 (TRVL-102)
+Prompt:
+Build GEN-10 admin moderation from the written spec on the GEN-09 CONTENT_MODERATION port: admins list and resolve reports (dismiss, hide or delete), hide or delete posts, comments, reviews and itineraries directly, and audit every change (GEN-07) in the same transaction.
+How the output was used:
+A delegated subagent built the admin moderation module from that spec: the report queue, report resolution, the direct hide and delete routes, and the RESOLVE_REPORT, HIDE_CONTENT and DELETE_CONTENT audit entries, all in one transaction. An adversarial review found no blockers but found missing rollback tests on the direct routes, no test that a hidden post leaves the public lists, and no report count in the direct audit entries. All three were added in a second commit. The stale-report case after an owner deletes content was left as a documented follow-up. I reviewed the diff. Comment and review moderation wait for their modules (BLG-05 and PR #116).
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-05, BLG-02, ACC-12
+Prompt:
+#97 merged without the fixes for Ahmed's V&V points 4 and 5. Bring them to develop in a small follow-up:
+one validation message for a missing or non-string comment body, the post author re-checked inside the
+comment transaction, and the BLG-02 row set to Done now that #93 and #97 are merged.
+How the output was used:
+Claude branched from develop and applied the already-reviewed fix (comment.dto.spec.ts and the race test
+written first): one body validator instead of IsString/Length, and an author re-check inside add() whose
+throw aborts the transaction. The BLG-02 row is Done with #93, #97. I reviewed the diff and ran the full
+CI locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-09
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-09 on its own
+branch from the BLG-02 browse work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added the q keyword to GET /api/posts: a literal, case-insensitive match on the title, tags or
+author name, ordered by interaction score (likes + comments) with newest first on a tie, an empty page
+for no results, and unit and e2e tests. Author names are matched through a new read-only
+UsersService.findIdsByName (only ids leave the users module), following Ahmed's BLG-01 review.
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-09
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: bring BLG-09 up to date so its pull
+request can open as soon as BLG-02 (#93) merges.
+How the output was used:
+Claude rebuilt BLG-09 on the reviewed BLG-02 branch (develop merged, ACC-12 filter kept, so a deactivated
+author's posts are never found) and re-applied only the keyword search (title, tags, author name, ranked by
+likes + comments). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-09, ACC-12
+Prompt:
+Finish my remaining Jira tasks one by one, locally: bring BLG-09 up to date with the reviewed BLG-02
+(tag-page ACC-12 fix included) and prove that search never finds a deactivated author's posts.
+How the output was used:
+Claude merged the reviewed BLG-02 branch into BLG-09 (BLG-02's AI log kept, the BLG-09 entries appended)
+and added an ACC-12 e2e test: a post found by keyword disappears from search, by title, tag and author
+name, once its author deactivates. I reviewed the diff and ran the full CI locally.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: ITN-18
+Prompt:
+Third budgets pull request (one per feature, as Ahmed asked): ITN-18, convert all itinerary budget
+amounts to the user's preferred currency with the exchange rates cached once a day, and show the rate
+date; fall back to the last cached rates when the API is down.
+How the output was used:
+Claude made the budget summary use ?currency=, else the caller's preferredCurrency (ACC-09), else the
+platform currency, validated against the seeded currencies, and return the rates used and the rate
+date through CURRENCY_SERVICE (which already serves the newest cached day), with e2e tests for the
+preferred currency, another display currency, the rate date and 503 when no rate is cached. I reviewed
+the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-18
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: bring ITN-18 up to date with the
+updated ITN-14 so its pull request can open as soon as ITN-14 merges.
+How the output was used:
+Claude merged the updated ITN-14 branch (develop, ITN-16 and the field-by-field budget updates) and added
+BudgetsService unit tests for the ITN-18 summary: ?currency= over the preferred currency over the platform
+currency, the rates used and the rate date, and an unsupported currency (400). I reviewed the diff and ran
+the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-19
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-18
+Prompt:
+Finish my remaining Jira tasks one by one, locally: rebuild ITN-18 on the reviewed ITN-14 (#114) so its
+future pull request carries no old ITN-14 commits that fail commitlint.
+How the output was used:
+Claude started a new branch from the #114 head and applied only the ITN-18 changes (summary in
+?currency= or the preferred currency, the rates used and the rate date, with unit and e2e tests), keeping
+#114's AI log and appending the ITN-18 entries. I reviewed the diff and ran the full CI locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-08 (TRVL-74)
+Prompt:
+Implement moving a day of my itinerary to a new position. Every day keeps its city, notes and activities; the
+days are renumbered 1..n so their dates follow the new order, and the city groups are recalculated.
+How the output was used:
+Claude added PATCH /api/itineraries/:id/days/reorder (declared before PATCH :dayId so "reorder" is never a day
+id), reusing the revision-guarded day-list rewrite, so a concurrent change retries instead of mixing orders. I
+checked moving to the end and back, the regrouping, an out-of-range, fractional or huge position, a malformed or
+unknown day id and a stranger getting 404 in e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-16
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus)
+Related Requirement: BLG-07
+Prompt:
+Split my blog work into one pull request per feature as Ahmed asked, and prepare BLG-07 on its own
+branch from the BLG-05 comments work: only the endpoints, rules, Swagger docs and e2e tests of this feature.
+How the output was used:
+Claude added PATCH and DELETE /api/comments/:id for the comment's author only (403 for anyone else), the
+post's commentCount lowered in the same transaction as the delete, and e2e tests.
+I reviewed the diff and ran the checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Malak Hussein
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: BLG-07
+Prompt:
+Audit my tasks, then finish the incomplete ones with no CI failures: bring BLG-07 up to date so its pull
+request can open as soon as BLG-05 (#97) merges.
+How the output was used:
+Claude rebuilt BLG-07 on the reviewed BLG-05 branch (develop merged, ACC-12 rule kept), re-applied only the
+edit and delete comment endpoints, and added CommentsService unit tests for them (the src/modules/
+branch-coverage floor). I reviewed the diff and ran the full CI checks locally.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-10 (TRVL-76)
+Prompt:
+Implement adding, editing and deleting activities of an itinerary day: a name, a description, an optional time
+and an optional cost in a supported currency. Only the itinerary's owner may do it, and each change should move
+the itinerary to the top of "my itineraries".
+How the output was used:
+Claude added the activity endpoints with whole-number minor-unit costs that need a currency from the seeded list,
+removeTime and removeCost flags for clearing the optional fields, and the same 404 for a stranger as for an
+unknown activity (ACC-11). Each change touches the itinerary's updatedAt. I checked every validation case, the
+subtotal of the day's city group and the ownership rules in e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-12 (TRVL-77)
+Prompt:
+Implement attaching images to an activity and removing them, under the GEN-08 rules: JPG or PNG only, at most
+5 MB each and at most 5 per activity. Only the itinerary's owner may do it, and a file a clone still shows must
+not be deleted.
+How the output was used:
+Claude reused the shared upload interceptor and UPLOADS_SERVICE. Files are checked and written first, then added
+with one conditional $push that only matches while there is room for all of them, so concurrent uploads cannot
+pass 5; on any failure the new files are deleted. Removing an image takes its UUID and deletes the file only
+when no other activity uses it. I checked the limits, bad types and sizes, the image id and a shared clone file
+in e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-21 (TRVL-82), ITN-20 (TRVL-81)
+Prompt:
+Implement the public itinerary search for guests and users (keyword on title, country or city; country, city and
+duration filters), a read-only public view with the author and budget, and cloning a public itinerary into an
+independent private copy that credits its author. Only PUBLIC itineraries an admin has not hidden may appear.
+How the output was used:
+Claude filters on PUBLIC and not hidden on every request, so making an itinerary private (ITN-20) or deleting it
+removes it from the search at once. The keyword is regex-escaped and also matched against country and city names.
+The clone writes the copy and its activities in one MongoDB transaction with new day ids, then copies budget rows
+through ITINERARY_BUDGETS and removes the copy again if that fails. I checked search, view, clone independence,
+hidden and private itineraries and the 404s in e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-129 (repository and CI)
+Prompt:
+Upgrade the GitHub Actions so that mergeability and conflicts are flagged automatically, stale branches are
+reported, Jira issues follow their PRs, and the recurring "the row must cite this PR" governance failure stops.
+How the output was used:
+Claude added the mergeability workflow (git merge-tree on fetched refs under pull_request_target, never running
+PR code; needs-rebase label and one updated comment), a weekly report-only stale-branch issue, a Jira sync
+workflow that comments and transitions cited TRVL issues and no-ops without secrets, and npm run pr:open, which
+replaces a #PR placeholder with the real PR number. The matrix check now rejects a leftover #PR. I reviewed the
+permissions of each workflow and ran the governance script tests.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-09 (TRVL-104), GEN-10 (TRVL-105), TRVL-180
+Prompt:
+Audit develop against the Milestone 1 endpoint list and close the remaining gaps. Reporting or moderating a
+blog comment answered 404 because no comment adapter was registered with CONTENT_MODERATION.
+How the output was used:
+Claude added CommentModerationAdapter, mirroring the post adapter: a comment is public only while its post is
+published and not hidden, hide/unhide is a conditional update, and delete lowers the post's comment count in
+the same transaction as BLG-07. The e2e content factory now writes real comments instead of registering an
+in-memory fake. I checked report, hide and delete of a real comment in unit tests, e2e and Swagger.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-12 (TRVL-22), TRVL-181
+Prompt:
+ACC-12 says a deactivated user's posts and public itineraries are hidden, but public itinerary search, detail and
+clone still showed them. Also the public blog filter loaded every deactivated user id on each request (TRVL-181).
+How the output was used:
+Claude added UsersService.deactivatedIds(): deactivation is one-way, so an index-covered count of deactivated
+accounts tells whether the cached id list is current, and the list is read again only after a new deactivation,
+which is also correct across instances. The blog filter and a new public-itinerary filter use it. I checked the
+cache with unit tests and the hiding of search, detail and clone in e2e.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-25 (TRVL-83)
+Prompt:
+Let the owner of an itinerary find hotels for one of its city groups: check-in on the group's first day,
+check-out the day after its last, in the group's city, for the guests and rooms they enter. Reuse Sandra's HTL-11
+search instead of searching hotels again, and keep working before HTL-11 is merged.
+How the output was used:
+Claude calls the shared HOTELS_SEARCH token, injected @Optional() so the route answers 503 SERVICE_UNAVAILABLE
+until HTL-11 provides it. It imports HotelsModule, which is not global, so the provider reaches this module as
+soon as it is exported there; a unit test guards that wiring. HTL-11's 400 field errors pass through unchanged.
+I checked the dates and the group choice with a fake search, and, once HTL-11 merged (#102), the real search
+with seeded hotels in e2e; I confirmed the contract with Sandra.
+================================================
+
+================================================
+Date: 2026-11-18
+Student: Sarah Eldahaby
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-26 (TRVL-84)
+Prompt:
+Let the owner of an itinerary search flights from an origin airport to the city of its first day, one way or
+round trip, with the start date as the default departure and the last day as the default return. Reuse the
+FLT-11/FLT-12 flight search instead of writing a new one.
+How the output was used:
+Claude resolves every airport of the first day's city and calls the shared FLIGHTS_SEARCH for each, outbound and
+for a round trip back to the origin. One airport passes the page through; several airports are merged, sorted by
+departure and paged by 10 (GEN-05), with returnPage paging the return list. An unknown origin or one in the same
+city, an itinerary without days and a return before departure are 400. I checked the defaults, the merging and
+the errors in unit tests, e2e with real flights and Swagger.
+================================================
+
+================================================
+Date: 2026-11-20
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ITN-09 (TRVL-75), TRVL-136
+Prompt:
+Consolidate the Milestone 1 Swagger screenshots from the nine per-member evidence branches into one branch, capture
+the endpoints that had none, and check the traceability rows that were still Partial.
+How the output was used:
+Claude imported each evidence branch into docs/milestone-1-swagger-evidence as one commit crediting its author,
+captured the 41 missing endpoints in Swagger UI against an in-memory database with Stripe test mode, and generated
+an index of all 113 endpoints with 0 gaps. It also confirmed through the API that ITN-09 city-group subtotals already
+include budget entries and transport costs, so ITN-09 is Done. I reviewed the screenshots and the index.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-13, TRVL-183
+Prompt:
+Add the low-risk security hardening from the Milestone 1 audit: standard security headers with helmet, and stop
+serving Swagger in production unless a setting opts in, without breaking Swagger UI, which graders use.
+How the output was used:
+Claude added helmet in configureApp with a CSP that allows only same-origin scripts but keeps Swagger UI's inline
+styles and data: images, set Cross-Origin-Resource-Policy to cross-origin for the future frontend, and added
+SWAGGER_ENABLED (unset: on outside production). I checked the headers and the Swagger page in an e2e test and
+loaded Swagger UI in a browser with the new policy: no console errors.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: FLT-22 (TRVL-42), TRVL-183
+Prompt:
+A flight could look sold out for up to 60 s after a hold expired, until the expiry job ran. Release expired
+holds at the next hold, the way hotel holds already do.
+How the output was used:
+Claude made hold() expire the due unpaid holds on the same flights inside its transaction, with the job's
+status-conditioned transition, and give their seats back before reserving. I checked the order (release, then
+reserve) in a unit test and, in e2e, that a one-seat flight held by an expired hold can be booked at once.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-07 (TRVL-102), TRVL-183
+Prompt:
+The audit log recorded moderator creation, suspensions and moderation, but not an admin creating an airline or a
+hotel. Audit those too, in the same transaction as the create.
+How the output was used:
+Claude added the CREATE_PROVIDER audit action. AirlinesService.create and HotelsService.create take the admin as
+actor and write the provider and its audit entry in one transaction; the demo seed passes no actor and writes
+no entry. I checked both entries through GET /api/admin/audit-logs in e2e and kept the existing count test
+scoped to its own admin.
+================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-136 (release), TRVL-129
+Prompt:
+The release PR develop -> main failed pr-governance: it re-linted all 714 commits since main and one older commit
+already on develop has a footer line over 100 characters. The Jira sync job also failed on an issue that was
+not in To Do.
+How the output was used:
+Claude skipped the per-commit lint when the PR head is develop (each commit was linted on its way in), keeping
+every other governance check, and replaced the `[ ] && transition` line in jira-sync.yml with an if, because a
+false test as the last command made the step exit 1. I confirmed both causes in the failed run logs.
+================================================

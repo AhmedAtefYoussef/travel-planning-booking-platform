@@ -1,0 +1,13 @@
+# Gitleaks configuration: default rules plus an allowlist for the fake, non-secret values used in tests.
+# Only exact placeholder values are allowed; any real-looking key still fails the secrets-scan check.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Test-only placeholder credentials"
+regexes = [
+  '''sk_test_placeholder''',
+  '''sk_test_fake[a-z_]*''',
+  '''whsec_placeholder''',
+  '''whsec_fake[a-z_]*''',
+]

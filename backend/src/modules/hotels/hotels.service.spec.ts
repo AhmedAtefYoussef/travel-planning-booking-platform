@@ -1,0 +1,340 @@
+import { Types, type Model } from 'mongoose';
+import { AuthUser, ProviderType, Role } from '../../common/auth/auth.types';
+import type {
+  ReferenceService,
+  UploadsService,
+} from '../../common/contracts/services.contract';
+import { HotelsService } from './hotels.service';
+import type { Hotel } from './schemas/hotel.schema';
+
+const hotelId = new Types.ObjectId();
+const now = new Date('2026-11-09T10:00:00Z');
+
+function fakeHotel(over: Record<string, unknown> = {}) {
+  return {
+    _id: hotelId,
+    id: hotelId.toHexString(),
+    name: 'Nile View Hotel',
+    address: '12 Corniche El Nil',
+    cityId: 'cairo',
+    countryCode: 'EG',
+    description: '',
+    photos: [] as string[],
+    starClass: undefined as number | undefined,
+    amenities: [] as string[],
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+    ...over,
+  };
+}
+type FakeHotel = ReturnType<typeof fakeHotel>;
+
+const CITIES: Record<string, { cityId: string; countryCode: string }> = {
+  cairo: { cityId: 'cairo', countryCode: 'EG' },
+  dubai: { cityId: 'dubai', countryCode: 'AE' },
+};
+
+/** A one-hotel stand-in for the model: findOneAndUpdate applies $set only to an active hotel. */
+function setup(stored: FakeHotel | null) {
+  const model = {
+    findById: jest.fn(() => ({ exec: () => Promise.resolve(stored) })),
+    findOneAndUpdate: jest.fn(
+      (
+        filter: { isActive?: boolean },
+        update: { $set: Record<string, unknown> },
+      ) => ({
+        exec: () => {
+          if (!stored || stored.isActive !== filter.isActive) {
+            return Promise.resolve(null);
+          }
+          Object.assign(stored, update.$set);
+          return Promise.resolve(stored);
+        },
+      }),
+    ),
+    create: jest.fn((doc: object) =>
+      Promise.resolve({ ...fakeHotel(), ...doc }),
+    ),
+  };
+  const reference = {
+    getCity: jest.fn((id: string) => Promise.resolve(CITIES[id] ?? null)),
+  };
+  return {
+    model,
+    reference,
+    service: new HotelsService(
+      model as unknown as Model<Hotel>,
+      reference as unknown as ReferenceService,
+      {} as UploadsService,
+      {} as never,
+      {} as never,
+    ),
+  };
+}
+
+const moderatorOf = (id: string): AuthUser => ({
+  id: new Types.ObjectId().toHexString(),
+  role: Role.HotelModerator,
+  assignedProvider: { type: ProviderType.Hotel, providerId: id },
+});
+const own = () => moderatorOf(hotelId.toHexString());
+const id = hotelId.toHexString();
+
+describe('HotelsService (HTL-01)', () => {
+  it('creates a hotel taking the country from the city', async () => {
+    const { service, model } = setup(null);
+    const dto = await service.create({
+      name: 'Nile View Hotel',
+      address: '12 Corniche El Nil',
+      cityId: 'dubai',
+      starClass: 4,
+    });
+    expect(model.create).toHaveBeenCalledWith({
+      name: 'Nile View Hotel',
+      address: '12 Corniche El Nil',
+      cityId: 'dubai',
+      countryCode: 'AE',
+      description: '',
+      photos: [],
+      starClass: 4,
+      amenities: [],
+    });
+    expect(dto).toMatchObject({
+      countryCode: 'AE',
+      starClass: 4,
+      isActive: true,
+    });
+  });
+
+  it('rejects an unknown city with 400 and creates nothing', async () => {
+    const { service, model } = setup(null);
+    await expect(
+      service.create({ name: 'Hotel', address: 'Somewhere 1', cityId: 'nope' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(model.create).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for an unknown hotel', async () => {
+    const { service } = setup(null);
+    await expect(
+      service.update(own(), id, { name: 'Another name' }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('lets the assigned moderator edit in one atomic update of an active hotel', async () => {
+    const hotel = fakeHotel();
+    const { service, model } = setup(hotel);
+    const dto = await service.update(own(), id, {
+      name: 'Nile View Grand',
+      amenities: ['WiFi'],
+    });
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: id, isActive: true },
+      { $set: { name: 'Nile View Grand', amenities: ['WiFi'] } },
+      { new: true, runValidators: true },
+    );
+    expect(hotel.address).toBe('12 Corniche El Nil');
+    expect(dto).toMatchObject({ name: 'Nile View Grand', amenities: ['WiFi'] });
+  });
+
+  it('sets the country from the new city', async () => {
+    const hotel = fakeHotel();
+    const { service } = setup(hotel);
+    await service.update(own(), id, { cityId: 'dubai' });
+    expect(hotel).toMatchObject({ cityId: 'dubai', countryCode: 'AE' });
+  });
+
+  it('rejects an unknown new city without changing the hotel', async () => {
+    const hotel = fakeHotel();
+    const { service, model } = setup(hotel);
+    await expect(
+      service.update(own(), id, { cityId: 'nope' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(hotel.cityId).toBe('cairo');
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('rejects an edit with no fields', async () => {
+    const { service, model } = setup(fakeHotel());
+    await expect(service.update(own(), id, {})).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses another hotel's moderator, an admin and a traveller with 403 before reading the hotel", async () => {
+    const hotel = fakeHotel();
+    const { service, model } = setup(hotel);
+    const others: AuthUser[] = [
+      moderatorOf(new Types.ObjectId().toHexString()),
+      { id: new Types.ObjectId().toHexString(), role: Role.Admin },
+      { id: new Types.ObjectId().toHexString(), role: Role.User },
+    ];
+    for (const user of others) {
+      await expect(
+        service.update(user, id, { name: 'Hijacked' }),
+      ).rejects.toMatchObject({ status: 403 });
+    }
+    expect(hotel.name).toBe('Nile View Hotel');
+    expect(model.findById).not.toHaveBeenCalled();
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it("gives another hotel's moderator the scope error, not the deactivated state (no leak)", async () => {
+    const { service } = setup(fakeHotel({ isActive: false }));
+    await expect(
+      service.update(moderatorOf(new Types.ObjectId().toHexString()), id, {
+        name: 'Probe',
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining('assigned') as string,
+    });
+  });
+
+  it('refuses edits to a deactivated hotel with 403 and changes nothing', async () => {
+    const hotel = fakeHotel({ isActive: false });
+    const { service } = setup(hotel);
+    await expect(
+      service.update(own(), id, { name: 'New name' }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining('deactivated') as string,
+    });
+    expect(hotel.name).toBe('Nile View Hotel');
+  });
+});
+
+describe('HotelsService.setPolicies: HTL-09, HTL-10', () => {
+  const tiers = [{ daysBefore: 7, refundPercent: 50 }];
+  const times = { checkInTime: '14:00', checkOutTime: '12:00' };
+  const policy = { ...times, cancellationTiers: tiers };
+
+  it('replaces the times and the tiers in one validated atomic update of an active hotel', async () => {
+    const hotel = fakeHotel({
+      cancellationTiers: [{ daysBefore: 1, refundPercent: 10 }],
+    });
+    const { service, model } = setup(hotel);
+    const dto = await service.setPolicies(own(), id, policy);
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      { _id: id, isActive: true },
+      { $set: policy },
+      { new: true, runValidators: true },
+    );
+    expect(dto).toMatchObject(policy);
+  });
+
+  it('stores the tiers sorted by threshold, keeping decimal refunds (HTL-10)', async () => {
+    const hotel = fakeHotel();
+    const { service } = setup(hotel);
+    const dto = await service.setPolicies(own(), id, {
+      ...times,
+      cancellationTiers: [
+        { daysBefore: 30, refundPercent: 100 },
+        { daysBefore: 0, refundPercent: 0 },
+        { daysBefore: 7, refundPercent: 62.5 },
+      ],
+    });
+    expect(dto.cancellationTiers).toEqual([
+      { daysBefore: 0, refundPercent: 0 },
+      { daysBefore: 7, refundPercent: 62.5 },
+      { daysBefore: 30, refundPercent: 100 },
+    ]);
+  });
+
+  it('an empty list clears the tiers, so a cancellation refunds 0% (HTL-10)', async () => {
+    const hotel = fakeHotel({ cancellationTiers: tiers });
+    const dto = await setup(hotel).service.setPolicies(own(), id, {
+      ...times,
+      cancellationTiers: [],
+    });
+    expect(dto.cancellationTiers).toEqual([]);
+  });
+
+  it('caps the list at 20 tiers with one field error, writing nothing (BVA 20/21)', async () => {
+    const many = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        daysBefore: i,
+        refundPercent: 10,
+      }));
+    const { service, model } = setup(fakeHotel());
+    await expect(
+      service.setPolicies(own(), id, { ...times, cancellationTiers: many(21) }),
+    ).rejects.toMatchObject({
+      status: 400,
+      fieldErrors: [{ field: 'cancellationTiers' }],
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+    const dto = await service.setPolicies(own(), id, {
+      ...times,
+      cancellationTiers: many(20),
+    });
+    expect(dto.cancellationTiers).toHaveLength(20);
+  });
+
+  it('rejects duplicate thresholds with a 400 naming each duplicate, writing nothing (HTL-10)', async () => {
+    const { service, model } = setup(fakeHotel());
+    await expect(
+      service.setPolicies(own(), id, {
+        ...times,
+        cancellationTiers: [
+          { daysBefore: 7, refundPercent: 50 },
+          { daysBefore: 3, refundPercent: 20 },
+          { daysBefore: 7, refundPercent: 80 },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      fieldErrors: [
+        {
+          field: 'cancellationTiers[2].daysBefore',
+          message: 'daysBefore 7 is duplicated',
+        },
+      ],
+    });
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('every hotel response carries the times and tiers, null/empty until set (seen through an HTL-01 edit)', async () => {
+    const { service } = setup(fakeHotel());
+    const dto = await service.update(own(), id, { name: 'Renamed Hotel' });
+    expect(dto).toMatchObject({
+      checkInTime: null,
+      checkOutTime: null,
+      cancellationTiers: [],
+    });
+  });
+
+  it("refuses another hotel's moderator, an admin and a traveller with 403 before reading", async () => {
+    const { service, model } = setup(fakeHotel({ isActive: false }));
+    for (const user of [
+      moderatorOf(new Types.ObjectId().toHexString()),
+      { id: new Types.ObjectId().toHexString(), role: Role.Admin },
+      { id: new Types.ObjectId().toHexString(), role: Role.User },
+    ] as AuthUser[]) {
+      await expect(service.setPolicies(user, id, policy)).rejects.toMatchObject(
+        {
+          status: 403,
+          message: expect.stringContaining('assigned') as string,
+        },
+      );
+    }
+    expect(model.findById).not.toHaveBeenCalled();
+    expect(model.findOneAndUpdate).not.toHaveBeenCalled();
+  });
+
+  it('gives 404 for an unknown hotel and 403 for a deactivated one, changing nothing', async () => {
+    await expect(
+      setup(null).service.setPolicies(own(), id, policy),
+    ).rejects.toMatchObject({ status: 404 });
+    const closed = fakeHotel({ isActive: false });
+    await expect(
+      setup(closed).service.setPolicies(own(), id, policy),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: expect.stringContaining('deactivated') as string,
+    });
+    expect(closed).not.toHaveProperty('checkInTime');
+  });
+});

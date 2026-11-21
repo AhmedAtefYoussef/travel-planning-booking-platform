@@ -1,0 +1,6 @@
+# Work is planned in Jira (project TRVL). GitHub issues are for bugs found in review or testing.
+blank_issues_enabled: false
+contact_links:
+  - name: New feature or requirement work
+    url: https://ahtefa913-1793451460332.atlassian.net/jira/software/projects/TRVL/boards
+    about: Requirements and tasks live in Jira. Find or create the TRVL issue there and cite its key in your PR.

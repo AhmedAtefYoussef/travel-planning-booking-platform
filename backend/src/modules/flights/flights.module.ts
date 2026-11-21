@@ -1,0 +1,59 @@
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import {
+  AIRLINE_STATUS,
+  FLIGHT_INVENTORY,
+  FLIGHTS_SEARCH,
+} from '../../common/contracts';
+import { AirlineStatusService } from './airline-status.service';
+import { AirlinesController } from './airlines.controller';
+import { AirlinesService } from './airlines.service';
+import { FlightCancellationController } from './flight-cancellation.controller';
+import { FlightCancellationService } from './flight-cancellation.service';
+import { FlightInventoryService } from './flight-inventory.service';
+import { FlightScheduleNotifier } from './flight-schedule-notifier';
+import { FlightSearchService } from './flight-search.service';
+import { FlightStatusService } from './flight-status.service';
+import { FlightsController } from './flights.controller';
+import { FlightsService } from './flights.service';
+import { Airline, AirlineSchema } from './schemas/airline.schema';
+import { Flight, FlightSchema } from './schemas/flight.schema';
+
+/**
+ * Flights (brief section 6.2): airlines, flights and cabin inventory (TRVL-138). Controllers and services
+ * for FLT-01..FLT-30 are added here by their owners; other modules use this module's public index.ts.
+ */
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: Airline.name, schema: AirlineSchema },
+      { name: Flight.name, schema: FlightSchema },
+    ]),
+  ],
+  controllers: [
+    AirlinesController,
+    FlightsController,
+    FlightCancellationController,
+  ],
+  providers: [
+    AirlinesService,
+    FlightsService,
+    FlightSearchService,
+    FlightStatusService,
+    FlightScheduleNotifier,
+    FlightCancellationService,
+    FlightInventoryService,
+    { provide: FLIGHTS_SEARCH, useExisting: FlightSearchService },
+    { provide: FLIGHT_INVENTORY, useExisting: FlightInventoryService },
+    AirlineStatusService,
+    { provide: AIRLINE_STATUS, useExisting: AirlineStatusService },
+  ],
+  exports: [
+    MongooseModule,
+    AirlinesService,
+    FLIGHTS_SEARCH,
+    FLIGHT_INVENTORY,
+    AIRLINE_STATUS,
+  ],
+})
+export class FlightsModule {}

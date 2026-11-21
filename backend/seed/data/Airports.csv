@@ -1,0 +1,9 @@
+iata_code,name,city_id,country_code,time_zone
+CAI,Cairo International Airport,cairo,EG,Africa/Cairo
+DXB,Dubai International Airport,dubai,AE,Asia/Dubai
+LHR,Heathrow Airport,london,GB,Europe/London
+JFK,John F. Kennedy International Airport,new_york,US,America/New_York
+CDG,Charles de Gaulle Airport,paris,FR,Europe/Paris
+HND,Haneda Airport,tokyo,JP,Asia/Tokyo
+RUH,King Khalid International Airport,riyadh,SA,Asia/Riyadh
+FRA,Frankfurt Airport,frankfurt,DE,Europe/Berlin

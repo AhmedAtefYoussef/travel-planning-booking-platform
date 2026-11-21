@@ -1,0 +1,3 @@
+# Fingerprints of reviewed gitleaks findings that are NOT secrets (one per line, commit:file:rule:line).
+# c130ab0: a fake Stripe test key in a V&V spec, replaced with an allowlisted sk_test_fake value later in PR #55.
+c130ab0d25da4382376f550704676070a5f6efda:backend/test/vv/foundation.vv.e2e-spec.ts:stripe-access-token:870

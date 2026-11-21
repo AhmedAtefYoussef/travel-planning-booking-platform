@@ -1,0 +1,116 @@
+name: PR governance
+
+# Enforces the team's GitHub workflow (brief sections 2, 10 and 11) on every pull request:
+# Conventional Commit PR titles and commits, branch naming, merge direction, Jira + requirement
+# traceability, a complete PR template, no env files, AI prompt log and traceability-matrix upkeep.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled, ready_for_review]
+    branches: [develop, main]
+
+concurrency:
+  group: pr-governance-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pr-governance:
+    name: pr-governance
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: PR title is a Conventional Commit
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            refactor
+            perf
+            test
+            docs
+            build
+            ci
+            chore
+            revert
+          requireScope: false
+          subjectPattern: ^(?![A-Z]).{8,}$
+          subjectPatternError: |
+            The subject "{subject}" must start lowercase and be at least 8 characters,
+            e.g. "feat(flights): add round-trip search [FLT-12]".
+
+      - name: Install commitlint
+        run: npm ci
+
+      # Lint only this PR's own commits: from the merge base with the base branch as it is now. The event's
+      # base.sha does not move when develop moves, so it would also re-lint commits merged since.
+      # A release PR (develop -> main) carries every commit since the last release; each one was already
+      # linted by the PR that brought it into develop, so they are not linted again here.
+      - name: Every commit follows Conventional Commits
+        if: github.event.pull_request.user.type != 'Bot' && github.event.pull_request.head.ref != 'develop'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: npx commitlint --from "$(git merge-base "origin/$BASE_REF" "$HEAD_SHA")" --to "$HEAD_SHA" --verbose
+
+      - name: Branch, traceability, template, env files, AI log
+        run: node .github/scripts/check-pr.mjs
+
+      - name: Traceability matrix covers every workbook requirement
+        run: |
+          if [ -f docs/requirements/traceability.md ]; then
+            node .github/scripts/check-traceability.mjs
+          else
+            echo "traceability.md not present yet (TRVL-134)"
+          fi
+
+      # Non-blocking for now (milestone 1 V&V, TRVL-136): lists Done/Partial requirements that no e2e or unit
+      # describe() title cites, in the job summary. Remove continue-on-error to make it a hard rule.
+      - name: Implemented requirements are cited by a test
+        continue-on-error: true
+        run: node .github/scripts/check-test-traceability.mjs
+
+      - name: No conflict markers, well-formed AI prompt log
+        run: node .github/scripts/check-repo-hygiene.mjs
+
+  size-label:
+    name: size-label
+    runs-on: ubuntu-latest
+    # Labels need write access, which PRs from forks do not get; teammates push branches to this repo.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: codelytv/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_max_size: '30'
+          s_max_size: '150'
+          m_max_size: '500'
+          l_max_size: '1000'
+          fail_if_xl: 'false'
+          message_if_xl: >
+            This PR is very large. Brief section 10.5 asks for PRs that contain only related changes;
+            consider splitting it so the team leader can review it properly.
+          files_to_ignore: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+            docs/requirements/requirements.json

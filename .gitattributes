@@ -1,0 +1,7 @@
+# Normalize line endings so Windows and Linux contributors (and CI) see identical files.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.xlsx binary

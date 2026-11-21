@@ -1,0 +1,46 @@
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ItinerariesModule } from '../itineraries';
+import { AuthorsController } from './authors.controller';
+import { CommentModerationAdapter } from './comment-moderation.adapter';
+import { CommentsController } from './comments.controller';
+import { CommentsService } from './comments.service';
+import { LikesService } from './likes.service';
+import { PostsController } from './posts.controller';
+import { PostModerationAdapter } from './post-moderation.adapter';
+import { PostsService } from './posts.service';
+import { TagsController } from './tags.controller';
+import { Comment, CommentSchema } from './schemas/comment.schema';
+import { Like, LikeSchema } from './schemas/like.schema';
+import { Post, PostSchema } from './schemas/post.schema';
+
+/**
+ * Blog and community (brief section 6.6). Every blog model is registered here so its indexes are built
+ * at startup (the unique {postId, userId} like index is the BLG-06 once-only guarantee). Author names come
+ * from the global users module (UsersService). Endpoints for BLG-02..BLG-12 are added one requirement per pull request.
+ */
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: Post.name, schema: PostSchema },
+      { name: Comment.name, schema: CommentSchema },
+      { name: Like.name, schema: LikeSchema },
+    ]),
+    // PUBLIC_ITINERARIES for the BLG-12 author page.
+    ItinerariesModule,
+  ],
+  controllers: [
+    PostsController,
+    TagsController,
+    AuthorsController,
+    CommentsController,
+  ],
+  providers: [
+    PostsService,
+    LikesService,
+    CommentsService,
+    PostModerationAdapter,
+    CommentModerationAdapter,
+  ],
+})
+export class BlogModule {}
