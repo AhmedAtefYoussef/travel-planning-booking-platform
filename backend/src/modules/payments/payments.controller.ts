@@ -27,6 +27,10 @@ import { Role, type AuthUser } from '../../common/auth/auth.types';
 import { ErrorResponseDto } from '../../common/errors/error-response.dto';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import {
+  NoRateLimit,
+  PaymentsRateLimit,
+} from '../../common/security/rate-limit';
 import { CreatePaymentDto, PaymentDto } from './dto/payment.dto';
 import { PaymentsService } from './payments.service';
 
@@ -41,6 +45,7 @@ export class PaymentsController {
 
   @Post()
   @Roles(Role.User)
+  @PaymentsRateLimit()
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'PAY-01 Pay for a Pending Payment booking within its hold',
@@ -56,7 +61,7 @@ export class PaymentsController {
     },
   })
   @ApiCreatedResponse({ type: PaymentDto })
-  @ApiErrorResponses(400, 404, 409, 503)
+  @ApiErrorResponses(400, 404, 409, 429, 503)
   @ApiResponse({
     status: 500,
     type: ErrorResponseDto,
@@ -72,6 +77,7 @@ export class PaymentsController {
 
   @Post('webhook')
   @Public()
+  @NoRateLimit()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'PAY-01 Stripe webhook (signature-verified; confirms bookings)',
@@ -97,6 +103,7 @@ export class PaymentsController {
 
   @Post(':id/retry')
   @Roles(Role.User)
+  @PaymentsRateLimit()
   @Header('Cache-Control', 'no-store')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -105,7 +112,7 @@ export class PaymentsController {
   })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiOkResponse({ type: PaymentDto })
-  @ApiErrorResponses(400, 404, 409, 503)
+  @ApiErrorResponses(400, 404, 409, 429, 503)
   @ApiResponse({
     status: 500,
     type: ErrorResponseDto,

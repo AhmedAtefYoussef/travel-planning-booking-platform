@@ -2534,3 +2534,21 @@ Claude anchored the closing-keyword match to the start of a line (an optional li
 prose and the PR template's "e.g. Closes: TRVL-42" hint no longer close issues. I re-ran the extraction on the
 #140 description and sample lines, and moved TRVL-183 back to In Progress.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-13, ACC-05, PAY-01, TRVL-183
+Prompt:
+Start the TRVL-183 hardening items. First: add @nestjs/throttler with a global default and stricter limits on
+login, registration and payments, without breaking the e2e suites or Swagger demos.
+How the output was used:
+Claude added the throttler as the first global guard: 120 requests a minute per IP by default, 10 for login and
+register, 20 for creating or retrying a payment, none for the Stripe webhook and health probe. A refused call
+answers 429 TOO_MANY_REQUESTS with Retry-After. RATE_LIMIT_ENABLED (off only under NODE_ENV=test) and
+TRUST_PROXY are new optional settings, explained in ADR-0007. I reviewed the limits and checked them with a new
+e2e suite that turns the limits on for its own app.
+A security review then noted that one IPv6 client owns a whole /64; Claude added RateLimitGuard, which counts
+IPv6 clients by their /64 prefix and IPv4-mapped addresses as plain IPv4, with unit tests for the keys.
+================================================

@@ -34,6 +34,15 @@ export function configureApp(app: INestApplication): INestApplication {
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
+  // Behind a reverse proxy, trust its X-Forwarded-For so req.ip (and so the rate limit, ADR-0007) is the client's.
+  const proxies = app.get(ConfigService).get<number>('TRUST_PROXY');
+  if (proxies) {
+    (
+      app.getHttpAdapter().getInstance() as {
+        set?: (setting: string, value: unknown) => void;
+      }
+    ).set?.('trust proxy', proxies);
+  }
   // Do not advertise the server stack (x-powered-by: Express) to clients.
   (
     app.getHttpAdapter().getInstance() as {

@@ -36,6 +36,7 @@ import type { AuthUser } from '../../common/auth/auth.types';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import { CredentialsRateLimit } from '../../common/security/rate-limit';
 import type { EnvironmentVariables } from '../../config/env.validation';
 import { UserProfileDto } from '../users';
 import { AuthService, type LoginResult } from './auth.service';
@@ -63,6 +64,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @CredentialsRateLimit()
   @Public()
   @ApiOperation({
     summary: 'ACC-01 Guest registers an account',
@@ -109,12 +111,13 @@ export class AuthController {
     type: UserProfileDto,
     description: 'The new account (never includes the password)',
   })
-  @ApiErrorResponses(400, 409)
+  @ApiErrorResponses(400, 409, 429)
   register(@Body() dto: RegisterDto): Promise<UserProfileDto> {
     return this.auth.register(dto);
   }
 
   @Post('login')
+  @CredentialsRateLimit()
   @Public()
   @HttpCode(200)
   @ApiOperation({
@@ -128,6 +131,7 @@ export class AuthController {
       'ACC-05: the 5th consecutive wrong password locks the account for 15 minutes and returns 403 ACCOUNT_LOCKED with the minutes left; ' +
       'during the lock even the right password is refused. A successful login resets the counter. ' +
       'At most 5 logins of one account are checked at the same instant; extra simultaneous requests get 429 TOO_MANY_REQUESTS (no lock). ' +
+      'One IP may call login and register at most 10 times a minute each (429 with Retry-After). ' +
       'In Swagger, after logging in, every "Try it out" call sends the cookie automatically.',
   })
   @ApiBody({

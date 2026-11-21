@@ -78,6 +78,8 @@ required variable, naming it. The file holds placeholders only.
 | `COOKIE_SECURE` | yes | `true` behind HTTPS, `false` for local http |
 | `AUTH_STUB` | no (false) | `true` accepts the `x-dev-user` header (local development only); set `false` for the demo and any shared environment |
 | `SWAGGER_ENABLED` | no (on outside production) | serve Swagger UI at `/api/docs`; unset means on in development and test, off in production; set `true` to opt a deployment in (ADR-0006) |
+| `RATE_LIMIT_ENABLED` | no (on outside test) | per-IP request limits: 10 logins or registrations, 20 payments, 120 other requests a minute (ADR-0007); `false` turns them off |
+| `TRUST_PROXY` | no | number of reverse proxies in front of the API, so the rate limit sees client IPs; leave unset when the API is reached directly (ADR-0007) |
 | `PLATFORM_CURRENCY` | yes | The one currency of every price, e.g. `USD` (one of AED, EGP, EUR, GBP, JPY, SAR, USD) |
 | `STRIPE_SECRET_KEY` | yes | Stripe test key, `sk_test_...` (live keys are refused) |
 | `STRIPE_WEBHOOK_SECRET` | yes | The `whsec_...` that `stripe listen` prints (see below) |
