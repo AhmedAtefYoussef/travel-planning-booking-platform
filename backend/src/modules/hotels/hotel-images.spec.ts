@@ -87,6 +87,8 @@ function setup(
     model as unknown as Model<Hotel>,
     {} as ReferenceService,
     uploads,
+    {} as never,
+    {} as never,
   );
   return { service, model, uploads };
 }

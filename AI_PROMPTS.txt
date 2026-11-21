@@ -2446,3 +2446,18 @@ captured the 41 missing endpoints in Swagger UI against an in-memory database wi
 an index of all 113 endpoints with 0 gaps. It also confirmed through the API that ITN-09 city-group subtotals already
 include budget entries and transport costs, so ITN-09 is Done. I reviewed the screenshots and the index.
 ================================================
+
+================================================
+Date: 2026-11-21
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-07 (TRVL-102), TRVL-183
+Prompt:
+The audit log recorded moderator creation, suspensions and moderation, but not an admin creating an airline or a
+hotel. Audit those too, in the same transaction as the create.
+How the output was used:
+Claude added the CREATE_PROVIDER audit action. AirlinesService.create and HotelsService.create take the admin as
+actor and write the provider and its audit entry in one transaction; the demo seed passes no actor and writes
+no entry. I checked both entries through GET /api/admin/audit-logs in e2e and kept the existing count test
+scoped to its own admin.
+================================================

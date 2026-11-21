@@ -9,6 +9,11 @@ import {
   AuditTargetType,
   type AuditService,
 } from '../src/common/contracts';
+import { join } from 'node:path';
+import {
+  loadReferenceDataset,
+  ReferenceSeedService,
+} from '../src/modules/reference';
 import { loginAs, type LoggedIn } from './support/auth';
 import { createTestApp } from './support/create-test-app';
 
@@ -37,6 +42,10 @@ describe('Audit log read endpoint (e2e): GEN-07', () => {
   beforeAll(async () => {
     app = await createTestApp();
     audit = app.get(AUDIT_SERVICE);
+    // Cities for the hotel created in the CREATE_PROVIDER test.
+    await app
+      .get(ReferenceSeedService)
+      .seed(loadReferenceDataset(join(__dirname, '..', 'seed', 'data')));
   });
 
   afterAll(async () => {
@@ -51,7 +60,8 @@ describe('Audit log read endpoint (e2e): GEN-07', () => {
       .set('Cookie', admin.cookie)
       .send({ temporaryPassword: 'Temp2026x' })
       .expect(204);
-    const airlineId = await newAirline(admin, 'AL1');
+    // Another admin creates the airline, so its CREATE_PROVIDER entry stays out of this admin's log.
+    const airlineId = await newAirline(await loginAs(app, Role.Admin), 'AL1');
     const email = `mod.${new Types.ObjectId().toHexString()}@example.com`;
     const created = await http()
       .post('/api/admin/moderators')
@@ -237,6 +247,30 @@ describe('Audit log read endpoint (e2e): GEN-07', () => {
     expect(res.body.fieldErrors[0].field).toBe('actorId');
     await list('limit=50', admin).expect(400);
     await list('page=0', admin).expect(400);
+  });
+
+  it('GEN-07 an admin creating an airline or a hotel is audited as CREATE_PROVIDER', async () => {
+    const admin = await loginAs(app, Role.Admin);
+    const airlineId = await newAirline(admin, 'AQ');
+    const hotel = await http()
+      .post('/api/hotels')
+      .set('Cookie', admin.cookie)
+      .send({
+        name: 'Audit Nile Hotel',
+        address: '1 Corniche',
+        cityId: 'cairo',
+        starClass: 4,
+      });
+    const res = await list(
+      `actorId=${admin.userId}&action=CREATE_PROVIDER`,
+      admin,
+    ).expect(200);
+    const targets = (
+      res.body.items as { targetType: string; targetId: string }[]
+    ).map((e) => `${e.targetType}:${e.targetId}`);
+    expect(targets).toContain(`AIRLINE:${airlineId}`);
+    expect(hotel.status).toBe(201);
+    expect(targets).toContain(`HOTEL:${hotel.body.id as string}`);
   });
 
   it('GEN-07 users and moderators get 403, guests 401', async () => {

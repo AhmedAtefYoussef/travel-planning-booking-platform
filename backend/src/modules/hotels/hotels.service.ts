@@ -1,18 +1,22 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { InjectConnection, InjectModel } from '@nestjs/mongoose';
+import { Connection, Model, Types } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType, Role } from '../../common/auth/auth.types';
 import { ACTIVE_PROVIDER_FILTER } from '../../common/contracts';
 import { cancellationTierFieldErrors } from '../../common/contracts/policies.contract';
 import {
+  AUDIT_SERVICE,
   REFERENCE_SERVICE,
   UPLOADS_SERVICE,
 } from '../../common/contracts/tokens';
-import type {
-  ReferenceService,
-  UploadedFileLike,
-  UploadsService,
+import {
+  AuditAction,
+  AuditTargetType,
+  type AuditService,
+  type ReferenceService,
+  type UploadedFileLike,
+  type UploadsService,
 } from '../../common/contracts/services.contract';
 import {
   AppException,
@@ -53,11 +57,17 @@ export class HotelsService {
     @InjectModel(Hotel.name) private readonly hotels: Model<Hotel>,
     @Inject(REFERENCE_SERVICE) private readonly reference: ReferenceService,
     @Inject(UPLOADS_SERVICE) private readonly uploads: UploadsService,
+    @Inject(AUDIT_SERVICE) private readonly audit: AuditService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
-  async create(dto: CreateHotelDto): Promise<HotelDto> {
+  /**
+   * HTL-01: an admin creates a hotel. Through the API (an actor is given) the hotel and its audit entry
+   * (GEN-07) are written in one transaction. The demo seed passes no actor and records nothing.
+   */
+  async create(dto: CreateHotelDto, actor?: AuthUser): Promise<HotelDto> {
     const countryCode = await this.countryOfCity(dto.cityId);
-    const hotel = await this.hotels.create({
+    const doc = {
       name: dto.name,
       address: dto.address,
       cityId: dto.cityId,
@@ -66,8 +76,23 @@ export class HotelsService {
       photos: dto.photos ?? [],
       starClass: dto.starClass,
       amenities: dto.amenities ?? [],
+    };
+    if (!actor) return toHotelDto(await this.hotels.create(doc));
+    const created = await this.connection.transaction(async (session) => {
+      const [row] = await this.hotels.create([doc], { session });
+      await this.audit.record(
+        {
+          actor: { id: actor.id, role: actor.role },
+          action: AuditAction.CreateProvider,
+          targetType: AuditTargetType.Hotel,
+          targetId: row._id.toHexString(),
+          metadata: { name: row.name, cityId: row.cityId },
+        },
+        session,
+      );
+      return row;
     });
-    return toHotelDto(hotel);
+    return toHotelDto(created);
   }
 
   /**
