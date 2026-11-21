@@ -16,4 +16,4 @@
 
 ## Consequences
 - `test/security-headers.e2e-spec.ts` checks the headers, and checks that the Swagger UI page has only same-origin, non-inline scripts. A future Swagger UI upgrade that adds inline script fails that test, not the evaluation.
-- Rate limiting (`@nestjs/throttler`) is left for later (TRVL-183). Its limits must allow the e2e suites and live Swagger demos, which log in many times in a row.
+- Rate limiting (`@nestjs/throttler`) is decided in [ADR-0007](0007-rate-limiting.md).

@@ -101,6 +101,24 @@ export class EnvironmentVariables {
   @IsBoolean()
   SWAGGER_ENABLED?: boolean;
 
+  /**
+   * Per-IP request limits (ADR-0007). Unset: on everywhere except NODE_ENV=test. Set false only to load-test.
+   */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  RATE_LIMIT_ENABLED?: boolean;
+
+  /**
+   * Number of reverse proxies in front of the API (Express "trust proxy"), so the rate limit sees the
+   * client's IP instead of the proxy's. Unset or 0 when the API is reached directly.
+   */
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(0)
+  TRUST_PROXY?: number;
+
   @IsIn(PLATFORM_CURRENCIES, {
     message: `PLATFORM_CURRENCY must be one of the seeded currencies: ${PLATFORM_CURRENCIES.join(', ')} (PAY-04)`,
   })
