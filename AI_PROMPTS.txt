@@ -2647,3 +2647,18 @@ findMany) and used them in hotel search, the hotel time-zone helper, itinerary c
 checks, and the admin bookings list. Answers are unchanged. It added an e2e test for the reference batch
 lookups and a unit test for the time zones. I ran the full verify.
 ================================================
+
+================================================
+Date: 2026-11-22
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-183
+Prompt:
+Keep working until the plan is finished (the README feature map should cover every backend module).
+How the output was used:
+Claude rebuilt the README feature map from the code: each module's Swagger tags from its controllers and
+the requirement IDs from its endpoint summaries, kept only where traceability.md says Done or Partial.
+The admin, moderation, itineraries, budgets and blog modules were added, and the other rows gained the
+requirements merged since the table was written; the three background jobs are noted. I checked the
+table against the traceability matrix.
+================================================
