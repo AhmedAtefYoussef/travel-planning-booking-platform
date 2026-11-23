@@ -10,7 +10,11 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   typedRoutes: true,
   poweredByHeader: false,
+  // The repo root has its own package-lock.json (git hooks); pin the app root so Next.js does not
+  // mistake the repository for a monorepo workspace.
+  outputFileTracingRoot: __dirname,
   turbopack: {
+    root: __dirname,
     rules: {
       '*.css': { loaders: ['@tailwindcss/turbopack'], as: '*.css' },
     },

@@ -2710,3 +2710,21 @@ API documents 141, so frontend types generated from it would miss most endpoints
 document from the running API in the same format as npm run openapi:export (no endpoint was removed),
 as its own docs PR. I compared the operation lists before and after.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5, with a Claude Sonnet subagent)
+Related Requirement: GEN-17 (TRVL-116), GEN-02, GEN-03, GEN-04, GEN-05, GEN-11, GEN-16
+Prompt:
+Build the consistent visual design system for the frontend with Tailwind v4 and shadcn/ui: tokens,
+shared components and a usage guide every teammate follows.
+How the output was used:
+Claude initialised shadcn/ui (Radix, pinned versions), placed the primitives in src/shared/ui, and
+defined semantic colour tokens for light and dark themes (ocean-blue brand plus success, warning and info
+status colours) with larger touch targets. A Sonnet subagent wrote the composites (FormField,
+ConfirmDialog, EmptyState, ErrorState, Spinner, PageHeader, Pagination, StatusBadge), their tests, a
+WCAG AA contrast test over the tokens, the /design-system showcase page and docs/frontend/design-system.md.
+I reviewed the components, ran lint, typecheck, 65 tests and the build, and checked the showcase at
+desktop and mobile widths.
+================================================
