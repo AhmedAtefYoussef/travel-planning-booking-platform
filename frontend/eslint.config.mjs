@@ -6,7 +6,7 @@ import nextTs from 'eslint-config-next/typescript';
  * Layered architecture (see README "Project structure"): app -> features -> shared.
  * - shared/ is the bottom layer: it never imports a feature or a route.
  * - features/ never import routes, and reach another feature only through its public
- *   index (`@/features/<name>`), never its internals.
+ *   entries (`@/features/<name>`, or `@/features/<name>/server` for server-only code).
  * Mirrors the backend's dependency-cruiser rules so both halves of the repo read the same way.
  */
 const noRouteImports = {

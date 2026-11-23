@@ -2728,3 +2728,21 @@ WCAG AA contrast test over the tokens, the /design-system showcase page and docs
 I reviewed the components, ran lint, typecheck, 65 tests and the build, and checked the showcase at
 desktop and mobile widths.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5, with a Claude Sonnet subagent)
+Related Requirement: ACC-19, ACC-10, ACC-11, GEN-02, GEN-13 (TRVL-145)
+Prompt:
+Build the frontend's API client and session handling: typed requests, cookie-only auth, refresh on
+expiry, route protection with correct HTTP statuses, and API field errors on forms.
+How the output was used:
+Claude generated TypeScript types from docs/api/openapi.json at build time (not committed), wrote an
+openapi-fetch client that always sends cookies and refreshes the session once (single-flight) on 401,
+a typed ApiError with code and fieldErrors, a server client that forwards the visitor's cookies, server
+session helpers (getSession, requireUser), a client AuthProvider fed only by GET /auth/me, a safe `next`
+redirect helper, and proxy.ts, which sends guests to /session/refresh (307) and wrong roles to a 404
+before rendering, because with Cache Components a page-level check would answer 200. A Sonnet subagent
+wrote 60 unit tests. I checked the redirects and 404s live against the API.
+================================================
