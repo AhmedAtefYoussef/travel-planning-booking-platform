@@ -90,13 +90,20 @@ describe('Login, cookies and /auth/me (e2e): ACC-04, ACC-19', () => {
         // COOKIE_SECURE=false in the test env (local http); production requires true.
         expect(cookie).not.toMatch(/; Secure/);
       }
-      expect(access).toMatch(/; Path=\/api(;|$)/);
+      expect(access).toMatch(/; Path=\/(;|$)/);
       expect(access).toMatch(/Max-Age=900;/);
       expect(refresh).toMatch(/; Path=\/api\/auth(;|$)/);
       expect(refresh).toMatch(/Max-Age=604800;/);
       // No raw token value appears anywhere in the body.
       expect(body).not.toContain(cookieValue(access));
       expect(body).not.toContain(cookieValue(refresh));
+      // The Milestone 1 copy on /api is expired so it can never shadow the new one.
+      const all = res.headers['set-cookie'] as unknown as string[];
+      expect(
+        all.some((c) =>
+          /^access_token=;.*Path=\/api(;|$).*Expires=Thu, 01 Jan 1970/.test(c),
+        ),
+      ).toBe(true);
     });
 
     it('opens one session that stores only the hash of the refresh cookie', async () => {
