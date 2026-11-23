@@ -169,6 +169,6 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |
 | GEN-15 | Mandatory | (frontend, Milestone 2) | Joudy | TRVL-114 | - | Not started |
 | GEN-16 | Mandatory | (frontend, Milestone 2) | Sandra | TRVL-115 | - | Not started |
-| GEN-17 | Mandatory | (frontend, Milestone 2) | Ahmed | TRVL-116 | - | Not started |
+| GEN-17 | Mandatory | (frontend, Milestone 2) frontend/src/shared/ui, /design-system | Ahmed | TRVL-116 | #PR | Partial: design tokens (light and dark), shared UI kit and /design-system showcase; pages adopt it as they land |
 | GEN-01-B | Bonus | SMTP mailer (bonus) | Team | TRVL-119 | - | Not started |
 | BON-02 | Bonus | favourites (bonus) | Team | TRVL-127 | - | Not started |
