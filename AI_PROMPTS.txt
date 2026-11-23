@@ -2794,3 +2794,20 @@ formatting, and fixed a build failure where the header's usePathname blocked pre
 dynamic params. I checked the API contract and paid in the browser with Stripe test cards (decline, then
 success) against a throwaway database, which confirmed the booking and served the e-ticket PDF.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5, Claude Sonnet 5.5 subagent)
+Related Requirement: FLT-19, FLT-21, FLT-22, GEN-06, GEN-02 (TRVL-146)
+Prompt:
+Continue my plan: build the flight checkout details step (PR7) from the search hand-off to the seat hold.
+How the output was used:
+Claude added a pure passenger model that mirrors the API's rules for UX only (age group from the date of
+birth on each leg's local departure date, at least one adult, no more infants than adults, unique
+documents, extra bags capped by the airline policy), the /checkout/flight route that reloads the selected
+flights on the server, and a passenger form with a live price from the quote endpoint that holds the seats
+and continues to the shared pay page. A Sonnet subagent wrote the form and the model tests, which I
+reviewed and adjusted. I checked the quote totals against the API and held a round trip for two adults
+and an infant in the browser against a throwaway database.
+================================================

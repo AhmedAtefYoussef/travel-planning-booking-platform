@@ -91,6 +91,20 @@ In client components, `useAuth()` (from `@/features/auth`) gives `{ state, reloa
 `state.status` is `loading`, `guest` or `authenticated`. In Server Components, `getSession()` and
 `requireUser()` come from `@/features/auth/server`.
 
+## Linking to checkout (FE-02)
+
+Search and booking pages hand over to checkout with a plain link. Checkout reloads the flights,
+holds the seats and runs policies, payment and confirmation.
+
+| From                  | Link                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Flight search (FE-06) | `/checkout/flight?outbound=<flightId>:<cabinId>&return=<flightId>:<cabinId>&adults=1&children=0&infants=0`   |
+| My bookings (FE-10)   | `/checkout/flight/<bookingId>` or `/checkout/hotel/<bookingId>` to resume paying a `PENDING_PAYMENT` booking |
+
+- `return` is only for round trips. The passenger counts default to 1 adult and must satisfy the API's
+  rules (at least one adult, no more infants than adults, at most 9 in total).
+- Build the pay link with `payPath(kind, bookingId)` from `@/features/checkout`.
+
 ## Rules every page follows
 
 - **No tokens in JavaScript (ACC-19).** The session lives in httpOnly cookies. Never use
