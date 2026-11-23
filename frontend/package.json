@@ -7,11 +7,17 @@
     "node": ">=22"
   },
   "scripts": {
+    "api:types": "openapi-typescript ../docs/api/openapi.json -o src/shared/api/schema.d.ts --silent",
+    "predev": "npm run api:types",
     "dev": "next dev --port 3001",
+    "prebuild": "npm run api:types",
     "build": "next build",
     "start": "next start --port 3001",
+    "prelint": "npm run api:types",
     "lint": "eslint --max-warnings 0",
+    "pretypecheck": "npm run api:types",
     "typecheck": "next typegen && tsc --noEmit",
+    "pretest": "npm run api:types",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
@@ -19,8 +25,11 @@
   },
   "dependencies": {
     "next": "16.4.6",
+    "openapi-fetch": "0.17.0",
     "react": "19.3.1",
     "react-dom": "19.3.1",
+    "react-hook-form": "7.91.0",
+    "server-only": "0.0.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -36,6 +45,7 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.6",
     "jsdom": "31.0.0",
+    "openapi-typescript": "7.13.0",
     "prettier": "3.9.10",
     "prettier-plugin-tailwindcss": "0.8.1",
     "tailwindcss": "4.3.5",
