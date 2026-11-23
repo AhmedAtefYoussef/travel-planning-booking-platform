@@ -5,10 +5,14 @@ import { AuthUser, MODERATOR_PROVIDER, ProviderType, Role } from './auth.types';
 /**
  * ACC-19: tokens live only in httpOnly cookies, never in a response body, so browser JavaScript can
  * never read them (no localStorage/sessionStorage). The refresh cookie is sent only to /api/auth.
+ *
+ * The access cookie uses path "/" so the Next.js server receives it on page requests too (dynamic
+ * SSR of bookings and dashboards, brief section 9); with "/api" a page such as /bookings never sees
+ * the session. It stays httpOnly + SameSite=Lax, so scripts still cannot read it (ADR-0001).
  */
 export const ACCESS_COOKIE = AUTH_COOKIE;
 export const REFRESH_COOKIE = 'refresh_token';
-export const ACCESS_COOKIE_PATH = '/api';
+export const ACCESS_COOKIE_PATH = '/';
 export const REFRESH_COOKIE_PATH = '/api/auth';
 
 const UNIT_MS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };

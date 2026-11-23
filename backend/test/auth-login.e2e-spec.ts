@@ -90,7 +90,7 @@ describe('Login, cookies and /auth/me (e2e): ACC-04, ACC-19', () => {
         // COOKIE_SECURE=false in the test env (local http); production requires true.
         expect(cookie).not.toMatch(/; Secure/);
       }
-      expect(access).toMatch(/; Path=\/api(;|$)/);
+      expect(access).toMatch(/; Path=\/(;|$)/);
       expect(access).toMatch(/Max-Age=900;/);
       expect(refresh).toMatch(/; Path=\/api\/auth(;|$)/);
       expect(refresh).toMatch(/Max-Age=604800;/);
