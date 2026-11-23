@@ -2679,3 +2679,20 @@ setAuthCookies and clearAuthCookies helpers used by the auth and users controlle
 old /api copy. It added unit tests for both helpers, updated the e2e cookie assertions and added an ADR-0001
 amendment. I ran the full backend unit and e2e suites.
 ================================================
+
+================================================
+Date: 2026-11-23
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-16 (TRVL-145)
+Prompt:
+Scaffold the Milestone 2 Next.js frontend so every teammate's page can plug in: tooling, CI readiness,
+layered folder structure and the same-origin API rewrite.
+How the output was used:
+Claude scaffolded Next.js 16.4 (App Router, TypeScript, Tailwind v4) in frontend/ with exact versions at
+least two weeks old, read the bundled Next 16 docs (Cache Components, proxy.ts, rewrites) before writing
+config, and added Vitest, Prettier, a typecheck script, ESLint layer rules (app -> features -> shared), a
+zod-validated env module with build-safe defaults, error and not-found boundaries, the /api and /uploads
+rewrites, and Dependabot and lint-staged entries. I ran lint, typecheck, tests and an env-free build, and
+checked that auth cookies pass through the rewrite on port 3001.
+================================================
