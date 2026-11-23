@@ -99,6 +99,17 @@
     ],
     "testRegex": ".*.spec.ts$",
     "transform": {
+      "node_modules[/\\\\].+\\.js$": [
+        "ts-jest",
+        {
+          "tsconfig": {
+            "allowJs": true,
+            "module": "commonjs",
+            "esModuleInterop": true
+          },
+          "diagnostics": false
+        }
+      ],
       "^.+.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
@@ -133,6 +144,12 @@
         "branches": 65,
         "functions": 65
       }
+    },
+    "transformIgnorePatterns": [
+      "node_modules[/\\\\](?!(@noble|fontkit|brotli|dfa|unicode-properties|unicode-trie|linebreak|png-js|restructure)[/\\\\])(?!.*node_modules[/\\\\](@noble|fontkit|brotli|dfa|unicode-properties|unicode-trie|linebreak|png-js|restructure)[/\\\\])"
+    ],
+    "moduleNameMapper": {
+      "^#binary-trie$": "<rootDir>/node_modules/pdfkit/node_modules/unicode-properties/binaryTrie.browser.js"
     }
   },
   "engines": {
