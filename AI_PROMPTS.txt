@@ -2667,6 +2667,23 @@ table against the traceability matrix.
 Date: 2026-11-23
 Student: Ahmed Atef Youssef
 Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-19 (TRVL-145)
+Prompt:
+Review the project description, requirements workbook, Jira board and develop branch, then plan and
+implement my Milestone 2 frontend tasks (FE-01, GEN-17, FE-02), starting with the backend change the
+Next.js foundation needs so private pages can be server-rendered.
+How the output was used:
+Claude moved the access_token cookie from path /api to /, so the Next.js server receives the session on
+page requests, and kept refresh_token on /api/auth. It moved cookie writing and clearing into shared
+setAuthCookies and clearAuthCookies helpers used by the auth and users controllers, which also expire the
+old /api copy. It added unit tests for both helpers, updated the e2e cookie assertions and added an ADR-0001
+amendment. I ran the full backend unit and e2e suites.
+================================================
+
+================================================
+Date: 2026-11-23
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
 Related Requirement: GEN-16 (TRVL-145)
 Prompt:
 Scaffold the Milestone 2 Next.js frontend so every teammate's page can plug in: tooling, CI readiness,
@@ -2678,6 +2695,20 @@ config, and added Vitest, Prettier, a typecheck script, ESLint layer rules (app 
 zod-validated env module with build-safe defaults, error and not-found boundaries, the /api and /uploads
 rewrites, and Dependabot and lint-staged entries. I ran lint, typecheck, tests and an env-free build, and
 checked that auth cookies pass through the rewrite on port 3001.
+================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-145
+Prompt:
+Generate the frontend's typed API client from the backend's OpenAPI document.
+How the output was used:
+Claude found that docs/api/openapi.json (last exported 2026-11-17) listed 66 operations while the running
+API documents 141, so frontend types generated from it would miss most endpoints. It re-exported the
+document from the running API in the same format as npm run openapi:export (no endpoint was removed),
+as its own docs PR. I compared the operation lists before and after.
 ================================================
 
 ================================================
