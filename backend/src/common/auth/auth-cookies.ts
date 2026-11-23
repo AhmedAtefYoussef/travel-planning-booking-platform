@@ -1,15 +1,22 @@
-import type { CookieOptions } from 'express';
+import type { CookieOptions, Response } from 'express';
 import { AUTH_COOKIE } from '../swagger/swagger.setup';
 import { AuthUser, MODERATOR_PROVIDER, ProviderType, Role } from './auth.types';
 
 /**
  * ACC-19: tokens live only in httpOnly cookies, never in a response body, so browser JavaScript can
- * never read them (no localStorage/sessionStorage). The refresh cookie is sent only to /api/auth.
+ * never read them (no localStorage/sessionStorage). The access cookie is sent on every path so the
+ * Next.js frontend can render private pages on the server (brief section 9, ADR-0001 amendment);
+ * the refresh cookie is sent only to /api/auth.
  */
 export const ACCESS_COOKIE = AUTH_COOKIE;
 export const REFRESH_COOKIE = 'refresh_token';
-export const ACCESS_COOKIE_PATH = '/api';
+export const ACCESS_COOKIE_PATH = '/';
 export const REFRESH_COOKIE_PATH = '/api/auth';
+/**
+ * Milestone 1 issued the access cookie on /api. A browser holding both copies would send the
+ * more specific (stale) one first on /api requests, so every write also expires the old copy.
+ */
+export const LEGACY_ACCESS_COOKIE_PATH = '/api';
 
 const UNIT_MS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
@@ -38,6 +45,53 @@ export function clearCookieOptions(
   path: string,
 ): CookieOptions {
   return { httpOnly: true, secure, sameSite: 'lax', path };
+}
+
+/** The token pair written by login and refresh. */
+export interface AuthCookieTokens {
+  accessToken: string;
+  refreshToken: string;
+  accessTtlMs: number;
+  refreshTtlMs: number;
+}
+
+/** ACC-19: writes both cookies and expires the legacy /api access cookie. */
+export function setAuthCookies(
+  res: Response,
+  secure: boolean,
+  tokens: AuthCookieTokens,
+): void {
+  res.cookie(
+    ACCESS_COOKIE,
+    tokens.accessToken,
+    authCookieOptions(secure, ACCESS_COOKIE_PATH, tokens.accessTtlMs),
+  );
+  res.cookie(
+    REFRESH_COOKIE,
+    tokens.refreshToken,
+    authCookieOptions(secure, REFRESH_COOKIE_PATH, tokens.refreshTtlMs),
+  );
+  clearLegacyAccessCookie(res, secure);
+}
+
+/** ACC-06: clears both cookies (and the legacy copy) with the same paths and flags they were set with. */
+export function clearAuthCookies(res: Response, secure: boolean): void {
+  res.clearCookie(
+    ACCESS_COOKIE,
+    clearCookieOptions(secure, ACCESS_COOKIE_PATH),
+  );
+  res.clearCookie(
+    REFRESH_COOKIE,
+    clearCookieOptions(secure, REFRESH_COOKIE_PATH),
+  );
+  clearLegacyAccessCookie(res, secure);
+}
+
+function clearLegacyAccessCookie(res: Response, secure: boolean): void {
+  res.clearCookie(
+    ACCESS_COOKIE,
+    clearCookieOptions(secure, LEGACY_ACCESS_COOKIE_PATH),
+  );
 }
 
 /** Claims inside the signed access token (HS256, JWT_SECRET, JWT_ACCESS_TTL). */
