@@ -25,6 +25,7 @@ export const PROTECTED_SECTIONS: readonly {
   { prefix: '/moderator/hotel', roles: ['HOTEL_MODERATOR'] },
   { prefix: '/bookings', roles: ['USER'] },
   { prefix: '/checkout', roles: ['USER'] },
+  { prefix: '/itineraries/mine', roles: ['USER'] },
   { prefix: '/account', roles: null },
 ];
 
