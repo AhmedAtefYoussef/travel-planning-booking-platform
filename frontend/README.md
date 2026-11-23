@@ -97,4 +97,9 @@ Cache Components is **off**; rendering is chosen per route with segment config:
 | Editors, likes, comments, forms, payment                              | Client Components | `'use client'` + `api`                                                      |
 
 The root layout reads no cookies on purpose: reading them there would make every page dynamic.
+
+**Loading boundaries:** never add `app/loading.tsx` or a `loading.tsx` next to a guarded `layout.tsx`.
+A loading boundary above a guard starts streaming with HTTP 200 before `requireRole` runs, so a wrong
+role gets 200 instead of 404 and redirects happen in the browser. Put `loading.tsx` one level deeper
+(e.g. `app/bookings/flights/loading.tsx`) and render `<PageLoading />` from `@/components/layout/page-loading`.
 Public pages add SEO metadata with `buildMetadata({ title, description, path })`.
