@@ -1,9 +1,14 @@
+import type { Response } from 'express';
 import {
+  ACCESS_COOKIE,
   authCookieOptions,
   authUserFromClaims,
   claimsFor,
+  clearAuthCookies,
   clearCookieOptions,
   durationToMs,
+  REFRESH_COOKIE,
+  setAuthCookies,
 } from './auth-cookies';
 import { ProviderType, Role } from './auth.types';
 
@@ -47,6 +52,41 @@ describe('auth cookie options (ACC-19)', () => {
       sameSite: 'lax',
       path: '/api/auth',
     });
+  });
+});
+
+describe('setAuthCookies / clearAuthCookies (ACC-19, ACC-06)', () => {
+  const fakeResponse = () => {
+    const res = { cookie: jest.fn(), clearCookie: jest.fn() };
+    return res as typeof res & Response;
+  };
+
+  it('sets the access cookie on / and the refresh cookie on /api/auth, then expires the legacy /api copy', () => {
+    const res = fakeResponse();
+    setAuthCookies(res, false, {
+      accessToken: 'a',
+      refreshToken: 'r',
+      accessTtlMs: 900_000,
+      refreshTtlMs: 5,
+    });
+    expect(res.cookie.mock.calls).toEqual([
+      [ACCESS_COOKIE, 'a', authCookieOptions(false, '/', 900_000)],
+      [REFRESH_COOKIE, 'r', authCookieOptions(false, '/api/auth', 5)],
+    ]);
+    expect(res.clearCookie.mock.calls).toEqual([
+      [ACCESS_COOKIE, clearCookieOptions(false, '/api')],
+    ]);
+  });
+
+  it('clears both cookies on their own paths, plus the legacy /api access cookie', () => {
+    const res = fakeResponse();
+    clearAuthCookies(res, true);
+    expect(res.clearCookie.mock.calls).toEqual([
+      [ACCESS_COOKIE, clearCookieOptions(true, '/')],
+      [REFRESH_COOKIE, clearCookieOptions(true, '/api/auth')],
+      [ACCESS_COOKIE, clearCookieOptions(true, '/api')],
+    ]);
+    expect(res.cookie).not.toHaveBeenCalled();
   });
 });
 

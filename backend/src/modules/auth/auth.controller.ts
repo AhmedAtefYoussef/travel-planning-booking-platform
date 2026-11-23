@@ -20,11 +20,9 @@ import {
 import type { Request, Response } from 'express';
 import {
   ACCESS_COOKIE,
-  ACCESS_COOKIE_PATH,
-  authCookieOptions,
-  clearCookieOptions,
+  clearAuthCookies,
   REFRESH_COOKIE,
-  REFRESH_COOKIE_PATH,
+  setAuthCookies,
 } from '../../common/auth/auth-cookies';
 import {
   AllowPendingPasswordChange,
@@ -124,7 +122,7 @@ export class AuthController {
     summary: 'ACC-04 / ACC-05 / ACC-19 Log in with email and password',
     description:
       'Works for users, admins and moderators. On success it sets two httpOnly, SameSite=Lax cookies (Secure when COOKIE_SECURE=true): ' +
-      '`access_token` (JWT, JWT_ACCESS_TTL, path /api) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). ' +
+      '`access_token` (JWT, JWT_ACCESS_TTL, path /) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). ' +
       "No token is ever returned in the body (ACC-19); the body has the profile and `homePath`, the role's home page. " +
       'Unknown email or wrong password: 401 INVALID_CREDENTIALS "Invalid email or password". ' +
       'Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ' +
@@ -225,36 +223,11 @@ export class AuthController {
   }
 
   private setAuthCookies(res: Response, result: LoginResult): void {
-    res.cookie(
-      ACCESS_COOKIE,
-      result.accessToken,
-      authCookieOptions(
-        this.secureCookies,
-        ACCESS_COOKIE_PATH,
-        result.accessTtlMs,
-      ),
-    );
-    res.cookie(
-      REFRESH_COOKIE,
-      result.refreshToken,
-      authCookieOptions(
-        this.secureCookies,
-        REFRESH_COOKIE_PATH,
-        result.refreshTtlMs,
-      ),
-    );
+    setAuthCookies(res, this.secureCookies, result);
   }
 
-  /** ACC-06: the cookies must be cleared with the same path and flags they were set with. */
   private clearAuthCookies(res: Response): void {
-    res.clearCookie(
-      ACCESS_COOKIE,
-      clearCookieOptions(this.secureCookies, ACCESS_COOKIE_PATH),
-    );
-    res.clearCookie(
-      REFRESH_COOKIE,
-      clearCookieOptions(this.secureCookies, REFRESH_COOKIE_PATH),
-    );
+    clearAuthCookies(res, this.secureCookies);
   }
 
   @Patch('change-password')

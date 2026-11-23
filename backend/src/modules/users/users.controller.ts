@@ -16,13 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
-import {
-  ACCESS_COOKIE,
-  ACCESS_COOKIE_PATH,
-  clearCookieOptions,
-  REFRESH_COOKIE,
-  REFRESH_COOKIE_PATH,
-} from '../../common/auth/auth-cookies';
+import { clearAuthCookies } from '../../common/auth/auth-cookies';
 import { CurrentUser, Roles } from '../../common/auth/auth.decorators';
 import { Role } from '../../common/auth/auth.types';
 import type { AuthUser } from '../../common/auth/auth.types';
@@ -78,14 +72,7 @@ export class UsersController {
     @Res({ passthrough: true }) res: Response,
   ): Promise<void> {
     await this.deactivation.deactivate(user, dto.password);
-    res.clearCookie(
-      ACCESS_COOKIE,
-      clearCookieOptions(this.secureCookies, ACCESS_COOKIE_PATH),
-    );
-    res.clearCookie(
-      REFRESH_COOKIE,
-      clearCookieOptions(this.secureCookies, REFRESH_COOKIE_PATH),
-    );
+    clearAuthCookies(res, this.secureCookies);
   }
 
   @Get('me')
