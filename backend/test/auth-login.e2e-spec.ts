@@ -90,7 +90,13 @@ describe('Login, cookies and /auth/me (e2e): ACC-04, ACC-19', () => {
         // COOKIE_SECURE=false in the test env (local http); production requires true.
         expect(cookie).not.toMatch(/; Secure/);
       }
-      expect(access).toMatch(/; Path=\/api(;|$)/);
+      // Path "/" so the same-site Next.js frontend can render authenticated pages on the server.
+      expect(access).toMatch(/; Path=\/(;|$)/);
+      // The Milestone 1 cookie on path /api is expired so it cannot shadow the new one.
+      const all = res.headers['set-cookie'] as unknown as string[];
+      expect(all).toContainEqual(
+        expect.stringMatching(/^access_token=;.*Path=\/api(;|$)/),
+      );
       expect(access).toMatch(/Max-Age=900;/);
       expect(refresh).toMatch(/; Path=\/api\/auth(;|$)/);
       expect(refresh).toMatch(/Max-Age=604800;/);

@@ -5,10 +5,18 @@ import { AuthUser, MODERATOR_PROVIDER, ProviderType, Role } from './auth.types';
 /**
  * ACC-19: tokens live only in httpOnly cookies, never in a response body, so browser JavaScript can
  * never read them (no localStorage/sessionStorage). The refresh cookie is sent only to /api/auth.
+ * The access cookie uses path "/" so the Next.js frontend (served on the same site, with /api rewritten
+ * to this API) receives it on page requests and can render authenticated pages on the server
+ * (brief section 9: Dynamic SSR for bookings and dashboards). It stays httpOnly and SameSite=Lax.
  */
 export const ACCESS_COOKIE = AUTH_COOKIE;
 export const REFRESH_COOKIE = 'refresh_token';
-export const ACCESS_COOKIE_PATH = '/api';
+export const ACCESS_COOKIE_PATH = '/';
+/**
+ * Milestone 1 issued the access cookie on path /api. A browser still holding that cookie would send it
+ * before the new one (more specific path first), so it is cleared whenever cookies are set or cleared.
+ */
+export const LEGACY_ACCESS_COOKIE_PATH = '/api';
 export const REFRESH_COOKIE_PATH = '/api/auth';
 
 const UNIT_MS = { ms: 1, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };

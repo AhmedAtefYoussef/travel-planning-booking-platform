@@ -89,7 +89,11 @@ describe('Logout, refresh and idle expiry (e2e): ACC-06', () => {
 
       // Both cookies are expired with the same path they were set with.
       expect(pick(res, 'access_token')).toMatch(
-        /^access_token=;.*Path=\/api(;|$)/,
+        /^access_token=;.*Path=\/(;|$)/,
+      );
+      // The legacy Milestone 1 access cookie on path /api is cleared too.
+      expect(cookies(res)).toContainEqual(
+        expect.stringMatching(/^access_token=;.*Path=\/api(;|$)/),
       );
       expect(pick(res, 'refresh_token')).toMatch(
         /^refresh_token=;.*Path=\/api\/auth(;|$)/,

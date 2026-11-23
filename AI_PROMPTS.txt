@@ -2662,3 +2662,14 @@ The admin, moderation, itineraries, budgets and blog modules were added, and the
 requirements merged since the table was written; the three background jobs are noted. I checked the
 table against the traceability matrix.
 ================================================
+
+================================================
+Date: 2026-11-23
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-19, TRVL-145
+Prompt:
+Plan the Milestone 2 Next.js foundation against the Milestone 1 API. The access_token cookie is scoped to /api, so server-rendered pages never receive it; propose and implement the smallest backend change that lets the same-site frontend render authenticated pages on the server without exposing the token to JavaScript.
+How the output was used:
+I widened the access cookie path to "/" (refresh cookie unchanged on /api/auth), made login, refresh, logout and deactivation also expire the old /api cookie so it cannot shadow the new one, updated the cookie e2e assertions and recorded the change as an amendment to ADR-0001. I ran typecheck, lint, the auth unit tests and the full e2e suite.
+================================================

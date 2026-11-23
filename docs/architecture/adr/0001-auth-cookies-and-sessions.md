@@ -17,3 +17,8 @@ The brief forbids tokens in `localStorage`/`sessionStorage`. ACC-06 requires log
 - XSS cannot read the tokens. Cross-site requests from other origins are blocked by SameSite and the CORS allow-list (`CORS_ORIGINS`).
 - Each refresh does a session lookup, which is what makes idle expiry and instant suspension enforceable.
 - The frontend calls the API with `credentials: 'include'` and keeps no token state.
+
+## Amendment (2026-11-23, Milestone 2)
+- The `access_token` cookie path changes from `/api` to `/`; `refresh_token` stays on `/api/auth`. The Next.js frontend is served on the same site and rewrites `/api/*` to this API, so page requests now carry the access cookie and authenticated pages can be rendered on the server (brief section 9: Dynamic SSR for bookings and dashboards).
+- The cookie stays httpOnly and SameSite=Lax, so JavaScript still cannot read it (ACC-19). The refresh token remains scoped to the auth routes.
+- To stop a Milestone 1 cookie on `/api` from shadowing the new one, login, refresh, logout and account deactivation also expire `access_token` on the old `/api` path.

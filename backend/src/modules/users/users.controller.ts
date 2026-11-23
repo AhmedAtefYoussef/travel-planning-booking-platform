@@ -19,6 +19,7 @@ import type { Response } from 'express';
 import {
   ACCESS_COOKIE,
   ACCESS_COOKIE_PATH,
+  LEGACY_ACCESS_COOKIE_PATH,
   clearCookieOptions,
   REFRESH_COOKIE,
   REFRESH_COOKIE_PATH,
@@ -81,6 +82,10 @@ export class UsersController {
     res.clearCookie(
       ACCESS_COOKIE,
       clearCookieOptions(this.secureCookies, ACCESS_COOKIE_PATH),
+    );
+    res.clearCookie(
+      ACCESS_COOKIE,
+      clearCookieOptions(this.secureCookies, LEGACY_ACCESS_COOKIE_PATH),
     );
     res.clearCookie(
       REFRESH_COOKIE,
