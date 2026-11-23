@@ -72,6 +72,7 @@ export const config = {
     '/admin/:path*',
     '/bookings/:path*',
     '/checkout/:path*',
+    '/itineraries/mine/:path*',
     '/moderator/:path*',
   ],
 };

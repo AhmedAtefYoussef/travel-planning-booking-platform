@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { AuthProvider } from '@/features/auth';
+import { SiteFooter, SiteHeader } from '@/features/navigation';
 import { cn } from '@/shared/lib/utils';
 import { Toaster } from '@/shared/ui/sonner';
 import { ThemeProvider } from '@/shared/ui/theme-provider';
@@ -24,8 +26,9 @@ export const viewport: Viewport = {
 };
 
 /**
- * Root layout. It reads no cookies or headers, so public pages can be prerendered; session-aware
- * parts of the shell are added inside their own Suspense boundaries.
+ * Root layout: header, content and footer for every page. It reads no cookies or headers, so public
+ * pages can be prerendered or cached; the header learns who is signed in on the client (GET
+ * /api/auth/me), and private sections check the session in their own layouts.
  */
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
@@ -36,7 +39,19 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     >
       <body className="flex min-h-full flex-col">
         <ThemeProvider>
-          {children}
+          <AuthProvider>
+            <a
+              href="#main"
+              className="sr-only z-50 rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+            >
+              Skip to content
+            </a>
+            <SiteHeader />
+            <div id="main" className="flex flex-1 flex-col">
+              {children}
+            </div>
+            <SiteFooter />
+          </AuthProvider>
           <Toaster richColors closeButton position="top-right" />
         </ThemeProvider>
       </body>

@@ -59,6 +59,38 @@ Dependencies point one way: `app → features → shared`. ESLint enforces it (`
 
 Keep business logic in `features/<name>/model` as plain functions with unit tests; components stay thin.
 
+## Pages, sections and access
+
+All paths live in `src/shared/config/routes.ts`; link with `ROUTES.*`, never a hand-typed string.
+
+| Section                                                | Who may open it       | Story                      |
+| ------------------------------------------------------ | --------------------- | -------------------------- |
+| `/`, `/flights`, `/hotels`, `/itineraries`, `/blog`    | everyone (guests too) | FE-06, FE-08, FE-12, FE-14 |
+| `/login`, `/register`                                  | everyone              | FE-03                      |
+| `/account/*` (profile, change password, notifications) | any signed-in user    | FE-03, FE-04               |
+| `/bookings/*`, `/checkout/*`, `/itineraries/mine/*`    | travellers (`USER`)   | FE-10, FE-02, FE-11        |
+| `/admin/*`                                             | `ADMIN`               | FE-05, FE-15               |
+| `/moderator/airline/*`                                 | `AIRLINE_MODERATOR`   | FE-07                      |
+| `/moderator/hotel/*`                                   | `HOTEL_MODERATOR`     | FE-09                      |
+
+How a private page is protected (ACC-10, ACC-11):
+
+1. `src/proxy.ts` runs before rendering. A visitor with no session gets a 307 to
+   `/session/refresh?next=…`, which renews the session or continues to `/login?next=…`. A role
+   that may not open the section gets a real 404.
+2. The section's `layout.tsx` checks again on the server (`RequireSection` from
+   `@/features/auth/server`) inside a `<Suspense>` boundary.
+3. The API authorises every request again. The frontend checks only shape navigation.
+
+The private sections already have a guarded layout and a placeholder page. To build your page, replace
+the section's `page.tsx` (or add pages below it); the guard applies automatically. A new private
+section needs one entry in `PROTECTED_SECTIONS` (`src/features/auth/model/roles.ts`) and one in the
+proxy `matcher`.
+
+In client components, `useAuth()` (from `@/features/auth`) gives `{ state, reload, logout }`, where
+`state.status` is `loading`, `guest` or `authenticated`. In Server Components, `getSession()` and
+`requireUser()` come from `@/features/auth/server`.
+
 ## Rules every page follows
 
 - **No tokens in JavaScript (ACC-19).** The session lives in httpOnly cookies. Never use

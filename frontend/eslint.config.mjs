@@ -15,9 +15,10 @@ const noRouteImports = {
     'Only src/app may import routes; move shared code into features/ or shared/.',
 };
 const noDeepFeatureImports = {
-  group: ['@/features/*/*'],
+  // A feature has two public entries: index.ts (client-safe) and server.ts (server-only).
+  group: ['@/features/*/*', '!@/features/*/server'],
   message:
-    "Import another feature through its public index ('@/features/<name>').",
+    "Import another feature through its public entry ('@/features/<name>' or '@/features/<name>/server').",
 };
 
 const eslintConfig = defineConfig([
