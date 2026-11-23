@@ -2696,3 +2696,17 @@ zod-validated env module with build-safe defaults, error and not-found boundarie
 rewrites, and Dependabot and lint-staged entries. I ran lint, typecheck, tests and an env-free build, and
 checked that auth cookies pass through the rewrite on port 3001.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-145
+Prompt:
+Generate the frontend's typed API client from the backend's OpenAPI document.
+How the output was used:
+Claude found that docs/api/openapi.json (last exported 2026-11-17) listed 66 operations while the running
+API documents 141, so frontend types generated from it would miss most endpoints. It re-exported the
+document from the running API in the same format as npm run openapi:export (no endpoint was removed),
+as its own docs PR. I compared the operation lists before and after.
+================================================
