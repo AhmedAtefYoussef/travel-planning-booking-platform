@@ -2662,3 +2662,20 @@ The admin, moderation, itineraries, budgets and blog modules were added, and the
 requirements merged since the table was written; the three background jobs are noted. I checked the
 table against the traceability matrix.
 ================================================
+
+================================================
+Date: 2026-11-23
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: TRVL-145 (ACC-19, ACC-11, ACC-10, GEN-02, GEN-05, GEN-13, GEN-16)
+Prompt:
+Analyse the brief, the requirements workbook, my Jira tasks and the develop branch, then plan and
+implement my Milestone 2 tasks, starting with FE-01 (Next.js foundation), and verify each feature.
+How the output was used:
+Claude scaffolded the Next.js 16 app and wrote the API client (same-origin /api rewrite, cookies only,
+single-flight refresh on 401, ApiError with fieldErrors), the server session helpers (requireUser,
+requireRole), the proxy route guard, the session refresh page, the header and error boundaries, and
+63 unit tests. It found that the access cookie's /api path hid the session from Next.js page requests
+and proposed widening only that cookie to "/"; I reviewed the change against ADR-0001, ran the backend
+auth unit and e2e tests, and checked that lint, typecheck, tests, build and the CI guard rails pass.
+================================================

@@ -1,0 +1,63 @@
+@import 'tailwindcss';
+
+/*
+ * Base design tokens (GEN-17). Components use the semantic names (bg-surface, text-muted,
+ * bg-primary...) rather than raw palette colours, so the whole app changes together.
+ */
+:root {
+  --background: #f7f8fa;
+  --foreground: #111827;
+  --surface: #ffffff;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --primary: #0e63c9;
+  --primary-hover: #0a4fa3;
+  --primary-foreground: #ffffff;
+  --danger: #c62828;
+  --success: #1b7f3b;
+  --warning: #b45309;
+  --ring: #0e63c9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0b0f17;
+    --foreground: #e5e7eb;
+    --surface: #121826;
+    --muted: #9ca3af;
+    --border: #243045;
+    --primary: #4c9bf2;
+    --primary-hover: #77b3f6;
+    --primary-foreground: #0b0f17;
+    --danger: #f87171;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --ring: #77b3f6;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-sans-family), ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
