@@ -2884,3 +2884,20 @@ adapters for search, details and the cached airport list, the form, toolbar, res
 view) and the /flights and /flights/[id] routes. Unit and component tests found a render loop in the
 first form draft, which was fixed. I reviewed the code and ran lint, typecheck, the tests and the build.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Joudy
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: FE-07 (TRVL-151): FLT-01, FLT-03 to FLT-06, FLT-08, FLT-09, FLT-29
+Prompt:
+Build the airline moderator dashboard on the M2 frontend: airline profile and logo, baggage and refund
+policies, the airline's flights with create/edit and cabins, cancelling a flight behind a confirmation,
+and the bookings and passenger CSV of each flight.
+How the output was used:
+Claude wrote features/airline-dashboard (form schemas mirroring the API rules, server loaders, browser
+mutations, forms, tables and the confirm-before-cancel button) and the /moderator/airline pages with
+dashboard tabs. It found that two backend classes share the Swagger name AirlinePolicyDto, so the policy
+page reads the airline policy with its real shape. I reviewed the code and ran lint, typecheck, the
+tests and the build.
+================================================

@@ -12,7 +12,7 @@ export function toMinorUnits(amount: number, currency: string): number {
 }
 
 /** Minor units per currency, from Intl (JPY has 0, KWD 3, most 2). */
-function minorDigits(currency: string): number {
+export function minorDigits(currency: string): number {
   try {
     return (
       new Intl.NumberFormat('en', {
