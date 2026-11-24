@@ -186,6 +186,11 @@ FlightSchema.index(
   { from: 1, to: 1, status: 1, departureUtc: 1 },
   { name: 'search_route_status_departure' },
 );
+// FE-07 moderator dashboard: one airline's flights by departure (GET /api/airlines/:id/flights).
+FlightSchema.index(
+  { airlineId: 1, departureUtc: 1 },
+  { name: 'airline_departure' },
+);
 // FLT-30 job: find Scheduled flights whose departure has passed.
 FlightSchema.index(
   { status: 1, departureUtc: 1 },

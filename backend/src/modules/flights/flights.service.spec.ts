@@ -6,7 +6,7 @@ import type { AirlinesService } from './airlines.service';
 import type { CreateFlightDto } from './dto/flight.dto';
 import type { FlightScheduleNotifier } from './flight-schedule-notifier';
 import { FlightsService } from './flights.service';
-import type { Flight } from './schemas/flight.schema';
+import { FlightStatus, type Flight } from './schemas/flight.schema';
 
 const AIRPORTS: Record<string, Airport> = {
   CAI: {
@@ -916,5 +916,107 @@ describe('FlightsService.update (FLT-05)', () => {
     );
     expect(findOneAndUpdate).not.toHaveBeenCalled();
     expect(timesChanged).not.toHaveBeenCalled();
+  });
+});
+
+describe('FlightsService.listForAirline (FLT-03, FE-07)', () => {
+  function listSetup(docs: object[], total: number) {
+    const query = {
+      sort: jest.fn().mockReturnThis(),
+      skip: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      exec: jest.fn(() => Promise.resolve(docs)),
+    };
+    const model = {
+      find: jest.fn(() => query),
+      countDocuments: jest.fn(() => ({ exec: () => Promise.resolve(total) })),
+    };
+    const reference = {
+      getAirport: jest.fn((code: string) =>
+        Promise.resolve(AIRPORTS[code] ?? null),
+      ),
+    } as unknown as ReferenceService;
+    const service = new FlightsService(
+      model as unknown as Model<Flight>,
+      reference,
+      activeAirline(),
+      silentNotifier(),
+    );
+    return { service, model, query, reference };
+  }
+
+  const flightDoc = (from: string, to: string, departure: string) => ({
+    id: new Types.ObjectId().toHexString(),
+    airlineId,
+    flightNumber: 'MS777',
+    status: 'SCHEDULED',
+    from,
+    to,
+    departureUtc: new Date(departure),
+    arrivalUtc: new Date(new Date(departure).getTime() + 2 * 3_600_000),
+    departureLocalDate: departure.slice(0, 10),
+    cabins: [],
+    createdAt: NOW,
+    updatedAt: NOW,
+  });
+
+  it("returns a page of the airline's flights, soonest first, with local times", async () => {
+    const docs = [
+      flightDoc('CAI', 'DXB', '2026-12-01T12:30:00Z'),
+      flightDoc('LHR', 'JFK', '2026-12-02T09:00:00Z'),
+    ];
+    const { service, model, query, reference } = listSetup(docs, 12);
+    const page = await service.listForAirline(
+      moderator,
+      airlineId.toHexString(),
+      { page: 2 },
+    );
+
+    expect(model.find).toHaveBeenCalledWith({ airlineId });
+    expect(query.sort).toHaveBeenCalledWith({ departureUtc: 1, _id: 1 });
+    expect(query.skip).toHaveBeenCalledWith(10);
+    expect(query.limit).toHaveBeenCalledWith(10);
+    expect(page).toMatchObject({
+      page: 2,
+      limit: 10,
+      total: 12,
+      totalPages: 2,
+    });
+    expect(page.items.map((f) => f.departure.local)).toEqual([
+      '2026-12-01T14:30:00.000+02:00',
+      '2026-12-02T09:00:00.000+00:00',
+    ]);
+    // Each airport is looked up once per page.
+    expect(reference.getAirport).toHaveBeenCalledTimes(4);
+  });
+
+  it('filters by status when one is given', async () => {
+    const { service, model } = listSetup([], 0);
+    const page = await service.listForAirline(
+      moderator,
+      airlineId.toHexString(),
+      { page: 1, status: FlightStatus.Cancelled },
+    );
+    expect(model.find).toHaveBeenCalledWith({
+      airlineId,
+      status: 'CANCELLED',
+    });
+    expect(page).toEqual({
+      items: [],
+      page: 1,
+      limit: 10,
+      total: 0,
+      totalPages: 0,
+    });
+  });
+
+  it('refuses the moderator of another airline before reading anything (ACC-11)', async () => {
+    const { service, model } = listSetup([], 0);
+    await expect(
+      service.listForAirline(moderator, new Types.ObjectId().toHexString(), {
+        page: 1,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(model.find).not.toHaveBeenCalled();
   });
 });

@@ -27,9 +27,16 @@ import {
   type UploadedFileLike,
 } from '../../common/contracts/services.contract';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
-import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
+import type { Page } from '../../common/pagination/pagination';
+import {
+  ApiErrorResponses,
+  ApiPaginatedResponse,
+} from '../../common/swagger/api-responses.decorator';
 import { ImageFilesInterceptor } from '../uploads';
 import { AirlinesService } from './airlines.service';
+import { AirlineFlightsQueryDto } from './dto/airline-flights.dto';
+import { FlightDto } from './dto/flight.dto';
+import { FlightsService } from './flights.service';
 import {
   AirlineDto,
   BaggagePolicyDto,
@@ -47,7 +54,10 @@ import {
 @ApiTags('Airlines')
 @Controller('airlines')
 export class AirlinesController {
-  constructor(private readonly airlines: AirlinesService) {}
+  constructor(
+    private readonly airlines: AirlinesService,
+    private readonly flights: FlightsService,
+  ) {}
 
   @Post()
   @Roles(Role.Admin)
@@ -258,6 +268,24 @@ export class AirlinesController {
     @Body() dto: CancellationPolicyDto,
   ): Promise<AirlineDto> {
     return this.airlines.setCancellationPolicy(user, id, dto);
+  }
+
+  @Get(':id/flights')
+  @Roles(Role.AirlineModerator)
+  @ApiOperation({
+    summary: "FLT-03 Airline moderator lists their airline's flights",
+    description:
+      "For the moderator dashboard (FE-07). Only the moderator assigned to this airline (403 otherwise, ACC-11). 10 per page (GEN-05), soonest departure first, each time also in the airport's local time (GEN-06). Without status every flight is listed, including Cancelled and Departed ones, so their bookings and passenger list (FLT-29) stay reachable.",
+  })
+  @ApiParam({ name: 'id', description: 'Airline id' })
+  @ApiPaginatedResponse(FlightDto)
+  @ApiErrorResponses(400)
+  listFlights(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Query() query: AirlineFlightsQueryDto,
+  ): Promise<Page<FlightDto>> {
+    return this.flights.listForAirline(user, id, query);
   }
 
   @Get(':id/cancellation-policy/refund-preview')
