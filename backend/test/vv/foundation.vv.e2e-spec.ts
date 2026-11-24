@@ -542,6 +542,14 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
       },
     },
     {
+      // FLT-03 / FE-07: the airline's own flights, for its moderator's dashboard.
+      url: `/api/airlines/${VV_AIRLINE}/flights?`,
+      docPath: '/api/airlines/{id}/flights',
+      headers: {
+        'x-dev-user': `AIRLINE_MODERATOR:6af0f1c2c77901aa9f228702:${VV_AIRLINE}`,
+      },
+    },
+    {
       // HTL-22: the reservations of a hotel, for its moderator.
       url: `/api/hotels/${VV_HOTEL}/reservations?`,
       docPath: '/api/hotels/{id}/reservations',
@@ -676,6 +684,12 @@ describe('Fixed page size of 10 on every list (vv): GEN-05', () => {
   });
 
   beforeAll(async () => {
+    // The airline of VV_FLIGHT, so its moderator's flight list (FLT-03) finds it.
+    await app.get<Model<unknown>>(getModelToken('Airline')).create({
+      _id: VV_AIRLINE,
+      name: 'VV Paging Air',
+      code: 'VVP',
+    });
     await app.get<Model<unknown>>(getModelToken('Flight')).create({
       _id: VV_FLIGHT,
       airlineId: VV_AIRLINE,
