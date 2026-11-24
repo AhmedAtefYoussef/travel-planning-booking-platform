@@ -2827,3 +2827,17 @@ loader that reloads the hotel with the stay dates and marks rooms that are no lo
 A Sonnet subagent wrote the room guests form and the model tests, which I reviewed. I held two rooms,
 paid with a Stripe test card and saw the reservation confirmed, against a throwaway database.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: HTL-16 (TRVL-146)
+Prompt:
+Fix the HotelBookingRequestDto childrenAges Swagger type so the frontend no longer needs a cast.
+How the output was used:
+Claude added type: [Number] to the childrenAges ApiProperty, updated the committed OpenAPI snapshot for
+that schema only (the full export also reorders unrelated path parameters, which were left out), and
+removed the cast in the frontend's holdHotel call now that the generated type is number[]. I ran the
+backend bookings tests, the OpenAPI contract and architecture checks, and the frontend checks and build.
+================================================

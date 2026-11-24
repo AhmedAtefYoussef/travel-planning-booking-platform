@@ -16351,7 +16351,7 @@
             "description": "Age of each child in this room, 0 to 17",
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "number"
             }
           }
         },
