@@ -36,7 +36,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-09 | Mandatory | GET /api/users/me; PATCH /api/users/me | Abdelrahman | TRVL-19 | #48 | Done |
 | ACC-10 | Mandatory | (frontend, Milestone 2) | Abdelrahman | TRVL-20 | - | Not started |
 | ACC-11 | Mandatory | GET /api/auth/me; GET /api/users/me; global guards | Abdelrahman | TRVL-21 | #3, #46, #64 | Done |
-| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57, #133 | Done |
+| ACC-12 | Mandatory | DELETE /api/users/me | Abdelrahman | TRVL-22 | #49, #55, #57, #133, #PR | Done |
 | ACC-13 | Mandatory | POST /api/admin/moderators | Abdelrahman | TRVL-23 | #53, #55 | Done |
 | ACC-14 | Mandatory | GET /api/admin/accounts | Abdelrahman | TRVL-24 | #50 | Done |
 | ACC-15 | Mandatory | PATCH /api/admin/accounts/:id/suspend\|reactivate (moderators); PATCH /api/admin/providers/:type/:id/deactivate\|reactivate | Ahmed | TRVL-25 | #84 | Done |
@@ -160,7 +160,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | GEN-06 | Mandatory | flight responses (airport-local times): POST /api/flights; later GET /api/flights/search, GET /api/flights/:id | Joudy | TRVL-101 | #10, #13, #16 | Done |
 | GEN-07 | Mandatory | GET /api/admin/audit-logs; AUDIT_SERVICE | Ahmed | TRVL-102 | #4, #69, #84, #118, #137 | Done |
 | GEN-08 | Mandatory | UPLOADS_SERVICE + ImageFilesInterceptor; POST /api/hotels/:id/images; DELETE /api/hotels/:id/images/:imageId; PUT /api/airlines/:id/logo; GET /uploads/... (static); posts and activities via BLG-10, ITN-12 | Ahmed | TRVL-103 | #66 | Done |
-| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116, #131 | Done |
+| GEN-09 | Mandatory | POST /api/reports | Ahmed | TRVL-104 | #106, #116, #131, #PR | Done |
 | GEN-10 | Mandatory | GET /api/admin/reports; PATCH /api/admin/reports/:id; PATCH /api/admin/content/:type/:id/hide; DELETE /api/admin/content/:type/:id | Ahmed | TRVL-105 | #118, #131 | Done |
 | GEN-11 | Mandatory | booking lifecycle (BOOKING_TRANSITIONS, transitionBooking, completion job) | Ahmed | TRVL-106 | #4, #57, #59, #60, #72, #85, #105, #111, #117, #171 | Done |
 | GEN-12 | Mandatory | npm run seed (countries, cities, airports, attractions, currencies); GET /api/countries; GET /api/cities; GET /api/currencies | Joudy | TRVL-110 | #6 | Done |
