@@ -90,7 +90,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | HTL-11 | Mandatory | GET /api/hotels/search | Sandra | TRVL-56 | #102 | Done |
 | HTL-12 | Mandatory | GET /api/hotels/search | Sandra | TRVL-57 | #115 | Done |
 | HTL-15 | Mandatory | GET /api/hotels/:id/rooms/available | Sandra | TRVL-58 | #121 | Done |
-| HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60, #173 | Done |
+| HTL-16 | Mandatory | POST /api/hotel-bookings | Ahmed | TRVL-59 | #60, #173, #174 | Done |
 | HTL-17 | Mandatory | payment webhook -> hotel reservation confirmed | Ahmed | TRVL-60 | #60, #62, #71, #171, #173 | Done |
 | HTL-18 | Mandatory | POST /api/hotel-bookings; GET /api/hotel-bookings/:id; hold-expiry job | Ahmed | TRVL-61 | #60, #171, #173 | Done |
 | HTL-20 | Mandatory | GET /api/hotel-bookings?group=UPCOMING\|PAST\|CANCELLED; GET /api/hotel-bookings/:id | Karim | TRVL-62 | #108 | Done |
