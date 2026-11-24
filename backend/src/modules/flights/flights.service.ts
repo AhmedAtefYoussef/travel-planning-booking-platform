@@ -477,11 +477,12 @@ export class FlightsService {
   ): Promise<Page<FlightDto>> {
     assertProviderScope(user, ProviderType.Airline, airlineId);
     // 404 if the moderator's airline was removed (deactivated airlines still list their flights).
-    await this.airlines.load(airlineId);
-    const filter: FilterQuery<Flight> = {
-      airlineId: new Types.ObjectId(airlineId),
-    };
-    if (query.status) filter.status = query.status;
+    const airline = await this.airlines.load(airlineId);
+    // Built from the stored airline and the enum's own values, so no request value reaches the query
+    // (CodeQL js/sql-injection), even though both were validated already.
+    const filter: FilterQuery<Flight> = { airlineId: airline._id };
+    const status = Object.values(FlightStatus).find((s) => s === query.status);
+    if (status) filter.status = status;
     const [docs, total] = await Promise.all([
       this.flights
         .find(filter)
