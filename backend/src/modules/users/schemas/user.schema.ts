@@ -92,7 +92,6 @@ export class User {
     enum: Object.values(AccountStatus),
     required: true,
     default: AccountStatus.Active,
-    index: true,
   })
   status!: AccountStatus;
 
@@ -131,6 +130,7 @@ export const UserSchema = SchemaFactory.createForClass(User);
 // ACC-14: admin list sorted by registration date, newest first.
 UserSchema.index({ createdAt: -1 });
 // ACC-12, TRVL-181: the index-covered count of deactivated accounts behind UsersService.deactivatedIds().
+// Declared only here (not also with `index: true` on the field), so Mongoose does not warn about a duplicate.
 UserSchema.index({ status: 1 });
 
 /**
