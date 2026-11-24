@@ -66,10 +66,14 @@ export class Report {
 export type ReportDocument = HydratedDocument<Report>;
 export const ReportSchema = SchemaFactory.createForClass(Report);
 
-/** GEN-09 "at most once per item": also stops two simultaneous reports (E11000 -> 409). */
+/**
+ * GEN-09 "at most once per item": also stops two simultaneous reports (E11000 -> 409). It keeps
+ * MongoDB's default name (reporterId_1_targetType_1_targetId_1): the shared database already has this
+ * index under that name, and a second name for the same index makes startup fail with error 85.
+ */
 ReportSchema.index(
   { reporterId: 1, targetType: 1, targetId: 1 },
-  { unique: true, name: 'one_report_per_user_and_item' },
+  { unique: true },
 );
 /** GEN-10 admin queue: open reports, oldest or newest first. */
 ReportSchema.index({ status: 1, createdAt: -1 });
