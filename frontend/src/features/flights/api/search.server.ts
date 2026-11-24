@@ -1,4 +1,5 @@
 import 'server-only';
+import { connection } from 'next/server';
 import { serverApi } from '@/shared/api/server';
 import type { Page, Schemas } from '@/shared/api/types';
 import { toMinorUnits } from '@/shared/lib/format';
@@ -53,6 +54,8 @@ export async function searchFlights(
   search: FlightSearch,
   currency: string,
 ): Promise<SearchOutcome> {
+  // Live seats and prices: never prerendered, always read per request (Cache Components).
+  await connection();
   const api = await serverApi();
   const query = toApiQuery(search, (n) => toMinorUnits(n, currency));
   try {
