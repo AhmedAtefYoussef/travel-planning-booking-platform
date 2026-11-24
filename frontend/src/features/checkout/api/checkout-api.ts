@@ -1,6 +1,7 @@
 import { api, unwrap } from '@/shared/api/client';
 import type { Schemas } from '@/shared/api/types';
 import { KINDS, type CheckoutKind } from '../model/kinds';
+import type { HotelBookingBody } from '../model/rooms';
 
 export type FlightBooking = Schemas['FlightBookingDto'];
 export type HotelReservation = Schemas['HotelReservationDto'];
@@ -89,6 +90,19 @@ export function quoteFlight(
 /** FLT-22: holds the seats for 10 minutes and creates the booking in PENDING_PAYMENT. */
 export function holdFlight(body: FlightBookingRequest): Promise<FlightBooking> {
   return unwrap(api.POST('/api/flight-bookings/hold', { body }));
+}
+
+/**
+ * HTL-16/HTL-18: holds the rooms for 10 minutes and creates the reservation in PENDING_PAYMENT.
+ * The generated type lists childrenAges as strings because the DTO's Swagger decorator lacks
+ * `type: [Number]`; the API validates and expects whole numbers, so numbers are sent.
+ */
+export function holdHotel(body: HotelBookingBody): Promise<HotelReservation> {
+  return unwrap(
+    api.POST('/api/hotel-bookings', {
+      body: body as unknown as Schemas['HotelBookingRequestDto'],
+    }),
+  );
 }
 
 /** Same-origin URL of the flight e-ticket PDF (FLT-23); the browser sends the session cookie. */
