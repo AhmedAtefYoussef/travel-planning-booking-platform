@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
@@ -299,6 +299,7 @@ function PassengerCard({
   bagPrice: string;
 }) {
   const { register, control } = form;
+  const titleId = useId();
   const own = useWatch({ control, name: `passengers.${index}` });
   const errs = form.formState.errors.passengers?.[index];
   const dob = typeof own?.dateOfBirth === 'string' ? own.dateOfBirth : '';
@@ -308,14 +309,13 @@ function PassengerCard({
 
   return (
     <Card>
-      <fieldset className="grid gap-4">
+      {/* A <legend> only names its fieldset as the first child, so the card title names it instead. */}
+      <fieldset className="grid gap-4" aria-labelledby={titleId}>
         <CardHeader>
-          <legend className="contents">
-            <CardTitle className="flex items-center gap-2">
-              Passenger {index + 1}
-              <Badge variant="outline">{TYPE_LABEL[expected]}</Badge>
-            </CardTitle>
-          </legend>
+          <CardTitle id={titleId} className="flex items-center gap-2">
+            Passenger {index + 1}
+            <Badge variant="outline">{TYPE_LABEL[expected]}</Badge>
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <FormField

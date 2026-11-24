@@ -109,6 +109,29 @@ holds the seats and runs policies, payment and confirmation.
   empty), for up to 10 rooms in the same hotel and at most 30 nights. Guests can be adjusted in checkout.
 - Build the pay link with `payPath(kind, bookingId)` from `@/features/checkout`.
 
+## End-to-end tests (TRVL-160)
+
+Playwright drives the built frontend against the built API on an **in-memory database** that is
+seeded with the reference data and the demo accounts. It never reads `backend/.env`, so it cannot
+touch the shared Atlas database or a real Stripe account. CI runs it (`e2e` job) whenever the backend
+or frontend changes.
+
+```bash
+cd backend && npm run build          # the API the suite starts (backend/dist)
+cd ../frontend
+npm run e2e:install                  # once: the Chromium build Playwright uses
+npm run e2e:build                    # builds this app pointed at the e2e API (port 3100)
+npm run e2e                          # starts DB + API (3100) + app (3101), runs e2e/*.spec.ts
+```
+
+- Specs live in `e2e/`. Sign in with `signIn(page, 'traveller' | 'airlineModerator' | 'hotelModerator' |
+'admin')` and read the seeded flight, hotel and room ids with `demo()` (both in `e2e/support.ts`).
+- **When your page lands, add a spec for its main flow** (one file per feature). Tag a test `@mobile`
+  to also run it on a phone viewport.
+- Card payments need real Stripe test keys, so specs stop at the Pay step; pay manually as described in
+  #171.
+- A failed CI run uploads the `playwright-report` artifact with traces and screenshots.
+
 ## Rules every page follows
 
 - **No tokens in JavaScript (ACC-19).** The session lives in httpOnly cookies. Never use

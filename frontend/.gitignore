@@ -43,3 +43,10 @@ next-env.d.ts
 
 # generated from ../docs/api/openapi.json by `npm run api:types`
 /src/shared/api/schema.d.ts
+
+# end-to-end suite (Playwright)
+/e2e/.state/
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

@@ -5,7 +5,7 @@ import { MinusIcon, PlusIcon } from 'lucide-react';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Controller,
   useFieldArray,
@@ -287,6 +287,7 @@ function RoomCard({
   onRemove: () => void;
 }) {
   const { control } = form;
+  const titleId = useId();
   const own = useWatch({ control, name: `rooms.${index}` });
   const errs = form.formState.errors.rooms?.[index];
   const adults = Number(own?.adults) || 0;
@@ -302,14 +303,13 @@ function RoomCard({
 
   return (
     <Card>
-      <fieldset className="grid gap-4">
+      {/* A <legend> only names its fieldset as the first child, so the card title names it instead. */}
+      <fieldset className="grid gap-4" aria-labelledby={titleId}>
         <CardHeader>
-          <legend className="contents">
-            <CardTitle className="flex flex-wrap items-center gap-2">
-              Room {room.number}
-              <Badge variant="outline">{room.type}</Badge>
-            </CardTitle>
-          </legend>
+          <CardTitle id={titleId} className="flex flex-wrap items-center gap-2">
+            Room {room.number}
+            <Badge variant="outline">{room.type}</Badge>
+          </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="grid gap-1 text-sm">

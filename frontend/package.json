@@ -21,7 +21,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "e2e:install": "playwright install chromium",
+    "e2e:build": "node e2e/build.mjs",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "7.0.5",
@@ -43,6 +46,7 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.0",
     "@tailwindcss/turbopack": "4.3.5",
     "@testing-library/dom": "10.4.2",
     "@testing-library/jest-dom": "7.0.1",

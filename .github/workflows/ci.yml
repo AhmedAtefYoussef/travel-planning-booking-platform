@@ -199,6 +199,55 @@ jobs:
       - if: steps.app.outputs.present == 'true'
         run: npm run build
 
+  e2e:
+    name: e2e
+    needs: changes
+    # The built frontend against the built API on an in-memory database (TRVL-160): runs when either side
+    # changes, so a backend contract change that breaks a page fails here.
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGOMS_DOWNLOAD_DIR: ${{ github.workspace }}/.cache/mongodb-binaries
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - uses: actions/cache@v6
+        with:
+          path: ${{ github.workspace }}/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+      - name: Build the API
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+      - name: Install the frontend and Chromium
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Build the frontend for the e2e stack
+        working-directory: frontend
+        run: npm run e2e:build
+      - name: End-to-end tests (Playwright)
+        working-directory: frontend
+        run: npm run e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   workflow-lint:
     name: workflow-lint
     needs: changes
