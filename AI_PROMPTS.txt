@@ -2841,3 +2841,17 @@ that schema only (the full export also reorders unrelated path parameters, which
 removed the cast in the frontend's holdHotel call now that the generated type is number[]. I ran the
 backend bookings tests, the OpenAPI contract and architecture checks, and the frontend checks and build.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: ACC-19 (TRVL-145)
+Prompt:
+Refresh the committed OpenAPI snapshot so it matches what the backend generates.
+How the output was used:
+Claude re-exported docs/api/openapi.json, checked that two exports in a row are identical, and confirmed
+the diff holds only the path-parameter order the current NestJS versions emit and the corrected login
+description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
+OpenAPI contract check and the frontend typecheck, tests and build.
+================================================
