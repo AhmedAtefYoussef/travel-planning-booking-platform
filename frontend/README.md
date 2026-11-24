@@ -37,6 +37,7 @@ must succeed without any env file, so every variable has a safe default (`src/sh
 | ------------------------------------ | ----------- | -------------------------------------------------------------------------------------------- |
 | `BACKEND_URL`                        | server only | API origin for the `/api` rewrite and server-side requests (default `http://localhost:3000`) |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | browser     | Stripe **test-mode** publishable key (`pk_test_…`) for checkout                              |
+| `NEXT_PUBLIC_PLATFORM_CURRENCY`      | browser     | The backend's `PLATFORM_CURRENCY`, for prices shown before a booking exists (default `USD`)  |
 
 `NEXT_PUBLIC_*` values are inlined at build time. Never put a secret in one.
 
@@ -96,13 +97,16 @@ In client components, `useAuth()` (from `@/features/auth`) gives `{ state, reloa
 Search and booking pages hand over to checkout with a plain link. Checkout reloads the flights,
 holds the seats and runs policies, payment and confirmation.
 
-| From                  | Link                                                                                                         |
-| --------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Flight search (FE-06) | `/checkout/flight?outbound=<flightId>:<cabinId>&return=<flightId>:<cabinId>&adults=1&children=0&infants=0`   |
-| My bookings (FE-10)   | `/checkout/flight/<bookingId>` or `/checkout/hotel/<bookingId>` to resume paying a `PENDING_PAYMENT` booking |
+| From                  | Link                                                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Flight search (FE-06) | `/checkout/flight?outbound=<flightId>:<cabinId>&return=<flightId>:<cabinId>&adults=1&children=0&infants=0`                        |
+| Hotel search (FE-08)  | `/checkout/hotel?hotelId=<id>&checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD&rooms=<roomId>:<adults>:<age,age>` (repeat `rooms` per room) |
+| My bookings (FE-10)   | `/checkout/flight/<bookingId>` or `/checkout/hotel/<bookingId>` to resume paying a `PENDING_PAYMENT` booking                      |
 
 - `return` is only for round trips. The passenger counts default to 1 adult and must satisfy the API's
   rules (at least one adult, no more infants than adults, at most 9 in total).
+- For hotels, each `rooms` value is `<roomId>:<adults>:<child ages>` (ages 0-17, comma-separated, may be
+  empty), for up to 10 rooms in the same hotel and at most 30 nights. Guests can be adjusted in checkout.
 - Build the pay link with `payPath(kind, bookingId)` from `@/features/checkout`.
 
 ## Rules every page follows

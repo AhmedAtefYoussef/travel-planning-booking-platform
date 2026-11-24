@@ -18,6 +18,15 @@ const publicSchema = z.object({
     .regex(/^pk_(test|live)_\w+$/, 'must be a Stripe publishable key (pk_...)')
     .optional()
     .or(z.literal('').transform(() => undefined)),
+  /**
+   * The API prices everything in one currency (backend PLATFORM_CURRENCY, PAY-04). Used to show
+   * room and fare prices before a booking exists; bookings and quotes carry their own `currency`.
+   */
+  NEXT_PUBLIC_PLATFORM_CURRENCY: z
+    .string()
+    .regex(/^[A-Z]{3}$/, 'must be a 3-letter ISO currency code')
+    .default('USD')
+    .or(z.literal('').transform(() => 'USD')),
 });
 
 export type ServerEnv = z.infer<typeof serverSchema>;
@@ -37,4 +46,5 @@ export function readServerEnv(
 export const publicEnv: PublicEnv = publicSchema.parse({
   NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,
+  NEXT_PUBLIC_PLATFORM_CURRENCY: process.env.NEXT_PUBLIC_PLATFORM_CURRENCY,
 });

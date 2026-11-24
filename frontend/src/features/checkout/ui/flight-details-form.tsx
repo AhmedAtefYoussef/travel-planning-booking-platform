@@ -9,6 +9,7 @@ import { useForm, useWatch, type UseFormReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 import type { z } from 'zod';
 import { isApiError } from '@/shared/api/errors';
+import { publicEnv } from '@/shared/config/env';
 import { ROUTES } from '@/shared/config/routes';
 import { applyApiErrors } from '@/shared/forms/api-errors';
 import { formatInZone, formatMoney } from '@/shared/lib/format';
@@ -47,7 +48,7 @@ const HOLD_BLOCKERS = new Set([
   'NOT_FOUND',
 ]);
 const QUOTE_DEBOUNCE_MS = 500;
-const FALLBACK_CURRENCY = 'USD';
+const FALLBACK_CURRENCY = publicEnv.NEXT_PUBLIC_PLATFORM_CURRENCY;
 
 type Schema = ReturnType<typeof passengerFormSchema>;
 type FormIn = z.input<Schema>;
