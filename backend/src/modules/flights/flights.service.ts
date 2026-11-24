@@ -1,7 +1,7 @@
 import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { DateTime } from 'luxon';
-import { Model, Types } from 'mongoose';
+import { Model, Types, type FilterQuery } from 'mongoose';
 import { assertProviderScope } from '../../common/auth/access';
 import { AuthUser, ProviderType } from '../../common/auth/auth.types';
 import {
@@ -14,8 +14,15 @@ import type { FieldError } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { ValidationFailedException } from '../../common/errors/app.exception';
 import { InvalidInputError } from '../../common/errors/invalid-input.error';
+import {
+  PAGE_SIZE,
+  skipFor,
+  toPage,
+  type Page,
+} from '../../common/pagination/pagination';
 import { localToUtc, utcToLocalIso } from '../../common/utils/dates';
 import { AirlinesService } from './airlines.service';
+import type { AirlineFlightsQueryDto } from './dto/airline-flights.dto';
 import type { CreateCabinDto, UpdateCabinDto } from './dto/cabin.dto';
 import type {
   CreateFlightDto,
@@ -456,6 +463,53 @@ export class FlightsService {
         flight.departureUtc > now &&
         airline.isActive,
     };
+  }
+
+  /**
+   * FLT-03 / FE-07: the flights of one airline for its moderator's dashboard, 10 per page (GEN-05),
+   * soonest departure first, with local times (GEN-06). Only the moderator assigned to this airline
+   * may list them (403 otherwise, ACC-11); a missing airline is 404, a deactivated one still lists.
+   */
+  async listForAirline(
+    user: AuthUser,
+    airlineId: string,
+    query: AirlineFlightsQueryDto,
+  ): Promise<Page<FlightDto>> {
+    assertProviderScope(user, ProviderType.Airline, airlineId);
+    // 404 if the moderator's airline was removed (deactivated airlines still list their flights).
+    const airline = await this.airlines.load(airlineId);
+    // Built from the stored airline and the enum's own values, so no request value reaches the query
+    // (CodeQL js/sql-injection), even though both were validated already.
+    const filter: FilterQuery<Flight> = { airlineId: airline._id };
+    const status = Object.values(FlightStatus).find((s) => s === query.status);
+    if (status) filter.status = status;
+    const [docs, total] = await Promise.all([
+      this.flights
+        .find(filter)
+        .sort({ departureUtc: 1, _id: 1 })
+        .skip(skipFor(query.page))
+        .limit(PAGE_SIZE)
+        .exec(),
+      this.flights.countDocuments(filter).exec(),
+    ]);
+    const zones = await this.zonesFor(docs);
+    return toPage(
+      docs.map((d) => toFlightDto(d, zones)),
+      total,
+      query.page,
+    );
+  }
+
+  /** Time zones for every airport on a page of flights, each looked up once. */
+  private async zonesFor(flights: FlightDocument[]): Promise<AirportZones> {
+    const codes = [...new Set(flights.flatMap((f) => [f.from, f.to]))];
+    const airports = await Promise.all(
+      codes.map((c) => this.reference.getAirport(c)),
+    );
+    const missing = codes.filter((_, i) => !airports[i]);
+    if (missing.length)
+      throw new Error(`Reference airport missing: ${missing.join(', ')}`);
+    return zonesOf(...(airports as Airport[]));
   }
 
   /**

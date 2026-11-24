@@ -4471,6 +4471,128 @@
         ]
       }
     },
+    "/api/airlines/{id}/flights": {
+      "get": {
+        "description": "For the moderator dashboard (FE-07). Only the moderator assigned to this airline (403 otherwise, ACC-11); 404 if that airline no longer exists. 10 per page (GEN-05), soonest departure first, each time also in the airport's local time (GEN-06). Without status every flight is listed, including Cancelled and Departed ones, so their bookings and passenger list (FLT-29) stay reachable.",
+        "operationId": "AirlinesController_listFlights",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Airline id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "Page number (page size is fixed at 10, GEN-05)",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100000,
+              "default": 1,
+              "example": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Only flights with this status; omit it to list all of them",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "SCHEDULED",
+                "CANCELLED",
+                "DEPARTED"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of FlightDto (page size 10, GEN-05)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PaginatedResponseDto"
+                    },
+                    {
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/FlightDto"
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed request (body contains fieldErrors, GEN-02)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated or session expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed (role, ownership or provider scope)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access_token": []
+          },
+          {
+            "dev-user": []
+          }
+        ],
+        "summary": "FLT-03 Airline moderator lists their airline's flights",
+        "tags": [
+          "Airlines"
+        ]
+      }
+    },
     "/api/airlines/{id}/cancellation-policy/refund-preview": {
       "get": {
         "description": "Applies the FLT-09 rule to this airline's tiers: the tier with the highest threshold not exceeding daysRemaining is used; if none applies the refund is 0%. Example with tiers 30/100%, 7/50%, 1/25%: 10 days gives 50%, 7 days gives 50%, 0 days gives 0%.",
