@@ -2866,6 +2866,6 @@ Add a small endpoint that lists an airline moderator's own flights for the FE-07
 only, 10 per page, optional status filter, sorted by departure, with tests and Swagger.
 How the output was used:
 Claude added GET /api/airlines/:id/flights (AirlineFlightsQueryDto, FlightsService.listForAirline) with
-an airlineId + departureUtc index, unit tests for paging, sort, filter and scope, and an e2e spec for
-200/400/401/403. I reviewed the code and ran lint, typecheck, unit tests and the architecture check.
+an airlineId + departureUtc index, unit tests for paging, sort, filter, scope and 404, and an e2e spec for
+200/400/401/403/404. I reviewed the code and ran lint, typecheck, unit tests and the architecture check.
 ================================================

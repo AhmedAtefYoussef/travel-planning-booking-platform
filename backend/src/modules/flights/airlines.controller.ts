@@ -275,11 +275,11 @@ export class AirlinesController {
   @ApiOperation({
     summary: "FLT-03 Airline moderator lists their airline's flights",
     description:
-      "For the moderator dashboard (FE-07). Only the moderator assigned to this airline (403 otherwise, ACC-11). 10 per page (GEN-05), soonest departure first, each time also in the airport's local time (GEN-06). Without status every flight is listed, including Cancelled and Departed ones, so their bookings and passenger list (FLT-29) stay reachable.",
+      "For the moderator dashboard (FE-07). Only the moderator assigned to this airline (403 otherwise, ACC-11); 404 if that airline no longer exists. 10 per page (GEN-05), soonest departure first, each time also in the airport's local time (GEN-06). Without status every flight is listed, including Cancelled and Departed ones, so their bookings and passenger list (FLT-29) stay reachable.",
   })
   @ApiParam({ name: 'id', description: 'Airline id' })
   @ApiPaginatedResponse(FlightDto)
-  @ApiErrorResponses(400)
+  @ApiErrorResponses(400, 404)
   listFlights(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseObjectIdPipe) id: string,

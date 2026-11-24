@@ -141,6 +141,17 @@ describe('Airline flights list (e2e): FLT-03 / FE-07', () => {
     await list('', null).expect(401);
   });
 
+  it("returns 404 when the moderator's airline does not exist", async () => {
+    const ghost = new Types.ObjectId().toHexString();
+    await http()
+      .get(`/api/airlines/${ghost}/flights`)
+      .set(
+        'x-dev-user',
+        `AIRLINE_MODERATOR:${new Types.ObjectId().toHexString()}:${ghost}`,
+      )
+      .expect(404);
+  });
+
   it('rejects an airline id that is not an ObjectId', async () => {
     await http()
       .get('/api/airlines/not-an-id/flights')

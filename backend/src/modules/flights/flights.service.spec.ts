@@ -936,13 +936,16 @@ describe('FlightsService.listForAirline (FLT-03, FE-07)', () => {
         Promise.resolve(AIRPORTS[code] ?? null),
       ),
     } as unknown as ReferenceService;
+    const airlines = {
+      load: jest.fn(() => Promise.resolve({ _id: airlineId })),
+    } as unknown as AirlinesService;
     const service = new FlightsService(
       model as unknown as Model<Flight>,
       reference,
-      activeAirline(),
+      airlines,
       silentNotifier(),
     );
-    return { service, model, query, reference };
+    return { service, model, query, reference, airlines };
   }
 
   const flightDoc = (from: string, to: string, departure: string) => ({
@@ -1017,6 +1020,17 @@ describe('FlightsService.listForAirline (FLT-03, FE-07)', () => {
         page: 1,
       }),
     ).rejects.toMatchObject({ status: 403 });
+    expect(model.find).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the moderator's airline no longer exists", async () => {
+    const { service, airlines, model } = listSetup([], 0);
+    (airlines.load as jest.Mock).mockRejectedValueOnce(
+      Object.assign(new Error('Airline not found'), { status: 404 }),
+    );
+    await expect(
+      service.listForAirline(moderator, airlineId.toHexString(), { page: 1 }),
+    ).rejects.toMatchObject({ status: 404 });
     expect(model.find).not.toHaveBeenCalled();
   });
 });

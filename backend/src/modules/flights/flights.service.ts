@@ -468,7 +468,7 @@ export class FlightsService {
   /**
    * FLT-03 / FE-07: the flights of one airline for its moderator's dashboard, 10 per page (GEN-05),
    * soonest departure first, with local times (GEN-06). Only the moderator assigned to this airline
-   * may list them (403 otherwise, ACC-11); a deactivated airline's moderator can still see them.
+   * may list them (403 otherwise, ACC-11); a missing airline is 404, a deactivated one still lists.
    */
   async listForAirline(
     user: AuthUser,
@@ -476,6 +476,8 @@ export class FlightsService {
     query: AirlineFlightsQueryDto,
   ): Promise<Page<FlightDto>> {
     assertProviderScope(user, ProviderType.Airline, airlineId);
+    // 404 if the moderator's airline was removed (deactivated airlines still list their flights).
+    await this.airlines.load(airlineId);
     const filter: FilterQuery<Flight> = {
       airlineId: new Types.ObjectId(airlineId),
     };
