@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { connection } from 'next/server';
 import { Suspense } from 'react';
 import {
   parseLeg,
@@ -53,6 +54,8 @@ async function SearchSection({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  // The default dates are relative to today, so read the clock only at request time (Cache Components).
+  await connection();
   const parsed = parseSearch(params);
   let airports;
   try {
