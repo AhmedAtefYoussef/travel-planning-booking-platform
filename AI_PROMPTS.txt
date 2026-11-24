@@ -2855,3 +2855,18 @@ the diff holds only the path-parameter order the current NestJS versions emit an
 description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
 OpenAPI contract check and the frontend typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Joudy
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: FE-06 (TRVL-150): FLT-11, FLT-12, FLT-15, FLT-17
+Prompt:
+Build the flight search, results and flight details pages on the M2 frontend setup, following the
+features/ layering, with the search kept in the URL, local airport times and a direct path to checkout.
+How the output was used:
+Claude wrote features/flights (pure URL parsing and validation, checkout and details links, server
+adapters for search, details and the cached airport list, the form, toolbar, result cards and details
+view) and the /flights and /flights/[id] routes. Unit and component tests found a render loop in the
+first form draft, which was fixed. I reviewed the code and ran lint, typecheck, the tests and the build.
+================================================

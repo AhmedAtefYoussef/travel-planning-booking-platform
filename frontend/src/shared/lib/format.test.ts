@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { formatCalendarDate, formatInZone, formatMoney } from './format';
+import {
+  formatCalendarDate,
+  formatInZone,
+  formatMoney,
+  toMinorUnits,
+} from './format';
 
 describe('formatMoney', () => {
   it('treats amounts as minor units (EGP, 2 digits)', () => {
@@ -40,5 +45,14 @@ describe('formatCalendarDate', () => {
     expect(out).toContain('Mar');
     expect(out).toContain('2026');
     expect(out).not.toContain('Feb');
+  });
+});
+
+describe('toMinorUnits', () => {
+  it('converts typed major units to integer minor units per currency', () => {
+    expect(toMinorUnits(125.5, 'USD')).toBe(12550);
+    expect(toMinorUnits(1234, 'JPY')).toBe(1234);
+    expect(toMinorUnits(1.2345, 'KWD')).toBe(1235);
+    expect(toMinorUnits(0.29, 'EGP')).toBe(29);
   });
 });

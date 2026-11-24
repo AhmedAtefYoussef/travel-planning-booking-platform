@@ -3,6 +3,14 @@
  * returned currency (e.g. 12500 EGP = 125.00 EGP); dates arrive as ISO strings.
  */
 
+/**
+ * An amount the user typed in major units (e.g. 125.5 USD) as integer minor units (12550), for API
+ * fields such as `minPriceMinor`. Rounded to the currency's minor unit.
+ */
+export function toMinorUnits(amount: number, currency: string): number {
+  return Math.round(amount * 10 ** minorDigits(currency));
+}
+
 /** Minor units per currency, from Intl (JPY has 0, KWD 3, most 2). */
 function minorDigits(currency: string): number {
   try {
