@@ -1,4 +1,5 @@
 import 'server-only';
+import { connection } from 'next/server';
 import { cache } from 'react';
 import { serverApi } from '@/shared/api/server';
 import type { Schemas } from '@/shared/api/types';
@@ -16,6 +17,8 @@ export const getFlight = cache(async function getFlight(
   id: string,
 ): Promise<FlightDetails | null> {
   if (!MONGO_ID.test(id)) return null;
+  // Live seats and bookability: never prerendered, always read per request (Cache Components).
+  await connection();
   const api = await serverApi();
   const { data, response } = await api.GET('/api/flights/{id}', {
     params: { path: { id } },
