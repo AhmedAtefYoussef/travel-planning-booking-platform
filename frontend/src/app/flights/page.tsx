@@ -73,14 +73,14 @@ async function SearchSection({
     <>
       <SearchForm
         // A new URL (back/forward, a shared link) resets the form to what it describes.
-        key={toQueryString(parsed.values)}
+        key={`form:${toQueryString(parsed.values)}`}
         airports={airports}
         values={parsed.values}
         errors={errors}
       />
       {parsed.status === 'ok' ? (
         <Suspense
-          key={toQueryString(parsed.search, parsed.search)}
+          key={`results:${toQueryString(parsed.search, parsed.search)}`}
           fallback={<ResultsSkeleton />}
         >
           <Results
