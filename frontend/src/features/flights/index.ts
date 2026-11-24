@@ -14,3 +14,4 @@ export {
 } from './model/links';
 export { SearchForm, type AirportOption } from './ui/search-form';
 export { ResultsToolbar } from './ui/results-toolbar';
+export { AirlineLogo } from './ui/airline-logo';
