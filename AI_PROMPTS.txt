@@ -2901,3 +2901,19 @@ dashboard tabs. It found that two backend classes share the Swagger name Airline
 page reads the airline policy with its real shape. I reviewed the code and ran lint, typecheck, the
 tests and the build.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Joudy
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-09, ACC-12 (backend startup against the shared database)
+Prompt:
+The backend fails at startup with MongoServerError 85 (index already exists with a different name:
+reporterId_1_targetType_1_targetId_1) and warns about a duplicate index on {"status":1}. Find why and
+propose the smallest code-only fix, without dropping, renaming or changing anything in the database.
+How the output was used:
+Claude found that report.schema.ts names the unique index one_report_per_user_and_item while the shared
+database already has the same index under MongoDB's default name, and that users.status was indexed
+twice. It removed the custom name and the duplicate declaration, and added a read-only npm run db:indexes
+check. I reviewed the change and ran the backend unit tests, lint and the architecture check.
+================================================
