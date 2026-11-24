@@ -39,6 +39,7 @@ export class RoomGuestsInputDto {
   adults!: number;
 
   @ApiProperty({
+    type: [Number],
     example: [6],
     required: false,
     default: [],
