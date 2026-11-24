@@ -13,6 +13,8 @@ export function applyApiErrors<T extends FieldValues>(
   error: unknown,
   setError: UseFormSetError<T>,
   knownFields: readonly string[],
+  /** false for background checks (e.g. a live price quote) so focus never jumps while typing. */
+  { focus = true }: { focus?: boolean } = {},
 ): string | null {
   if (!isApiError(error)) return 'Something went wrong. Please try again.';
   const known = new Set(knownFields);
@@ -24,7 +26,7 @@ export function applyApiErrors<T extends FieldValues>(
       setError(
         field as Path<T>,
         { type: 'server', message },
-        { shouldFocus: !placedAny },
+        { shouldFocus: focus && !placedAny },
       );
       placedAny = true;
     } else {

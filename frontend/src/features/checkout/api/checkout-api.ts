@@ -75,6 +75,22 @@ export function retryPayment(paymentId: string): Promise<Payment> {
   );
 }
 
+export type FlightQuote = Schemas['FlightQuoteDto'];
+export type FlightBookingRequest = Schemas['FlightBookingRequestDto'];
+
+/** FLT-21: prices the selection (fares, infant fares, extra bags, total) without holding anything. */
+export function quoteFlight(
+  body: FlightBookingRequest,
+  signal?: AbortSignal,
+): Promise<FlightQuote> {
+  return unwrap(api.POST('/api/flight-bookings/quote', { body, signal }));
+}
+
+/** FLT-22: holds the seats for 10 minutes and creates the booking in PENDING_PAYMENT. */
+export function holdFlight(body: FlightBookingRequest): Promise<FlightBooking> {
+  return unwrap(api.POST('/api/flight-bookings/hold', { body }));
+}
+
 /** Same-origin URL of the flight e-ticket PDF (FLT-23); the browser sends the session cookie. */
 export function eTicketUrl(bookingId: string): string {
   return `/api/flight-bookings/${encodeURIComponent(bookingId)}/e-ticket`;

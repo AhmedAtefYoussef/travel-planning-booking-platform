@@ -5,5 +5,7 @@ export {
   KINDS,
   type CheckoutKind,
 } from './model/kinds';
+export { parseFlightSelection, type FlightSelection } from './model/passengers';
 export { CheckoutFlow } from './ui/checkout-flow';
+export { FlightDetailsForm } from './ui/flight-details-form';
 export { BookingSummary } from './ui/booking-summary';
