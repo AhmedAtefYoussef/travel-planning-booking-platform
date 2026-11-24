@@ -705,7 +705,7 @@
     },
     "/api/auth/login": {
       "post": {
-        "description": "Works for users, admins and moderators. On success it sets two httpOnly, SameSite=Lax cookies (Secure when COOKIE_SECURE=true): `access_token` (JWT, JWT_ACCESS_TTL, path /api) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). No token is ever returned in the body (ACC-19); the body has the profile and `homePath`, the role's home page. Unknown email or wrong password: 401 INVALID_CREDENTIALS \"Invalid email or password\". Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ACC-05: the 5th consecutive wrong password locks the account for 15 minutes and returns 403 ACCOUNT_LOCKED with the minutes left; during the lock even the right password is refused. A successful login resets the counter. At most 5 logins of one account are checked at the same instant; extra simultaneous requests get 429 TOO_MANY_REQUESTS (no lock). One IP may call login and register at most 10 times a minute each (429 with Retry-After). In Swagger, after logging in, every \"Try it out\" call sends the cookie automatically.",
+        "description": "Works for users, admins and moderators. On success it sets two httpOnly, SameSite=Lax cookies (Secure when COOKIE_SECURE=true): `access_token` (JWT, JWT_ACCESS_TTL, path /) and `refresh_token` (random, stored hashed, JWT_REFRESH_TTL, path /api/auth). No token is ever returned in the body (ACC-19); the body has the profile and `homePath`, the role's home page. Unknown email or wrong password: 401 INVALID_CREDENTIALS \"Invalid email or password\". Suspended account (correct password): 403 ACCOUNT_SUSPENDED. ACC-05: the 5th consecutive wrong password locks the account for 15 minutes and returns 403 ACCOUNT_LOCKED with the minutes left; during the lock even the right password is refused. A successful login resets the counter. At most 5 logins of one account are checked at the same instant; extra simultaneous requests get 429 TOO_MANY_REQUESTS (no lock). One IP may call login and register at most 10 times a minute each (429 with Retry-After). In Swagger, after logging in, every \"Try it out\" call sends the cookie automatically.",
         "operationId": "AuthController_login",
         "parameters": [],
         "requestBody": {
@@ -3496,6 +3496,15 @@
         "operationId": "BookingPoliciesController_show",
         "parameters": [
           {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Booking or reservation id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "type",
             "required": true,
             "in": "path",
@@ -3505,15 +3514,6 @@
                 "flight",
                 "hotel"
               ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Booking or reservation id",
-            "schema": {
               "type": "string"
             }
           }
@@ -3600,6 +3600,15 @@
         "operationId": "BookingPoliciesController_accept",
         "parameters": [
           {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Booking or reservation id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "type",
             "required": true,
             "in": "path",
@@ -3609,15 +3618,6 @@
                 "flight",
                 "hotel"
               ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "Booking or reservation id",
-            "schema": {
               "type": "string"
             }
           }
@@ -11028,6 +11028,16 @@
         "operationId": "ProviderActivationController_deactivate",
         "parameters": [
           {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The airline or hotel id",
+            "schema": {
+              "example": "6730c5f1e4b0a1b2c3d4e5aa",
+              "type": "string"
+            }
+          },
+          {
             "name": "type",
             "required": true,
             "in": "path",
@@ -11037,16 +11047,6 @@
                 "airline",
                 "hotel"
               ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "The airline or hotel id",
-            "schema": {
-              "example": "6730c5f1e4b0a1b2c3d4e5aa",
               "type": "string"
             }
           }
@@ -11161,6 +11161,16 @@
         "operationId": "ProviderActivationController_reactivate",
         "parameters": [
           {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "The airline or hotel id",
+            "schema": {
+              "example": "6730c5f1e4b0a1b2c3d4e5aa",
+              "type": "string"
+            }
+          },
+          {
             "name": "type",
             "required": true,
             "in": "path",
@@ -11170,16 +11180,6 @@
                 "airline",
                 "hotel"
               ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "The airline or hotel id",
-            "schema": {
-              "example": "6730c5f1e4b0a1b2c3d4e5aa",
               "type": "string"
             }
           }
@@ -14084,21 +14084,6 @@
         "operationId": "AdminModerationController_hide",
         "parameters": [
           {
-            "name": "type",
-            "required": true,
-            "in": "path",
-            "description": "Content type in lower case; anything else is 400",
-            "schema": {
-              "enum": [
-                "post",
-                "comment",
-                "review",
-                "itinerary"
-              ],
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -14114,6 +14099,21 @@
               }
             },
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "description": "Content type in lower case; anything else is 400",
+            "schema": {
+              "enum": [
+                "post",
+                "comment",
+                "review",
+                "itinerary"
+              ],
               "type": "string"
             }
           }
@@ -14200,21 +14200,6 @@
         "operationId": "AdminModerationController_remove",
         "parameters": [
           {
-            "name": "type",
-            "required": true,
-            "in": "path",
-            "description": "Content type in lower case; anything else is 400",
-            "schema": {
-              "enum": [
-                "post",
-                "comment",
-                "review",
-                "itinerary"
-              ],
-              "type": "string"
-            }
-          },
-          {
             "name": "id",
             "required": true,
             "in": "path",
@@ -14230,6 +14215,21 @@
               }
             },
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "description": "Content type in lower case; anything else is 400",
+            "schema": {
+              "enum": [
+                "post",
+                "comment",
+                "review",
+                "itinerary"
+              ],
               "type": "string"
             }
           }
