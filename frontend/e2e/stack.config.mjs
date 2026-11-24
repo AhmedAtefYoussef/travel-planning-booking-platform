@@ -37,9 +37,10 @@ export function backendEnv(mongoUri) {
     SESSION_IDLE_MINUTES: '30',
     COOKIE_SECURE: 'false',
     PLATFORM_CURRENCY: 'USD',
-    // Placeholders: card payments need real Stripe test keys, so the suite stops before charging.
-    STRIPE_SECRET_KEY: 'sk_test_e2e_placeholder',
-    STRIPE_WEBHOOK_SECRET: 'whsec_e2e_placeholder',
+    // Fake values in the form .gitleaks.toml allowlists: card payments need real Stripe test keys, so
+    // the suite stops before charging.
+    STRIPE_SECRET_KEY: 'sk_test_fake_e2e',
+    STRIPE_WEBHOOK_SECRET: 'whsec_fake_e2e',
     FX_API_KEY: 'e2e-fx-key',
     FX_API_BASE_URL: 'http://127.0.0.1:9/fx-unavailable',
     UPLOAD_DIR: join(tmpdir(), 'travel-e2e-uploads'),
