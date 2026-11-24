@@ -2855,3 +2855,17 @@ the diff holds only the path-parameter order the current NestJS versions emit an
 description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
 OpenAPI contract check and the frontend typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-24
+Student: Joudy
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: FLT-03 (FE-07 moderator dashboard)
+Prompt:
+Add a small endpoint that lists an airline moderator's own flights for the FE-07 dashboard: own airline
+only, 10 per page, optional status filter, sorted by departure, with tests and Swagger.
+How the output was used:
+Claude added GET /api/airlines/:id/flights (AirlineFlightsQueryDto, FlightsService.listForAirline) with
+an airlineId + departureUtc index, unit tests for paging, sort, filter, scope and 404, and an e2e spec for
+200/400/401/403/404. I reviewed the code and ran lint, typecheck, unit tests and the architecture check.
+================================================
