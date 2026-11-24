@@ -1,5 +1,4 @@
 import { CircleAlert, Clock, Luggage, ReceiptText } from 'lucide-react';
-import Image from 'next/image';
 import type { Route } from 'next';
 import Link from 'next/link';
 import { formatInZone, formatMoney } from '@/shared/lib/format';
@@ -18,6 +17,7 @@ import {
 import type { FlightDetails as Flight } from '../api/flight.server';
 import { dayShift, formatDuration } from '../model/duration';
 import { checkoutHref, type LegChoice } from '../model/links';
+import { AirlineLogo } from './airline-logo';
 import { CABIN_LABELS, type CabinClass } from '../model/search-params';
 
 export type DetailsContext = {
@@ -86,16 +86,11 @@ export function FlightDetails({
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center gap-3">
-          {flight.airline.logoUrl ? (
-            <Image
-              src={flight.airline.logoUrl}
-              alt=""
-              width={40}
-              height={40}
-              unoptimized
-              className="size-10 rounded-md border object-contain"
-            />
-          ) : null}
+          <AirlineLogo
+            src={flight.airline.logoUrl}
+            code={flight.airline.code}
+            name={flight.airline.name}
+          />
           <div className="grid">
             <CardTitle>{flight.airline.name}</CardTitle>
             <p className="text-sm text-muted-foreground">
