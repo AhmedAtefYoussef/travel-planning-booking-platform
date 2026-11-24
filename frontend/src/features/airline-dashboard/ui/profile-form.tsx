@@ -2,11 +2,11 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ImageUp } from 'lucide-react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, type ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
+import { AirlineLogo } from '@/features/flights';
 import { isApiError } from '@/shared/api/errors';
 import { Button } from '@/shared/ui/button';
 import { FormField } from '@/shared/ui/form-field';
@@ -116,22 +116,13 @@ export function LogoUpload({ airline }: Props) {
 
   return (
     <div className="flex flex-wrap items-center gap-4">
-      <div className="flex size-20 items-center justify-center overflow-hidden rounded-xl border bg-muted">
-        {airline.logoUrl ? (
-          <Image
-            src={airline.logoUrl}
-            alt={`${airline.name} logo`}
-            width={80}
-            height={80}
-            unoptimized
-            className="size-full object-contain"
-          />
-        ) : (
-          <span className="text-xl font-semibold text-muted-foreground">
-            {airline.code}
-          </span>
-        )}
-      </div>
+      <AirlineLogo
+        src={airline.logoUrl}
+        code={airline.code}
+        name={airline.name}
+        size={80}
+        className="rounded-xl"
+      />
       <div className="grid gap-1">
         <input
           ref={input}
