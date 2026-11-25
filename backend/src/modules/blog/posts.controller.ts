@@ -36,6 +36,7 @@ import {
 } from '../../common/swagger/api-responses.decorator';
 import { LikeStateDto } from './dto/like.dto';
 import {
+  AttachItineraryDto,
   CreatePostDto,
   ListPostsQueryDto,
   PostDto,
@@ -163,6 +164,38 @@ export class PostsController {
     @Body() dto: UpdatePostDto,
   ): Promise<PostDto> {
     return this.posts.update(user, id, dto);
+  }
+
+  @Patch(':id/itinerary')
+  @Roles(Role.User)
+  @ApiOperation({
+    summary: 'BLG-13 Author attaches an itinerary to their post',
+    description:
+      'Send itineraryId: one of your own itineraries or any public one; null detaches it. An itinerary that does not exist, that an admin hid, or that is someone else’s private one is 404 (it is never revealed). Only the author may change the post (another user gets 403 for a published post, 404 for a draft). The post then shows an itinerary summary (title, countries, start date, days) while the itinerary is public; a private or deleted one shows no summary, and only the author sees the raw itineraryId.',
+  })
+  @ApiParam(POST_ID_PARAM)
+  @ApiBody({
+    type: AttachItineraryDto,
+    examples: {
+      attach: {
+        summary: 'Attach an itinerary',
+        value: { itineraryId: '6afb7a000000000000000001' },
+      },
+      detach: { summary: 'Detach it', value: { itineraryId: null } },
+      invalid: {
+        summary: 'Invalid: 400 (not an id)',
+        value: { itineraryId: 'not-an-id' },
+      },
+    },
+  })
+  @ApiOkResponse({ type: PostDto })
+  @ApiErrorResponses(400, 404)
+  attachItinerary(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: AttachItineraryDto,
+  ): Promise<PostDto> {
+    return this.posts.attachItinerary(user, id, dto);
   }
 
   @Delete(':id')

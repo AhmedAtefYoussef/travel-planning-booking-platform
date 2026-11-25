@@ -84,6 +84,17 @@ export class Post {
   @Prop({ type: Date, default: null })
   publishedAt!: Date | null;
 
+  /**
+   * BLG-13: the itinerary the author attached. Reached only through PUBLIC_ITINERARIES; it may dangle
+   * after the itinerary is deleted, which simply renders no summary.
+   */
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'Itinerary',
+    default: null,
+  })
+  itineraryId?: Types.ObjectId | null;
+
   /** Hidden by an admin (GEN-10): visible only to its author and admins. */
   @Prop({ type: Boolean, default: false })
   isHidden!: boolean;

@@ -5,10 +5,12 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEnum,
+  IsMongoId,
   IsOptional,
   IsString,
   Length,
   Matches,
+  ValidateIf,
 } from 'class-validator';
 import {
   MAX_POST_BODY,
@@ -157,6 +159,38 @@ export class UpdatePostDto {
   status?: PostStatus;
 }
 
+/** BLG-13: attach an itinerary to a post, or detach it with null. */
+export class AttachItineraryDto {
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    example: '6afb7a000000000000000001',
+    description:
+      'Id of one of your own itineraries or of any public one; null removes the attached itinerary. Someone else’s private itinerary is 404.',
+  })
+  @ValidateIf((o: AttachItineraryDto) => o.itineraryId !== null)
+  @IsMongoId({ message: 'itineraryId must be an itinerary id, or null' })
+  itineraryId!: string | null;
+}
+
+/** The public itinerary shown on a post (BLG-13); private, hidden or deleted ones are never embedded. */
+export class PostItineraryDto {
+  @ApiProperty({ example: '6afb7a000000000000000001' })
+  id!: string;
+
+  @ApiProperty({ example: 'Spring in Egypt and France' })
+  title!: string;
+
+  @ApiProperty({ type: [String], example: ['EG', 'FR'] })
+  countries!: string[];
+
+  @ApiProperty({ example: '2027-03-01' })
+  startDate!: string;
+
+  @ApiProperty({ example: 6, description: 'Number of days' })
+  days!: number;
+}
+
 /** BLG-02 browse, BLG-08 tag filter and BLG-09 keyword search. */
 export class ListPostsQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
@@ -239,6 +273,13 @@ export class PostSummaryDto {
       'Hidden by an admin (GEN-10); only the author and admins see it',
   })
   isHidden!: boolean;
+
+  @ApiPropertyOptional({
+    type: PostItineraryDto,
+    description:
+      'BLG-13: the attached itinerary, present only while it is public and not hidden by an admin',
+  })
+  itinerary?: PostItineraryDto;
 }
 
 /** A post with its body and images; comments are listed separately (added by BLG-05). */
@@ -257,4 +298,13 @@ export class PostDto extends PostSummaryDto {
 
   @ApiProperty({ example: '2026-11-15T10:15:30.000Z' })
   updatedAt!: Date;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '6afb7a000000000000000001',
+    description:
+      'BLG-13: the attached itinerary id, shown only to the author (it may be private or deleted); null when none',
+  })
+  itineraryId?: string | null;
 }

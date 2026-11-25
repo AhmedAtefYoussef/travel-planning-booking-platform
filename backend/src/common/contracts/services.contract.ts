@@ -672,4 +672,15 @@ export interface PublicItineraries {
     authorId: string,
     page: number,
   ): Promise<{ items: PublicItinerarySummary[]; total: number }>;
+  /**
+   * BLG-13: may `authorId` attach this itinerary to a post? True when it exists, an admin has not hidden
+   * it (GEN-10) and it is the author's own or PUBLIC. A stranger's private itinerary is false, so the
+   * blog answers 404 and never reveals it.
+   */
+  attachable(authorId: string, itineraryId: string): Promise<boolean>;
+  /**
+   * BLG-13: summaries by id, only for PUBLIC itineraries an admin has not hidden. Private, hidden,
+   * deleted and unknown ids are left out of the map. One query for any number of ids.
+   */
+  summaries(ids: string[]): Promise<Map<string, PublicItinerarySummary>>;
 }

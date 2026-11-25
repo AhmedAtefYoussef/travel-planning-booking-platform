@@ -9,6 +9,7 @@ import {
 } from '../../common/contracts/tokens';
 import type {
   PublicItineraries,
+  PublicItinerarySummary,
   UploadedFileLike,
   UploadsService,
 } from '../../common/contracts/services.contract';
@@ -27,6 +28,7 @@ import { localUploadUrlPattern } from '../../common/validation';
 import { AccountStatus, UsersService } from '../users';
 import { excerptOf, keywordPattern, PUBLIC_POST_FILTER } from './blog-rules';
 import type {
+  AttachItineraryDto,
   AuthorRefDto,
   CreatePostDto,
   ListPostsQueryDto,
@@ -63,6 +65,7 @@ type PostLike = Pick<
   | 'status'
   | 'publishedAt'
   | 'isHidden'
+  | 'itineraryId'
   | 'likeCount'
   | 'commentCount'
   | 'createdAt'
@@ -98,7 +101,7 @@ export class PostsService {
       status,
       publishedAt: status === PostStatus.Published ? new Date() : null,
     });
-    return this.toPost(post);
+    return this.toPost(post, true);
   }
 
   /** BLG-04 / BLG-08: the author edits their post. Publishing a draft for the first time stamps publishedAt. */
@@ -130,7 +133,43 @@ export class PostsService {
     if (!updated) throw notFound();
     const dropped = post.images.filter((url) => !updated.images.includes(url));
     await this.discardUnused(dropped);
-    return this.toPost(updated);
+    return this.toPost(updated, true);
+  }
+
+  /**
+   * BLG-13: the author attaches an itinerary to their post, or detaches it with null. Only the author's
+   * own or a public itinerary can be attached; anything else (a stranger's private one, hidden, unknown)
+   * is 404, so a private itinerary is never revealed. Deleting an itinerary later leaves a dangling id
+   * that renders no summary.
+   */
+  async attachItinerary(
+    user: AuthUser,
+    id: string,
+    dto: AttachItineraryDto,
+  ): Promise<PostDto> {
+    const post = await this.loadOwn(user, id);
+    const itineraryId = dto.itineraryId;
+    if (
+      itineraryId !== null &&
+      !(await this.itineraries?.attachable(user.id, itineraryId))
+    ) {
+      throw new AppException(
+        HttpStatus.NOT_FOUND,
+        ErrorCode.NOT_FOUND,
+        'Itinerary not found',
+      );
+    }
+    const updated = await this.posts
+      .findOneAndUpdate(
+        { _id: id, authorId: post.authorId },
+        {
+          $set: { itineraryId: itineraryId && new Types.ObjectId(itineraryId) },
+        },
+        { new: true, runValidators: true },
+      )
+      .exec();
+    if (!updated) throw notFound();
+    return this.toPost(updated, true);
   }
 
   /** BLG-04: the author deletes their post with its comments, likes and uploaded images. */
@@ -193,7 +232,7 @@ export class PostsService {
       await this.discard(urls);
       throw err;
     }
-    if (updated) return this.toPost(updated);
+    if (updated) return this.toPost(updated, true);
     await this.discard(urls);
     await this.loadOwn(user, id); // 404 if the post was deleted meanwhile
     throw new ValidationFailedException([
@@ -239,7 +278,7 @@ export class PostsService {
       );
     }
     await this.discardUnused([url]);
-    return this.toPost(updated);
+    return this.toPost(updated, true);
   }
 
   /** BLG-12: public author page with the author's published posts, newest first. */
@@ -289,7 +328,7 @@ export class PostsService {
 
   /** BLG-03: the author opens one of their own posts, draft or hidden included. */
   async getMine(user: AuthUser, id: string): Promise<PostDto> {
-    return this.toPost(await this.loadOwn(user, id));
+    return this.toPost(await this.loadOwn(user, id), true);
   }
 
   /**
@@ -319,8 +358,11 @@ export class PostsService {
     const result = await paginate<Post, PostLike>(this.posts, filter, page, {
       sort,
     });
-    const authors = await this.authorsOf(result.items.map((p) => p.authorId));
-    return mapPage(result, (p) => this.summary(p, authors));
+    const [authors, itineraries] = await Promise.all([
+      this.authorsOf(result.items.map((p) => p.authorId)),
+      this.itinerariesOf(result.items),
+    ]);
+    return mapPage(result, (p) => this.summary(p, authors, itineraries));
   }
 
   /**
@@ -393,8 +435,12 @@ export class PostsService {
   private summary(
     post: PostLike,
     authors: Map<string, AuthorRefDto>,
+    itineraries: Map<string, PublicItinerarySummary>,
   ): PostSummaryDto {
     const authorId = post.authorId.toHexString();
+    const itinerary = post.itineraryId
+      ? itineraries.get(post.itineraryId.toHexString())
+      : undefined;
     return {
       id: post._id.toHexString(),
       title: post.title,
@@ -407,16 +453,36 @@ export class PostsService {
       likeCount: post.likeCount,
       commentCount: post.commentCount,
       isHidden: post.isHidden,
+      ...(itinerary && { itinerary }),
     };
   }
 
-  private async toPost(post: PostLike): Promise<PostDto> {
-    const authors = await this.authorsOf([post.authorId]);
+  /**
+   * BLG-13: the public summaries of the itineraries attached to these posts, in one query for the whole
+   * page. Private, hidden and deleted itineraries are absent, so their posts show no itinerary.
+   */
+  private async itinerariesOf(
+    posts: PostLike[],
+  ): Promise<Map<string, PublicItinerarySummary>> {
+    const ids = posts.flatMap((p) =>
+      p.itineraryId ? [p.itineraryId.toHexString()] : [],
+    );
+    if (ids.length === 0 || !this.itineraries) return new Map();
+    return this.itineraries.summaries(ids);
+  }
+
+  /** `owner` adds the raw itineraryId, which only the author sees (it may be private or dangling). */
+  private async toPost(post: PostLike, owner = false): Promise<PostDto> {
+    const [authors, itineraries] = await Promise.all([
+      this.authorsOf([post.authorId]),
+      this.itinerariesOf([post]),
+    ]);
     return {
-      ...this.summary(post, authors),
+      ...this.summary(post, authors, itineraries),
       body: post.body,
       images: post.images,
       updatedAt: post.updatedAt,
+      ...(owner && { itineraryId: post.itineraryId?.toHexString() ?? null }),
     };
   }
 
