@@ -9,6 +9,8 @@ import {
 } from '../../common/contracts';
 import { FlightsModule } from '../flights';
 import { HotelsModule } from '../hotels';
+import { AdminAnalyticsController } from './admin-analytics.controller';
+import { AdminAnalyticsService } from './admin-analytics.service';
 import { AdminBookingsController } from './admin-bookings.controller';
 import { AdminBookingsService } from './admin-bookings.service';
 import { FlightBookingsController } from './flight-bookings.controller';
@@ -63,6 +65,7 @@ import {
   ],
   controllers: [
     AdminBookingsController,
+    AdminAnalyticsController,
     FlightBookingsController,
     AirlineFlightBookingsController,
     HotelReservationsController,
@@ -74,6 +77,7 @@ import {
   ],
   providers: [
     AdminBookingsService,
+    AdminAnalyticsService,
     BookingLifecycleService,
     ProviderBookingsService,
     FlightBookingsService,

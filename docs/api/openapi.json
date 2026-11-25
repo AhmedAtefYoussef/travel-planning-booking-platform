@@ -1656,6 +1656,101 @@
         ]
       }
     },
+    "/api/admin/analytics": {
+      "get": {
+        "description": "Per airline and hotel over a period: bookings (confirmed, completed and cancelled; pending and expired holds are left out), confirmed and cancelled counts, gross revenue (the total of the paid bookings), refunded (refunds that reached REFUNDED) and net revenue, in minor units of the platform currency (PAY-04), best net revenue first, plus the totals. Same period rule as the admin booking list (ACC-17): from and to (YYYY-MM-DD, UTC, both included, required) keep the bookings whose trip (travel dates, not the booking date) overlaps the period; to before from, or more than 366 days, is 400. Optional type FLIGHT or HOTEL. Admins only.",
+        "operationId": "AdminAnalyticsController_get",
+        "parameters": [
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "description": "First day of the period (YYYY-MM-DD, UTC): trips that end on or after it",
+            "schema": {
+              "example": "2028-06-01",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "description": "Last day of the period (YYYY-MM-DD, UTC), not before from and at most 366 days after it: trips that start on or before it",
+            "schema": {
+              "example": "2028-06-30",
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "required": false,
+            "in": "query",
+            "description": "Flight bookings or hotel reservations only; both when left out",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FLIGHT",
+                "HOTEL"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminAnalyticsDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed request (body contains fieldErrors, GEN-02)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated or session expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed (role, ownership or provider scope)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access_token": []
+          },
+          {
+            "dev-user": []
+          }
+        ],
+        "summary": "BON-01 Admin analytics: bookings and revenue per provider",
+        "tags": [
+          "Admin: analytics"
+        ]
+      }
+    },
     "/api/flight-bookings/quote": {
       "post": {
         "description": "Prices the chosen flight(s), cabin, passengers and extra bags exactly as a hold would, without taking any seat. Passenger types follow FLT-12: adults 12+, children 2-11, infants under 2 on the departure date (local date at the departure airport); the declared type must match the date of birth (FLT-19). At least one adult, no more infants than adults. Adults and children pay the fare and take a seat; infants pay 10% and take no seat. Extra bags (FLT-08) are limited per passenger by the airline and charged on each flight. A round trip must be the reverse route and leave after the outbound lands. All amounts are minor units of the platform currency (PAY-04).",
@@ -15532,6 +15627,174 @@
           "totalMinor",
           "currency",
           "createdAt"
+        ]
+      },
+      "AdminAnalyticsPeriodDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "2028-06-01"
+          },
+          "to": {
+            "type": "string",
+            "example": "2028-06-30"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "FLIGHT",
+              "HOTEL"
+            ],
+            "nullable": true,
+            "example": null,
+            "description": "The type filter; null when both types are included"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "type"
+        ]
+      },
+      "AdminAnalyticsProviderDto": {
+        "type": "object",
+        "properties": {
+          "bookings": {
+            "type": "number",
+            "example": 12,
+            "description": "Confirmed, completed and cancelled bookings in the period"
+          },
+          "confirmedBookings": {
+            "type": "number",
+            "example": 10,
+            "description": "Confirmed and completed"
+          },
+          "cancelledBookings": {
+            "type": "number",
+            "example": 2,
+            "description": "Cancelled"
+          },
+          "grossRevenueMinor": {
+            "type": "number",
+            "example": 1200000,
+            "description": "Total of the paid bookings, minor units (PAY-04)"
+          },
+          "refundedMinor": {
+            "type": "number",
+            "example": 100000,
+            "description": "Refunds that reached REFUNDED for those bookings, minor units"
+          },
+          "netRevenueMinor": {
+            "type": "number",
+            "example": 1100000,
+            "description": "grossRevenueMinor minus refundedMinor"
+          },
+          "currency": {
+            "type": "string",
+            "example": "EGP"
+          },
+          "providerType": {
+            "type": "string",
+            "enum": [
+              "AIRLINE",
+              "HOTEL"
+            ]
+          },
+          "providerId": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string",
+            "example": "EgyptAir"
+          }
+        },
+        "required": [
+          "bookings",
+          "confirmedBookings",
+          "cancelledBookings",
+          "grossRevenueMinor",
+          "refundedMinor",
+          "netRevenueMinor",
+          "currency",
+          "providerType",
+          "providerId",
+          "providerName"
+        ]
+      },
+      "AdminAnalyticsFiguresDto": {
+        "type": "object",
+        "properties": {
+          "bookings": {
+            "type": "number",
+            "example": 12,
+            "description": "Confirmed, completed and cancelled bookings in the period"
+          },
+          "confirmedBookings": {
+            "type": "number",
+            "example": 10,
+            "description": "Confirmed and completed"
+          },
+          "cancelledBookings": {
+            "type": "number",
+            "example": 2,
+            "description": "Cancelled"
+          },
+          "grossRevenueMinor": {
+            "type": "number",
+            "example": 1200000,
+            "description": "Total of the paid bookings, minor units (PAY-04)"
+          },
+          "refundedMinor": {
+            "type": "number",
+            "example": 100000,
+            "description": "Refunds that reached REFUNDED for those bookings, minor units"
+          },
+          "netRevenueMinor": {
+            "type": "number",
+            "example": 1100000,
+            "description": "grossRevenueMinor minus refundedMinor"
+          },
+          "currency": {
+            "type": "string",
+            "example": "EGP"
+          }
+        },
+        "required": [
+          "bookings",
+          "confirmedBookings",
+          "cancelledBookings",
+          "grossRevenueMinor",
+          "refundedMinor",
+          "netRevenueMinor",
+          "currency"
+        ]
+      },
+      "AdminAnalyticsDto": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/AdminAnalyticsPeriodDto"
+          },
+          "providers": {
+            "description": "Highest net revenue first",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAnalyticsProviderDto"
+            }
+          },
+          "totals": {
+            "description": "The sum over all providers, one entry per currency (a single entry while the platform has one currency, PAY-04); empty when there are no bookings",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminAnalyticsFiguresDto"
+            }
+          }
+        },
+        "required": [
+          "period",
+          "providers",
+          "totals"
         ]
       },
       "FlightChoiceDto": {

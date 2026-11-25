@@ -2855,3 +2855,19 @@ the diff holds only the path-parameter order the current NestJS versions emit an
 description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
 OpenAPI contract check and the frontend typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-25
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: BON-01 (TRVL-126)
+Prompt:
+Implement the admin analytics dashboard: bookings and revenue per provider over a selected period, as
+GET /api/admin/analytics for admins, beside the ACC-17 admin booking list.
+How the output was used:
+Claude moved the flight and hotel row stages of the ACC-17 list into a shared helper, added one
+aggregation per booking collection grouped by provider and currency, and read the refunded amounts
+through a new REFUNDS_SERVICE method instead of the payments collection. It added the period rules
+(to on or after from, at most 366 days), unit specs and test/bon-01.e2e-spec.ts with confirmed,
+cancelled, refunded and expired bookings across two airlines and a hotel.
+================================================
