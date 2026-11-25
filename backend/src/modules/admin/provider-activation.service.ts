@@ -18,6 +18,7 @@ import {
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { runInTransaction } from '../../common/utils/transaction';
 import type { ProviderStatusDto } from './dto/admin-actions.dto';
 import type { ProviderKind } from './provider-kind.pipe';
 
@@ -72,7 +73,7 @@ export class ProviderActivationService {
   ): Promise<ProviderStatusDto> {
     const meta = KINDS[kind];
     const store = kind === 'airline' ? this.airlines : this.hotels;
-    return this.connection.transaction(async (session) => {
+    return runInTransaction(this.connection, async (session) => {
       const provider = await store.find(providerId, session);
       if (!provider) {
         throw new AppException(

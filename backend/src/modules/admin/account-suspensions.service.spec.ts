@@ -9,7 +9,11 @@ import { AccountSuspensionsService } from './account-suspensions.service';
 
 const ADMIN: AuthUser = { id: 'a'.repeat(24), role: Role.Admin };
 const TARGET = 'b'.repeat(24);
-const SESSION = { id: 'tx' };
+const SESSION = {
+  id: 'tx',
+  withTransaction: (fn: () => Promise<void>) => fn(),
+  endSession: () => Promise.resolve(),
+};
 
 function setup(
   account: AdministeredAccount | null,
@@ -21,7 +25,7 @@ function setup(
   notifications: jest.Mocked<NotificationsService>;
 } {
   const connection = {
-    transaction: jest.fn((fn: (s: unknown) => Promise<unknown>) => fn(SESSION)),
+    startSession: jest.fn(() => Promise.resolve(SESSION)),
   };
   const accounts: jest.Mocked<AccountAdmin> = {
     find: jest.fn().mockResolvedValue(account),

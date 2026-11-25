@@ -16,6 +16,7 @@ import {
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { runInTransaction } from '../../common/utils/transaction';
 import type { AccountStatusDto } from './dto/admin-actions.dto';
 
 interface StatusChange {
@@ -96,7 +97,7 @@ export class AccountSuspensionsService {
         `You cannot ${change.verb} your own account`,
       );
     }
-    return this.connection.transaction(async (session) => {
+    return runInTransaction(this.connection, async (session) => {
       const account = await this.accounts.find(targetId, session);
       if (!account) {
         throw new AppException(

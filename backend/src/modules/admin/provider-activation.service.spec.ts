@@ -11,7 +11,11 @@ import { ProviderActivationService } from './provider-activation.service';
 
 const ADMIN: AuthUser = { id: 'a'.repeat(24), role: Role.Admin };
 const PROVIDER = 'c'.repeat(24);
-const SESSION = { id: 'tx' };
+const SESSION = {
+  id: 'tx',
+  withTransaction: (fn: () => Promise<void>) => fn(),
+  endSession: () => Promise.resolve(),
+};
 
 function store(state: ProviderState | null, changed = true) {
   return {
@@ -23,7 +27,7 @@ function store(state: ProviderState | null, changed = true) {
 
 function setup(airline = store(null), hotel = store(null)) {
   const connection = {
-    transaction: jest.fn((fn: (s: unknown) => Promise<unknown>) => fn(SESSION)),
+    startSession: jest.fn(() => Promise.resolve(SESSION)),
   };
   const accounts: jest.Mocked<AccountAdmin> = {
     find: jest.fn(),

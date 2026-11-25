@@ -25,6 +25,8 @@
  *   ITINERARY_BUDGETS (budgets)     ->  itineraries (ITN-07, ITN-09, ITN-21; optional until ITN-14)
  *   CONTENT_MODERATION (moderation) ->  posts, comments, reviews, itineraries register adapters (GEN-09, GEN-10)
  *   PUBLIC_ITINERARIES (itineraries) ->  blog (BLG-12 author page)
+ *   MAIL_SERVICE, EMAIL_NOTIFICATIONS (mail) -> notifications (GEN-01-B), users (ACC-13 invitation)
+ *   USER_CONTACTS (users)           ->  mail (GEN-01-B recipient lookup)
  *
  * Usage:  constructor(@Inject(AUDIT_SERVICE) private readonly audit: AuditService) {}
  * The providing module exports `{ provide: AUDIT_SERVICE, useExisting: AuditLogService }`.
@@ -53,3 +55,6 @@ export const HOTEL_STATUS = Symbol('HOTEL_STATUS');
 export const ITINERARY_BUDGETS = Symbol('ITINERARY_BUDGETS');
 export const CONTENT_MODERATION = Symbol('CONTENT_MODERATION');
 export const PUBLIC_ITINERARIES = Symbol('PUBLIC_ITINERARIES');
+export const MAIL_SERVICE = Symbol('MAIL_SERVICE');
+export const EMAIL_NOTIFICATIONS = Symbol('EMAIL_NOTIFICATIONS');
+export const USER_CONTACTS = Symbol('USER_CONTACTS');
