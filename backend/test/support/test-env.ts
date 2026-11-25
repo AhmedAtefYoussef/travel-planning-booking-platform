@@ -18,6 +18,9 @@ export const TEST_ENV: Record<string, string> = {
   FX_API_KEY: 'test-fx-key',
   FX_API_BASE_URL: 'https://api.fxratesapi.com',
   UPLOAD_DIR: './uploads-test',
+  // e2e tests replace MAIL_SERVICE with a capturing fake (support/fake-mail.ts); no SMTP is ever opened.
+  MAIL_ENABLED: 'false',
+  APP_BASE_URL: 'http://localhost:3001',
   ADMIN_SEED_EMAIL: 'admin@example.com',
   ADMIN_SEED_PASSWORD: 'ChangeMe!2026',
 };

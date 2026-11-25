@@ -8,9 +8,11 @@ import {
 } from '../../common/auth/auth.types';
 import {
   AUDIT_SERVICE,
+  EMAIL_NOTIFICATIONS,
   AuditAction,
   AuditTargetType,
   type AuditService,
+  type EmailNotifications,
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -36,6 +38,7 @@ export class ModeratorsService {
     private readonly providers: ProviderDirectoryService,
     private readonly passwords: PasswordService,
     @Inject(AUDIT_SERVICE) private readonly audit: AuditService,
+    @Inject(EMAIL_NOTIFICATIONS) private readonly email: EmailNotifications,
   ) {}
 
   async create(
@@ -46,7 +49,7 @@ export class ModeratorsService {
     // bcrypt is slow on purpose; hash before the transaction so it stays short.
     const passwordHash = await this.passwords.hash(dto.temporaryPassword);
     try {
-      return await this.connection.transaction(async (session) => {
+      const profile = await this.connection.transaction(async (session) => {
         const provider = await this.providers.find(
           type,
           dto.providerId,
@@ -110,6 +113,13 @@ export class ModeratorsService {
         );
         return toUserProfile(moderator);
       });
+      // Only now is the account committed (GEN-01-B). Not awaited: SMTP must not slow the response, and
+      // the notifier never rejects. The invitation never carries the temporary password.
+      void this.email.moderatorInvited({
+        name: profile.name,
+        email: profile.email,
+      });
+      return profile;
     } catch (error) {
       if ((error as { code?: number }).code === DUPLICATE_KEY) {
         throw new AppException(

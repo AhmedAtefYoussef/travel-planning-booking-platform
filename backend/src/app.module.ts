@@ -16,6 +16,7 @@ import { HotelsModule } from './modules/hotels';
 import { ItinerariesModule } from './modules/itineraries';
 import { ModerationModule } from './modules/moderation';
 import { NotificationsModule } from './modules/notifications';
+import { MailModule } from './modules/mail';
 import { PaymentsModule } from './modules/payments';
 import { ReferenceModule } from './modules/reference';
 import { UploadsModule } from './modules/uploads';
@@ -34,6 +35,7 @@ import { UsersModule } from './modules/users';
     UsersModule,
     AuthModule,
     AuditModule,
+    MailModule,
     NotificationsModule,
     UploadsModule,
     BookingsModule,

@@ -152,6 +152,51 @@ export class EnvironmentVariables {
   @IsString()
   @MinLength(8)
   ADMIN_SEED_PASSWORD!: string;
+
+  /**
+   * GEN-01-B: send notifications and moderator invitations by email. Off by default so nobody needs an
+   * SMTP server; in development turn it on and point it at Mailpit (docs/ONBOARDING.md).
+   */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  MAIL_ENABLED = false;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  SMTP_HOST = 'localhost';
+
+  @IsOptional()
+  @Transform(({ value }) => Number(value))
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  SMTP_PORT = 1025;
+
+  /** true = TLS from the first byte (port 465); false = plain, or STARTTLS when the server offers it. */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  SMTP_SECURE = false;
+
+  @IsOptional()
+  @IsString()
+  SMTP_USER?: string;
+
+  @IsOptional()
+  @IsString()
+  SMTP_PASS?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  MAIL_FROM = 'Travel Platform <no-reply@travel.test>';
+
+  /** The frontend origin that links in emails point to, e.g. http://localhost:3001. */
+  @IsOptional()
+  @IsUrl({ require_tld: false, protocols: ['http', 'https'] })
+  APP_BASE_URL = 'http://localhost:3001';
 }
 
 export function validateEnv(

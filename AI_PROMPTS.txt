@@ -2855,3 +2855,19 @@ the diff holds only the path-parameter order the current NestJS versions emit an
 description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
 OpenAPI contract check and the frontend typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-25
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: GEN-01-B (TRVL-119)
+Prompt:
+Send the GEN-01 notifications and the moderator invitations by email over SMTP, using a test inbox (Mailpit)
+in development.
+How the output was used:
+Claude added a global mail module (nodemailer SMTP adapter, a no-op adapter when MAIL_ENABLED=false, HTML-escaped
+templates per notification type and the moderator invitation, which never contains the password), the MAIL_SERVICE,
+EMAIL_NOTIFICATIONS and USER_CONTACTS contracts, and an afterCommit hook in runInTransaction so emails go out only
+after the caller's transaction commits. The two admin services that notify were moved to runInTransaction. I ran the
+unit tests, the new GEN-01-B e2e suite with a capturing fake mailer, and the full verify script.
+================================================

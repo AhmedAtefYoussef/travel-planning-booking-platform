@@ -7,6 +7,7 @@ import {
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
+import { runInTransaction } from '../../common/utils/transaction';
 import { InAppNotificationsService } from './notifications.service';
 import {
   NotificationSchema,
@@ -44,10 +45,15 @@ function setup() {
     findOneAndUpdate: jest.fn(),
     updateMany: jest.fn(),
   };
+  const email = {
+    notificationsCreated: jest.fn().mockResolvedValue(undefined),
+    moderatorInvited: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new InAppNotificationsService(
     model as unknown as Model<Notification>,
+    email,
   );
-  return { model, service };
+  return { model, email, service };
 }
 
 const user = (id = oid().toHexString()): AuthUser => ({ id, role: Role.User });
@@ -148,6 +154,68 @@ describe('InAppNotificationsService (GEN-01)', () => {
         expect(model.insertMany).not.toHaveBeenCalled();
       },
     );
+
+    describe('email (GEN-01-B)', () => {
+      const settle = async () => {
+        await new Promise((resolve) => setImmediate(resolve));
+        await new Promise((resolve) => setImmediate(resolve));
+      };
+      const fakeConnection = () => {
+        const session = {
+          withTransaction: jest.fn((fn: () => Promise<void>) => fn()),
+          endSession: jest.fn(() => Promise.resolve()),
+        };
+        return {
+          startSession: jest.fn(() =>
+            Promise.resolve(session as unknown as ClientSession),
+          ),
+        };
+      };
+
+      it('without a session, emails on the next tick with the stored (trimmed) text', async () => {
+        const { email, service } = setup();
+        const i = input({ title: '  Hi  ' });
+        await service.notify(i);
+        expect(email.notificationsCreated).not.toHaveBeenCalled();
+        await settle();
+        expect(email.notificationsCreated).toHaveBeenCalledWith([
+          { ...i, title: 'Hi' },
+        ]);
+      });
+
+      it('inside a transaction, emails only after it commits', async () => {
+        const { email, service } = setup();
+        await runInTransaction(fakeConnection(), async (session) => {
+          await service.notifyMany([input(), input()], session);
+          await settle();
+          expect(email.notificationsCreated).not.toHaveBeenCalled();
+        });
+        await settle();
+        expect(email.notificationsCreated).toHaveBeenCalledTimes(1);
+        expect(
+          (email.notificationsCreated.mock.calls[0] as [unknown[]])[0],
+        ).toHaveLength(2);
+      });
+
+      it('never emails when the transaction aborts', async () => {
+        const { email, service } = setup();
+        await expect(
+          runInTransaction(fakeConnection(), async (session) => {
+            await service.notify(input(), session);
+            throw new Error('abort');
+          }),
+        ).rejects.toThrow('abort');
+        await settle();
+        expect(email.notificationsCreated).not.toHaveBeenCalled();
+      });
+
+      it('never emails an invalid notification', async () => {
+        const { email, service } = setup();
+        await expect(service.notify(input({ title: '' }))).rejects.toThrow();
+        await settle();
+        expect(email.notificationsCreated).not.toHaveBeenCalled();
+      });
+    });
 
     it('notifyMany writes nothing when any one input is invalid', async () => {
       const { model, service } = setup();

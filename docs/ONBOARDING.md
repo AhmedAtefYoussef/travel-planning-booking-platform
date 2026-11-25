@@ -112,6 +112,16 @@ Checklist for a new module:
 - [ ] Other modules reach you only through `index.ts` or a token in `common/contracts` (`docs/architecture/contracts.md`). If you provide a token, add it to the table there.
 - [ ] Every Swagger summary starts with the requirement ID, e.g. `HTL-11 Search hotels`.
 
+## Email (Mailpit)
+
+The API can email every notification (GEN-01) and the moderator invitation (ACC-13). It is off by default (`MAIL_ENABLED=false`), so you only need this when you work on email. In development the SMTP server is [Mailpit](https://mailpit.axllent.org/), which catches every message instead of delivering it:
+
+```bash
+docker run -d --name mailpit -p 8025:8025 -p 1025:1025 axllent/mailpit
+```
+
+Then set `MAIL_ENABLED=true` in `backend/.env` (the other `SMTP_*` and `MAIL_FROM` defaults already point at `localhost:1025`) and restart the API. Open <http://localhost:8025> to read what was sent. `APP_BASE_URL` (default `http://localhost:3001`) is the frontend address that the links in emails open. A mail failure is logged and never fails a request. The invitation never contains the temporary password: the admin shares it separately.
+
 ## Where to find things
 
 | Question | Read |

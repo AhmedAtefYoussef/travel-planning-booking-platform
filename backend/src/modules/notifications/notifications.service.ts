@@ -1,16 +1,19 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, FilterQuery, Model, Types } from 'mongoose';
 import { assertOwner } from '../../common/auth/access';
 import type { AuthUser } from '../../common/auth/auth.types';
 import {
+  EMAIL_NOTIFICATIONS,
   NotificationType,
+  type EmailNotifications,
   type NotificationInput,
   type NotificationsService,
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
 import { paginate, type Page } from '../../common/pagination/pagination';
+import { afterCommit } from '../../common/utils/transaction';
 import type {
   MarkAllReadDto,
   NotificationDto,
@@ -36,6 +39,7 @@ export class InAppNotificationsService implements NotificationsService {
   constructor(
     @InjectModel(Notification.name)
     private readonly model: Model<Notification>,
+    @Inject(EMAIL_NOTIFICATIONS) private readonly email: EmailNotifications,
   ) {}
 
   /** Writes in the caller's session, so the notification commits or aborts with their change. */
@@ -54,6 +58,14 @@ export class InAppNotificationsService implements NotificationsService {
     const docs = inputs.map(toDocument);
     if (!docs.length) return;
     await this.model.insertMany(docs, { session });
+    // GEN-01-B: the email goes out only once the caller's transaction commits (never from inside it,
+    // where it could be retried or rolled back), and without a session on the next tick.
+    const sent = docs.map((d, i) => ({
+      ...inputs[i],
+      title: d.title,
+      body: d.body,
+    }));
+    afterCommit(session, () => this.email.notificationsCreated(sent));
   }
 
   /** The caller's notifications, newest first, 10 per page (GEN-05). */

@@ -25,6 +25,34 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
     expect(env.PORT).toBe(3000);
   });
 
+  it('defaults the email settings to Mailpit, disabled (GEN-01-B)', () => {
+    const rest: Record<string, string> = { ...base };
+    for (const key of ['MAIL_ENABLED', 'APP_BASE_URL']) delete rest[key];
+    const env = validateEnv(rest);
+    expect(env.MAIL_ENABLED).toBe(false);
+    expect(env.SMTP_HOST).toBe('localhost');
+    expect(env.SMTP_PORT).toBe(1025);
+    expect(env.SMTP_SECURE).toBe(false);
+    expect(env.SMTP_USER).toBeUndefined();
+    expect(env.MAIL_FROM).toBe('Travel Platform <no-reply@travel.test>');
+    expect(env.APP_BASE_URL).toBe('http://localhost:3001');
+  });
+
+  it('converts explicit email settings', () => {
+    const env = validateEnv({
+      ...base,
+      MAIL_ENABLED: 'true',
+      SMTP_PORT: '2525',
+      SMTP_SECURE: 'true',
+      SMTP_USER: 'u',
+      SMTP_PASS: 'p',
+    });
+    expect(env.MAIL_ENABLED).toBe(true);
+    expect(env.SMTP_PORT).toBe(2525);
+    expect(env.SMTP_SECURE).toBe(true);
+    expect(env.SMTP_USER).toBe('u');
+  });
+
   it('requires NODE_ENV explicitly', () => {
     const rest: Record<string, string> = { ...base };
     delete rest.NODE_ENV;
@@ -51,6 +79,10 @@ describe('validateEnv (fail fast, TRVL-130)', () => {
     ['FX_API_BASE_URL', 'not a url'],
     ['ADMIN_SEED_EMAIL', 'admin'],
     ['PORT', '70000'],
+    ['MAIL_ENABLED', 'yes'],
+    ['SMTP_PORT', '0'],
+    ['SMTP_SECURE', 'maybe'],
+    ['APP_BASE_URL', 'not a url'],
   ])('rejects invalid %s', (key, value) => {
     expect(() => validateEnv({ ...base, [key]: value })).toThrow(
       new RegExp(key),

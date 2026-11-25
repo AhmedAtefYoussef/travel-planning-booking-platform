@@ -49,14 +49,19 @@ function setup(provider: { name: string } | null = { name: 'EgyptAir' }) {
   };
   const passwords = { hash: jest.fn().mockResolvedValue('temp-hash') };
   const audit = { record: jest.fn().mockResolvedValue(undefined) };
+  const email = {
+    notificationsCreated: jest.fn().mockResolvedValue(undefined),
+    moderatorInvited: jest.fn().mockResolvedValue(undefined),
+  };
   const service = new ModeratorsService(
     users as unknown as Model<User>,
     connection as unknown as Connection,
     providers as unknown as ProviderDirectoryService,
     passwords as unknown as PasswordService,
     audit,
+    email,
   );
-  return { service, users, providers, audit, newId };
+  return { service, users, providers, audit, email, newId };
 }
 
 async function failure(promise: Promise<unknown>): Promise<AppException> {
@@ -154,9 +159,32 @@ describe('ModeratorsService.create (ACC-13)', () => {
   });
 
   it('rethrows other errors (e.g. the audit write failing aborts the creation)', async () => {
-    const { service, audit } = setup();
+    const { service, audit, email } = setup();
     audit.record.mockRejectedValue(new Error('audit down'));
     await expect(service.create(ADMIN, dto())).rejects.toThrow('audit down');
+    expect(email.moderatorInvited).not.toHaveBeenCalled();
+  });
+
+  it('sends the invitation once the account is committed, without the temporary password (GEN-01-B)', async () => {
+    const { service, email } = setup();
+    await service.create(ADMIN, dto());
+    expect(email.moderatorInvited).toHaveBeenCalledTimes(1);
+    expect(email.moderatorInvited).toHaveBeenCalledWith({
+      name: 'EgyptAir Ops',
+      email: 'ops@egyptair.example',
+    });
+    expect(JSON.stringify(email.moderatorInvited.mock.calls)).not.toMatch(
+      /Temp2026x|temp-hash/,
+    );
+  });
+
+  it('sends no invitation when the creation fails with a duplicate email', async () => {
+    const { service, users, email } = setup();
+    users.create.mockRejectedValue(
+      Object.assign(new Error('E11000'), { code: 11000 }),
+    );
+    await failure(service.create(ADMIN, dto()));
+    expect(email.moderatorInvited).not.toHaveBeenCalled();
   });
 });
 
