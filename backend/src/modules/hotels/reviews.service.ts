@@ -1,11 +1,15 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Connection, Model, Types } from 'mongoose';
-import { assertOwner } from '../../common/auth/access';
-import type { AuthUser } from '../../common/auth/auth.types';
+import { assertOwner, assertProviderScope } from '../../common/auth/access';
+import { ProviderType, type AuthUser } from '../../common/auth/auth.types';
 import {
   ACTIVE_PROVIDER_FILTER,
+  AUDIT_SERVICE,
+  AuditAction,
+  AuditTargetType,
   VISIBLE_CONTENT_FILTER,
+  type AuditService,
 } from '../../common/contracts';
 import { AppException } from '../../common/errors/app.exception';
 import { ErrorCode } from '../../common/errors/error-codes';
@@ -14,6 +18,7 @@ import { AccountStatus, UsersService } from '../users';
 import type {
   CreateReviewDto,
   HotelRatingDto,
+  ReplyToReviewDto,
   ReviewDto,
   UpdateReviewDto,
 } from './dto/review.dto';
@@ -55,6 +60,7 @@ export class ReviewsService {
     @InjectConnection() private readonly connection: Connection,
     private readonly details: HotelDetailsService,
     private readonly users: UsersService,
+    @Inject(AUDIT_SERVICE) private readonly audit: AuditService,
   ) {}
 
   /**
@@ -141,6 +147,61 @@ export class ReviewsService {
         await this.recalculateRating(review.hotelId.toHexString(), session);
       }
     });
+  }
+
+  /**
+   * HTL-26: the moderator assigned to the review's hotel answers it. One reply per review: posting
+   * again replaces the text, keeps createdAt and bumps the reply's updatedAt. A hidden review (GEN-10)
+   * cannot be answered (409). The write only matches a still-visible review, so a hide at the same
+   * moment is not overwritten. The rating is not touched. The audit entry commits with the reply.
+   */
+  async reply(
+    user: AuthUser,
+    reviewId: string,
+    dto: ReplyToReviewDto,
+  ): Promise<ReviewDto> {
+    const review = Types.ObjectId.isValid(reviewId)
+      ? await this.reviews.findById(reviewId).lean<ReviewRow>().exec()
+      : null;
+    if (!review) throw notFound();
+    assertProviderScope(user, ProviderType.Hotel, review.hotelId);
+    if (review.isHidden) throw hidden();
+    const now = new Date();
+    const edited = review.reply !== undefined;
+    let updated: ReviewRow | null = null;
+    await this.inTransaction(async (session) => {
+      updated = await this.reviews
+        .findOneAndUpdate(
+          { _id: review._id, ...VISIBLE_CONTENT_FILTER },
+          {
+            $set: {
+              reply: {
+                text: dto.text,
+                moderatorId: new Types.ObjectId(user.id),
+                createdAt: review.reply?.createdAt ?? now,
+                updatedAt: now,
+              },
+            },
+          },
+          { new: true, runValidators: true, session, timestamps: false },
+        )
+        .lean<ReviewRow>()
+        .exec();
+      if (updated) {
+        await this.audit.record(
+          {
+            actor: { id: user.id, role: user.role },
+            action: AuditAction.ReplyReview,
+            targetType: AuditTargetType.Review,
+            targetId: reviewId,
+            metadata: { hotelId: review.hotelId.toHexString(), edited },
+          },
+          session,
+        );
+      }
+    });
+    if (!updated) throw hidden();
+    return this.toDto(updated);
   }
 
   /**
@@ -274,6 +335,15 @@ function toDto(r: ReviewRow, authors: ReadonlyMap<string, string>): ReviewDto {
     author: { id: authorId, name: authors.get(authorId) ?? DELETED_USER },
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    ...(r.reply
+      ? {
+          reply: {
+            text: r.reply.text,
+            createdAt: r.reply.createdAt,
+            updatedAt: r.reply.updatedAt,
+          },
+        }
+      : {}),
   };
 }
 
@@ -282,6 +352,14 @@ function notFound(): AppException {
     HttpStatus.NOT_FOUND,
     ErrorCode.NOT_FOUND,
     'Review not found',
+  );
+}
+
+function hidden(): AppException {
+  return new AppException(
+    HttpStatus.CONFLICT,
+    ErrorCode.REVIEW_HIDDEN,
+    'A hidden review cannot be answered',
   );
 }
 

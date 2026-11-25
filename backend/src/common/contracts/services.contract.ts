@@ -171,6 +171,8 @@ export enum AuditAction {
   ResolveReport = 'RESOLVE_REPORT',
   HideContent = 'HIDE_CONTENT',
   DeleteContent = 'DELETE_CONTENT',
+  /** HTL-26: a hotel moderator replied to (or edited the reply to) a review (target REVIEW). */
+  ReplyReview = 'REPLY_REVIEW',
 }
 
 export enum AuditTargetType {

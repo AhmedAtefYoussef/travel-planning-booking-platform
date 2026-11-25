@@ -1,6 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { IsWholeNumber, Omittable } from '../../../common/validation';
 import { MAX_REVIEW_TEXT } from '../schemas/review.schema';
 
@@ -52,6 +59,30 @@ export class UpdateReviewDto {
   text?: string;
 }
 
+/** HTL-26: a hotel moderator's reply to a review. */
+export class ReplyToReviewDto {
+  @ApiProperty({
+    example: 'Thank you for staying with us, we are glad you enjoyed the view.',
+    minLength: 1,
+    maxLength: MAX_REVIEW_TEXT,
+    description: `1 to ${MAX_REVIEW_TEXT} characters after trimming`,
+  })
+  @Transform(trim)
+  @IsString({ message: 'text must be a string' })
+  @IsNotEmpty({ message: 'text must not be empty' })
+  @MaxLength(MAX_REVIEW_TEXT, {
+    message: `text must be at most ${MAX_REVIEW_TEXT} characters`,
+  })
+  text!: string;
+}
+
+export class ReviewReplyDto {
+  @ApiProperty({ example: 'Thank you for staying with us.' }) text!: string;
+  @ApiProperty() createdAt!: Date;
+  @ApiProperty({ description: 'When the reply was last edited' })
+  updatedAt!: Date;
+}
+
 export class ReviewAuthorDto {
   @ApiProperty() id!: string;
   @ApiProperty({
@@ -69,6 +100,11 @@ export class ReviewDto {
   @ApiProperty({ example: 5, minimum: 1, maximum: 5 }) rating!: number;
   @ApiProperty({ example: 'Great view of the Nile.' }) text!: string;
   @ApiProperty({ type: ReviewAuthorDto }) author!: ReviewAuthorDto;
+  @ApiPropertyOptional({
+    type: ReviewReplyDto,
+    description: "The hotel's reply (HTL-26); absent until it answers",
+  })
+  reply?: ReviewReplyDto;
   @ApiProperty() createdAt!: Date;
   @ApiProperty() updatedAt!: Date;
 }

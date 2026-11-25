@@ -1,5 +1,10 @@
 import { Types } from 'mongoose';
-import { Role, type AuthUser } from '../../common/auth/auth.types';
+import {
+  ProviderType,
+  Role,
+  type AuthUser,
+} from '../../common/auth/auth.types';
+import { AuditAction, AuditTargetType } from '../../common/contracts';
 import { AccountStatus } from '../users';
 import { ReviewsService } from './reviews.service';
 
@@ -82,14 +87,16 @@ function setup(opts: {
       Promise.resolve(opts.profiles?.[id] ?? null),
     ),
   };
+  const audit = { record: jest.fn(() => Promise.resolve()) };
   const service = new ReviewsService(
     reviews as never,
     hotels as never,
     connection as never,
     details as never,
     users as never,
+    audit,
   );
-  return { service, reviews, hotels, sessions };
+  return { service, reviews, hotels, sessions, audit };
 }
 
 const stay = {
@@ -240,5 +247,101 @@ describe('ReviewsService (HTL-23, HTL-24)', () => {
     await expect(
       setup({ hotel: null }).service.listForHotel(HOTEL.toHexString(), 1),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  describe('HTL-26 reply', () => {
+    const MODERATOR = new Types.ObjectId();
+    const moderator = (hotelId = HOTEL): AuthUser => ({
+      id: MODERATOR.toHexString(),
+      role: Role.HotelModerator,
+      assignedProvider: {
+        type: ProviderType.Hotel,
+        providerId: hotelId.toHexString(),
+      },
+    });
+
+    it('stores the reply, audits it and leaves the rating alone', async () => {
+      const { service, reviews, hotels, audit } = setup({
+        profiles: {
+          [AUTHOR.toHexString()]: {
+            name: 'Mona',
+            status: AccountStatus.Active,
+          },
+        },
+      });
+      const dto = await service.reply(moderator(), REVIEW.toHexString(), {
+        text: 'Thank you!',
+      });
+      expect(dto.reply).toMatchObject({ text: 'Thank you!' });
+      expect(dto.reply).not.toHaveProperty('moderatorId');
+      expect(reviews.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: REVIEW, isHidden: { $ne: true } },
+        expect.anything(),
+        expect.objectContaining({ timestamps: false }),
+      );
+      expect(hotels.updateOne).not.toHaveBeenCalled();
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.ReplyReview,
+          targetType: AuditTargetType.Review,
+          targetId: REVIEW.toHexString(),
+          metadata: { hotelId: HOTEL.toHexString(), edited: false },
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('keeps createdAt when the reply is posted again', async () => {
+      const first = new Date('2026-11-02T08:00:00Z');
+      const { service, audit } = setup({
+        stored: reviewRow({
+          reply: {
+            text: 'Old',
+            moderatorId: MODERATOR,
+            createdAt: first,
+            updatedAt: first,
+          },
+        }),
+      });
+      const dto = await service.reply(moderator(), REVIEW.toHexString(), {
+        text: 'New',
+      });
+      expect(dto.reply).toMatchObject({ text: 'New', createdAt: first });
+      expect(dto.reply!.updatedAt.getTime()).toBeGreaterThan(first.getTime());
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ edited: true }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('404 for an unknown review', async () => {
+      const { service } = setup({ stored: null });
+      await expect(
+        service.reply(moderator(), REVIEW.toHexString(), { text: 'x' }),
+      ).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('403 for the moderator of another hotel, nothing written', async () => {
+      const { service, reviews, audit } = setup({});
+      await expect(
+        service.reply(moderator(new Types.ObjectId()), REVIEW.toHexString(), {
+          text: 'x',
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(reviews.findOneAndUpdate).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    it('409 REVIEW_HIDDEN for a hidden review', async () => {
+      const { service, reviews } = setup({
+        stored: reviewRow({ isHidden: true }),
+      });
+      await expect(
+        service.reply(moderator(), REVIEW.toHexString(), { text: 'x' }),
+      ).rejects.toMatchObject({ status: 409, code: 'REVIEW_HIDDEN' });
+      expect(reviews.findOneAndUpdate).not.toHaveBeenCalled();
+    });
   });
 });

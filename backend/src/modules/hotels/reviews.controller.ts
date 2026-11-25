@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Post,
   Query,
 } from '@nestjs/common';
 import {
@@ -27,10 +28,15 @@ import {
 } from '../../common/pagination/pagination';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ApiErrorResponses } from '../../common/swagger/api-responses.decorator';
-import { HotelRatingDto, ReviewDto, UpdateReviewDto } from './dto/review.dto';
+import {
+  HotelRatingDto,
+  ReplyToReviewDto,
+  ReviewDto,
+  UpdateReviewDto,
+} from './dto/review.dto';
 import { ReviewsService, type HotelReviewsPage } from './reviews.service';
 
-/** HTL-23: the author edits or deletes their review. */
+/** HTL-23: the author edits or deletes their review. HTL-26: the hotel's moderator replies. */
 @ApiTags('reviews')
 @Controller('reviews')
 export class ReviewsController {
@@ -84,6 +90,35 @@ export class ReviewsController {
     @Param('id', ParseObjectIdPipe) id: string,
   ): Promise<void> {
     return this.reviews.remove(user, id);
+  }
+
+  @Post(':id/reply')
+  @HttpCode(HttpStatus.OK)
+  @Roles(Role.HotelModerator)
+  @ApiOperation({
+    summary: 'HTL-26 Reply to a review of my hotel',
+    description:
+      "Only the moderator assigned to the review's hotel may reply (403 for any other moderator, a traveller or an admin; 404 for an unknown id). The reply is 1-1000 characters; it is shown with the review in GET /api/hotels/{id}/reviews. A review has one reply: posting again replaces its text (200 both times, the reply keeps its createdAt and gets a new updatedAt). A review hidden by an admin (GEN-10) cannot be answered (409 REVIEW_HIDDEN). The hotel's rating is not affected. The action is recorded in the audit log.",
+  })
+  @ApiParam({ name: 'id', description: 'Review id' })
+  @ApiBody({
+    type: ReplyToReviewDto,
+    examples: {
+      reply: {
+        summary: 'A reply',
+        value: { text: 'Thank you for staying with us!' },
+      },
+      invalid: { summary: 'Invalid: empty text (400)', value: { text: '  ' } },
+    },
+  })
+  @ApiOkResponse({ type: ReviewDto, description: 'The review with its reply' })
+  @ApiErrorResponses(400, 404, 409)
+  reply(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() dto: ReplyToReviewDto,
+  ): Promise<ReviewDto> {
+    return this.reviews.reply(user, id, dto);
   }
 }
 

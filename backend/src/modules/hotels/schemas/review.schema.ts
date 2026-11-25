@@ -7,6 +7,26 @@ export const REVIEWS_COLLECTION = 'reviews';
 
 export const MAX_REVIEW_TEXT = 1000;
 
+/** HTL-26: the hotel's public answer to a review; one per review, replaced when posted again. */
+@Schema({ _id: false })
+export class ReviewReply {
+  @Prop({
+    required: true,
+    trim: true,
+    minlength: 1,
+    maxlength: MAX_REVIEW_TEXT,
+  })
+  text: string;
+
+  /** The moderator who wrote the latest version; not shown publicly. */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
+  moderatorId: Types.ObjectId;
+
+  @Prop({ type: Date, required: true }) createdAt: Date;
+  @Prop({ type: Date, required: true }) updatedAt: Date;
+}
+const ReviewReplySchema = SchemaFactory.createForClass(ReviewReply);
+
 @Schema({ ...SCHEMA_OPTIONS, collection: REVIEWS_COLLECTION })
 export class Review {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Hotel', required: true })
@@ -32,6 +52,9 @@ export class Review {
   /** Hidden by a moderator; excluded from listings and the hotel rating (ContentFlags, GEN-10). */
   @Prop({ type: Boolean, default: false, index: true })
   isHidden: boolean;
+
+  /** HTL-26: the hotel's reply, absent until a moderator answers. */
+  @Prop({ type: ReviewReplySchema }) reply?: ReviewReply;
 
   createdAt: Date;
   updatedAt: Date;
