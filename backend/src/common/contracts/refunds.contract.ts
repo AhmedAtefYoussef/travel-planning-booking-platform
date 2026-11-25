@@ -98,6 +98,15 @@ export interface RefundsService {
     bookingType: BookingType,
     bookingId: string,
   ): Promise<RefundSummary | null>;
+
+  /**
+   * BON-01: what was actually refunded per booking, in one query. Only REFUNDED refunds count (PENDING
+   * and FAILED have not returned money); bookings without one are absent from the map.
+   */
+  refundedMinorFor(
+    bookingType: BookingType,
+    bookingIds: readonly string[],
+  ): Promise<Map<string, number>>;
 }
 
 /**

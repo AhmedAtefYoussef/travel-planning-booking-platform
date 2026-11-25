@@ -434,6 +434,47 @@ describe('RefundsServiceImpl (PAY-03, PAY-04)', () => {
     });
   });
 
+  describe('refundedMinorFor', () => {
+    it('BON-01 maps booking id -> amount for REFUNDED refunds only, in one query', async () => {
+      const { service, refunds } = setup();
+      const other = new Types.ObjectId();
+      refunds.find.mockReturnValueOnce({
+        lean: () =>
+          exec([
+            { bookingId: new Types.ObjectId(bookingId), amountMinor: 5_000 },
+            { bookingId: other, amountMinor: 700 },
+          ]),
+      } as never);
+      const result = await service.refundedMinorFor(BookingType.Flight, [
+        bookingId,
+        'not-an-id',
+      ]);
+      expect(result).toEqual(
+        new Map([
+          [bookingId, 5_000],
+          [other.toHexString(), 700],
+        ]),
+      );
+      expect(refunds.find).toHaveBeenCalledTimes(1);
+      expect(refunds.find).toHaveBeenCalledWith(
+        {
+          bookingType: BookingType.Flight,
+          bookingId: { $in: [new Types.ObjectId(bookingId)] },
+          status: RefundStatus.Refunded,
+        },
+        { bookingId: 1, amountMinor: 1 },
+      );
+    });
+
+    it('does not query when there is no valid id', async () => {
+      const { service, refunds } = setup();
+      await expect(
+        service.refundedMinorFor(BookingType.Hotel, ['x']),
+      ).resolves.toEqual(new Map());
+      expect(refunds.find).not.toHaveBeenCalled();
+    });
+  });
+
   describe('summaryFor', () => {
     it('PAY-03 returns the refund block, or null when the booking has none', async () => {
       const { service, refunds } = setup();

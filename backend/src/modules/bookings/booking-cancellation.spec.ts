@@ -48,6 +48,7 @@ function setup(opts: { moved?: number; refund?: string | null } = {}) {
       );
     }),
     summaryFor: jest.fn(),
+    refundedMinorFor: jest.fn(),
   };
   const notifications = {
     notify: jest.fn(() => {

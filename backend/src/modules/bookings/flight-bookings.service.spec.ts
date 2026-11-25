@@ -177,6 +177,7 @@ function setup(
     quote: jest.fn(computeRefundQuote),
     refundFor: jest.fn().mockResolvedValue(null),
     summaryFor: jest.fn().mockResolvedValue(null),
+    refundedMinorFor: jest.fn(),
   };
   const service = new FlightBookingsService(
     model as never,

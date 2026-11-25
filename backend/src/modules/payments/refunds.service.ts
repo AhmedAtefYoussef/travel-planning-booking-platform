@@ -222,6 +222,26 @@ export class RefundsServiceImpl
       : null;
   }
 
+  async refundedMinorFor(
+    bookingType: BookingType,
+    bookingIds: readonly string[],
+  ): Promise<Map<string, number>> {
+    const ids = bookingIds
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+    if (ids.length === 0) return new Map();
+    const refunded = await this.refunds
+      .find(
+        { bookingType, bookingId: { $in: ids }, status: RefundStatus.Refunded },
+        { bookingId: 1, amountMinor: 1 },
+      )
+      .lean()
+      .exec();
+    return new Map(
+      refunded.map((r) => [r.bookingId.toHexString(), r.amountMinor]),
+    );
+  }
+
   /** GET /api/refunds/:id: the owner or an admin; anyone else gets the 404 of an unknown id (ACC-11). */
   async findForUser(user: AuthUser, id: string): Promise<RefundDto> {
     const refund = Types.ObjectId.isValid(id)
