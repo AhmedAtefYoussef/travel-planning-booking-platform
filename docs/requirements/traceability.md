@@ -45,7 +45,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-18 | Mandatory | admin seed script (npm run seed) | Abdelrahman | TRVL-108 | #41 | Done |
 | ACC-02 | Bonus | GET /api/auth/verify-email | Team | TRVL-117 | - | Not started |
 | ACC-07 | Bonus | POST /api/auth/forgot-password; POST /api/auth/reset-password | Team | TRVL-118 | - | Not started |
-| BON-01 | Bonus | GET /api/admin/analytics (bookings module; backend/test/bon-01.e2e-spec.ts) | Ahmed | TRVL-126 | #PR | Done |
+| BON-01 | Bonus | GET /api/admin/analytics (bookings module; backend/test/bon-01.e2e-spec.ts) | Ahmed | TRVL-126 | #180 | Done |
 
 ## Flights
 
