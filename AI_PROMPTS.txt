@@ -2855,3 +2855,19 @@ the diff holds only the path-parameter order the current NestJS versions emit an
 description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
 OpenAPI contract check and the frontend typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-25
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Sonnet 5.5)
+Related Requirement: BLG-13 (TRVL-125)
+Prompt:
+Implement BLG-13 in the NestJS backend: an author can attach an itinerary to a post with
+PATCH /api/posts/:id/itinerary. The blog may only reach itineraries through the PUBLIC_ITINERARIES port.
+How the output was used:
+Claude added an optional itineraryId to the post schema, a PATCH route that reuses the author check of the
+post edit, and attachable() / summaries() on the PUBLIC_ITINERARIES port. A post embeds an itinerary
+summary only while the itinerary is public and not hidden (loaded in one query per list), and only the
+author sees the raw id. Another user's private itinerary answers 404. I reviewed the rules and ran the unit
+tests, the e2e tests and the full verify script.
+================================================

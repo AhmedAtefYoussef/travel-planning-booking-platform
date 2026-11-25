@@ -11765,6 +11765,127 @@
         "x-public": true
       }
     },
+    "/api/posts/{id}/itinerary": {
+      "patch": {
+        "description": "Send itineraryId: one of your own itineraries or any public one; null detaches it. An itinerary that does not exist, that an admin hid, or that is someone else’s private one is 404 (it is never revealed). Only the author may change the post (another user gets 403 for a published post, 404 for a draft). The post then shows an itinerary summary (title, countries, start date, days) while the itinerary is public; a private or deleted one shows no summary, and only the author sees the raw itineraryId.",
+        "operationId": "PostsController_attachItinerary",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Post id",
+            "examples": {
+              "valid": {
+                "summary": "A post id from GET /api/posts",
+                "value": "6af0f1c2c77901aa9f228700"
+              },
+              "invalid": {
+                "summary": "Invalid: 400 (not an id)",
+                "value": "not-an-id"
+              }
+            },
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachItineraryDto"
+              },
+              "examples": {
+                "attach": {
+                  "summary": "Attach an itinerary",
+                  "value": {
+                    "itineraryId": "6afb7a000000000000000001"
+                  }
+                },
+                "detach": {
+                  "summary": "Detach it",
+                  "value": {
+                    "itineraryId": null
+                  }
+                },
+                "invalid": {
+                  "summary": "Invalid: 400 (not an id)",
+                  "value": {
+                    "itineraryId": "not-an-id"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or malformed request (body contains fieldErrors, GEN-02)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not authenticated or session expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated but not allowed (role, ownership or provider scope)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "access_token": []
+          },
+          {
+            "dev-user": []
+          }
+        ],
+        "summary": "BLG-13 Author attaches an itinerary to their post",
+        "tags": [
+          "Blog"
+        ]
+      }
+    },
     "/api/posts/mine": {
       "get": {
         "description": "The caller’s own posts, newest first, 10 per page, with title, status, date, like count and comment count. Drafts and posts hidden by an admin are included.",
@@ -20364,6 +20485,45 @@
           "name"
         ]
       },
+      "PostItineraryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "6afb7a000000000000000001"
+          },
+          "title": {
+            "type": "string",
+            "example": "Spring in Egypt and France"
+          },
+          "countries": {
+            "example": [
+              "EG",
+              "FR"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startDate": {
+            "type": "string",
+            "example": "2027-03-01"
+          },
+          "days": {
+            "type": "number",
+            "example": 6,
+            "description": "Number of days"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "countries",
+          "startDate",
+          "days"
+        ]
+      },
       "PostDto": {
         "type": "object",
         "properties": {
@@ -20426,6 +20586,14 @@
             "example": false,
             "description": "Hidden by an admin (GEN-10); only the author and admins see it"
           },
+          "itinerary": {
+            "description": "BLG-13: the attached itinerary, present only while it is public and not hidden by an admin",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostItineraryDto"
+              }
+            ]
+          },
           "body": {
             "type": "string",
             "example": "We started at the Egyptian Museum, then walked to Khan el-Khalili..."
@@ -20443,6 +20611,12 @@
             "format": "date-time",
             "type": "string",
             "example": "2026-11-15T10:15:30.000Z"
+          },
+          "itineraryId": {
+            "type": "string",
+            "nullable": true,
+            "example": "6afb7a000000000000000001",
+            "description": "BLG-13: the attached itinerary id, shown only to the author (it may be private or deleted); null when none"
           }
         },
         "required": [
@@ -20502,6 +20676,20 @@
             "description": "Publish a draft, or move a published post back to draft."
           }
         }
+      },
+      "AttachItineraryDto": {
+        "type": "object",
+        "properties": {
+          "itineraryId": {
+            "type": "string",
+            "nullable": true,
+            "example": "6afb7a000000000000000001",
+            "description": "Id of one of your own itineraries or of any public one; null removes the attached itinerary. Someone else’s private itinerary is 404."
+          }
+        },
+        "required": [
+          "itineraryId"
+        ]
       },
       "PostSummaryDto": {
         "type": "object",
@@ -20564,6 +20752,14 @@
             "type": "boolean",
             "example": false,
             "description": "Hidden by an admin (GEN-10); only the author and admins see it"
+          },
+          "itinerary": {
+            "description": "BLG-13: the attached itinerary, present only while it is public and not hidden by an admin",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PostItineraryDto"
+              }
+            ]
           }
         },
         "required": [
