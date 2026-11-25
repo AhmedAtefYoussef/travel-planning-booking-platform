@@ -146,7 +146,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | BLG-09 | Mandatory | GET /api/posts?q= | Malak | TRVL-93 | #124 | Done |
 | BLG-10 | Mandatory | POST /api/posts/:id/images; DELETE /api/posts/:id/images/:imageId | Malak | TRVL-94 | #100 | Done |
 | BLG-12 | Mandatory | GET /api/authors/:id (posts; public itineraries through PUBLIC_ITINERARIES) | Malak | TRVL-95 | #101 | Done |
-| BLG-13 | Bonus | PATCH /api/posts/:id/itinerary | Ahmed | TRVL-125 | #PR | Done |
+| BLG-13 | Bonus | PATCH /api/posts/:id/itinerary | Ahmed | TRVL-125 | #182 | Done |
 
 ## Cross-cutting
 
