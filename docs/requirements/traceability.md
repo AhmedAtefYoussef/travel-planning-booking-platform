@@ -168,7 +168,7 @@ the PR merges (`Done` or `Partial: ...`), so no follow-up PR is needed.
 | ACC-19 | Mandatory | auth cookies; GET /api/auth/me | Abdelrahman | TRVL-112 | #43, #154 | Done |
 | GEN-14 | Mandatory | (frontend, Milestone 2) | Malak | TRVL-113 | - | Not started |
 | GEN-15 | Mandatory | (frontend, Milestone 2) | Joudy | TRVL-114 | - | Not started |
-| GEN-16 | Mandatory | (frontend, Milestone 2) | Sandra | TRVL-115 | - | Not started |
+| GEN-16 | Mandatory | (frontend, Milestone 2) frontend/src/shared (describe-error, use-save, form-alert, route-error, date-range-fields, lib/dates) | Sandra | TRVL-115 | #183 | Partial: shared feedback, error-recovery and date-range pieces; applied page by page with FE-08 and FE-09 |
 | GEN-17 | Mandatory | (frontend, Milestone 2) frontend/src/shared/ui, /design-system | Ahmed | TRVL-116 | #165 | Partial: design tokens (light and dark), shared UI kit and /design-system showcase; pages adopt it as they land |
 | GEN-01-B | Bonus | SMTP mailer (bonus) | Team | TRVL-119 | - | Not started |
 | BON-02 | Bonus | favourites (bonus) | Team | TRVL-127 | - | Not started |
