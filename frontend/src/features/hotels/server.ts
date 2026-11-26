@@ -7,4 +7,3 @@ export {
   type HotelResult,
   type SearchOutcome,
 } from './api/search.server';
-export { SearchResults } from './ui/search-results';
