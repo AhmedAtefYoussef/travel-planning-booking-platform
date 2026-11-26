@@ -2889,3 +2889,17 @@ loader, the form, the filter toolbar, the result cards, the page and the tests. 
 ran lint, typecheck, tests and build, and checked the page in a browser at 375 px and desktop against a
 local in-memory backend seeded with the demo data.
 ================================================
+
+================================================
+Date: 2026-11-26
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: FE-08 / HTL-11, HTL-12 (TRVL-152)
+Prompt:
+The hotel search PR is very large; split it so the team leader can review it properly (brief 10.5).
+How the output was used:
+Claude split FE-08 search along the feature's layers: the model and data loaders stay in the first PR,
+and this PR adds the presentation layer on top of it (search form, filter and sort toolbar, result
+cards, the results list and the /hotels page). No code changed in the split. I re-ran lint, typecheck,
+tests and build on both branches.
+================================================

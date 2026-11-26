@@ -7,3 +7,5 @@ export {
   type HotelSearch,
   type SearchFormValues,
 } from './model/search-params';
+export { SearchForm, type DestinationOption } from './ui/search-form';
+export { ResultsToolbar } from './ui/results-toolbar';
