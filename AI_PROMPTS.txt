@@ -2872,3 +2872,20 @@ same API), date helpers (todayIn, addDays, nightsBetween, validateStay) and Date
 RouteError used by app/error.tsx (Next 16 retry()) and an EmptyState-based not-found page. A Sonnet
 subagent wrote the unit and component tests. I reviewed the diff and ran lint, typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-26
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5 with a Sonnet subagent)
+Related Requirement: FE-08 / HTL-11, HTL-12 (TRVL-152)
+Prompt:
+Build the FE-08 hotel search page: destination (city or country), stay dates, guests and rooms, results
+with price per night and minimum rating filters and sort by price or rating, following the FE-06 flight
+search pattern (criteria in the URL, dynamic SSR, field errors from the API).
+How the output was used:
+Claude wrote the search-params model (the HTL-11 rules mirrored before sending, URL <-> API query, API
+field -> form field mapping) and a Sonnet subagent built the cached destination loader, the search
+loader, the form, the filter toolbar, the result cards, the page and the tests. I reviewed the diff,
+ran lint, typecheck, tests and build, and checked the page in a browser at 375 px and desktop against a
+local in-memory backend seeded with the demo data.
+================================================
