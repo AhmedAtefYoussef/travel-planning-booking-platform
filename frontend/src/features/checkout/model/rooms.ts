@@ -4,6 +4,7 @@
  * /hotel-bookings. Pure: no React, no fetch.
  */
 import { z } from 'zod';
+import { nightsBetween } from '@/shared/lib/dates';
 import { isRealDate } from './passengers';
 
 export const MAX_NIGHTS = 30;
@@ -39,14 +40,8 @@ function all(value: string | string[] | undefined): string[] {
   return (Array.isArray(value) ? value : [value]).filter(Boolean);
 }
 
-/** Nights between two real YYYY-MM-DD dates (check-out is the day of departure, not a night). */
-export function nightsBetween(checkIn: string, checkOut: string): number {
-  const toUtc = (ymd: string) => {
-    const [y, m, d] = ymd.split('-').map(Number);
-    return Date.UTC(y, m - 1, d);
-  };
-  return Math.round((toUtc(checkOut) - toUtc(checkIn)) / 86_400_000);
-}
+// Shared with hotel search and the moderator calendar (GEN-16 date helpers).
+export { nightsBetween };
 
 const WHOLE = /^\d{1,2}$/;
 

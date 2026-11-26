@@ -38,6 +38,9 @@ All components live in [`frontend/src/shared/ui`](../../frontend/src/shared/ui/)
 | `ConfirmDialog`      | [confirm-dialog.tsx](../../frontend/src/shared/ui/confirm-dialog.tsx)            | Confirm destructive or irreversible actions | GEN-03      |
 | `EmptyState`         | [empty-state.tsx](../../frontend/src/shared/ui/empty-state.tsx)                  | A list or page with no data                 | GEN-04      |
 | `ErrorState`         | [error-state.tsx](../../frontend/src/shared/ui/error-state.tsx)                  | A failed load, with optional retry          | GEN-16      |
+| `FormAlert`          | [form-alert.tsx](../../frontend/src/shared/ui/form-alert.tsx)                    | A form error that belongs to no field       | GEN-16      |
+| `RouteError`         | [route-error.tsx](../../frontend/src/shared/ui/route-error.tsx)                  | The body of every `error.tsx` boundary      | GEN-16      |
+| `DateRangeFields`    | [date-range-fields.tsx](../../frontend/src/shared/ui/date-range-fields.tsx)      | Stay or window dates with linked limits     | GEN-16      |
 | `Spinner`            | [spinner.tsx](../../frontend/src/shared/ui/spinner.tsx)                          | Short inline loading indicator              | GEN-04      |
 | `PageHeader`         | [page-header.tsx](../../frontend/src/shared/ui/page-header.tsx)                  | The `<h1>`, description and page actions    | GEN-17      |
 | `Pagination`         | [pagination.tsx](../../frontend/src/shared/ui/pagination.tsx)                    | Link-based paging of lists                  | GEN-05      |
@@ -76,6 +79,15 @@ Use `ConfirmDialog` for deletions, cancellations and anything irreversible. `onC
 - **Empty:** `EmptyState` with an icon, a title, a short description and a call-to-action.
 - **Loading:** `Skeleton` for page-shaped content, `Spinner` for short inline waits. Always give the loading indicator an accessible label.
 - **Error:** `ErrorState` with a human message; pass `onRetry` (client components only) when retrying makes sense.
+
+## Feedback after an action (GEN-16)
+
+Every write shows its outcome, and every error says how to recover.
+
+- **Saving a form:** `useSave(setError, fields)` from [`shared/forms/use-save.ts`](../../frontend/src/shared/forms/use-save.ts). `save(call, 'Saved')` toasts success and refreshes the server page; on failure it puts the API's `fieldErrors` on the inputs and returns the rest as `formError` for a `FormAlert` above the form.
+- **Wording an error:** `describeApiError(error)` from [`shared/api/describe-error.ts`](../../frontend/src/shared/api/describe-error.ts) returns `{ title, message, hint, recovery, retryable }`. It switches on the API `code`/status, never on message text: offline and 5xx offer a retry, 401 asks to sign in again, 409 keeps the server's message (it names what clashed) and suggests a refresh, 429 says how long to wait.
+- **A failed page:** add an `error.tsx` to the route segment that renders `<RouteError error={error} retry={retry} backHref={...} />`. Next 16's `retry()` re-fetches the segment.
+- **Preventing input errors:** `DateRangeFields` keeps the end date after the start and within the longest allowed range, and `validateStay()` from [`shared/lib/dates.ts`](../../frontend/src/shared/lib/dates.ts) mirrors the API's stay rules before sending. Dates stay `YYYY-MM-DD` strings in the provider's calendar (`todayIn(timeZone)`), so nights never shift with the visitor's time zone.
 
 ## Pagination (GEN-05)
 
