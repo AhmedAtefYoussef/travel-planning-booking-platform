@@ -2855,3 +2855,20 @@ the diff holds only the path-parameter order the current NestJS versions emit an
 description (access_token cookie path / since PR #154). It regenerated the frontend types and ran the
 OpenAPI contract check and the frontend typecheck, tests and build.
 ================================================
+
+================================================
+Date: 2026-11-26
+Student: Sandra George
+Tool: Claude Code (Claude Opus 5.5)
+Related Requirement: GEN-16 (TRVL-115)
+Prompt:
+Plan my Milestone 2 tasks (FE-08 hotel search, FE-09 hotel dashboard, GEN-16) from the project brief,
+the requirements workbook and Jira, then build the shared GEN-16 feedback pieces first so every page
+gives clear loading, success and error feedback and prevents common input errors.
+How the output was used:
+Claude added describeApiError (an error -> title, message and recovery hint mapper keyed on the API
+code and status), a shared FormAlert and useSave (promoted from the FE-07 airline dashboard with the
+same API), date helpers (todayIn, addDays, nightsBetween, validateStay) and DateRangeFields, and a
+RouteError used by app/error.tsx (Next 16 retry()) and an EmptyState-based not-found page. A Sonnet
+subagent wrote the unit and component tests. I reviewed the diff and ran lint, typecheck, tests and build.
+================================================

@@ -2,10 +2,11 @@
 
 /** Last-resort boundary when the root layout itself fails; it must render its own html and body. */
 export default function GlobalError({
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  /** Next 16: re-fetches and re-renders, unlike reset(), which only re-renders. */
+  retry: () => void;
 }) {
   return (
     <html lang="en">
@@ -19,7 +20,7 @@ export default function GlobalError({
       >
         <h1>Something went wrong</h1>
         <p>The application could not be loaded. Please try again.</p>
-        <button type="button" onClick={reset}>
+        <button type="button" onClick={retry}>
           Try again
         </button>
       </body>
